@@ -8,7 +8,6 @@ const navItems = [
   { name: 'Clientes', path: '/clientes', icon: Users },
   { name: 'Projetos', path: '/bases', icon: Database },
   { name: 'Léo Madeiras', path: '/leo-madeiras', icon: Cloud },
-  { name: 'Usuários (GPO)', path: '/usuarios', icon: Server },
 ]
 
 export function Sidebar() {
