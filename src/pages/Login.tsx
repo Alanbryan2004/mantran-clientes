@@ -1,11 +1,7 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-interface LoginProps {
-  onLogin: () => void
-}
-
-export function Login({ onLogin }: LoginProps) {
+export function Login() {
   const [login, setLogin] = useState('')
   const [senha, setSenha] = useState('')
   const [error, setError] = useState('')

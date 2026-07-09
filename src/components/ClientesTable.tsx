@@ -1,4 +1,3 @@
-import React from 'react'
 import type { BaseMantran } from '../data/mockBases'
 import clsx from 'clsx'
 import { Users, Blocks, Pencil, Trash2 } from 'lucide-react'
@@ -50,7 +49,7 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
           </tr>
         </thead>
         <tbody>
-          {clientes.map((cliente, index) => (
+          {clientes.map((cliente) => (
             <tr 
               key={cliente.id} 
               className={clsx(

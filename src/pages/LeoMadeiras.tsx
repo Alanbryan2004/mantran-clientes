@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Search, Building } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { LeoMadeirasTable } from '../components/LeoMadeirasTable'

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Plus, Trash2, Database, LayoutTemplate } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import clsx from 'clsx'
@@ -262,50 +262,37 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
               </div>
 
               <div className="space-y-3">
-                {colunas.map((col, idx) => (
-                  <div key={col.id} className="flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-slate-800/40 p-3 rounded-lg border border-slate-700">
+                {colunas.map((coluna) => (
+                  <div key={coluna.id} className="grid grid-cols-[1fr_auto] gap-2 items-end bg-slate-900/30 p-3 rounded-lg border border-slate-800/50 relative group">
                     <div className="flex-1 w-full">
                       <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 block">Nome da Coluna</label>
                       <input
                         type="text"
-                        value={col.nome}
-                        onChange={e => handleChangeColuna(col.id, 'nome', e.target.value)}
+                        value={coluna.nome}
+                        onChange={e => handleChangeColuna(coluna.id, 'nome', e.target.value)}
                         className="input-field w-full h-9 text-sm"
                         placeholder="Ex: Treinamento Realizado"
                       />
                     </div>
-                    <div className="w-full sm:w-40">
+                    <div className="w-full sm:w-48">
                       <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 block">Tipo de Dado</label>
                       <select
-                        value={col.tipo}
-                        onChange={e => handleChangeColuna(col.id, 'tipo', e.target.value)}
-                        className="input-field w-full h-9 text-sm py-0"
+                        value={coluna.tipo}
+                        onChange={e => handleChangeColuna(coluna.id, 'tipo', e.target.value as any)}
+                        className="input-field w-full h-9 text-sm pr-8"
                       >
-                        <option value="STATUS">Status (OK/Pendente)</option>
-                        <option value="DATA">Data</option>
-                        <option value="TEXTO">Texto Livre</option>
+                        <option value="texto">Texto Curto</option>
+                        <option value="data">Data (DD/MM/AAAA)</option>
+                        <option value="status">Status (OK/PENDENTE)</option>
                       </select>
                     </div>
-                    <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start pt-4 sm:pt-0 gap-4">
-                      <label className="flex items-center space-x-2 cursor-pointer group mt-4">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 accent-brand-500"
-                          checked={col.indicador_conclusao}
-                          onChange={e => handleChangeColuna(col.id, 'indicador_conclusao', e.target.checked)}
-                        />
-                        <span className="text-xs font-medium text-slate-400 group-hover:text-slate-300">
-                          Indicador de Conclusão?
-                        </span>
-                      </label>
-                      <button 
-                        onClick={() => handleRemoveColuna(col.id)}
-                        className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded mt-4"
-                        title="Remover Coluna"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <button 
+                      onClick={() => handleRemoveColuna(coluna.id)}
+                      className="h-9 px-3 bg-slate-800/80 hover:bg-red-900/40 text-slate-400 hover:text-red-400 rounded border border-slate-700 hover:border-red-900/50 transition-colors flex items-center justify-center shrink-0"
+                      title="Remover Coluna"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 ))}
               </div>

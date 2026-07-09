@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import type { BaseMantran } from '../data/mockBases'
 import { ClientesTable } from '../components/ClientesTable'
 import { NovoClienteModal } from '../components/NovoClienteModal'

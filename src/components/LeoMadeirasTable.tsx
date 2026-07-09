@@ -1,4 +1,3 @@
-import React from 'react'
 import clsx from 'clsx'
 import { Users, Blocks, Pencil, Trash2 } from 'lucide-react'
 

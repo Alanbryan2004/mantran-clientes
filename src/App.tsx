@@ -27,7 +27,7 @@ function App() {
   }
 
   if (!isAuthenticated) {
-    return <Login onLogin={() => setIsAuthenticated(true)} />
+    return <Login />
   }
 
   return (

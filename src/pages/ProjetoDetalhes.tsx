@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Circle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 export function ProjetoDetalhes() {
