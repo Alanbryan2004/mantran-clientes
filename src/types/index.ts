@@ -2,6 +2,7 @@ export interface Cliente {
   id: string
   nome_empresa: string
   tipo: string
+  possui_aditivo?: boolean
   created_at: string
 }
 

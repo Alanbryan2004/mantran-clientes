@@ -9,6 +9,7 @@ export interface BaseMantran {
   lic: 'OK' | 'NOK' | '';
   dblogin: 'OK' | 'NOK' | '';
   senha: string;
+  possui_aditivo?: boolean;
 }
 
 const initialBases: BaseMantran[] = [

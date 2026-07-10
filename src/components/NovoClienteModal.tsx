@@ -14,6 +14,7 @@ export function NovoClienteModal({ isOpen, onClose, availableBases, onSave }: No
   const [empresa, setEmpresa] = useState('')
   const [tipo, setTipo] = useState<'SHOPEE' | 'NORMAL' | ''>('NORMAL')
   const [senha, setSenha] = useState('')
+  const [possuiAditivo, setPossuiAditivo] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -22,6 +23,7 @@ export function NovoClienteModal({ isOpen, onClose, availableBases, onSave }: No
       setEmpresa('')
       setTipo('NORMAL')
       setSenha('')
+      setPossuiAditivo(false)
     }
   }, [isOpen, availableBases])
 
@@ -37,7 +39,8 @@ export function NovoClienteModal({ isOpen, onClose, availableBases, onSave }: No
     onSave(selectedBase, {
       empresa: empresa.toUpperCase(),
       tipo,
-      senha
+      senha,
+      possui_aditivo: possuiAditivo
     })
     onClose()
   }
@@ -100,6 +103,18 @@ export function NovoClienteModal({ isOpen, onClose, availableBases, onSave }: No
                 className="input-field"
                 placeholder="Ex: @@senha##"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Possui Aditivo?</label>
+              <select 
+                value={possuiAditivo ? 'SIM' : 'NAO'} 
+                onChange={(e) => setPossuiAditivo(e.target.value === 'SIM')} 
+                className="input-field"
+              >
+                <option value="NAO">NÃO</option>
+                <option value="SIM">SIM</option>
+              </select>
             </div>
 
 

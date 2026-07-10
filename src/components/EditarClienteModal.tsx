@@ -6,19 +6,21 @@ interface EditarClienteModalProps {
   isOpen: boolean
   onClose: () => void
   cliente: BaseMantran | null
-  onSave: (clienteDbId: string, data: { empresa: string, tipo: string, senha: string }) => void
+  onSave: (clienteDbId: string, data: { empresa: string, tipo: string, senha: string, possui_aditivo?: boolean }) => void
 }
 
 export function EditarClienteModal({ isOpen, onClose, cliente, onSave }: EditarClienteModalProps) {
   const [empresa, setEmpresa] = useState('')
   const [tipo, setTipo] = useState<'SHOPEE' | 'NORMAL' | ''>('NORMAL')
   const [senha, setSenha] = useState('')
+  const [possuiAditivo, setPossuiAditivo] = useState(false)
 
   useEffect(() => {
     if (isOpen && cliente) {
       setEmpresa(cliente.empresa)
       setTipo(cliente.tipo as any || 'NORMAL')
       setSenha(cliente.senha || '')
+      setPossuiAditivo(cliente.possui_aditivo || false)
     }
   }, [isOpen, cliente])
 
@@ -29,7 +31,8 @@ export function EditarClienteModal({ isOpen, onClose, cliente, onSave }: EditarC
     onSave(cliente.clienteDbId, {
       empresa: empresa.toUpperCase(),
       tipo,
-      senha
+      senha,
+      possui_aditivo: possuiAditivo
     })
   }
 
@@ -89,6 +92,20 @@ export function EditarClienteModal({ isOpen, onClose, cliente, onSave }: EditarC
               className="input-field font-mono"
               placeholder="Ex: @@mtr002##"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Possui Aditivo?
+            </label>
+            <select 
+              value={possuiAditivo ? 'SIM' : 'NAO'} 
+              onChange={e => setPossuiAditivo(e.target.value === 'SIM')}
+              className="input-field"
+            >
+              <option value="NAO">NÃO</option>
+              <option value="SIM">SIM</option>
+            </select>
           </div>
 
           <div className="pt-4 flex space-x-3">

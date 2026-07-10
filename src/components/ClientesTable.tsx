@@ -45,6 +45,7 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
             <th className="px-4 py-3 font-semibold text-center">USUÁRIOS</th>
             <th className="px-4 py-3 font-semibold text-center">MÓDULOS</th>
             <th className="px-4 py-3 font-semibold">SENHA</th>
+            <th className="px-4 py-3 font-semibold text-center">ADITIVO</th>
             <th className="px-4 py-3 font-semibold text-center">AÇÕES</th>
           </tr>
         </thead>
@@ -69,7 +70,7 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
                 return (
                   <td key={col} className="px-4 py-2 text-center">
                     {val ? (
-                      <span className={clsx("px-2.5 py-0.5 rounded text-xs font-medium inline-flex items-center", getBadgeStyle(col, val))}>
+                      <span className={clsx("px-2.5 py-0.5 rounded text-xs font-medium inline-flex items-center", getBadgeStyle(col, val as string))}>
                         {val}
                         <svg className="w-3 h-3 ml-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                       </span>
@@ -106,6 +107,16 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
               
               <td className="px-4 py-2 text-slate-400 font-mono text-xs">
                 {cliente.senha}
+              </td>
+
+              <td className="px-4 py-2 text-center">
+                {cliente.empresa && cliente.clienteDbId ? (
+                  cliente.possui_aditivo ? (
+                    <span className="px-2 py-0.5 bg-brand-500/20 text-brand-400 text-xs font-medium rounded border border-brand-500/30">SIM</span>
+                  ) : (
+                    <span className="px-2 py-0.5 bg-slate-800/50 text-slate-500 text-xs font-medium rounded border border-slate-700/50">NÃO</span>
+                  )
+                ) : <span className="text-slate-600">-</span>}
               </td>
 
               <td className="px-4 py-2 text-center whitespace-nowrap space-x-2">

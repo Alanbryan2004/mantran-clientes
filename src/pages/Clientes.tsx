@@ -37,9 +37,13 @@ export function Clientes() {
     setIsEditModalOpen(true)
   }
 
-  const handleSaveEdit = async (clienteDbId: string, data: { empresa: string, tipo: string, senha: string }) => {
+  const handleSaveEdit = async (clienteDbId: string, data: { empresa: string, tipo: string, senha: string, possui_aditivo?: boolean }) => {
     try {
-      await supabase.from('clientes').update({ nome_empresa: data.empresa, tipo: data.tipo }).eq('id', clienteDbId)
+      await supabase.from('clientes').update({ 
+        nome_empresa: data.empresa, 
+        tipo: data.tipo,
+        possui_aditivo: data.possui_aditivo
+      }).eq('id', clienteDbId)
       if (data.senha) {
         // Try to update existing user passwords
         const { data: users } = await supabase.from('usuarios_gpo').select('id').eq('cliente_id', clienteDbId)
@@ -159,6 +163,7 @@ export function Clientes() {
             id,
             nome_empresa,
             tipo,
+            possui_aditivo,
             modulos (nome_modulo, ativo),
             usuarios_gpo (login, senha)
           )
@@ -176,6 +181,7 @@ export function Clientes() {
             clienteDbId: cliente?.id,
             empresa: cliente?.nome_empresa || '',
             tipo: cliente?.tipo || '',
+            possui_aditivo: cliente?.possui_aditivo || false,
             migradas: b.migrada ? 'OK' : (cliente ? 'NOK' : ''),
             ts: '', servico: '', lic: '', dblogin: '', senha: ''
           }
@@ -216,7 +222,11 @@ export function Clientes() {
       // 2. Inserir Cliente
       const { data: clienteData, error: clienteError } = await supabase
         .from('clientes')
-        .insert([{ nome_empresa: data.empresa, tipo: data.tipo }])
+        .insert([{ 
+          nome_empresa: data.empresa, 
+          tipo: data.tipo,
+          possui_aditivo: data.possui_aditivo || false
+        }])
         .select()
         .single()
 
