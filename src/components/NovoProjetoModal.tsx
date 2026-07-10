@@ -263,36 +263,52 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
 
               <div className="space-y-3">
                 {colunas.map((coluna) => (
-                  <div key={coluna.id} className="grid grid-cols-[1fr_auto] gap-2 items-end bg-slate-900/30 p-3 rounded-lg border border-slate-800/50 relative group">
-                    <div className="flex-1 w-full">
-                      <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 block">Nome da Coluna</label>
-                      <input
-                        type="text"
-                        value={coluna.nome}
-                        onChange={e => handleChangeColuna(coluna.id, 'nome', e.target.value)}
-                        className="input-field w-full h-9 text-sm"
-                        placeholder="Ex: Treinamento Realizado"
-                      />
+                  <div key={coluna.id} className="flex flex-col gap-3 bg-slate-900/30 p-4 rounded-lg border border-slate-800/50 relative group transition-colors hover:border-slate-700">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="flex-1">
+                        <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 block">Nome da Coluna</label>
+                        <input
+                          type="text"
+                          value={coluna.nome}
+                          onChange={e => handleChangeColuna(coluna.id, 'nome', e.target.value)}
+                          className="input-field w-full h-10 text-sm"
+                          placeholder="Ex: Treinamento Realizado"
+                        />
+                      </div>
+                      <div className="w-full sm:w-48">
+                        <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 block">Tipo de Dado</label>
+                        <select
+                          value={coluna.tipo}
+                          onChange={e => handleChangeColuna(coluna.id, 'tipo', e.target.value as any)}
+                          className="input-field w-full h-10 text-sm pr-8"
+                        >
+                          <option value="texto">Texto Curto</option>
+                          <option value="data">Data (DD/MM/AAAA)</option>
+                          <option value="status">Status (OK/PENDENTE)</option>
+                        </select>
+                      </div>
                     </div>
-                    <div className="w-full sm:w-48">
-                      <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 block">Tipo de Dado</label>
-                      <select
-                        value={coluna.tipo}
-                        onChange={e => handleChangeColuna(coluna.id, 'tipo', e.target.value as any)}
-                        className="input-field w-full h-9 text-sm pr-8"
+                    
+                    <div className="flex items-center justify-between pt-3 mt-1 border-t border-slate-800/50">
+                      <label className="flex items-center space-x-2 cursor-pointer group/check select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={coluna.indicador_conclusao}
+                          onChange={e => handleChangeColuna(coluna.id, 'indicador_conclusao', e.target.checked)}
+                          className="accent-brand-500 w-4 h-4 cursor-pointer"
+                        />
+                        <span className="text-xs text-slate-400 group-hover/check:text-slate-300 transition-colors">
+                          Usar como <span className="font-bold text-brand-400">Indicador de Conclusão</span>
+                        </span>
+                      </label>
+                      <button 
+                        onClick={() => handleRemoveColuna(coluna.id)}
+                        className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors p-1.5 rounded-lg flex items-center justify-center"
+                        title="Remover Coluna"
                       >
-                        <option value="texto">Texto Curto</option>
-                        <option value="data">Data (DD/MM/AAAA)</option>
-                        <option value="status">Status (OK/PENDENTE)</option>
-                      </select>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button 
-                      onClick={() => handleRemoveColuna(coluna.id)}
-                      className="h-9 px-3 bg-slate-800/80 hover:bg-red-900/40 text-slate-400 hover:text-red-400 rounded border border-slate-700 hover:border-red-900/50 transition-colors flex items-center justify-center shrink-0"
-                      title="Remover Coluna"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
                 ))}
               </div>
