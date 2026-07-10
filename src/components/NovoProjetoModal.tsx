@@ -7,6 +7,7 @@ interface Base {
   id: string
   nome_base: string
   empresa?: string
+  tipo?: string
 }
 
 interface ColunaDef {
@@ -37,6 +38,7 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
 
   const [loading, setLoading] = useState(false)
   const [searchBase, setSearchBase] = useState('')
+  const [filterTipo, setFilterTipo] = useState('ALL')
 
   useEffect(() => {
     if (isOpen) {
@@ -55,14 +57,15 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
   const fetchBases = async () => {
     const { data } = await supabase
       .from('bases')
-      .select(`id, nome_base, clientes ( nome_empresa )`)
+      .select(`id, nome_base, clientes ( nome_empresa, tipo )`)
       .order('nome_base', { ascending: true })
 
     if (data) {
       const formatted = data.map((d: any) => ({
         id: d.id,
         nome_base: d.nome_base,
-        empresa: d.clientes?.nome_empresa
+        empresa: d.clientes?.nome_empresa,
+        tipo: d.clientes?.tipo || ''
       }))
       setBases(formatted)
     }
@@ -94,10 +97,12 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
   }
 
   const selectAllFiltered = () => {
-    const filtered = bases.filter(b => 
-      b.nome_base.toLowerCase().includes(searchBase.toLowerCase()) || 
-      (b.empresa && b.empresa.toLowerCase().includes(searchBase.toLowerCase()))
-    )
+    const filtered = bases.filter(b => {
+      const matchSearch = b.nome_base.toLowerCase().includes(searchBase.toLowerCase()) || 
+        (b.empresa && b.empresa.toLowerCase().includes(searchBase.toLowerCase()))
+      const matchTipo = filterTipo === 'ALL' || b.tipo === filterTipo
+      return matchSearch && matchTipo
+    })
     const newSelected = [...selectedBases]
     filtered.forEach(f => {
       if (!newSelected.includes(f.id)) newSelected.push(f.id)
@@ -157,10 +162,12 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
 
   if (!isOpen) return null
 
-  const filteredBases = bases.filter(b => 
-    b.nome_base.toLowerCase().includes(searchBase.toLowerCase()) || 
-    (b.empresa && b.empresa.toLowerCase().includes(searchBase.toLowerCase()))
-  )
+  const filteredBases = bases.filter(b => {
+    const matchSearch = b.nome_base.toLowerCase().includes(searchBase.toLowerCase()) || 
+      (b.empresa && b.empresa.toLowerCase().includes(searchBase.toLowerCase()))
+    const matchTipo = filterTipo === 'ALL' || b.tipo === filterTipo
+    return matchSearch && matchTipo
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -209,13 +216,24 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
                   </button>
                 </div>
                 
-                <input
-                  type="text"
-                  value={searchBase}
-                  onChange={e => setSearchBase(e.target.value)}
-                  className="input-field w-full mb-3"
-                  placeholder="Pesquisar base ou empresa..."
-                />
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={searchBase}
+                    onChange={e => setSearchBase(e.target.value)}
+                    className="input-field flex-1"
+                    placeholder="Pesquisar base ou empresa..."
+                  />
+                  <select 
+                    value={filterTipo}
+                    onChange={e => setFilterTipo(e.target.value)}
+                    className="input-field w-36 shrink-0"
+                  >
+                    <option value="ALL">Todos Tipos</option>
+                    <option value="NORMAL">Normal</option>
+                    <option value="SHOPEE">Shopee</option>
+                  </select>
+                </div>
 
                 <div className="border border-slate-700/50 rounded-lg max-h-64 overflow-y-auto p-2 bg-slate-900/50 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                   {filteredBases.map(b => (
@@ -282,9 +300,9 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
                           onChange={e => handleChangeColuna(coluna.id, 'tipo', e.target.value as any)}
                           className="input-field w-full h-10 text-sm pr-8"
                         >
-                          <option value="texto">Texto Curto</option>
-                          <option value="data">Data (DD/MM/AAAA)</option>
-                          <option value="status">Status (OK/PENDENTE)</option>
+                          <option value="TEXTO">Texto Curto</option>
+                          <option value="DATA">Data (DD/MM/AAAA)</option>
+                          <option value="STATUS">Status (OK/PENDENTE)</option>
                         </select>
                       </div>
                     </div>

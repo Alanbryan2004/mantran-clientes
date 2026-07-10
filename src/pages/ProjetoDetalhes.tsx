@@ -115,8 +115,9 @@ export function ProjetoDetalhes() {
       indicadores.forEach(ind => {
         const val = dados[`${base.id}_${ind.id}`]
         // Regra de conclusão: se for STATUS, tem que ser 'OK'. Se for texto/data, só de não ser vazio já conta.
-        if (ind.tipo === 'STATUS' && val !== 'OK') isBaseDone = false
-        if (ind.tipo !== 'STATUS' && (!val || val.trim() === '')) isBaseDone = false
+        const tipo = ind.tipo?.toUpperCase()
+        if (tipo === 'STATUS' && val !== 'OK') isBaseDone = false
+        if (tipo !== 'STATUS' && (!val || val.trim() === '')) isBaseDone = false
       })
       if (isBaseDone) concluidos++
     })
@@ -202,7 +203,7 @@ export function ProjetoDetalhes() {
 
                     return (
                       <td key={col.id} className="px-6 py-2">
-                        {col.tipo === 'STATUS' ? (
+                        {col.tipo?.toUpperCase() === 'STATUS' ? (
                           <select
                             value={valor}
                             onChange={(e) => handleUpdateDado(base.id, col.id, e.target.value)}
@@ -216,7 +217,7 @@ export function ProjetoDetalhes() {
                             <option value="OK">OK</option>
                             <option value="PENDENTE">PENDENTE</option>
                           </select>
-                        ) : col.tipo === 'DATA' ? (
+                        ) : col.tipo?.toUpperCase() === 'DATA' ? (
                           <input
                             type="date"
                             value={valor}
