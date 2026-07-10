@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, LayoutTemplate, ArrowRight } from 'lucide-react'
+import { Plus, LayoutTemplate, ArrowRight, Settings, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { NovoProjetoModal } from '../components/NovoProjetoModal'
 import { useNavigate } from 'react-router-dom'
@@ -15,6 +15,7 @@ export function Bases() {
   const [projetos, setProjetos] = useState<Projeto[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -38,8 +39,20 @@ export function Bases() {
     }
   }
 
+  const handleDeleteProjeto = async (id: string, nome: string) => {
+    if (window.confirm(`Tem certeza que deseja EXCLUIR o projeto "${nome}"?\n\nIsso apagará todas as colunas, células e dados deste projeto permanentemente.`)) {
+      try {
+        const { error } = await supabase.from('projetos').delete().eq('id', id)
+        if (error) throw error
+        fetchProjetos()
+      } catch (err: any) {
+        alert('Erro ao excluir projeto: ' + err.message)
+      }
+    }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onClick={() => setOpenMenuId(null)}>
       <div className="flex justify-between items-center mb-8">
         <div>
           <h2 className="text-3xl font-bold text-slate-100">Projetos Executados</h2>
@@ -78,18 +91,47 @@ export function Bases() {
           {projetos.map(proj => (
             <div 
               key={proj.id} 
-              className="bg-dark-card border border-slate-800 rounded-xl p-6 hover:border-brand-500/50 transition-all duration-300 group cursor-pointer shadow-lg relative overflow-hidden"
+              className="bg-dark-card border border-slate-800 rounded-xl p-6 hover:border-brand-500/50 transition-all duration-300 group cursor-pointer shadow-lg relative overflow-visible"
               onClick={() => navigate(`/bases/${proj.id}`)}
             >
               <div className="absolute top-0 left-0 w-1 h-full bg-brand-500 rounded-l-xl"></div>
               
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-lg font-bold text-white group-hover:text-brand-400 transition-colors line-clamp-2">
+              <div className="flex justify-between items-start mb-4 relative">
+                <h3 className="text-lg font-bold text-white group-hover:text-brand-400 transition-colors line-clamp-2 pr-8">
                   {proj.nome}
                 </h3>
+                
+                <div className="absolute -top-2 -right-2">
+                  <button 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      setOpenMenuId(openMenuId === proj.id ? null : proj.id) 
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors focus:outline-none"
+                  >
+                    <Settings className="w-5 h-5" />
+                  </button>
+                  
+                  {openMenuId === proj.id && (
+                    <div className="absolute right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 origin-top-right z-50">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); alert('Em breve: tela de configurações do projeto.') }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white flex items-center gap-2 transition-colors"
+                      >
+                        <Settings className="w-4 h-4" /> Editar Projeto
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDeleteProjeto(proj.id, proj.nome) }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors border-t border-slate-700/50"
+                      >
+                        <Trash2 className="w-4 h-4" /> Excluir Projeto
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               
-              <div className="flex items-center space-x-2 mb-4">
+              <div className="flex items-center space-x-2 mb-4 mt-2">
                 <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full border ${
                   proj.status === 'Concluído' 
                     ? 'bg-green-500/10 text-green-400 border-green-500/20' 
