@@ -112,7 +112,7 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
               <td className="px-4 py-2 text-center">
                 {cliente.empresa && cliente.clienteDbId ? (
                   cliente.possui_aditivo ? (
-                    <span className="px-2 py-0.5 bg-brand-500/20 text-brand-400 text-xs font-medium rounded border border-brand-500/30">SIM</span>
+                    <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-medium rounded border border-green-500/30">SIM</span>
                   ) : (
                     <span className="px-2 py-0.5 bg-slate-800/50 text-slate-500 text-xs font-medium rounded border border-slate-700/50">NÃO</span>
                   )
