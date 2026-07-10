@@ -16,7 +16,7 @@ export function Login() {
       const { data, error: fetchError } = await supabase
         .from('usuario')
         .select('*')
-        .eq('login', login.toLowerCase())
+        .ilike('login', login)
         .eq('senha', senha)
         .eq('ativo', true)
         .single()
