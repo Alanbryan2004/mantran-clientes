@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Database, Users, Server, LogOut, Menu, Cloud } from 'lucide-react'
+import { LayoutDashboard, Database, Users, LogOut, Menu, Cloud } from 'lucide-react'
 import clsx from 'clsx'
 
 const navItems = [
