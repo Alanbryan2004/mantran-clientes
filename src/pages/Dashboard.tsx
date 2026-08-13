@@ -34,8 +34,26 @@ export function Dashboard() {
   const fetchStats = async () => {
     setLoading(true)
     try {
-      const bases = await api.getBases()
-      const clientes = await api.getClientes()
+      // Parallel fast fetching for smooth rendering
+      const [basesRes, clientesRes, leoRes, impRes, projsRes, colsRes, pBasesRes, dadosRes] = await Promise.allSettled([
+        api.getBases(),
+        api.getClientes(),
+        api.getLeoEmpresas(),
+        api.getImplantacoes(),
+        api.getProjetosAtivos(),
+        api.getProjetoColunas(),
+        api.getProjetoBases(),
+        api.getProjetoDados()
+      ])
+
+      const bases = basesRes.status === 'fulfilled' ? basesRes.value : []
+      const clientes = clientesRes.status === 'fulfilled' ? clientesRes.value : []
+      const clientesLeo = leoRes.status === 'fulfilled' ? leoRes.value : []
+      const implantacoes = impRes.status === 'fulfilled' ? impRes.value : []
+      const projs = projsRes.status === 'fulfilled' ? projsRes.value : []
+      const pCols = colsRes.status === 'fulfilled' ? colsRes.value : []
+      const pBases = pBasesRes.status === 'fulfilled' ? pBasesRes.value : []
+      const pDados = dadosRes.status === 'fulfilled' ? dadosRes.value : []
       
       if (bases && clientes) {
         const testClientIds = new Set(clientes.filter((c: any) => c.tipo === 'TESTE').map((c: any) => c.id))
@@ -45,7 +63,6 @@ export function Dashboard() {
         
         const clientesShopee = clientes.filter((c: any) => c.tipo === 'SHOPEE').length
         const clientesNormal = clientes.filter((c: any) => c.tipo === 'NORMAL').length
-        const clientesLeo = await api.getLeoEmpresas()
         const clientesLeoTotal = clientesLeo ? clientesLeo.length : 0
         const clientesLeoAtivos = clientesLeo ? clientesLeo.filter((e: any) => e.ativo !== false).length : 0
         
@@ -61,7 +78,6 @@ export function Dashboard() {
       }
 
       // Buscar Implantações
-      const implantacoes = await api.getImplantacoes()
       if (implantacoes && implantacoes.length > 0) {
         const totalImplantacoes = implantacoes.length
         const concluidasCount = implantacoes.filter((i: any) => i.status === 'Concluído').length
@@ -86,12 +102,7 @@ export function Dashboard() {
       }
 
       // Buscar Projetos em Andamento
-      const projs = await api.getProjetosAtivos()
       if (projs && projs.length > 0) {
-        const pCols = await api.getProjetoColunas()
-        const pBases = await api.getProjetoBases()
-        const pDados = await api.getProjetoDados()
-
         const computedProjs = projs.map((p: any) => {
           const colsProj = pCols?.filter((c: any) => c.projeto_id === p.id && c.indicador_conclusao === true) || []
           const basesProj = pBases?.filter((b: any) => b.projeto_id === p.id) || []
@@ -120,7 +131,6 @@ export function Dashboard() {
 
     } catch (err: any) {
       console.error('Erro ao buscar stats do dashboard:', err)
-      alert('Erro ao carregar Dashboard: ' + err.message)
     } finally {
       setLoading(false)
     }
@@ -136,7 +146,7 @@ export function Dashboard() {
       </div>
 
       {loading ? (
-        <div className="text-slate-400 p-8 text-center">Carregando métricas...</div>
+        <div className="text-slate-400 p-8 text-center animate-pulse">Carregando métricas...</div>
       ) : (
         <>
           {/* Top Row: 4 Metric Cards */}
