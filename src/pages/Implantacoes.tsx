@@ -43,8 +43,13 @@ export function Implantacoes() {
     return Math.round((ok / etapas.length) * 100)
   }
 
-  const emAndamento = implantacoes.filter(i => i.status === 'Em Andamento')
-  const concluidos = implantacoes.filter(i => i.status === 'Concluído')
+  const emAndamento = implantacoes
+    .filter(i => i.status === 'Em Andamento')
+    .sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR', { sensitivity: 'base' }))
+
+  const concluidos = implantacoes
+    .filter(i => i.status === 'Concluído')
+    .sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR', { sensitivity: 'base' }))
 
   return (
     <div className="space-y-6" onClick={() => setOpenMenuId(null)}>
