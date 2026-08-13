@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { ArrowLeft, CheckCircle2, Settings2 } from 'lucide-react'
+import { api } from '../lib/api'
+import { GerenciarBasesModal } from '../components/GerenciarBasesModal'
 
 export function ProjetoDetalhes() {
   const { id } = useParams()
@@ -12,6 +13,7 @@ export function ProjetoDetalhes() {
   const [bases, setBases] = useState<any[]>([])
   const [dados, setDados] = useState<Record<string, string>>({}) // key: baseId_colunaId
   const [loading, setLoading] = useState(true)
+  const [isGerenciarBasesOpen, setIsGerenciarBasesOpen] = useState(false)
 
   useEffect(() => {
     if (id) fetchProjetoCompleto()
@@ -21,43 +23,25 @@ export function ProjetoDetalhes() {
     setLoading(true)
     try {
       // 1. Fetch projeto
-      const { data: projData, error: projErr } = await supabase
-        .from('projetos')
-        .select('*')
-        .eq('id', id)
-        .single()
-      if (projErr) throw projErr
+      const projData = await api.getProjetoById(id!)
       setProjeto(projData)
 
       // 2. Fetch colunas
-      const { data: colData, error: colErr } = await supabase
-        .from('projeto_colunas')
-        .select('*')
-        .eq('projeto_id', id)
-        .order('ordem', { ascending: true })
-      if (colErr) throw colErr
+      const colData = await api.getProjetoColunasById(id!)
       setColunas(colData)
 
       // 3. Fetch bases
-      const { data: basesData, error: basesErr } = await supabase
-        .from('projeto_bases')
-        .select('base_id, bases(nome_base, clientes(nome_empresa))')
-        .eq('projeto_id', id)
-      if (basesErr) throw basesErr
+      const basesData = await api.getProjetoBasesWithDetails(id!)
       
       const formattedBases = basesData.map((b: any) => ({
         id: b.base_id,
         nome_base: b.bases.nome_base,
         empresa: b.bases.clientes?.nome_empresa
       }))
-      setBases(formattedBases.sort((a, b) => a.nome_base.localeCompare(b.nome_base)))
+      setBases(formattedBases.sort((a: any, b: any) => a.nome_base.localeCompare(b.nome_base)))
 
       // 4. Fetch dados
-      const { data: dadosData, error: dadosErr } = await supabase
-        .from('projeto_dados')
-        .select('*')
-        .eq('projeto_id', id)
-      if (dadosErr) throw dadosErr
+      const dadosData = await api.getProjetoDadosByProjeto(id!)
 
       const dadosMap: Record<string, string> = {}
       dadosData.forEach((d: any) => {
@@ -82,16 +66,12 @@ export function ProjetoDetalhes() {
     setDados(prev => ({ ...prev, [key]: valor }))
 
     try {
-      const { error } = await supabase
-        .from('projeto_dados')
-        .upsert({
-          projeto_id: id,
-          base_id: baseId,
-          coluna_id: colunaId,
-          valor: valor
-        }, { onConflict: 'projeto_id, base_id, coluna_id' })
-
-      if (error) throw error
+      await api.upsertProjetoDado({
+        projeto_id: id!,
+        base_id: baseId,
+        coluna_id: colunaId,
+        valor: valor
+      })
       
       // Se a coluna for indicador de conclusão, podemos checar se precisa atualizar o projeto pra Concluído
       // (Isso poderia ser feito no backend com triggers para ser mais seguro, mas aqui é um MVP)
@@ -133,19 +113,28 @@ export function ProjetoDetalhes() {
   return (
     <div className="space-y-6 max-w-full overflow-hidden flex flex-col h-[calc(100vh-80px)]">
       
-      <div className="flex items-center space-x-4 mb-2 shrink-0">
-        <button 
-          onClick={() => navigate('/bases')}
-          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <h2 className="text-2xl font-bold text-white">{projeto.nome}</h2>
-          <p className="text-sm text-slate-400">
-            Criado em {new Date(projeto.created_at).toLocaleDateString('pt-BR')} • {bases.length} bases participantes
-          </p>
+      <div className="flex items-center justify-between mb-2 shrink-0">
+        <div className="flex items-center space-x-4">
+          <button 
+            onClick={() => navigate('/bases')}
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h2 className="text-2xl font-bold text-white">{projeto.nome}</h2>
+            <p className="text-sm text-slate-400">
+              Criado em {new Date(projeto.created_at).toLocaleDateString('pt-BR')} • {bases.length} bases participantes
+            </p>
+          </div>
         </div>
+        <button
+          onClick={() => setIsGerenciarBasesOpen(true)}
+          className="btn-secondary flex items-center gap-2 text-sm"
+        >
+          <Settings2 className="w-4 h-4" />
+          Gerenciar Bases
+        </button>
       </div>
 
       {/* Progress Bar */}
@@ -242,6 +231,14 @@ export function ProjetoDetalhes() {
           </table>
         </div>
       </div>
+
+      <GerenciarBasesModal
+        isOpen={isGerenciarBasesOpen}
+        onClose={() => { setIsGerenciarBasesOpen(false); fetchProjetoCompleto(); }}
+        projetoId={id!}
+        projetoNome={projeto.nome}
+        basesAtuais={bases}
+      />
     </div>
   )
 }

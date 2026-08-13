@@ -11,7 +11,7 @@ interface EditarClienteModalProps {
 
 export function EditarClienteModal({ isOpen, onClose, cliente, onSave }: EditarClienteModalProps) {
   const [empresa, setEmpresa] = useState('')
-  const [tipo, setTipo] = useState<'SHOPEE' | 'NORMAL' | ''>('NORMAL')
+  const [tipo, setTipo] = useState<'SHOPEE' | 'NORMAL' | 'TESTE' | ''>('NORMAL')
   const [senha, setSenha] = useState('')
   const [possuiAditivo, setPossuiAditivo] = useState(false)
 
@@ -78,6 +78,7 @@ export function EditarClienteModal({ isOpen, onClose, cliente, onSave }: EditarC
             >
               <option value="NORMAL">NORMAL</option>
               <option value="SHOPEE">SHOPEE</option>
+              <option value="TESTE">TESTE</option>
             </select>
           </div>
 

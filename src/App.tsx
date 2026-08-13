@@ -6,6 +6,8 @@ import { Bases } from './pages/Bases'
 import { ProjetoDetalhes } from './pages/ProjetoDetalhes'
 import { LeoMadeiras } from './pages/LeoMadeiras'
 import { Usuarios } from './pages/Usuarios'
+import { Implantacoes } from './pages/Implantacoes'
+import { ImplantacaoDetalhes } from './pages/ImplantacaoDetalhes'
 import { Login } from './pages/Login'
 
 import { useState, useEffect } from 'react'
@@ -36,6 +38,8 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="clientes" element={<Clientes />} />
+          <Route path="implantacoes" element={<Implantacoes />} />
+          <Route path="implantacoes/:id" element={<ImplantacaoDetalhes />} />
           <Route path="bases" element={<Bases />} />
           <Route path="bases/:id" element={<ProjetoDetalhes />} />
           <Route path="leo-madeiras" element={<LeoMadeiras />} />
@@ -47,3 +51,4 @@ function App() {
 }
 
 export default App
+

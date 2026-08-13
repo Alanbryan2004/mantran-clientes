@@ -12,7 +12,9 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
     "clsx": "^2.1.1",
+    "dotenv": "^17.4.2",
     "lucide-react": "^1.24.0",
+    "mssql": "^12.7.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",

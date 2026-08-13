@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import type { BaseMantran } from '../data/mockBases'
 import { ClientesTable } from '../components/ClientesTable'
 import { NovoClienteModal } from '../components/NovoClienteModal'
@@ -6,10 +7,12 @@ import { EditarClienteModal } from '../components/EditarClienteModal'
 import { UsuariosModal } from '../components/UsuariosModal'
 import { ModulosModal } from '../components/ModulosModal'
 import { NovaBaseModal } from '../components/NovaBaseModal'
-import { Plus, Search, Database } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { Plus, Search, Database, ShoppingBag, Briefcase } from 'lucide-react'
+import { api } from '../lib/api'
+import clsx from 'clsx'
 
 export function Clientes() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [clientes, setClientes] = useState<BaseMantran[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isNovaBaseOpen, setIsNovaBaseOpen] = useState(false)
@@ -25,12 +28,39 @@ export function Clientes() {
   const [selectedBaseId, setSelectedBaseId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
+  const [tipoFilter, setTipoFilter] = useState<string>(() => {
+    const param = searchParams.get('tipo')?.toUpperCase()
+    return param === 'SHOPEE' || param === 'NORMAL' ? param : 'TODOS'
+  })
+
+  useEffect(() => {
+    const param = searchParams.get('tipo')?.toUpperCase()
+    if (param === 'SHOPEE' || param === 'NORMAL') {
+      setTipoFilter(param)
+    } else if (!param) {
+      setTipoFilter('TODOS')
+    }
+  }, [searchParams])
+
+  const handleSetFilter = (tipo: string) => {
+    setTipoFilter(tipo)
+    if (tipo === 'TODOS') {
+      setSearchParams({})
+    } else {
+      setSearchParams({ tipo })
+    }
+  }
+
   const availableBases = clientes.filter(c => !c.empresa)
 
-  const filteredClientes = clientes.filter(c => 
-    c.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (c.empresa && c.empresa.toLowerCase().includes(searchQuery.toLowerCase()))
-  )
+  const filteredClientes = clientes.filter(c => {
+    const matchesSearch = c.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (c.empresa && c.empresa.toLowerCase().includes(searchQuery.toLowerCase()))
+    
+    const matchesTipo = tipoFilter === 'TODOS' || c.tipo === tipoFilter
+
+    return matchesSearch && matchesTipo
+  })
 
   const handleEditCliente = (cliente: BaseMantran) => {
     setClienteToEdit(cliente)
@@ -39,20 +69,20 @@ export function Clientes() {
 
   const handleSaveEdit = async (clienteDbId: string, data: { empresa: string, tipo: string, senha: string, possui_aditivo?: boolean }) => {
     try {
-      await supabase.from('clientes').update({ 
+      await api.updateCliente(clienteDbId, { 
         nome_empresa: data.empresa, 
         tipo: data.tipo,
         possui_aditivo: data.possui_aditivo
-      }).eq('id', clienteDbId)
+      })
       if (data.senha) {
         // Try to update existing user passwords
-        const { data: users } = await supabase.from('usuarios_gpo').select('id').eq('cliente_id', clienteDbId)
+        const users = await api.getUsuariosByCliente(clienteDbId)
         if (users && users.length > 0) {
-          await supabase.from('usuarios_gpo').update({ senha: data.senha }).eq('cliente_id', clienteDbId)
+          await api.updateUsuariosByCliente(clienteDbId, { senha: data.senha })
         } else {
           // If no user exists, create one
           const login = data.empresa.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10) || 'admin'
-          await supabase.from('usuarios_gpo').insert([{ cliente_id: clienteDbId, login, senha: data.senha }])
+          await api.insertUsuario({ cliente_id: clienteDbId, login, senha: data.senha })
         }
       }
       await fetchBases()
@@ -61,19 +91,22 @@ export function Clientes() {
     }
   }
 
-  const handleDeleteCliente = async (clienteDbId: string, baseId: string, empresa: string) => {
-    if (!confirm(`Tem certeza que deseja EXCLUIR a empresa ${empresa}? Isso irá limpar a base ${baseId} e apagar todos os usuários e módulos.`)) return
+  const handleDeleteCliente = async (clienteDbId: string, baseNome: string, empresa: string) => {
+    if (!confirm(`Tem certeza que deseja EXCLUIR a empresa ${empresa}? Isso irá limpar a base ${baseNome} e apagar todos os usuários e módulos.`)) return
     
     try {
       // 1. Release the base
-      await supabase.from('bases').update({ cliente_id: null, status: 'Disponível' }).eq('id', baseId)
+      const baseData = await api.getBaseByName(baseNome)
+      if (baseData) {
+        await api.updateBase(baseData.id, { cliente_id: null, status: 'Disponível' })
+      }
       
       // 2. Delete dependencies explicitly
-      await supabase.from('usuarios_gpo').delete().eq('cliente_id', clienteDbId)
-      await supabase.from('modulos').delete().eq('cliente_id', clienteDbId)
+      await api.deleteUsuariosByCliente(clienteDbId)
+      await api.deleteModulosByCliente(clienteDbId)
       
       // 3. Delete the client itself
-      await supabase.from('clientes').delete().eq('id', clienteDbId)
+      await api.deleteCliente(clienteDbId)
       
       await fetchBases()
     } catch (err) {
@@ -102,8 +135,7 @@ export function Clientes() {
         const num = baseInicial + i
         basesToInsert.push({ nome_base: `dbMantran${String(num).padStart(3, '0')}` })
       }
-      const { error } = await supabase.from('bases').insert(basesToInsert)
-      if (error) throw error
+      await api.insertBases(basesToInsert)
       setIsNovaBaseOpen(false)
       fetchBases()
     } catch (err: any) {
@@ -114,8 +146,7 @@ export function Clientes() {
 
   const handleSaveManual = async (nomeBase: string) => {
     try {
-      const { error } = await supabase.from('bases').insert([{ nome_base: nomeBase }])
-      if (error) throw error
+      await api.insertBases([{ nome_base: nomeBase }])
       setIsNovaBaseOpen(false)
       fetchBases()
     } catch (err: any) {
@@ -132,8 +163,7 @@ export function Clientes() {
 
   const checkAndSeedBases = async () => {
     try {
-      const { count, error } = await supabase.from('bases').select('*', { count: 'exact', head: true })
-      if (error) throw error
+      const count = await api.getBasesCount()
       
       if (count === 0) {
         console.log('Sem bases encontradas. Criando 120 bases iniciais...')
@@ -142,7 +172,7 @@ export function Clientes() {
           const paddedId = String(i).padStart(3, '0')
           basesToInsert.push({ nome_base: `dbMantran${paddedId}` })
         }
-        await supabase.from('bases').insert(basesToInsert)
+        await api.insertBases(basesToInsert)
       }
     } catch (err) {
       console.error('Erro ao popular bases:', err)
@@ -152,25 +182,7 @@ export function Clientes() {
   const fetchBases = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('bases')
-        .select(`
-          id,
-          nome_base,
-          status,
-          migrada,
-          clientes (
-            id,
-            nome_empresa,
-            tipo,
-            possui_aditivo,
-            modulos (nome_modulo, ativo),
-            usuarios_gpo (login, senha)
-          )
-        `)
-        .order('nome_base', { ascending: true })
-
-      if (error) throw error
+      const data = await api.getBasesWithClientes()
 
       if (data) {
         const mappedData: BaseMantran[] = data.map((b: any) => {
@@ -211,42 +223,29 @@ export function Clientes() {
   const handleSaveNovoCliente = async (baseId: string, data: Partial<BaseMantran>) => {
     try {
       // 1. Encontrar o ID da base selecionada
-      const { data: baseData, error: baseError } = await supabase
-        .from('bases')
-        .select('id')
-        .eq('nome_base', baseId)
-        .single()
+      const baseData = await api.getBaseByName(baseId)
         
-      if (baseError || !baseData) throw new Error('Base não encontrada')
+      if (!baseData) throw new Error('Base não encontrada')
 
       // 2. Inserir Cliente
-      const { data: clienteData, error: clienteError } = await supabase
-        .from('clientes')
-        .insert([{ 
-          nome_empresa: data.empresa, 
-          tipo: data.tipo,
-          possui_aditivo: data.possui_aditivo || false
-        }])
-        .select()
-        .single()
-
-      if (clienteError || !clienteData) throw clienteError
+      const clienteData = await api.insertCliente({ 
+        nome_empresa: data.empresa || '', 
+        tipo: data.tipo || 'NORMAL',
+        possui_aditivo: data.possui_aditivo || false
+      })
 
       // 3. Atualizar a Base com o cliente_id
-      await supabase
-        .from('bases')
-        .update({ cliente_id: clienteData.id, status: 'Em Uso' })
-        .eq('id', baseData.id)
+      await api.updateBase(baseData.id, { cliente_id: clienteData.id, status: 'Em Uso' })
 
       // 4. Inserir Módulos - Removido pois não estão mais na tela
 
       // 5. Inserir Usuário GPO
       if (data.senha) {
-        await supabase.from('usuarios_gpo').insert([{
+        await api.insertUsuario({
           cliente_id: clienteData.id,
           login: data.empresa?.toLowerCase().replace(/\s/g, '') || 'admin', // mock login
           senha: data.senha
-        }])
+        })
       }
 
       // 6. Recarregar a tabela para refletir as mudanças do banco
@@ -266,6 +265,45 @@ export function Clientes() {
           <p className="text-slate-400 mt-1">Gerenciamento das bases de dados e clientes Mantran</p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          {/* Tipo filter buttons */}
+          <div className="flex bg-slate-900/80 p-1 rounded-xl border border-slate-800 shrink-0">
+            <button
+              onClick={() => handleSetFilter('TODOS')}
+              className={clsx(
+                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                tipoFilter === 'TODOS'
+                  ? "bg-slate-700 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              )}
+            >
+              Todos
+            </button>
+            <button
+              onClick={() => handleSetFilter('SHOPEE')}
+              className={clsx(
+                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                tipoFilter === 'SHOPEE'
+                  ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                  : "text-slate-400 hover:text-slate-200"
+              )}
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              Shopee
+            </button>
+            <button
+              onClick={() => handleSetFilter('NORMAL')}
+              className={clsx(
+                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                tipoFilter === 'NORMAL'
+                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                  : "text-slate-400 hover:text-slate-200"
+              )}
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              Normais
+            </button>
+          </div>
+
           <div className="relative w-full sm:w-64">
             <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 

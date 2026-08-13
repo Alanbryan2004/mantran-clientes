@@ -19,10 +19,14 @@ export function NovaBaseModal({ isOpen, onClose, onSaveLote, onSaveManual, bases
     if (isOpen) {
       let maxNum = 0
       basesAtuais.forEach(b => {
-        const match = b.match(/dbMantran(\d+)/i)
+        // Match exact pattern dbMantranXXX (ignoring custom ones like dbMantranLeo012 or high test bases >= 500)
+        const match = b.match(/^dbMantran(\d+)$/i)
         if (match && match[1]) {
           const num = parseInt(match[1], 10)
-          if (num > maxNum) maxNum = num
+          // Ignore test/commercial bases that use 500+ or 900+
+          if (num > maxNum && num < 500) {
+            maxNum = num
+          }
         }
       })
       setProximaBaseNum(maxNum + 1)

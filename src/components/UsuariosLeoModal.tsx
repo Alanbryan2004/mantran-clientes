@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { api } from '../lib/api'
 
 interface UsuariosLeoModalProps {
   isOpen: boolean
@@ -28,14 +28,10 @@ export function UsuariosLeoModal({ isOpen, onClose, empresaId, empresaNome, cdEm
   const fetchUsuarios = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('leo_usuarios')
-        .select('*')
-        .eq('leo_empresa_id', empresaId)
-        .order('created_at', { ascending: true })
-      
-      if (error) throw error
-      setUsuarios(data || [])
+      const data = await api.getLeoUsuariosByEmpresa(empresaId!)
+      // Order by created_at ascending (assuming API returns them in default order or we can sort manually)
+      const sorted = (data || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      setUsuarios(sorted)
     } catch (err) {
       console.error('Erro ao buscar usuários da Léo:', err)
     } finally {
@@ -48,13 +44,11 @@ export function UsuariosLeoModal({ isOpen, onClose, empresaId, empresaNome, cdEm
     if (!empresaId || !novoLogin || !novaSenha) return
 
     try {
-      const { error } = await supabase.from('leo_usuarios').insert([{
+      await api.insertLeoUsuario({
         leo_empresa_id: empresaId,
         login: novoLogin,
         senha: novaSenha
-      }])
-
-      if (error) throw error
+      })
       
       setNovoLogin('')
       setNovaSenha('012@Mantran')
@@ -68,8 +62,7 @@ export function UsuariosLeoModal({ isOpen, onClose, empresaId, empresaNome, cdEm
   const handleExcluirUsuario = async (id: string) => {
     if (!confirm('Deseja realmente excluir este usuário?')) return
     try {
-      const { error } = await supabase.from('leo_usuarios').delete().eq('id', id)
-      if (error) throw error
+      await api.deleteLeoUsuario(id)
       await fetchUsuarios()
     } catch (err: any) {
       console.error('Erro ao excluir usuário na Léo:', err)

@@ -6,15 +6,17 @@ interface EditarEmpresaLeoModalProps {
   isOpen: boolean
   onClose: () => void
   empresa: LeoEmpresa | null
-  onSave: (id: string, novoNome: string) => void
+  onSave: (id: string, novoNome: string, ativo: boolean) => void
 }
 
 export function EditarEmpresaLeoModal({ isOpen, onClose, empresa, onSave }: EditarEmpresaLeoModalProps) {
   const [nome, setNome] = useState('')
+  const [ativo, setAtivo] = useState(true)
 
   useEffect(() => {
     if (empresa) {
       setNome(empresa.nome_empresa)
+      setAtivo(empresa.ativo !== false)
     }
   }, [empresa])
 
@@ -23,7 +25,7 @@ export function EditarEmpresaLeoModal({ isOpen, onClose, empresa, onSave }: Edit
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!nome.trim()) return alert('O Nome da Empresa não pode estar vazio.')
-    onSave(empresa.id, nome.trim())
+    onSave(empresa.id, nome.trim(), ativo)
   }
 
   return (
@@ -64,6 +66,20 @@ export function EditarEmpresaLeoModal({ isOpen, onClose, empresa, onSave }: Edit
               placeholder="Ex: Transportes Rápidos Léo"
               autoFocus
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Status da Empresa
+            </label>
+            <select
+              value={ativo ? 'true' : 'false'}
+              onChange={e => setAtivo(e.target.value === 'true')}
+              className="input-field w-full"
+            >
+              <option value="true">ATIVO (SIM)</option>
+              <option value="false">INATIVO (NÃO)</option>
+            </select>
           </div>
 
           <div className="pt-4 flex justify-end space-x-3 border-t border-slate-800 mt-6">

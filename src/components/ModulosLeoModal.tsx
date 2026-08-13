@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Check } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { api } from '../lib/api'
 
 interface ModulosLeoModalProps {
   isOpen: boolean
@@ -17,7 +17,7 @@ type ModuloMantran = {
 
 export function ModulosLeoModal({ isOpen, onClose, empresaId, empresaNome }: ModulosLeoModalProps) {
   const [modulosDisponiveis, setModulosDisponiveis] = useState<ModuloMantran[]>([])
-  const [clienteModulos, setClienteModulos] = useState<string[]>([])
+  const [clienteModulos, setClienteModulos] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -32,24 +32,15 @@ export function ModulosLeoModal({ isOpen, onClose, empresaId, empresaNome }: Mod
     setLoading(true)
     try {
       // 1. Fetch all available modules
-      const { data: mantranData, error: err1 } = await supabase
-        .from('modulos_mantran')
-        .select('*')
-        .order('nome', { ascending: true })
+      const mantranData = await api.getModulosMantran()
       
-      if (err1) throw err1
-      setModulosDisponiveis(mantranData || [])
+      const sortedModulos = (mantranData || []).sort((a: any, b: any) => a.nome.localeCompare(b.nome))
+      setModulosDisponiveis(sortedModulos)
 
       // 2. Fetch current client's modules
       if (empresaId) {
-        const { data: clientData, error: err2 } = await supabase
-          .from('leo_modulos')
-          .select('nome_modulo')
-          .eq('leo_empresa_id', empresaId)
-        
-        if (err2) throw err2
-        
-        setClienteModulos(clientData ? clientData.map(m => m.nome_modulo) : [])
+        const clientData = await api.getLeoModulosByEmpresa(empresaId)
+        setClienteModulos(clientData ? clientData.map((m: any) => m.nome_modulo) : [])
       }
     } catch (err) {
       console.error('Erro ao carregar dados:', err)
@@ -64,20 +55,20 @@ export function ModulosLeoModal({ isOpen, onClose, empresaId, empresaNome }: Mod
     try {
       if (isChecked) {
         // Add module
-        const { error } = await supabase.from('leo_modulos').insert([{
-          leo_empresa_id: empresaId,
-          nome_modulo: nomeModulo,
-          ativo: true
-        }])
-        if (error) throw error
+        await api.insertLeoModulo({
+          empresa_id: empresaId,
+          ativo: true,
+          nome_modulo: nomeModulo
+        } as any)
+        
         setClienteModulos(prev => [...prev, nomeModulo])
       } else {
         // Remove module
-        const { error } = await supabase.from('leo_modulos')
-          .delete()
-          .eq('leo_empresa_id', empresaId)
-          .eq('nome_modulo', nomeModulo)
-        if (error) throw error
+        const clientData = await api.getLeoModulosByEmpresa(empresaId)
+        const mod = clientData.find((m: any) => m.nome_modulo === nomeModulo)
+        if (mod && mod.id) {
+          await api.deleteLeoModulo(mod.id)
+        }
         setClienteModulos(prev => prev.filter(m => m !== nomeModulo))
       }
     } catch (err: any) {

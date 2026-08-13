@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { Eye, EyeOff } from 'lucide-react'
+import { api } from '../lib/api'
 
 export function Login() {
   const [login, setLogin] = useState('')
   const [senha, setSenha] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -13,15 +15,9 @@ export function Login() {
     setLoading(true)
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('usuario')
-        .select('*')
-        .ilike('login', login)
-        .eq('senha', senha)
-        .eq('ativo', true)
-        .single()
+      const data = await api.authenticateUser(login, senha)
 
-      if (fetchError || !data) {
+      if (!data) {
         throw new Error('Login ou senha incorretos.')
       }
 
@@ -70,14 +66,23 @@ export function Login() {
 
           <div>
             <label className="block text-xs text-gray-500 mb-1 ml-1">Senha</label>
-            <input
-              type="password"
-              required
-              value={senha}
-              onChange={e => setSenha(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-gray-200 rounded focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition-colors text-sm text-gray-800"
-              placeholder="........"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={senha}
+                onChange={e => setSenha(e.target.value)}
+                className="w-full px-3 py-2 pr-10 bg-white border border-gray-200 rounded focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-300 transition-colors text-sm text-gray-800"
+                placeholder="........"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           {error && (

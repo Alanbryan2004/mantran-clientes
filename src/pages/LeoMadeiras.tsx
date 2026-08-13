@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Plus, Search, Building } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { api } from '../lib/api'
 import { LeoMadeirasTable } from '../components/LeoMadeirasTable'
 import type { LeoEmpresa } from '../components/LeoMadeirasTable'
 import { NovaEmpresaLeoModal } from '../components/NovaEmpresaLeoModal'
@@ -30,30 +30,18 @@ export function LeoMadeiras() {
   const fetchEmpresas = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('leo_empresas')
-        .select(`
-          id,
-          cd_empresa,
-          nome_empresa,
-          tipo,
-          leo_usuarios (id, senha),
-          leo_modulos (id, ativo)
-        `)
-        .order('cd_empresa', { ascending: true })
-
-      if (error) throw error
-
+      const data = await api.getLeoEmpresasWithDetails()
       if (data) {
         const mappedData: LeoEmpresa[] = data.map((e: any) => {
-          const usuarios = e.leo_usuarios || []
-          const modulos = e.leo_modulos || []
+          const usuarios = e.leo_usuarios?.items || []
+          const modulos = e.leo_modulos?.items || []
           
           return {
             id: e.id,
             cd_empresa: e.cd_empresa,
             nome_empresa: e.nome_empresa,
             tipo: e.tipo || 'LÉO',
+            ativo: e.ativo !== false,
             has_usuarios: usuarios.length > 0,
             has_modulos: modulos.filter((m:any) => m.ativo).length > 0,
             senha_padrao: usuarios.length > 0 ? usuarios[0].senha : ''
@@ -63,9 +51,19 @@ export function LeoMadeiras() {
       }
     } catch (err) {
       console.error('Erro ao buscar empresas da Léo:', err)
-      alert('Erro ao carregar dados da Léo Madeiras. Certifique-se de que rodou o script SQL das novas tabelas.')
+      alert('Erro ao carregar dados da Léo Madeiras.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleToggleAtivo = async (empresaId: string, novoAtivo: boolean) => {
+    setEmpresas(prev => prev.map(e => e.id === empresaId ? { ...e, ativo: novoAtivo } : e))
+    try {
+      await api.updateLeoEmpresa(empresaId, { ativo: novoAtivo })
+    } catch (err: any) {
+      console.error('Erro ao atualizar status ativo:', err)
+      fetchEmpresas()
     }
   }
 
@@ -89,21 +87,15 @@ export function LeoMadeiras() {
         return alert(`Já existe uma empresa com o código ${finalCd}`)
       }
 
-      const { data, error } = await supabase
-        .from('leo_empresas')
-        .insert([{ cd_empresa: finalCd, nome_empresa: nomeEmpresa }])
-        .select()
-        .single()
-        
-      if (error) throw error
+      const data = await api.insertLeoEmpresa({ cd_empresa: finalCd, nome_empresa: nomeEmpresa })
 
       // Auto create a default user for this company
       const defaultLogin = nomeEmpresa.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10) || 'admin'
-      await supabase.from('leo_usuarios').insert([{
+      await api.insertLeoUsuario({
         leo_empresa_id: data.id,
         login: defaultLogin,
         senha: `012@Mantran`
-      }])
+      })
 
       setIsNovaEmpresaOpen(false)
       fetchEmpresas()
@@ -116,8 +108,7 @@ export function LeoMadeiras() {
   const handleDelete = async (id: string, nome: string) => {
     if (!confirm(`Deseja realmente EXCLUIR a empresa ${nome}?`)) return
     try {
-      const { error } = await supabase.from('leo_empresas').delete().eq('id', id)
-      if (error) throw error
+      await api.deleteLeoEmpresa(id)
       fetchEmpresas()
     } catch (err) {
       console.error('Erro ao deletar:', err)
@@ -130,14 +121,9 @@ export function LeoMadeiras() {
     setIsEditModalOpen(true)
   }
 
-  const handleSaveEdit = async (id: string, novoNome: string) => {
+  const handleSaveEdit = async (id: string, novoNome: string, ativo: boolean) => {
     try {
-      const { error } = await supabase
-        .from('leo_empresas')
-        .update({ nome_empresa: novoNome })
-        .eq('id', id)
-        
-      if (error) throw error
+      await api.updateLeoEmpresa(id, { nome_empresa: novoNome, ativo })
       setIsEditModalOpen(false)
       fetchEmpresas()
     } catch (err: any) {
@@ -211,6 +197,7 @@ export function LeoMadeiras() {
             onOpenModulos={handleOpenModulos}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onToggleAtivo={handleToggleAtivo}
           />
         </div>
       )}
