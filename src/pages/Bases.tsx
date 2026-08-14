@@ -14,6 +14,18 @@ interface Projeto {
   progress: number
 }
 
+const getProgressColor = (progress: number) => {
+  if (progress <= 33) return 'bg-red-500'
+  if (progress <= 66) return 'bg-amber-400'
+  return 'bg-green-500'
+}
+
+const getProgressTextColor = (progress: number) => {
+  if (progress <= 33) return 'text-red-400'
+  if (progress <= 66) return 'text-amber-400'
+  return 'text-green-400'
+}
+
 export function Bases() {
   const [projetos, setProjetos] = useState<Projeto[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -158,13 +170,13 @@ export function Bases() {
         <div className="mt-2 pt-3 border-t border-slate-800/60">
           <div className="flex justify-between items-end mb-1.5">
             <span className="text-xs font-semibold text-slate-400">Progresso</span>
-            <span className={clsx("text-lg font-black", isDone ? "text-green-400" : "text-brand-500")}>
+            <span className={clsx("text-lg font-black", isDone ? "text-green-400" : getProgressTextColor(proj.progress))}>
               {proj.progress}%
             </span>
           </div>
           <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden mb-3">
             <div 
-              className={clsx("h-2 rounded-full transition-all duration-1000", isDone ? "bg-green-500" : "bg-brand-500")}
+              className={clsx("h-2 rounded-full transition-all duration-1000", isDone ? "bg-green-500" : getProgressColor(proj.progress))}
               style={{ width: `${proj.progress}%` }}
             ></div>
           </div>

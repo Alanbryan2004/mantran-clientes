@@ -12,19 +12,35 @@ interface EditarOperacoesModalProps {
 
 const OPERACOES_SHOPEE = ['Line Haul', 'Last Mile', 'First Mile', 'Mobile Hub']
 
-const ETAPAS_BASE_SHOPEE = [
-  'Checkpoint',
-  'Configurar Base',
-  'Testes',
-  'Treinamento Fatura',
-  'Ativo 4Pl',
-]
+const SHOPEE_ORDER_MAP: Record<string, number> = {
+  'checkpoint': 1,
+  'configurar base': 2,
+  'ativo 4pl': 3,
+  'ativo 4pi': 3,
+  'testes': 4,
+  'treinamento last mile': 5,
+  'treinamento de first mile': 6,
+  'treinamento first mile': 6,
+  'treinamento de cadastros': 7,
+  'treinamento de cadastro': 7,
+  'treinamento cadastros': 7,
+  'treinamento cadastro': 7,
+  'treinamento de line haul': 8,
+  'treinamento line haul': 8,
+  'treinamento mobile hub': 8.5,
+  'treinamento de mobile hub': 8.5,
+  'treinamento fatura': 9,
+  'feedback': 10,
+}
 
-const ETAPAS_BASE_NORMAL = [
-  'Checkpoint',
-  'Configurar Base',
-  'Testes',
-]
+const normalizeShopeeEtapaName = (nome: string): string => {
+  const lower = nome.trim().toLowerCase()
+  if (lower === 'ativo 4pl' || lower === 'ativo 4pi') return 'Ativo 4PL'
+  if (lower === 'treinamento first mile' || lower === 'treinamento de first mile') return 'Treinamento de First Mile'
+  if (lower === 'treinamento de cadastro' || lower === 'treinamento de cadastros' || lower === 'treinamento cadastro' || lower === 'treinamento cadastros') return 'Treinamento de Cadastros'
+  if (lower === 'treinamento line haul' || lower === 'treinamento de line haul') return 'Treinamento de Line Haul'
+  return nome
+}
 
 export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }: EditarOperacoesModalProps) {
   const [selectedOperacoes, setSelectedOperacoes] = useState<string[]>([])
@@ -75,13 +91,27 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
 
   const generateTargetEtapas = (): string[] => {
     if (isShopee) {
-      const etapas = [...ETAPAS_BASE_SHOPEE]
-      selectedOperacoes.forEach(op => {
-        etapas.push(`Treinamento ${op}`)
-      })
-      if (selectedOperacoes.includes('Line Haul')) {
-        etapas.push('Treinamento de Cadastro')
+      const etapas: string[] = []
+      etapas.push('Checkpoint')
+      etapas.push('Configurar Base')
+      etapas.push('Ativo 4PL')
+      etapas.push('Testes')
+      if (selectedOperacoes.includes('Last Mile')) {
+        etapas.push('Treinamento Last Mile')
       }
+      if (selectedOperacoes.includes('First Mile')) {
+        etapas.push('Treinamento de First Mile')
+      }
+      if (selectedOperacoes.includes('Line Haul')) {
+        etapas.push('Treinamento de Cadastros')
+      }
+      if (selectedOperacoes.includes('Line Haul')) {
+        etapas.push('Treinamento de Line Haul')
+      }
+      if (selectedOperacoes.includes('Mobile Hub')) {
+        etapas.push('Treinamento Mobile Hub')
+      }
+      etapas.push('Treinamento Fatura')
       etapas.push('Feedback')
       return etapas
     } else {
@@ -100,27 +130,34 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
       const targetEtapaNames = generateTargetEtapas()
       const existingEtapas: any[] = implantacao.implantacao_etapas || []
       
+      // Normalize comparison for Shopee
+      const normalize = (n: string) => isShopee ? normalizeShopeeEtapaName(n) : n
+
       // 1. Etapas to delete (exist in DB but not in target list)
       const etapasToDelete = existingEtapas.filter(
-        (e: any) => !targetEtapaNames.includes(e.nome_etapa)
+        (e: any) => !targetEtapaNames.some(t => normalize(t) === normalize(e.nome_etapa))
       )
       if (etapasToDelete.length > 0) {
         await api.deleteImplantacaoEtapas(etapasToDelete.map((e: any) => e.id))
       }
 
       // 2. Etapas to add (exist in target list but not in DB)
-      const existingEtapaNames = existingEtapas.map((e: any) => e.nome_etapa)
+      const existingNormalized = existingEtapas.map((e: any) => normalize(e.nome_etapa))
       const etapasToAdd = targetEtapaNames.filter(
-        nome => !existingEtapaNames.includes(nome)
+        nome => !existingNormalized.includes(normalize(nome))
       )
 
       if (etapasToAdd.length > 0) {
-        const toInsert = etapasToAdd.map((nome, i) => ({
-          implantacao_id: implantacao.id,
-          nome_etapa: nome,
-          valor: 'EM BRANCO',
-          ordem: existingEtapas.length + i + 1
-        }))
+        const toInsert = etapasToAdd.map((nome, i) => {
+          const lower = nome.trim().toLowerCase()
+          const ordem = isShopee && lower in SHOPEE_ORDER_MAP ? SHOPEE_ORDER_MAP[lower] : existingEtapas.length + i + 1
+          return {
+            implantacao_id: implantacao.id,
+            nome_etapa: nome,
+            valor: 'EM BRANCO',
+            ordem
+          }
+        })
         await api.insertImplantacaoEtapas(toInsert)
       }
 
@@ -194,7 +231,7 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
               </div>
               {selectedOperacoes.includes('Line Haul') && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                  <span className="text-xs text-amber-400">⚡ Line Haul ativo — inclui automaticamente "Treinamento de Cadastro"</span>
+                  <span className="text-xs text-amber-400">⚡ Line Haul ativo — inclui "Treinamento de Cadastros" e "Treinamento de Line Haul"</span>
                 </div>
               )}
             </div>

@@ -4,6 +4,18 @@ import { ArrowLeft, CheckCircle2, Settings2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { GerenciarBasesModal } from '../components/GerenciarBasesModal'
 
+const getProgressColor = (progress: number) => {
+  if (progress <= 33) return 'bg-red-500'
+  if (progress <= 66) return 'bg-amber-400'
+  return 'bg-green-500'
+}
+
+const getProgressTextColor = (progress: number) => {
+  if (progress <= 33) return 'text-red-400'
+  if (progress <= 66) return 'text-amber-400'
+  return 'text-green-400'
+}
+
 export function ProjetoDetalhes() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -141,11 +153,11 @@ export function ProjetoDetalhes() {
       <div className="bg-dark-card border border-slate-800 rounded-xl p-5 shrink-0">
         <div className="flex justify-between items-end mb-2">
           <span className="text-sm font-medium text-slate-300">Progresso Geral</span>
-          <span className="text-2xl font-black text-brand-500">{progress}%</span>
+          <span className={`text-2xl font-black ${getProgressTextColor(progress)}`}>{progress}%</span>
         </div>
         <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
           <div 
-            className="bg-brand-500 h-full transition-all duration-500" 
+            className={`${getProgressColor(progress)} h-full transition-all duration-500`} 
             style={{ width: `${progress}%` }}
           ></div>
         </div>

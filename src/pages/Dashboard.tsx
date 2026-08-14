@@ -1,8 +1,38 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
-import { Users, Database, Server, ShoppingBag, Briefcase, Building, Rocket, ArrowRight } from 'lucide-react'
+import { Users, Database, Server, ShoppingBag, Briefcase, Building, Rocket, ArrowRight, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
+
+const getProgressColor = (progress: number) => {
+  if (progress <= 33) return 'bg-red-500'
+  if (progress <= 66) return 'bg-amber-400'
+  return 'bg-green-500'
+}
+
+const getProgressTextColor = (progress: number) => {
+  if (progress <= 33) return 'text-red-400'
+  if (progress <= 66) return 'text-amber-400'
+  return 'text-green-400'
+}
+
+const getBasesCapacityColor = (disponiveis: number) => {
+  if (disponiveis <= 3) return 'bg-red-500'
+  if (disponiveis <= 6) return 'bg-amber-400'
+  return 'bg-green-500'
+}
+
+const getBasesCapacityTextColor = (disponiveis: number) => {
+  if (disponiveis <= 3) return 'text-red-400'
+  if (disponiveis <= 6) return 'text-amber-400'
+  return 'text-green-400'
+}
+
+const getBasesCapacityBorderColor = (disponiveis: number) => {
+  if (disponiveis <= 3) return 'border-red-500'
+  if (disponiveis <= 6) return 'border-amber-500'
+  return 'border-emerald-500'
+}
 
 export function Dashboard() {
   const navigate = useNavigate()
@@ -153,13 +183,40 @@ export function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             
             {/* Card 1: Bases Disponíveis */}
-            <div className="card flex items-center p-6 border-l-4 border-emerald-500">
-              <div className="p-4 bg-emerald-500/10 rounded-lg text-emerald-500 mr-4 shrink-0">
+            <div className={clsx("card flex items-center p-6 border-l-4 relative overflow-hidden", getBasesCapacityBorderColor(stats.basesDisponiveis))}>
+              <div className={clsx(
+                "p-4 rounded-lg mr-4 shrink-0 relative",
+                stats.basesDisponiveis <= 3 ? "bg-red-500/10 text-red-400" :
+                stats.basesDisponiveis <= 6 ? "bg-amber-500/10 text-amber-400" :
+                "bg-emerald-500/10 text-emerald-500"
+              )}>
                 <Database className="w-8 h-8" />
+                {stats.basesDisponiveis <= 3 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                  </span>
+                )}
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">Bases Disponíveis</p>
-                <p className="text-3xl font-bold text-white mt-1">{stats.basesDisponiveis}</p>
+                <div className="flex flex-wrap items-baseline gap-2 mt-1">
+                  <p className={clsx(
+                    "text-3xl font-bold",
+                    getBasesCapacityTextColor(stats.basesDisponiveis)
+                  )}>{stats.basesDisponiveis}</p>
+                  {stats.basesDisponiveis <= 3 && (
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 uppercase animate-pulse flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
+                      Solicitar Novas Bases
+                    </span>
+                  )}
+                  {stats.basesDisponiveis > 3 && stats.basesDisponiveis <= 6 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase">
+                      Atenção
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -186,15 +243,23 @@ export function Dashboard() {
             </div>
 
             {/* Card 4: Uso da Nuvem */}
-            <div className="card flex flex-col justify-center p-6 border-l-4 border-blue-500">
-              <p className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Uso da Nuvem</p>
+            <div className={clsx("card flex flex-col justify-center p-6 border-l-4 relative overflow-hidden", getBasesCapacityBorderColor(stats.basesDisponiveis))}>
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">Uso da Nuvem</p>
+                {stats.basesDisponiveis <= 3 && (
+                  <span className="flex items-center gap-1 text-[10px] font-extrabold text-red-400 bg-red-500/15 border border-red-500/30 px-2 py-0.5 rounded-full animate-pulse">
+                    <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
+                    Solicitar Novas Bases
+                  </span>
+                )}
+              </div>
               <div className="flex justify-between items-end mb-2">
-                <span className="text-2xl font-bold text-white">{usoPercent}%</span>
+                <span className={`text-2xl font-bold ${getBasesCapacityTextColor(stats.basesDisponiveis)}`}>{usoPercent}%</span>
                 <span className="text-xs text-slate-400">{stats.totalBases} bases totais</span>
               </div>
-              <div className="w-full bg-slate-800 rounded-full h-2.5">
+              <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
                 <div 
-                  className={clsx("h-2.5 rounded-full transition-all duration-1000", usoPercent > 80 ? "bg-red-500" : "bg-blue-500")}
+                  className={clsx("h-2.5 rounded-full transition-all duration-1000", getBasesCapacityColor(stats.basesDisponiveis))}
                   style={{ width: `${usoPercent}%` }}
                 ></div>
               </div>
@@ -298,11 +363,13 @@ export function Dashboard() {
               <div className="mt-2">
                 <div className="flex justify-between items-end mb-1">
                   <span className="text-xs font-semibold text-slate-400">Percentual Concluído</span>
-                  <span className="text-lg font-bold text-brand-400">{implantacoesStats.overallProgress}%</span>
+                  <span className={`text-lg font-bold ${getProgressTextColor(implantacoesStats.overallProgress)}`}>
+                    {implantacoesStats.overallProgress}%
+                  </span>
                 </div>
                 <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden mb-2">
                   <div 
-                    className="bg-brand-500 h-2 rounded-full transition-all duration-1000"
+                    className={`h-2 rounded-full transition-all duration-1000 ${getProgressColor(implantacoesStats.overallProgress)}`}
                     style={{ width: `${implantacoesStats.overallProgress}%` }}
                   ></div>
                 </div>
@@ -337,11 +404,13 @@ export function Dashboard() {
                     <div>
                       <div className="flex justify-between items-end mb-2">
                         <span className="text-sm font-medium text-slate-300">Conclusão</span>
-                        <span className="text-2xl font-black text-brand-500">{proj.progress}%</span>
+                        <span className={`text-2xl font-black ${getProgressTextColor(proj.progress)}`}>
+                          {proj.progress}%
+                        </span>
                       </div>
-                      <div className="w-full bg-slate-800 rounded-full h-2">
+                      <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
                         <div 
-                          className="bg-brand-500 h-2 rounded-full transition-all duration-1000" 
+                          className={`h-2 rounded-full transition-all duration-1000 ${getProgressColor(proj.progress)}`} 
                           style={{ width: `${proj.progress}%` }}
                         ></div>
                       </div>

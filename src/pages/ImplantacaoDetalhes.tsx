@@ -5,6 +5,54 @@ import { api } from '../lib/api'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
 import clsx from 'clsx'
 
+const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
+  'checkpoint': 1,
+  'configurar base': 2,
+  'ativo 4pl': 3,
+  'ativo 4pi': 3,
+  'testes': 4,
+  'treinamento last mile': 5,
+  'treinamento de first mile': 6,
+  'treinamento first mile': 6,
+  'treinamento de cadastros': 7,
+  'treinamento de cadastro': 7,
+  'treinamento cadastros': 7,
+  'treinamento cadastro': 7,
+  'treinamento de line haul': 8,
+  'treinamento line haul': 8,
+  'treinamento mobile hub': 8.5,
+  'treinamento de mobile hub': 8.5,
+  'treinamento fatura': 9,
+  'feedback': 10,
+}
+
+export const normalizeEtapaNome = (nome: string): string => {
+  const lower = (nome || '').trim().toLowerCase()
+  if (lower === 'ativo 4pl' || lower === 'ativo 4pi') return 'Ativo 4PL'
+  if (lower === 'treinamento first mile' || lower === 'treinamento de first mile') return 'Treinamento de First Mile'
+  if (lower === 'treinamento de cadastro' || lower === 'treinamento de cadastros' || lower === 'treinamento cadastro' || lower === 'treinamento cadastros') return 'Treinamento de Cadastros'
+  if (lower === 'treinamento line haul' || lower === 'treinamento de line haul') return 'Treinamento de Line Haul'
+  return nome
+}
+
+const sortEtapasWithOrder = (list: any[], isShopee: boolean = false) => {
+  if (!list || list.length === 0) return []
+  return [...list].sort((a, b) => {
+    const keyA = (a.nome_etapa || '').trim().toLowerCase()
+    const keyB = (b.nome_etapa || '').trim().toLowerCase()
+
+    if (isShopee || (keyA in SHOPEE_ETAPAS_ORDER && keyB in SHOPEE_ETAPAS_ORDER)) {
+      const orderA = SHOPEE_ETAPAS_ORDER[keyA] ?? (keyA === 'feedback' ? 999 : (a.ordem || 50))
+      const orderB = SHOPEE_ETAPAS_ORDER[keyB] ?? (keyB === 'feedback' ? 999 : (b.ordem || 50))
+      if (orderA !== orderB) return orderA - orderB
+    }
+
+    if (keyA === 'feedback') return 1
+    if (keyB === 'feedback') return -1
+    return (a.ordem || 0) - (b.ordem || 0)
+  })
+}
+
 export function ImplantacaoDetalhes() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -38,23 +86,12 @@ export function ImplantacaoDetalhes() {
     }
   }, [id])
 
-  const sortEtapasWithFeedbackLast = (list: any[]) => {
-    if (!list || list.length === 0) return []
-    const withoutFeedback = list.filter(e => e.nome_etapa !== 'Feedback')
-    const feedback = list.find(e => e.nome_etapa === 'Feedback')
-    withoutFeedback.sort((a, b) => a.ordem - b.ordem)
-    if (feedback) {
-      withoutFeedback.push(feedback)
-    }
-    return withoutFeedback
-  }
-
   const fetchImplantacao = async () => {
     setLoading(true)
     try {
       const data = await api.getImplantacaoById(id!)
       setImplantacao(data)
-      const sorted = sortEtapasWithFeedbackLast(data.implantacao_etapas || [])
+      const sorted = sortEtapasWithOrder(data.implantacao_etapas || [], data.tipo_cliente === 'SHOPEE')
       setEtapas(sorted)
     } catch (err) {
       console.error(err)
@@ -276,11 +313,15 @@ export function ImplantacaoDetalhes() {
         <div className="bg-dark-card border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col justify-between">
           <div className="flex justify-between items-end mb-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Progresso Geral</span>
-            <span className={`text-2xl font-black ${isComplete ? 'text-green-400' : 'text-brand-500'}`}>{progress}%</span>
+            <span className={`text-2xl font-black ${
+              progress <= 33 ? 'text-red-400' : progress <= 66 ? 'text-amber-400' : 'text-green-400'
+            }`}>{progress}%</span>
           </div>
           <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
             <div 
-              className={`h-full rounded-full transition-all duration-500 ${isComplete ? 'bg-green-500' : 'bg-brand-500'}`}
+              className={`h-full rounded-full transition-all duration-500 ${
+                progress <= 33 ? 'bg-red-500' : progress <= 66 ? 'bg-amber-400' : 'bg-green-500'
+              }`}
               style={{ width: `${progress}%` }}
             ></div>
           </div>
@@ -336,7 +377,7 @@ export function ImplantacaoDetalhes() {
                     "text-sm font-bold leading-tight",
                     etapa.valor === 'OK' ? 'text-green-300' : 'text-slate-200'
                   )}>
-                    {etapa.nome_etapa}
+                    {normalizeEtapaNome(etapa.nome_etapa)}
                   </h4>
                 </div>
                 <div className="shrink-0">

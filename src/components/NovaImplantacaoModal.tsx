@@ -93,13 +93,27 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
 
   const generateEtapas = (): string[] => {
     if (tipoCliente === 'SHOPEE') {
-      const etapas = [...ETAPAS_BASE_SHOPEE]
-      selectedOperacoes.forEach(op => {
-        etapas.push(`Treinamento ${op}`)
-      })
-      if (selectedOperacoes.includes('Line Haul')) {
-        etapas.push('Treinamento de Cadastro')
+      const etapas: string[] = []
+      etapas.push('Checkpoint')
+      etapas.push('Configurar Base')
+      etapas.push('Ativo 4PL')
+      etapas.push('Testes')
+      if (selectedOperacoes.includes('Last Mile')) {
+        etapas.push('Treinamento Last Mile')
       }
+      if (selectedOperacoes.includes('First Mile')) {
+        etapas.push('Treinamento de First Mile')
+      }
+      if (selectedOperacoes.includes('Line Haul')) {
+        etapas.push('Treinamento de Cadastros')
+      }
+      if (selectedOperacoes.includes('Line Haul')) {
+        etapas.push('Treinamento de Line Haul')
+      }
+      if (selectedOperacoes.includes('Mobile Hub')) {
+        etapas.push('Treinamento Mobile Hub')
+      }
+      etapas.push('Treinamento Fatura')
       etapas.push('Feedback')
       return etapas
     } else {
@@ -337,7 +351,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
 
               {selectedOperacoes.includes('Line Haul') && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                  <span className="text-xs text-amber-400">⚡ Line Haul selecionado — será adicionado automaticamente "Treinamento de Cadastro"</span>
+                  <span className="text-xs text-amber-400">⚡ Line Haul selecionado — inclui "Treinamento de Cadastros" e "Treinamento de Line Haul"</span>
                 </div>
               )}
 
