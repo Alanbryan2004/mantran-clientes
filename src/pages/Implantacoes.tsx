@@ -139,18 +139,13 @@ export function Implantacoes() {
         if (!matchName) return false
       }
 
-      // 2. Filtro por etapa
+      // 2. Filtro por etapa (filtra apenas a Próxima Etapa exibida no card)
       if (selectedEtapa !== '') {
         const isShopee = impl.tipo_cliente === 'SHOPEE'
         const proxima = getProximaEtapa(impl.implantacao_etapas, isShopee)
         const proximaNome = proxima ? normalizeEtapaNome(proxima.nome_etapa) : ''
         
-        // Corresponde se a etapa for a próxima pendente OU estiver na lista de etapas não concluídas
-        const hasEtapaPending = (impl.implantacao_etapas || []).some(
-          (e: any) => e.valor !== 'OK' && normalizeEtapaNome(e.nome_etapa) === selectedEtapa
-        )
-
-        if (proximaNome !== selectedEtapa && !hasEtapaPending) {
+        if (proximaNome.trim().toLowerCase() !== selectedEtapa.trim().toLowerCase()) {
           return false
         }
       }
