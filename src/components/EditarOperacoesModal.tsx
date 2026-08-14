@@ -12,6 +12,12 @@ interface EditarOperacoesModalProps {
 
 const OPERACOES_SHOPEE = ['Line Haul', 'Last Mile', 'First Mile', 'Mobile Hub']
 
+const ETAPAS_BASE_NORMAL = [
+  'Checkpoint',
+  'Configurar Base',
+  'Testes',
+]
+
 const SHOPEE_ORDER_MAP: Record<string, number> = {
   'checkpoint': 1,
   'configurar base': 2,

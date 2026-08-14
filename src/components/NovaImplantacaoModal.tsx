@@ -11,14 +11,6 @@ interface NovaImplantacaoModalProps {
 
 const OPERACOES_SHOPEE = ['Line Haul', 'Last Mile', 'First Mile', 'Mobile Hub']
 
-const ETAPAS_BASE_SHOPEE = [
-  'Checkpoint',
-  'Configurar Base',
-  'Testes',
-  'Treinamento Fatura',
-  'Ativo 4Pl',
-]
-
 const ETAPAS_BASE_NORMAL = [
   'Checkpoint',
   'Configurar Base',
