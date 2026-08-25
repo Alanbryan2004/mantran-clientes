@@ -2,7 +2,7 @@ export interface BaseMantran {
   id: string; // e.g. "dbMantran001"
   clienteDbId?: string;
   empresa: string;
-  tipo: 'SHOPEE' | 'NORMAL' | 'TESTE' | '';
+  tipo: 'SHOPEE' | 'NORMAL' | 'TESTE' | 'COMMERSYS' | '';
   migradas: 'OK' | 'NOK' | '';
   ts: 'OK' | 'NOK' | '';
   servico: 'OK' | 'NOK' | '';

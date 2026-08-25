@@ -12,7 +12,7 @@ interface NovoClienteModalProps {
 export function NovoClienteModal({ isOpen, onClose, availableBases, onSave }: NovoClienteModalProps) {
   const [selectedBase, setSelectedBase] = useState('')
   const [empresa, setEmpresa] = useState('')
-  const [tipo, setTipo] = useState<'SHOPEE' | 'NORMAL' | 'TESTE' | ''>('NORMAL')
+  const [tipo, setTipo] = useState<'SHOPEE' | 'NORMAL' | 'TESTE' | 'COMMERSYS' | ''>('NORMAL')
   const [senha, setSenha] = useState('')
   const [possuiAditivo, setPossuiAditivo] = useState(false)
 
@@ -90,6 +90,7 @@ export function NovoClienteModal({ isOpen, onClose, availableBases, onSave }: No
               <label className="block text-sm font-medium text-slate-300 mb-2">Tipo</label>
               <select value={tipo} onChange={(e) => setTipo(e.target.value as any)} className="input-field">
                 <option value="NORMAL">NORMAL</option>
+                <option value="COMMERSYS">COMMERSYS</option>
                 <option value="SHOPEE">SHOPEE</option>
                 <option value="TESTE">TESTE</option>
               </select>

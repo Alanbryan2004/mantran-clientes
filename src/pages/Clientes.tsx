@@ -7,7 +7,7 @@ import { EditarClienteModal } from '../components/EditarClienteModal'
 import { UsuariosModal } from '../components/UsuariosModal'
 import { ModulosModal } from '../components/ModulosModal'
 import { NovaBaseModal } from '../components/NovaBaseModal'
-import { Plus, Search, Database, ShoppingBag, Briefcase } from 'lucide-react'
+import { Plus, Search, Database, ShoppingBag, Briefcase, Layers } from 'lucide-react'
 import { api } from '../lib/api'
 import clsx from 'clsx'
 
@@ -30,12 +30,12 @@ export function Clientes() {
 
   const [tipoFilter, setTipoFilter] = useState<string>(() => {
     const param = searchParams.get('tipo')?.toUpperCase()
-    return param === 'SHOPEE' || param === 'NORMAL' ? param : 'TODOS'
+    return param === 'SHOPEE' || param === 'NORMAL' || param === 'COMMERSYS' ? param : 'TODOS'
   })
 
   useEffect(() => {
     const param = searchParams.get('tipo')?.toUpperCase()
-    if (param === 'SHOPEE' || param === 'NORMAL') {
+    if (param === 'SHOPEE' || param === 'NORMAL' || param === 'COMMERSYS') {
       setTipoFilter(param)
     } else if (!param) {
       setTipoFilter('TODOS')
@@ -301,6 +301,18 @@ export function Clientes() {
             >
               <Briefcase className="w-3.5 h-3.5" />
               Normais
+            </button>
+            <button
+              onClick={() => handleSetFilter('COMMERSYS')}
+              className={clsx(
+                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                tipoFilter === 'COMMERSYS'
+                  ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                  : "text-slate-400 hover:text-slate-200"
+              )}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Commersys
             </button>
           </div>
 
