@@ -64,12 +64,21 @@ export function AlterarAnalistaModal({
 
       // Add entry to historico
       try {
+        let loggedUser: any = null
+        try {
+          const stored = localStorage.getItem('@Mantran:user')
+          if (stored) loggedUser = JSON.parse(stored)
+        } catch (_) {}
+
         const msg = selectedNome 
           ? `Analista responsável definido como: ${selectedNome}`
           : `Analista responsável removido`
+        
         await api.insertImplantacaoHistorico({
           implantacao_id: implantacaoId,
-          texto: msg
+          texto: msg,
+          usuario_id: loggedUser?.id || null,
+          usuario_nome: loggedUser ? (loggedUser.nome || loggedUser.login) : null
         })
       } catch (_) {}
 

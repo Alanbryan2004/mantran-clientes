@@ -570,7 +570,13 @@ export const api = {
     return data || []
   },
 
-  async insertImplantacaoHistorico(entry: { implantacao_id: string, data_hora?: string, texto: string }) {
+  async insertImplantacaoHistorico(entry: {
+    implantacao_id: string,
+    data_hora?: string,
+    texto: string,
+    usuario_id?: string | null,
+    usuario_nome?: string | null
+  }) {
     const { data, error } = await supabase
       .from('implantacao_historico')
       .insert(entry)
