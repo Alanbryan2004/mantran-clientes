@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Search, Building } from 'lucide-react'
 import { api } from '../lib/api'
+import { isReadOnlyUser } from '../lib/auth'
 import { LeoMadeirasTable } from '../components/LeoMadeirasTable'
 import type { LeoEmpresa } from '../components/LeoMadeirasTable'
 import { NovaEmpresaLeoModal } from '../components/NovaEmpresaLeoModal'
@@ -175,13 +176,15 @@ export function LeoMadeiras() {
               className="input-field pl-10 w-full"
             />
           </div>
-          <button 
-            onClick={() => setIsNovaEmpresaOpen(true)}
-            className="btn-primary flex items-center justify-center space-x-2 shadow-lg shadow-brand-500/20 whitespace-nowrap w-full sm:w-auto"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Nova Empresa</span>
-          </button>
+          {!isReadOnlyUser() && (
+            <button 
+              onClick={() => setIsNovaEmpresaOpen(true)}
+              className="btn-primary flex items-center justify-center space-x-2 shadow-lg shadow-brand-500/20 whitespace-nowrap w-full sm:w-auto"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Nova Empresa</span>
+            </button>
+          )}
         </div>
       </div>
 

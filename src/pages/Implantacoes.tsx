@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Rocket, Trash2, Settings, ShoppingBag, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck } from 'lucide-react'
 import { api } from '../lib/api'
+import { isReadOnlyUser } from '../lib/auth'
 import { NovaImplantacaoModal } from '../components/NovaImplantacaoModal'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
@@ -178,13 +179,15 @@ export function Implantacoes() {
           <h2 className="text-3xl font-bold text-slate-100">Implantações</h2>
           <p className="text-slate-400 mt-1">Acompanhe o processo de onboarding de novos clientes</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="btn-primary flex items-center space-x-2 shadow-lg shadow-brand-500/20"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Nova Implantação</span>
-        </button>
+        {!isReadOnlyUser() && (
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="btn-primary flex items-center space-x-2 shadow-lg shadow-brand-500/20"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Nova Implantação</span>
+          </button>
+        )}
       </div>
 
       {/* Submenu / Abas de Navegação + Filtros */}
@@ -381,25 +384,27 @@ export function Implantacoes() {
                                 </h3>
                               </div>
                               
-                              <div className="absolute -top-1 -right-1">
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === impl.id ? null : impl.id) }}
-                                  className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors focus:outline-none"
-                                >
-                                  <Settings className="w-4 h-4" />
-                                </button>
-                                
-                                {openMenuId === impl.id && (
-                                  <div className="absolute right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50">
-                                    <button 
-                                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDelete(impl.id, impl.nome_empresa) }}
-                                      className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
-                                    >
-                                      <Trash2 className="w-4 h-4" /> Excluir Implantação
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
+                              {!isReadOnlyUser() && (
+                                <div className="absolute -top-1 -right-1">
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === impl.id ? null : impl.id) }}
+                                    className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors focus:outline-none"
+                                  >
+                                    <Settings className="w-4 h-4" />
+                                  </button>
+                                  
+                                  {openMenuId === impl.id && (
+                                    <div className="absolute right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50">
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDelete(impl.id, impl.nome_empresa) }}
+                                        className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
+                                      >
+                                        <Trash2 className="w-4 h-4" /> Excluir Implantação
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-2 mb-2.5">
@@ -540,25 +545,27 @@ export function Implantacoes() {
                               </h3>
                             </div>
                             
-                            <div className="absolute -top-1 -right-1">
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === impl.id ? null : impl.id) }}
-                                className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors focus:outline-none"
-                              >
-                                <Settings className="w-4 h-4" />
-                              </button>
-                              
-                              {openMenuId === impl.id && (
-                                <div className="absolute right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50">
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDelete(impl.id, impl.nome_empresa) }}
-                                    className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
-                                  >
-                                    <Trash2 className="w-4 h-4" /> Excluir Implantação
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                            {!isReadOnlyUser() && (
+                              <div className="absolute -top-1 -right-1">
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === impl.id ? null : impl.id) }}
+                                  className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors focus:outline-none"
+                                >
+                                  <Settings className="w-4 h-4" />
+                                </button>
+                                
+                                {openMenuId === impl.id && (
+                                  <div className="absolute right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50">
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDelete(impl.id, impl.nome_empresa) }}
+                                      className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
+                                    >
+                                      <Trash2 className="w-4 h-4" /> Excluir Implantação
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2 mb-3">

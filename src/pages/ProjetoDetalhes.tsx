@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, Settings2 } from 'lucide-react'
 import { api } from '../lib/api'
+import { isReadOnlyUser } from '../lib/auth'
 import { GerenciarBasesModal } from '../components/GerenciarBasesModal'
 
 const getProgressColor = (progress: number) => {
@@ -71,6 +72,7 @@ export function ProjetoDetalhes() {
   }
 
   const handleUpdateDado = async (baseId: string, colunaId: string, valor: string) => {
+    if (isReadOnlyUser()) return
     const key = `${baseId}_${colunaId}`
     const previousValue = dados[key]
     
@@ -140,13 +142,15 @@ export function ProjetoDetalhes() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setIsGerenciarBasesOpen(true)}
-          className="btn-secondary flex items-center gap-2 text-sm"
-        >
-          <Settings2 className="w-4 h-4" />
-          Gerenciar Bases
-        </button>
+        {!isReadOnlyUser() && (
+          <button
+            onClick={() => setIsGerenciarBasesOpen(true)}
+            className="btn-secondary flex items-center gap-2 text-sm"
+          >
+            <Settings2 className="w-4 h-4" />
+            Gerenciar Bases
+          </button>
+        )}
       </div>
 
       {/* Progress Bar */}
@@ -207,8 +211,11 @@ export function ProjetoDetalhes() {
                         {col.tipo?.toUpperCase() === 'STATUS' ? (
                           <select
                             value={valor}
+                            disabled={isReadOnlyUser()}
                             onChange={(e) => handleUpdateDado(base.id, col.id, e.target.value)}
                             className={`input-field w-32 py-1.5 px-2 text-xs font-bold border-transparent focus:border-brand-500 ${
+                              isReadOnlyUser() ? 'cursor-default' : 'cursor-pointer'
+                            } ${
                               valor === 'OK' ? 'bg-green-500/10 text-green-400' :
                               valor === 'PENDENTE' ? 'bg-amber-500/10 text-amber-400' :
                               'bg-slate-800 text-slate-400'
@@ -222,16 +229,22 @@ export function ProjetoDetalhes() {
                           <input
                             type="date"
                             value={valor}
+                            disabled={isReadOnlyUser()}
                             onChange={(e) => handleUpdateDado(base.id, col.id, e.target.value)}
-                            className="input-field py-1.5 px-3 text-xs w-36 bg-slate-800 border-transparent focus:border-brand-500"
+                            className={`input-field py-1.5 px-3 text-xs w-36 bg-slate-800 border-transparent focus:border-brand-500 ${
+                              isReadOnlyUser() ? 'cursor-default opacity-80' : ''
+                            }`}
                           />
                         ) : (
                           <input
                             type="text"
                             value={valor}
+                            disabled={isReadOnlyUser()}
                             onChange={(e) => handleUpdateDado(base.id, col.id, e.target.value)}
-                            placeholder="..."
-                            className="input-field py-1.5 px-3 text-sm w-48 bg-transparent border-transparent hover:bg-slate-800 focus:bg-slate-800 focus:border-brand-500 transition-colors"
+                            placeholder={isReadOnlyUser() ? '' : '...'}
+                            className={`input-field py-1.5 px-3 text-sm w-48 bg-transparent border-transparent ${
+                              isReadOnlyUser() ? 'cursor-default opacity-80' : 'hover:bg-slate-800 focus:bg-slate-800 focus:border-brand-500'
+                            } transition-colors`}
                           />
                         )}
                       </td>

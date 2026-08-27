@@ -9,6 +9,7 @@ import { ModulosModal } from '../components/ModulosModal'
 import { NovaBaseModal } from '../components/NovaBaseModal'
 import { Plus, Search, Database, ShoppingBag, Briefcase, Layers } from 'lucide-react'
 import { api } from '../lib/api'
+import { isReadOnlyUser } from '../lib/auth'
 import clsx from 'clsx'
 
 export function Clientes() {
@@ -326,22 +327,24 @@ export function Clientes() {
               className="input-field pl-10 w-full"
             />
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <button 
-              onClick={() => setIsNovaBaseOpen(true)}
-              className="btn-secondary flex items-center justify-center space-x-2 whitespace-nowrap w-full sm:w-auto"
-            >
-              <Database className="w-5 h-5" />
-              <span>Nova Base</span>
-            </button>
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="btn-primary flex items-center justify-center space-x-2 shadow-lg shadow-brand-500/20 whitespace-nowrap w-full sm:w-auto"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Novo Cliente</span>
-            </button>
-          </div>
+          {!isReadOnlyUser() && (
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button 
+                onClick={() => setIsNovaBaseOpen(true)}
+                className="btn-secondary flex items-center justify-center space-x-2 whitespace-nowrap w-full sm:w-auto"
+              >
+                <Database className="w-5 h-5" />
+                <span>Nova Base</span>
+              </button>
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="btn-primary flex items-center justify-center space-x-2 shadow-lg shadow-brand-500/20 whitespace-nowrap w-full sm:w-auto"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Novo Cliente</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

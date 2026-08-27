@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { isReadOnlyUser } from '../lib/auth'
 import { Users, Blocks, Pencil, Trash2, CheckCircle2, XCircle } from 'lucide-react'
 
 export interface LeoEmpresa {
@@ -62,14 +63,16 @@ export function LeoMadeirasTable({ empresas, onOpenUsuarios, onOpenModulos, onEd
                 <td className="px-4 py-2 text-center">
                   <button
                     type="button"
+                    disabled={isReadOnlyUser()}
                     onClick={() => onToggleAtivo(emp.id, !isAtivo)}
                     className={clsx(
-                      "px-2.5 py-0.5 rounded text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 border shadow-sm",
+                      "px-2.5 py-0.5 rounded text-xs font-bold transition-all inline-flex items-center gap-1 border shadow-sm",
+                      isReadOnlyUser() ? "cursor-default opacity-90" : "cursor-pointer",
                       isAtivo
                         ? "bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20"
                         : "bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20"
                     )}
-                    title={`Clique para alterar para ${isAtivo ? 'NÃO' : 'SIM'}`}
+                    title={isReadOnlyUser() ? `Status: ${isAtivo ? 'ATIVO' : 'INATIVO'}` : `Clique para alterar para ${isAtivo ? 'NÃO' : 'SIM'}`}
                   >
                     {isAtivo ? (
                       <>
@@ -120,20 +123,26 @@ export function LeoMadeirasTable({ empresas, onOpenUsuarios, onOpenModulos, onEd
                 </td>
 
                 <td className="px-4 py-2 text-center whitespace-nowrap space-x-2">
-                  <button 
-                    onClick={() => onEdit(emp)}
-                    className="p-1.5 bg-slate-800 text-slate-300 hover:text-emerald-400 hover:bg-slate-700 rounded transition-colors inline-flex"
-                    title="Editar Empresa"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => onDelete(emp.id, emp.nome_empresa)}
-                    className="p-1.5 bg-slate-800 text-slate-300 hover:text-red-400 hover:bg-slate-700 rounded transition-colors inline-flex"
-                    title="Excluir Empresa"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {!isReadOnlyUser() ? (
+                    <>
+                      <button 
+                        onClick={() => onEdit(emp)}
+                        className="p-1.5 bg-slate-800 text-slate-300 hover:text-emerald-400 hover:bg-slate-700 rounded transition-colors inline-flex"
+                        title="Editar Empresa"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => onDelete(emp.id, emp.nome_empresa)}
+                        className="p-1.5 bg-slate-800 text-slate-300 hover:text-red-400 hover:bg-slate-700 rounded transition-colors inline-flex"
+                        title="Excluir Empresa"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-slate-600">-</span>
+                  )}
                 </td>
               </tr>
             )

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { LayoutDashboard, Database, Users, LogOut, Menu, Cloud, Rocket } from 'lucide-react'
+import { getLoggedUser } from '../../lib/auth'
 import clsx from 'clsx'
 
 const navItems = [
@@ -62,7 +63,28 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
+      <div className="p-4 border-t border-slate-800 space-y-2">
+        {isExpanded && (
+          <div className="px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-brand-500/20 border border-brand-500/30 text-brand-400 font-bold flex items-center justify-center text-xs uppercase shrink-0">
+              {(getLoggedUser()?.nome || getLoggedUser()?.login || 'U').charAt(0)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-white truncate">
+                {getLoggedUser()?.nome || getLoggedUser()?.login || 'Usuário'}
+              </p>
+              <span className={clsx(
+                "text-[10px] font-semibold px-1.5 py-0.5 rounded inline-block mt-0.5",
+                getLoggedUser()?.perfil?.toLowerCase() === 'usuario'
+                  ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                  : "bg-brand-500/10 text-brand-400"
+              )}>
+                {getLoggedUser()?.perfil?.toLowerCase() === 'usuario' ? '🔒 Consulta' : getLoggedUser()?.perfil || 'Acesso Total'}
+              </span>
+            </div>
+          </div>
+        )}
+
         <button 
           onClick={() => {
             localStorage.removeItem('@Mantran:user')
@@ -71,11 +93,11 @@ export function Sidebar() {
           title={!isExpanded ? 'Sair' : undefined}
           className={clsx(
             "flex items-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all duration-200 w-full",
-            isExpanded ? "px-4 py-3 space-x-3" : "p-3 justify-center"
+            isExpanded ? "px-4 py-2.5 space-x-3" : "p-3 justify-center"
           )}
         >
-          <LogOut className="w-5 h-5 flex-shrink-0" />
-          {isExpanded && <span className="font-medium">Sair</span>}
+          <LogOut className="w-4 h-4 flex-shrink-0" />
+          {isExpanded && <span className="text-sm font-medium">Sair</span>}
         </button>
       </div>
     </div>

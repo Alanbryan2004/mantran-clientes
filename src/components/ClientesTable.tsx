@@ -1,4 +1,5 @@
 import type { BaseMantran } from '../data/mockBases'
+import { isReadOnlyUser } from '../lib/auth'
 import clsx from 'clsx'
 import { Users, Blocks, Pencil, Trash2 } from 'lucide-react'
 
@@ -122,7 +123,7 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
               </td>
 
               <td className="px-4 py-2 text-center whitespace-nowrap space-x-2">
-                {cliente.empresa && cliente.clienteDbId ? (
+                {cliente.empresa && cliente.clienteDbId && !isReadOnlyUser() ? (
                   <>
                     <button 
                       onClick={() => onEdit(cliente)}

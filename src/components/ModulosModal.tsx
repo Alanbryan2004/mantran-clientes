@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { isReadOnlyUser } from '../lib/auth'
 
 interface ModulosModalProps {
   isOpen: boolean
@@ -59,7 +60,7 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: Modulo
   }
 
   const handleToggle = async (nomeModulo: string, isChecked: boolean) => {
-    if (!clienteId) return
+    if (!clienteId || isReadOnlyUser()) return
 
     try {
       if (isChecked) {

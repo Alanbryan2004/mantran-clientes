@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
+import { isReadOnlyUser } from '../lib/auth'
 
 interface UsuariosLeoModalProps {
   isOpen: boolean
@@ -98,48 +99,53 @@ export function UsuariosLeoModal({ isOpen, onClose, empresaId, empresaNome, cdEm
                     <p className="text-sm font-medium text-slate-200">Login: <span className="text-white font-bold">{u.login}</span></p>
                     <p className="text-xs text-slate-400 font-mono">Senha: {u.senha}</p>
                   </div>
-                  <button 
-                    onClick={() => handleExcluirUsuario(u.id)}
-                    className="text-slate-500 hover:text-red-500 transition-colors p-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {!isReadOnlyUser() && (
+                    <button 
+                      onClick={() => handleExcluirUsuario(u.id)}
+                      className="text-slate-500 hover:text-red-500 transition-colors p-2"
+                      title="Excluir Usuário"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        <div className="p-5 border-t border-slate-800 bg-slate-900/50">
-          <h3 className="text-sm font-semibold text-slate-300 mb-3">Adicionar Novo Usuário</h3>
-          <form onSubmit={handleAddUsuario} className="flex flex-col space-y-3">
-            <div className="flex space-x-3">
-              <input 
-                type="text" 
-                placeholder="Login" 
-                value={novoLogin}
-                onChange={e => setNovoLogin(e.target.value)}
-                className="input-field flex-1"
-                required
-              />
-              <input 
-                type="text" 
-                placeholder="Senha" 
-                value={novaSenha}
-                onChange={e => setNovaSenha(e.target.value)}
-                className="input-field flex-1"
-                required
-              />
-            </div>
-            <button 
-              type="submit" 
-              className="btn-primary flex items-center justify-center space-x-2 w-full py-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Adicionar Usuário</span>
-            </button>
-          </form>
-        </div>
+        {!isReadOnlyUser() && (
+          <div className="p-5 border-t border-slate-800 bg-slate-900/50">
+            <h3 className="text-sm font-semibold text-slate-300 mb-3">Adicionar Novo Usuário</h3>
+            <form onSubmit={handleAddUsuario} className="flex flex-col space-y-3">
+              <div className="flex space-x-3">
+                <input 
+                  type="text" 
+                  placeholder="Login" 
+                  value={novoLogin}
+                  onChange={e => setNovoLogin(e.target.value)}
+                  className="input-field flex-1"
+                  required
+                />
+                <input 
+                  type="text" 
+                  placeholder="Senha" 
+                  value={novaSenha}
+                  onChange={e => setNovaSenha(e.target.value)}
+                  className="input-field flex-1"
+                  required
+                />
+              </div>
+              <button 
+                type="submit" 
+                className="btn-primary flex items-center justify-center space-x-2 w-full py-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Adicionar Usuário</span>
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   )

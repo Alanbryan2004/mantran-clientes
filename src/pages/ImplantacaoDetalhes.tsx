@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User } from 'lucide-react'
 import { api } from '../lib/api'
+import { isReadOnlyUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
 import { AlterarAnalistaModal } from '../components/AlterarAnalistaModal'
 import clsx from 'clsx'
@@ -266,13 +267,15 @@ export function ImplantacaoDetalhes() {
         </div>
 
         {/* Edit Operations / Modules button */}
-        <button
-          onClick={() => setIsEditModalOpen(true)}
-          className="btn-secondary flex items-center gap-2 text-sm shadow-md"
-        >
-          <Settings2 className="w-4 h-4 text-brand-400" />
-          {isShopee ? 'Alterar Operações' : 'Alterar Módulos'}
-        </button>
+        {!isReadOnlyUser() && (
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="btn-secondary flex items-center gap-2 text-sm shadow-md"
+          >
+            <Settings2 className="w-4 h-4 text-brand-400" />
+            {isShopee ? 'Alterar Operações' : 'Alterar Módulos'}
+          </button>
+        )}
       </div>
 
       {/* Full Width Top Stats Grid */}
@@ -293,12 +296,14 @@ export function ImplantacaoDetalhes() {
               <UserCheck className="w-3.5 h-3.5 text-brand-400" />
               Analista Responsável
             </span>
-            <button 
-              onClick={() => setIsAnalistaModalOpen(true)}
-              className="text-xs text-brand-400 hover:text-brand-300 font-semibold underline"
-            >
-              {implantacao.analista_responsavel ? 'Alterar' : '+ Atribuir'}
-            </button>
+            {!isReadOnlyUser() && (
+              <button 
+                onClick={() => setIsAnalistaModalOpen(true)}
+                className="text-xs text-brand-400 hover:text-brand-300 font-semibold underline"
+              >
+                {implantacao.analista_responsavel ? 'Alterar' : '+ Atribuir'}
+              </button>
+            )}
           </div>
           {implantacao.analista_responsavel ? (
             <div className="mt-1">
@@ -316,12 +321,14 @@ export function ImplantacaoDetalhes() {
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
                 Sem Analista informado
               </p>
-              <button
-                onClick={() => setIsAnalistaModalOpen(true)}
-                className="mt-1.5 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-1 rounded-lg transition-colors inline-flex items-center gap-1"
-              >
-                <UserPlus className="w-3 h-3" /> Definir Analista
-              </button>
+              {!isReadOnlyUser() && (
+                <button
+                  onClick={() => setIsAnalistaModalOpen(true)}
+                  className="mt-1.5 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-1 rounded-lg transition-colors inline-flex items-center gap-1"
+                >
+                  <UserPlus className="w-3 h-3" /> Definir Analista
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -332,12 +339,14 @@ export function ImplantacaoDetalhes() {
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               {isShopee ? 'Operações Shopee' : 'Módulos Selecionados'}
             </span>
-            <button 
-              onClick={() => setIsEditModalOpen(true)}
-              className="text-xs text-brand-400 hover:text-brand-300 font-semibold underline"
-            >
-              Editar
-            </button>
+            {!isReadOnlyUser() && (
+              <button 
+                onClick={() => setIsEditModalOpen(true)}
+                className="text-xs text-brand-400 hover:text-brand-300 font-semibold underline"
+              >
+                Editar
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             {isShopee ? (
@@ -444,9 +453,11 @@ export function ImplantacaoDetalhes() {
                 <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status:</span>
                 <select
                   value={etapa.valor}
+                  disabled={isReadOnlyUser()}
                   onChange={(e) => handleUpdateEtapa(etapa.id, e.target.value)}
                   className={clsx(
-                    "text-xs font-bold py-1.5 px-3 rounded-lg border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/50 appearance-none text-center min-w-[120px]",
+                    "text-xs font-bold py-1.5 px-3 rounded-lg border transition-all appearance-none text-center min-w-[120px]",
+                    isReadOnlyUser() ? "cursor-default opacity-90" : "cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/50",
                     getStatusStyle(etapa.valor)
                   )}
                 >
@@ -477,36 +488,38 @@ export function ImplantacaoDetalhes() {
 
         <div className="p-5 space-y-5">
           {/* Add History Form */}
-          <form onSubmit={handleAddHistorico} className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
-            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Novo Registro no Histórico</h4>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative shrink-0">
+          {!isReadOnlyUser() && (
+            <form onSubmit={handleAddHistorico} className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Novo Registro no Histórico</h4>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative shrink-0">
+                  <input
+                    type="datetime-local"
+                    value={historicoDataHora}
+                    onChange={e => setHistoricoDataHora(e.target.value)}
+                    className="input-field py-2 px-3 text-xs w-full sm:w-48 bg-slate-800 border-slate-700 text-slate-200"
+                    required
+                  />
+                </div>
                 <input
-                  type="datetime-local"
-                  value={historicoDataHora}
-                  onChange={e => setHistoricoDataHora(e.target.value)}
-                  className="input-field py-2 px-3 text-xs w-full sm:w-48 bg-slate-800 border-slate-700 text-slate-200"
+                  type="text"
+                  value={historicoTexto}
+                  onChange={e => setHistoricoTexto(e.target.value)}
+                  placeholder="Ex: Cliente não atendeu / Reagendou treinamento / Enviou documentos..."
+                  className="input-field py-2 px-3 text-xs flex-1 bg-slate-800 border-slate-700 text-slate-200"
                   required
                 />
+                <button
+                  type="submit"
+                  disabled={addingHistorico || !historicoTexto.trim()}
+                  className="btn-primary py-2 px-4 text-xs flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{addingHistorico ? 'Adicionando...' : 'Adicionar'}</span>
+                </button>
               </div>
-              <input
-                type="text"
-                value={historicoTexto}
-                onChange={e => setHistoricoTexto(e.target.value)}
-                placeholder="Ex: Cliente não atendeu / Reagendou treinamento / Enviou documentos..."
-                className="input-field py-2 px-3 text-xs flex-1 bg-slate-800 border-slate-700 text-slate-200"
-                required
-              />
-              <button
-                type="submit"
-                disabled={addingHistorico || !historicoTexto.trim()}
-                className="btn-primary py-2 px-4 text-xs flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{addingHistorico ? 'Adicionando...' : 'Adicionar'}</span>
-              </button>
-            </div>
-          </form>
+            </form>
+          )}
 
           {/* History Timeline */}
           {historico.length === 0 ? (
@@ -538,14 +551,16 @@ export function ImplantacaoDetalhes() {
                     </span>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteHistorico(item.id)}
-                    className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
-                    title="Excluir evento"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {!isReadOnlyUser() && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteHistorico(item.id)}
+                      className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
+                      title="Excluir evento"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               ))}
 
