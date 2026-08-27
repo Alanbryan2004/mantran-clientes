@@ -490,7 +490,9 @@ export const api = {
     nome_empresa: string,
     tipo_cliente: string,
     operacoes_shopee?: string[],
-    modulos_normal?: string[]
+    modulos_normal?: string[],
+    analista_responsavel_id?: string | null,
+    analista_responsavel?: string | null
   }) {
     const { data, error } = await supabase
       .from('implantacoes')
@@ -586,6 +588,19 @@ export const api = {
       .eq('id', id)
     
     if (error) throw error
+  },
+
+  // --- Usuários do Sistema ---
+  async getUsuariosSuporte() {
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('id, nome, login, perfil, ativo')
+      .eq('perfil', 'Suporte')
+      .eq('ativo', true)
+      .order('nome', { ascending: true })
+    
+    if (error) throw error
+    return data || []
   }
 }
 

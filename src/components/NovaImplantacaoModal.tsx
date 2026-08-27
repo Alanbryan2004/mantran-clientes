@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, ChevronRight, ChevronLeft, Check, ShoppingBag, Building, Rocket } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Check, ShoppingBag, Building, Rocket, UserCheck, ShieldAlert } from 'lucide-react'
 import { api } from '../lib/api'
 import clsx from 'clsx'
 
@@ -24,8 +24,12 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
   const [tipoCliente, setTipoCliente] = useState<'SHOPEE' | 'NORMAL' | ''>('')
   const [selectedOperacoes, setSelectedOperacoes] = useState<string[]>([])
   const [selectedModulos, setSelectedModulos] = useState<string[]>([])
+  const [selectedAnalistaId, setSelectedAnalistaId] = useState<string>('')
+  const [selectedAnalistaNome, setSelectedAnalistaNome] = useState<string>('')
+  
   const [basesDisponiveis, setBasesDisponiveis] = useState<any[]>([])
   const [modulosDisponiveis, setModulosDisponiveis] = useState<any[]>([])
+  const [analistasSuporte, setAnalistasSuporte] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -34,6 +38,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
       resetForm()
       fetchBasesDisponiveis()
       fetchModulos()
+      fetchAnalistasSuporte()
     }
   }, [isOpen])
 
@@ -44,6 +49,8 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
     setTipoCliente('')
     setSelectedOperacoes([])
     setSelectedModulos([])
+    setSelectedAnalistaId('')
+    setSelectedAnalistaNome('')
   }
 
   const fetchBasesDisponiveis = async () => {
@@ -71,6 +78,15 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
     }
   }
 
+  const fetchAnalistasSuporte = async () => {
+    try {
+      const data = await api.getUsuariosSuporte()
+      setAnalistasSuporte(data || [])
+    } catch (err) {
+      console.error('Erro ao buscar analistas de suporte:', err)
+    }
+  }
+
   const toggleOperacao = (op: string) => {
     setSelectedOperacoes(prev => 
       prev.includes(op) ? prev.filter(o => o !== op) : [...prev, op]
@@ -81,6 +97,11 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
     setSelectedModulos(prev => 
       prev.includes(mod) ? prev.filter(m => m !== mod) : [...prev, mod]
     )
+  }
+
+  const handleSelectAnalista = (id: string, nome: string) => {
+    setSelectedAnalistaId(id)
+    setSelectedAnalistaNome(nome)
   }
 
   const generateEtapas = (): string[] => {
@@ -124,6 +145,9 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
       if (tipoCliente === 'SHOPEE') return selectedOperacoes.length > 0
       return selectedModulos.length > 0
     }
+    if (step === 3) {
+      return true // Analista pode ser selecionado ou deixado em branco
+    }
     return true
   }
 
@@ -158,7 +182,9 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
         nome_empresa: nomeEmpresa,
         tipo_cliente: tipoCliente,
         operacoes_shopee: tipoCliente === 'SHOPEE' ? selectedOperacoes : [],
-        modulos_normal: tipoCliente === 'NORMAL' ? selectedModulos : []
+        modulos_normal: tipoCliente === 'NORMAL' ? selectedModulos : [],
+        analista_responsavel_id: selectedAnalistaId || null,
+        analista_responsavel: selectedAnalistaNome || null
       })
 
       // 4. Gerar e inserir as etapas
@@ -207,7 +233,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
               <Rocket className="w-5 h-5 text-brand-500" />
               Nova Implantação
             </h2>
-            <p className="text-sm text-slate-400">Passo {step} de 3</p>
+            <p className="text-sm text-slate-400">Passo {step} de 4</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
             <X className="w-6 h-6" />
@@ -216,7 +242,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
 
         {/* Step indicator */}
         <div className="flex items-center px-6 py-3 bg-slate-900/50 border-b border-slate-800 shrink-0">
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <div key={s} className="flex items-center flex-1">
               <div className={clsx(
                 "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all",
@@ -226,7 +252,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
               )}>
                 {s < step ? <Check className="w-4 h-4" /> : s}
               </div>
-              {s < 3 && (
+              {s < 4 && (
                 <div className={clsx(
                   "flex-1 h-0.5 mx-2 transition-all",
                   s < step ? "bg-brand-500" : "bg-slate-700"
@@ -410,8 +436,90 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
             </div>
           )}
 
-          {/* STEP 3: Confirmação */}
+          {/* STEP 3: Analista Responsável (Perfil Suporte) */}
           {step === 3 && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-brand-400" />
+                  Analista Responsável
+                </h3>
+                <p className="text-xs text-slate-500 mb-4">
+                  Selecione o analista da equipe de Suporte que será responsável por esta implantação
+                </p>
+
+                {analistasSuporte.length === 0 ? (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-center">
+                    <ShieldAlert className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-amber-300">Nenhum analista com Perfil Suporte encontrado</p>
+                    <p className="text-xs text-slate-400 mt-1">Você pode prosseguir e vincular o analista posteriormente nos detalhes da implantação.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 uppercase mb-2">
+                        Selecionar Analista (Perfil Suporte)
+                      </label>
+                      <select
+                        value={selectedAnalistaId}
+                        onChange={(e) => {
+                          const id = e.target.value
+                          const user = analistasSuporte.find((u: any) => u.id === id)
+                          handleSelectAnalista(id, user ? (user.nome || user.login) : '')
+                        }}
+                        className="input-field w-full text-base py-2.5 font-medium"
+                      >
+                        <option value="">-- Não atribuir analista agora --</option>
+                        {analistasSuporte.map((u: any) => (
+                          <option key={u.id} value={u.id}>
+                            {u.nome || u.login} ({u.login}) - Suporte
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+                      {analistasSuporte.map((u: any) => {
+                        const isSelected = selectedAnalistaId === u.id
+                        const displayName = u.nome || u.login
+                        return (
+                          <div
+                            key={u.id}
+                            onClick={() => handleSelectAnalista(isSelected ? '' : u.id, isSelected ? '' : displayName)}
+                            className={clsx(
+                              "flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-200",
+                              isSelected 
+                                ? "border-brand-500 bg-brand-500/10 text-white shadow-md shadow-brand-500/10" 
+                                : "border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-700 hover:bg-slate-800/50"
+                            )}
+                          >
+                            <div className={clsx(
+                              "w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 uppercase transition-colors",
+                              isSelected 
+                                ? "bg-brand-500 text-white" 
+                                : "bg-slate-800 text-slate-400 border border-slate-700"
+                            )}>
+                              {displayName.charAt(0)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold truncate text-white">{displayName}</p>
+                              <p className="text-xs text-slate-400 truncate">@{u.login}</p>
+                            </div>
+                            {isSelected && (
+                              <Check className="w-5 h-5 text-brand-400 shrink-0" />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: Confirmação */}
+          {step === 4 && (
             <div className="space-y-5">
               <div className="text-center mb-4">
                 <Rocket className="w-10 h-10 text-brand-500 mx-auto mb-2" />
@@ -433,6 +541,19 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
                   <span className={`text-sm font-bold ${tipoCliente === 'SHOPEE' ? 'text-orange-400' : 'text-blue-400'}`}>
                     {tipoCliente}
                   </span>
+                </div>
+                <div className="flex justify-between p-4">
+                  <span className="text-sm text-slate-400">Analista Responsável</span>
+                  {selectedAnalistaNome ? (
+                    <span className="text-sm font-bold text-brand-400 flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4" />
+                      {selectedAnalistaNome}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-medium text-amber-400/80 italic">
+                      Sem Analista Responsável informado
+                    </span>
+                  )}
                 </div>
                 {tipoCliente === 'SHOPEE' && (
                   <div className="flex justify-between p-4">
@@ -484,7 +605,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
             </button>
           )}
           
-          {step < 3 ? (
+          {step < 4 ? (
             <button 
               type="button"
               onClick={() => setStep(step + 1)}

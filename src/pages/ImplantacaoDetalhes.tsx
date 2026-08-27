@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus } from 'lucide-react'
 import { api } from '../lib/api'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
+import { AlterarAnalistaModal } from '../components/AlterarAnalistaModal'
 import clsx from 'clsx'
 
 const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
@@ -62,6 +63,7 @@ export function ImplantacaoDetalhes() {
   const [historico, setHistorico] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isAnalistaModalOpen, setIsAnalistaModalOpen] = useState(false)
 
   // Historico form state
   const getCurrentDateTimeLocal = () => {
@@ -261,9 +263,9 @@ export function ImplantacaoDetalhes() {
       </div>
 
       {/* Full Width Top Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Base Info */}
-        <div className="bg-dark-card border border-slate-800 rounded-xl p-5 shadow-lg">
+        <div className="bg-dark-card border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col justify-between">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Base Alocada</span>
           <p className="text-xl font-black font-mono text-white mt-1">
             {implantacao.bases?.nome_base || '—'}
@@ -271,8 +273,48 @@ export function ImplantacaoDetalhes() {
           <span className="text-xs text-slate-500">Base do sistema</span>
         </div>
 
+        {/* Analista Responsável */}
+        <div className="bg-dark-card border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col justify-between">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <UserCheck className="w-3.5 h-3.5 text-brand-400" />
+              Analista Responsável
+            </span>
+            <button 
+              onClick={() => setIsAnalistaModalOpen(true)}
+              className="text-xs text-brand-400 hover:text-brand-300 font-semibold underline"
+            >
+              {implantacao.analista_responsavel ? 'Alterar' : '+ Atribuir'}
+            </button>
+          </div>
+          {implantacao.analista_responsavel ? (
+            <div className="mt-1">
+              <p className="text-lg font-bold text-white flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-400"></span>
+                {implantacao.analista_responsavel}
+              </p>
+              <span className="text-xs font-medium text-brand-400/80 bg-brand-500/10 px-2 py-0.5 rounded border border-brand-500/20 inline-block mt-1">
+                Equipe Suporte
+              </span>
+            </div>
+          ) : (
+            <div className="mt-1">
+              <p className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                Sem Analista informado
+              </p>
+              <button
+                onClick={() => setIsAnalistaModalOpen(true)}
+                className="mt-1.5 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-1 rounded-lg transition-colors inline-flex items-center gap-1"
+              >
+                <UserPlus className="w-3 h-3" /> Definir Analista
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Operations or Modules */}
-        <div className="bg-dark-card border border-slate-800 rounded-xl p-5 shadow-lg md:col-span-2">
+        <div className="bg-dark-card border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col justify-between">
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               {isShopee ? 'Operações Shopee' : 'Módulos Selecionados'}
@@ -518,6 +560,23 @@ export function ImplantacaoDetalhes() {
         onClose={() => setIsEditModalOpen(false)}
         implantacao={implantacao}
         onSuccess={fetchImplantacao}
+      />
+
+      {/* Modal for editing analista responsavel */}
+      <AlterarAnalistaModal
+        isOpen={isAnalistaModalOpen}
+        onClose={() => setIsAnalistaModalOpen(false)}
+        implantacaoId={implantacao.id}
+        currentAnalistaId={implantacao.analista_responsavel_id}
+        currentAnalistaNome={implantacao.analista_responsavel}
+        onSuccess={(newId, newName) => {
+          setImplantacao((prev: any) => ({
+            ...prev,
+            analista_responsavel_id: newId,
+            analista_responsavel: newName
+          }))
+          fetchHistorico()
+        }}
       />
     </div>
   )

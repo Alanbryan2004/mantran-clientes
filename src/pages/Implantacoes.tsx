@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Rocket, Trash2, Settings, ShoppingBag, Building, CheckCircle2, Clock, Search, Filter, X } from 'lucide-react'
+import { Plus, Rocket, Trash2, Settings, ShoppingBag, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck } from 'lucide-react'
 import { api } from '../lib/api'
 import { NovaImplantacaoModal } from '../components/NovaImplantacaoModal'
 import { useNavigate } from 'react-router-dom'
@@ -85,6 +85,7 @@ export function Implantacoes() {
   const [activeTab, setActiveTab] = useState<'EM_ANDAMENTO' | 'CONCLUIDOS'>('EM_ANDAMENTO')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedEtapa, setSelectedEtapa] = useState('')
+  const [selectedAnalista, setSelectedAnalista] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -130,6 +131,11 @@ export function Implantacoes() {
     .filter(i => i.status === 'Concluído')
     .sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR', { sensitivity: 'base' }))
 
+  // Unique analistas for filter
+  const analistasList = Array.from(
+    new Set(implantacoes.map(i => i.analista_responsavel).filter(Boolean))
+  ).sort()
+
   const filterList = (list: any[]) => {
     return list.filter(impl => {
       // 1. Filtro por nome do cliente
@@ -150,13 +156,20 @@ export function Implantacoes() {
         }
       }
 
+      // 3. Filtro por Analista
+      if (selectedAnalista === 'SEM_ANALISTA') {
+        if (impl.analista_responsavel) return false
+      } else if (selectedAnalista !== '') {
+        if (impl.analista_responsavel !== selectedAnalista) return false
+      }
+
       return true
     })
   }
 
   const filteredEmAndamento = filterList(emAndamento)
   const filteredConcluidos = filterList(concluidos)
-  const isFiltering = searchTerm.trim() !== '' || selectedEtapa !== ''
+  const isFiltering = searchTerm.trim() !== '' || selectedEtapa !== '' || selectedAnalista !== ''
 
   return (
     <div className="space-y-6" onClick={() => setOpenMenuId(null)}>
@@ -241,7 +254,7 @@ export function Implantacoes() {
           </div>
 
           {/* Filtro por Etapa */}
-          <div className="relative min-w-[220px] flex-1 sm:flex-initial">
+          <div className="relative min-w-[200px] flex-1 sm:flex-initial">
             <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
               value={selectedEtapa}
@@ -258,10 +271,29 @@ export function Implantacoes() {
             </div>
           </div>
 
+          {/* Filtro por Analista */}
+          <div className="relative min-w-[190px] flex-1 sm:flex-initial">
+            <UserCheck className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              value={selectedAnalista}
+              onChange={(e) => setSelectedAnalista(e.target.value)}
+              className="w-full pl-8 pr-8 py-2 text-xs bg-slate-900/60 border border-slate-700/80 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all appearance-none cursor-pointer"
+            >
+              <option value="">Todos os Analistas</option>
+              <option value="SEM_ANALISTA">⚠️ Sem Analista</option>
+              {analistasList.map((analista) => (
+                <option key={analista} value={analista}>{analista}</option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[10px]">
+              ▼
+            </div>
+          </div>
+
           {/* Limpar filtros */}
           {isFiltering && (
             <button
-              onClick={() => { setSearchTerm(''); setSelectedEtapa(''); }}
+              onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); }}
               className="text-xs text-brand-400 hover:text-brand-300 underline font-semibold flex items-center gap-1 cursor-pointer py-1 px-2 rounded hover:bg-brand-500/10 transition-colors"
             >
               <X className="w-3 h-3" />
@@ -430,8 +462,23 @@ export function Implantacoes() {
                               </div>
                             </div>
 
-                            <div className="text-[11px] text-slate-500">
-                              {impl.implantacao_etapas?.filter((e: any) => e.valor === 'OK').length || 0} / {impl.implantacao_etapas?.length || 0} etapas concluídas
+                            {/* Analista & Total de etapas */}
+                            <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <UserCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                {impl.analista_responsavel ? (
+                                  <span className="font-semibold text-slate-300 truncate" title={`Analista: ${impl.analista_responsavel}`}>
+                                    {impl.analista_responsavel}
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-400/90 font-medium italic">
+                                    Sem analista
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-slate-500 shrink-0">
+                                {impl.implantacao_etapas?.filter((e: any) => e.valor === 'OK').length || 0} / {impl.implantacao_etapas?.length || 0} etapas
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -539,8 +586,23 @@ export function Implantacoes() {
                             </div>
                           </div>
 
-                          <div className="text-[11px] text-slate-500">
-                            {impl.implantacao_etapas?.length || 0} / {impl.implantacao_etapas?.length || 0} etapas concluídas
+                          {/* Analista & Total de etapas */}
+                          <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <UserCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              {impl.analista_responsavel ? (
+                                <span className="font-semibold text-slate-300 truncate" title={`Analista: ${impl.analista_responsavel}`}>
+                                  {impl.analista_responsavel}
+                                </span>
+                              ) : (
+                                <span className="text-amber-400/90 font-medium italic">
+                                  Sem analista
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-slate-500 shrink-0">
+                              {impl.implantacao_etapas?.length || 0} / {impl.implantacao_etapas?.length || 0} etapas
+                            </div>
                           </div>
                         </div>
                       </div>
