@@ -456,7 +456,8 @@ export const api = {
       .select(`
         *,
         bases ( id, nome_base ),
-        implantacao_etapas ( id, nome_etapa, valor, ordem )
+        implantacao_etapas ( id, nome_etapa, valor, ordem ),
+        implantacao_historico ( id, data_hora, texto, usuario_nome, created_at )
       `)
       .order('created_at', { ascending: false })
     
@@ -470,7 +471,8 @@ export const api = {
       .select(`
         *,
         bases ( id, nome_base ),
-        implantacao_etapas ( id, nome_etapa, valor, ordem )
+        implantacao_etapas ( id, nome_etapa, valor, ordem ),
+        implantacao_historico ( id, data_hora, texto, usuario_nome, created_at )
       `)
       .eq('id', id)
       .single()

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Rocket, Trash2, Settings, ShoppingBag, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck } from 'lucide-react'
+import { Plus, Rocket, Trash2, Settings, ShoppingBag, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck, History } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
 import { NovaImplantacaoModal } from '../components/NovaImplantacaoModal'
@@ -79,6 +79,39 @@ const getProgressTextColor = (progress: number) => {
   if (progress <= 33) return 'text-red-400'
   if (progress <= 66) return 'text-amber-400'
   return 'text-green-400'
+}
+
+const getUltimoStatusData = (impl: any) => {
+  const historicos = impl.implantacao_historico || []
+  const sorted = [...historicos].sort(
+    (a: any, b: any) => new Date(b.data_hora || b.created_at).getTime() - new Date(a.data_hora || a.created_at).getTime()
+  )
+  const lastEntry = sorted[0]
+
+  const baseDate = lastEntry 
+    ? new Date(lastEntry.data_hora || lastEntry.created_at) 
+    : new Date(impl.created_at)
+  
+  const now = new Date()
+  const diffMs = now.getTime() - baseDate.getTime()
+  const daysDiff = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
+
+  const daysLabel = daysDiff === 0 
+    ? 'Hoje' 
+    : daysDiff === 1 
+    ? '01 Dia Atrás' 
+    : `${String(daysDiff).padStart(2, '0')} Dias Atrás`
+
+  const isCritical = daysDiff >= 7
+  const isWarning = daysDiff >= 5 && daysDiff < 7
+
+  return {
+    lastEntry,
+    daysDiff,
+    daysLabel,
+    isCritical,
+    isWarning,
+  }
 }
 
 export function Implantacoes() {
@@ -422,7 +455,7 @@ export function Implantacoes() {
                             </div>
 
                             {/* Próxima etapa a ser concluída */}
-                            <div className="my-2.5 p-2 rounded-lg bg-slate-900/60 border border-slate-800/80 flex flex-col gap-1">
+                            <div className="my-2 p-2 rounded-lg bg-slate-900/60 border border-slate-800/80 flex flex-col gap-1">
                               <div className="flex items-center justify-between text-[11px]">
                                 <span className="text-slate-400 font-medium">Próxima Etapa:</span>
                                 {proximaEtapa ? (
@@ -452,6 +485,52 @@ export function Implantacoes() {
                                 </span>
                               </div>
                             </div>
+
+                            {/* Último Status / Histórico */}
+                            {(() => {
+                              const statusData = getUltimoStatusData(impl)
+                              return (
+                                <div className={`my-2 p-2 rounded-lg border flex flex-col gap-1 transition-all ${
+                                  statusData.isCritical
+                                    ? 'border-red-500/50 bg-red-950/20 shadow-[inset_0_0_12px_rgba(239,68,68,0.15)]'
+                                    : statusData.isWarning
+                                    ? 'border-amber-500/40 bg-amber-950/20'
+                                    : 'border-slate-800/80 bg-slate-900/60'
+                                }`}>
+                                  <div className="flex items-center justify-between text-[11px] gap-1">
+                                    <span className="text-slate-400 font-medium flex items-center gap-1 shrink-0">
+                                      <History className={`w-3 h-3 ${statusData.isCritical ? 'text-red-400' : statusData.isWarning ? 'text-amber-400' : 'text-slate-400'}`} />
+                                      <span className={statusData.isCritical ? 'text-red-300 font-semibold' : statusData.isWarning ? 'text-amber-300 font-semibold' : ''}>Último Status:</span>
+                                    </span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${
+                                      statusData.isCritical
+                                        ? 'bg-red-500/25 text-red-300 border-red-500/50 animate-pulse font-black shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+                                        : statusData.isWarning
+                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                                        : 'bg-slate-800 text-slate-400 border-slate-700/80 font-medium'
+                                    }`}>
+                                      {statusData.daysLabel}
+                                    </span>
+                                  </div>
+                                  <p 
+                                    className={`text-[11px] truncate font-medium ${
+                                      statusData.isCritical 
+                                        ? 'text-red-200' 
+                                        : statusData.isWarning 
+                                        ? 'text-amber-100' 
+                                        : 'text-slate-200'
+                                    }`}
+                                    title={statusData.lastEntry ? statusData.lastEntry.texto : 'Sem histórico registrado'}
+                                  >
+                                    {statusData.lastEntry ? (
+                                      statusData.lastEntry.texto
+                                    ) : (
+                                      <span className="text-slate-500 italic">Sem histórico registrado</span>
+                                    )}
+                                  </p>
+                                </div>
+                              )
+                            })()}
 
                             {/* Progress bar */}
                             <div className="mb-2">
@@ -568,7 +647,7 @@ export function Implantacoes() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2 mb-3">
+                          <div className="flex items-center gap-2 mb-2">
                             <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                               impl.tipo_cliente === 'SHOPEE' 
                                 ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' 
@@ -581,6 +660,34 @@ export function Implantacoes() {
                               <CheckCircle2 className="w-3 h-3" /> Concluído
                             </span>
                           </div>
+
+                          {/* Último Status / Histórico (Concluídos) */}
+                          {(() => {
+                            const statusData = getUltimoStatusData(impl)
+                            return (
+                              <div className="my-2 p-2 rounded-lg border border-slate-800/80 bg-slate-900/60 flex flex-col gap-1">
+                                <div className="flex items-center justify-between text-[11px] gap-1">
+                                  <span className="text-slate-400 font-medium flex items-center gap-1 shrink-0">
+                                    <History className="w-3 h-3 text-slate-400" />
+                                    <span>Último Status:</span>
+                                  </span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded border shrink-0 bg-slate-800 text-slate-400 border-slate-700/80 font-medium">
+                                    {statusData.daysLabel}
+                                  </span>
+                                </div>
+                                <p 
+                                  className="text-[11px] text-slate-200 truncate font-medium" 
+                                  title={statusData.lastEntry ? statusData.lastEntry.texto : 'Sem histórico registrado'}
+                                >
+                                  {statusData.lastEntry ? (
+                                    statusData.lastEntry.texto
+                                  ) : (
+                                    <span className="text-slate-500 italic">Sem histórico registrado</span>
+                                  )}
+                                </p>
+                              </div>
+                            )
+                          })()}
 
                           {/* 100% Progress bar */}
                           <div className="mb-2">
