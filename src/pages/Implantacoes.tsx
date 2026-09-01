@@ -82,8 +82,8 @@ const getProgressTextColor = (progress: number) => {
 }
 
 const getUltimoStatusStyle = (daysDiff: number) => {
-  if (daysDiff >= 7) {
-    // 07 Dias ou Superior -> Vermelho e piscando
+  if (daysDiff >= 5) {
+    // 05 Dias ou Superior -> Vermelho e piscando
     return {
       statusLevel: 'critical',
       badgeClass: 'bg-red-500/25 text-red-300 border-red-500/50 animate-pulse font-black shadow-[0_0_8px_rgba(239,68,68,0.4)]',
@@ -92,8 +92,8 @@ const getUltimoStatusStyle = (daysDiff: number) => {
       labelClass: 'text-red-300 font-semibold',
       textClass: 'text-red-200'
     }
-  } else if (daysDiff === 6) {
-    // 06 Dias -> Laranja (degradê para vermelho)
+  } else if (daysDiff === 4) {
+    // 04 Dias -> Laranja / Âmbar (degradê para vermelho)
     return {
       statusLevel: 'warning-high',
       badgeClass: 'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold',
@@ -102,8 +102,8 @@ const getUltimoStatusStyle = (daysDiff: number) => {
       labelClass: 'text-orange-300 font-semibold',
       textClass: 'text-orange-100'
     }
-  } else if (daysDiff === 5) {
-    // 05 Dias -> Amarelo
+  } else if (daysDiff === 3) {
+    // 03 Dias -> Amarelo
     return {
       statusLevel: 'warning',
       badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold',
@@ -112,18 +112,8 @@ const getUltimoStatusStyle = (daysDiff: number) => {
       labelClass: 'text-amber-300 font-semibold',
       textClass: 'text-amber-100'
     }
-  } else if (daysDiff >= 3) {
-    // 03 a 04 Dias -> Verde Lima (degradê de verde para amarelo)
-    return {
-      statusLevel: 'normal-warning',
-      badgeClass: 'bg-lime-500/15 text-lime-300 border-lime-500/30 font-semibold',
-      borderClass: 'border-lime-500/25 bg-lime-950/10',
-      iconClass: 'text-lime-400',
-      labelClass: 'text-lime-300 font-medium',
-      textClass: 'text-slate-200'
-    }
   } else {
-    // 00 a 02 Dias -> Verde Esmeralda
+    // 00 a 02 Dias -> Verde
     return {
       statusLevel: 'ok',
       badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 font-semibold',
