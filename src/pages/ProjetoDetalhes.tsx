@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Settings2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Settings2, Settings } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
 import { GerenciarBasesModal } from '../components/GerenciarBasesModal'
+import { EditarProjetoModal } from '../components/EditarProjetoModal'
 
 const getProgressColor = (progress: number) => {
   if (progress <= 33) return 'bg-red-500'
@@ -27,6 +28,7 @@ export function ProjetoDetalhes() {
   const [dados, setDados] = useState<Record<string, string>>({}) // key: baseId_colunaId
   const [loading, setLoading] = useState(true)
   const [isGerenciarBasesOpen, setIsGerenciarBasesOpen] = useState(false)
+  const [isEditarProjetoOpen, setIsEditarProjetoOpen] = useState(false)
 
   useEffect(() => {
     if (id) fetchProjetoCompleto()
@@ -143,13 +145,22 @@ export function ProjetoDetalhes() {
           </div>
         </div>
         {!isReadOnlyUser() && (
-          <button
-            onClick={() => setIsGerenciarBasesOpen(true)}
-            className="btn-secondary flex items-center gap-2 text-sm"
-          >
-            <Settings2 className="w-4 h-4" />
-            Gerenciar Bases
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsEditarProjetoOpen(true)}
+              className="btn-secondary flex items-center gap-2 text-sm"
+            >
+              <Settings className="w-4 h-4 text-brand-400" />
+              Editar Projeto
+            </button>
+            <button
+              onClick={() => setIsGerenciarBasesOpen(true)}
+              className="btn-secondary flex items-center gap-2 text-sm"
+            >
+              <Settings2 className="w-4 h-4" />
+              Gerenciar Bases
+            </button>
+          </div>
         )}
       </div>
 
@@ -263,6 +274,13 @@ export function ProjetoDetalhes() {
         projetoId={id!}
         projetoNome={projeto.nome}
         basesAtuais={bases}
+      />
+
+      <EditarProjetoModal
+        isOpen={isEditarProjetoOpen}
+        onClose={() => setIsEditarProjetoOpen(false)}
+        projetoId={id!}
+        onSuccess={fetchProjetoCompleto}
       />
     </div>
   )

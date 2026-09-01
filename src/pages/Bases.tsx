@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
 import { NovoProjetoModal } from '../components/NovoProjetoModal'
+import { EditarProjetoModal } from '../components/EditarProjetoModal'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 
@@ -30,6 +31,8 @@ const getProgressTextColor = (progress: number) => {
 export function Bases() {
   const [projetos, setProjetos] = useState<Projeto[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editingProjetoId, setEditingProjetoId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const navigate = useNavigate()
@@ -136,21 +139,26 @@ export function Bases() {
                 </button>
                 
                 {openMenuId === proj.id && (
-                  <div className="absolute right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 origin-top-right z-50">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); alert('Em breve: tela de configurações do projeto.') }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white flex items-center gap-2 transition-colors"
-                    >
-                      <Settings className="w-4 h-4" /> Editar Projeto
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDeleteProjeto(proj.id, proj.nome) }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors border-t border-slate-700/50"
-                    >
-                      <Trash2 className="w-4 h-4" /> Excluir Projeto
-                    </button>
-                  </div>
-                )}
+                    <div className="absolute right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 origin-top-right z-50">
+                      <button 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setOpenMenuId(null); 
+                          setEditingProjetoId(proj.id);
+                          setIsEditModalOpen(true);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white flex items-center gap-2 transition-colors"
+                      >
+                        <Settings className="w-4 h-4" /> Editar Projeto
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDeleteProjeto(proj.id, proj.nome) }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors border-t border-slate-700/50"
+                      >
+                        <Trash2 className="w-4 h-4" /> Excluir Projeto
+                      </button>
+                    </div>
+                  )}
               </div>
             )}
           </div>
@@ -278,6 +286,16 @@ export function Bases() {
       <NovoProjetoModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        onSuccess={fetchProjetos}
+      />
+
+      <EditarProjetoModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false)
+          setEditingProjetoId(null)
+        }}
+        projetoId={editingProjetoId}
         onSuccess={fetchProjetos}
       />
     </div>

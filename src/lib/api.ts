@@ -382,6 +382,63 @@ export const api = {
     return data || []
   },
 
+  async updateProjeto(projetoId: string, updates: { nome?: string, status?: string }) {
+    const { error } = await supabase
+      .from('projetos')
+      .update(updates)
+      .eq('id', projetoId)
+    
+    if (error) throw error
+  },
+
+  async updateProjetoColunas(
+    projetoId: string, 
+    colunas: { id?: string, isNew?: boolean, nome: string, tipo: string, ordem: number, indicador_conclusao: boolean }[], 
+    removedColumnIds: string[]
+  ) {
+    // 1. Delete removed columns and their data
+    if (removedColumnIds.length > 0) {
+      await supabase
+        .from('projeto_dados')
+        .delete()
+        .eq('projeto_id', projetoId)
+        .in('coluna_id', removedColumnIds)
+
+      await supabase
+        .from('projeto_colunas')
+        .delete()
+        .eq('projeto_id', projetoId)
+        .in('id', removedColumnIds)
+    }
+
+    // 2. Process remaining columns (update existing or insert new)
+    for (const col of colunas) {
+      if (col.isNew || !col.id || col.id.startsWith('temp_')) {
+        // Insert new column
+        await supabase
+          .from('projeto_colunas')
+          .insert({
+            projeto_id: projetoId,
+            nome: col.nome,
+            tipo: col.tipo,
+            ordem: col.ordem,
+            indicador_conclusao: col.indicador_conclusao
+          })
+      } else {
+        // Update existing column
+        await supabase
+          .from('projeto_colunas')
+          .update({
+            nome: col.nome,
+            tipo: col.tipo,
+            ordem: col.ordem,
+            indicador_conclusao: col.indicador_conclusao
+          })
+          .eq('id', col.id)
+      }
+    }
+  },
+
   async getProjetoBasesWithDetails(projetoId: string) {
     const { data, error } = await supabase
       .from('projeto_bases')
