@@ -8,6 +8,7 @@ import { LeoMadeiras } from './pages/LeoMadeiras'
 import { Usuarios } from './pages/Usuarios'
 import { Implantacoes } from './pages/Implantacoes'
 import { ImplantacaoDetalhes } from './pages/ImplantacaoDetalhes'
+import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
 import { Login } from './pages/Login'
 
 import { useState, useEffect } from 'react'
@@ -42,6 +43,7 @@ function App() {
           <Route path="implantacoes/:id" element={<ImplantacaoDetalhes />} />
           <Route path="bases" element={<Bases />} />
           <Route path="bases/:id" element={<ProjetoDetalhes />} />
+          <Route path="processamento-shopee" element={<ProcessamentoShopee />} />
           <Route path="leo-madeiras" element={<LeoMadeiras />} />
           <Route path="usuarios" element={<Usuarios />} />
         </Route>

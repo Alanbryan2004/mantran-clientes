@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Database, Users, LogOut, Menu, Cloud, Rocket, Shield } from 'lucide-react'
+import { LayoutDashboard, Database, Users, LogOut, Menu, Cloud, Rocket, Shield, ShoppingBag } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
 import { PermissoesModal } from '../PermissoesModal'
@@ -11,6 +11,7 @@ const allNavItems = [
   { name: 'Clientes', path: '/clientes', icon: Users },
   { name: 'Implantações', path: '/implantacoes', icon: Rocket },
   { name: 'Projetos', path: '/bases', icon: Database },
+  { name: 'Processamento Shopee', path: '/processamento-shopee', icon: ShoppingBag },
   { name: 'Léo Madeiras', path: '/leo-madeiras', icon: Cloud },
 ]
 

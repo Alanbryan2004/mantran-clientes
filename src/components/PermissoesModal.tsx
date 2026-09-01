@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save } from 'lucide-react'
+import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag } from 'lucide-react'
 import { permissionsApi, DEFAULT_PERMISSOES } from '../lib/permissions'
 import type { PerfilPermissao } from '../lib/permissions'
 import { supabase } from '../lib/supabase'
@@ -23,6 +23,7 @@ const AVAILABLE_MODULES = [
   { path: '/clientes', label: 'Clientes', desc: 'Gerenciamento de clientes e bases de dados', icon: Users },
   { path: '/implantacoes', label: 'Implantações', desc: 'Processo de onboarding e etapas de implantação', icon: Rocket },
   { path: '/bases', label: 'Projetos', desc: 'Planilha e controle de status de projetos', icon: Database },
+  { path: '/processamento-shopee', label: 'Processamento Shopee', desc: 'Acompanhamento de fechamento de Last/First Mile e Line Haul', icon: ShoppingBag },
   { path: '/leo-madeiras', label: 'Léo Madeiras', desc: 'Módulo dedicado da Léo Madeiras', icon: Cloud },
 ]
 
