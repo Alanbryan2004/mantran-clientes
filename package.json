@@ -13,12 +13,15 @@
     "@supabase/supabase-js": "^2.110.2",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.24.0",
     "mssql": "^12.7.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.2",

@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Settings2, Settings } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Settings2, Settings, FileSpreadsheet, FileText } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
 import { GerenciarBasesModal } from '../components/GerenciarBasesModal'
 import { EditarProjetoModal } from '../components/EditarProjetoModal'
+import * as XLSX from 'xlsx'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 const getProgressColor = (progress: number) => {
   if (progress <= 33) return 'bg-red-500'
@@ -121,6 +124,125 @@ export function ProjetoDetalhes() {
     return Math.round((concluidos / bases.length) * 100)
   }
 
+  const sanitizeFilename = (name: string) => {
+    return (name || 'projeto')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .toLowerCase()
+  }
+
+  const exportToExcel = () => {
+    if (!projeto || bases.length === 0) return
+
+    // 1. Build rows data
+    const rows = bases.map(base => {
+      const rowObj: Record<string, any> = {
+        'Base': base.nome_base,
+        'Cliente / Empresa': base.empresa || 'Sem cliente alocado'
+      }
+
+      colunas.forEach(col => {
+        const key = `${base.id}_${col.id}`
+        const val = dados[key] || ''
+        rowObj[col.nome] = val
+      })
+
+      return rowObj
+    })
+
+    // 2. Create worksheet
+    const ws = XLSX.utils.json_to_sheet(rows)
+
+    // 3. Set custom column widths
+    const colWidths = [
+      { wch: 18 }, // Base
+      { wch: 32 }, // Cliente
+      ...colunas.map(c => ({ wch: Math.max(c.nome.length + 5, 16) }))
+    ]
+    ws['!cols'] = colWidths
+
+    // 4. Create workbook and trigger download
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Projeto')
+
+    const filename = `${sanitizeFilename(projeto.nome)}_export_${new Date().toISOString().slice(0, 10)}.xlsx`
+    XLSX.writeFile(wb, filename)
+  }
+
+  const exportToPdf = () => {
+    if (!projeto || bases.length === 0) return
+
+    const doc = new jsPDF({
+      orientation: colunas.length > 4 ? 'landscape' : 'portrait',
+      unit: 'pt',
+      format: 'a4'
+    })
+
+    const title = `Relatório de Projeto: ${projeto.nome}`
+    const dateStr = new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    const progressVal = calculateProgress()
+
+    // Header Title
+    doc.setFontSize(15)
+    doc.setTextColor(15, 23, 42)
+    doc.text(title, 40, 40)
+
+    // Subtitle / Metrics
+    doc.setFontSize(9)
+    doc.setTextColor(100, 116, 139)
+    doc.text(`Gerado em: ${dateStr}   |   Bases Participantes: ${bases.length}   |   Progresso Geral: ${progressVal}%`, 40, 56)
+
+    // Table Headers
+    const tableHeaders = ['Base', 'Cliente / Empresa', ...colunas.map(c => c.nome)]
+
+    // Table Rows
+    const tableRows = bases.map(base => {
+      return [
+        base.nome_base,
+        base.empresa || 'Sem cliente alocado',
+        ...colunas.map(col => {
+          const key = `${base.id}_${col.id}`
+          return dados[key] || '-'
+        })
+      ]
+    })
+
+    // Generate table with custom styling
+    autoTable(doc, {
+      startY: 70,
+      head: [tableHeaders],
+      body: tableRows,
+      theme: 'grid',
+      styles: {
+        fontSize: 8,
+        cellPadding: 4,
+        valign: 'middle'
+      },
+      headStyles: {
+        fillColor: [15, 23, 42],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      },
+      didDrawPage: () => {
+        // Footer page numbering
+        const str = `Página ${doc.getNumberOfPages()}`
+        doc.setFontSize(8)
+        doc.setTextColor(148, 163, 184)
+        const pageSize = doc.internal.pageSize
+        const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight()
+        const pageWidth = pageSize.width ? pageSize.width : pageSize.getWidth()
+        doc.text(str, pageWidth - 60, pageHeight - 20)
+      }
+    })
+
+    const filename = `${sanitizeFilename(projeto.nome)}_relatorio_${new Date().toISOString().slice(0, 10)}.pdf`
+    doc.save(filename)
+  }
+
   if (loading) return <div className="text-slate-400 p-8 text-center">Carregando detalhes do projeto...</div>
   if (!projeto) return <div className="text-slate-400 p-8 text-center">Projeto não encontrado.</div>
 
@@ -144,24 +266,48 @@ export function ProjetoDetalhes() {
             </p>
           </div>
         </div>
-        {!isReadOnlyUser() && (
-          <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2.5">
+          {/* Export Buttons */}
+          <div className="flex items-center bg-slate-900/90 border border-slate-800 rounded-xl p-1 shadow-sm">
             <button
-              onClick={() => setIsEditarProjetoOpen(true)}
-              className="btn-secondary flex items-center gap-2 text-sm"
+              onClick={exportToExcel}
+              className="px-3 py-1.5 text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Exportar dados para Excel (.xlsx)"
             >
-              <Settings className="w-4 h-4 text-brand-400" />
-              Editar Projeto
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Excel</span>
             </button>
+            <div className="w-[1px] h-4 bg-slate-800 mx-0.5"></div>
             <button
-              onClick={() => setIsGerenciarBasesOpen(true)}
-              className="btn-secondary flex items-center gap-2 text-sm"
+              onClick={exportToPdf}
+              className="px-3 py-1.5 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Exportar relatório em PDF (.pdf)"
             >
-              <Settings2 className="w-4 h-4" />
-              Gerenciar Bases
+              <FileText className="w-3.5 h-3.5" />
+              <span>PDF</span>
             </button>
           </div>
-        )}
+
+          {!isReadOnlyUser() && (
+            <>
+              <button
+                onClick={() => setIsEditarProjetoOpen(true)}
+                className="btn-secondary flex items-center gap-2 text-sm"
+              >
+                <Settings className="w-4 h-4 text-brand-400" />
+                Editar Projeto
+              </button>
+              <button
+                onClick={() => setIsGerenciarBasesOpen(true)}
+                className="btn-secondary flex items-center gap-2 text-sm"
+              >
+                <Settings2 className="w-4 h-4" />
+                Gerenciar Bases
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Progress Bar */}
