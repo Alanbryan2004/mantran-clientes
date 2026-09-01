@@ -192,7 +192,6 @@ export function ProcessamentoShopee() {
   const filteredItems = useMemo(() => {
     return dadosProcessamento.filter(item => {
       const matchSearch = item.transportadora_nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.base_nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.processo.toLowerCase().includes(searchQuery.toLowerCase())
 
       const matchStatus = statusFiltro === 'TODOS' || item.status === statusFiltro
@@ -215,25 +214,21 @@ export function ProcessamentoShopee() {
 
     const rows = filteredItems.map(item => ({
       'Transportadora Shopee': item.transportadora_nome,
-      'Base': item.base_nome,
       'Quinzena': `${quinzena}ª Quinzena`,
       'Mês / Ano': `${mes}/${ano}`,
       'Processo': item.processo,
       'Status': item.status === 'FINALIZADO' ? 'Finalizado' : item.status === 'PROCESSANDO' ? 'Processando' : 'Não Iniciado',
-      'Tempo de Processamento': item.tempo_processamento,
-      'Registros / Cargas': item.registros_processados > 0 ? item.registros_processados.toLocaleString('pt-BR') : '-'
+      'Tempo de Processamento': item.tempo_processamento
     }))
 
     const ws = XLSX.utils.json_to_sheet(rows)
     ws['!cols'] = [
-      { wch: 32 }, // Transportadora
-      { wch: 18 }, // Base
-      { wch: 14 }, // Quinzena
+      { wch: 34 }, // Transportadora
+      { wch: 15 }, // Quinzena
       { wch: 12 }, // Mes/Ano
-      { wch: 16 }, // Processo
-      { wch: 16 }, // Status
-      { wch: 22 }, // Tempo
-      { wch: 18 }  // Registros
+      { wch: 18 }, // Processo
+      { wch: 18 }, // Status
+      { wch: 24 }  // Tempo
     ]
 
     const wb = XLSX.utils.book_new()
@@ -246,7 +241,7 @@ export function ProcessamentoShopee() {
     if (filteredItems.length === 0) return
 
     const doc = new jsPDF({
-      orientation: 'landscape',
+      orientation: 'portrait',
       unit: 'pt',
       format: 'a4'
     })
@@ -255,7 +250,7 @@ export function ProcessamentoShopee() {
     const dateStr = new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
     // Header
-    doc.setFontSize(14)
+    doc.setFontSize(13)
     doc.setTextColor(15, 23, 42)
     doc.text(title, 40, 40)
 
@@ -263,14 +258,12 @@ export function ProcessamentoShopee() {
     doc.setTextColor(100, 116, 139)
     doc.text(`Gerado em: ${dateStr}   |   Total: ${totalCount}   |   Concluídos: ${finalizadosCount} (${percentFinalizado}%)`, 40, 56)
 
-    const tableHeaders = ['Transportadora Shopee', 'Base', 'Processo', 'Status', 'Tempo Processamento', 'Registros Processados']
+    const tableHeaders = ['Transportadora Shopee', 'Processo', 'Status', 'Tempo de Processamento']
     const tableRows = filteredItems.map(item => [
       item.transportadora_nome,
-      item.base_nome,
       item.processo,
       item.status === 'FINALIZADO' ? 'Finalizado' : item.status === 'PROCESSANDO' ? 'Processando' : 'Não Iniciado',
-      item.tempo_processamento,
-      item.registros_processados > 0 ? item.registros_processados.toLocaleString('pt-BR') : '-'
+      item.tempo_processamento
     ])
 
     autoTable(doc, {
@@ -279,8 +272,8 @@ export function ProcessamentoShopee() {
       body: tableRows,
       theme: 'grid',
       styles: {
-        fontSize: 8,
-        cellPadding: 4,
+        fontSize: 9,
+        cellPadding: 5,
         valign: 'middle'
       },
       headStyles: {
@@ -450,7 +443,7 @@ export function ProcessamentoShopee() {
 
       {/* Filter Control Bar */}
       <div className="bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           
           {/* Quinzena */}
           <div>
@@ -489,7 +482,7 @@ export function ProcessamentoShopee() {
           {/* Mês */}
           <div>
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Mês de Referência
+              Mês
             </label>
             <select
               value={mes}
@@ -524,7 +517,7 @@ export function ProcessamentoShopee() {
           <div>
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-orange-400" />
-              <span>Processo Shopee</span>
+              <span>Processo</span>
             </label>
             <select
               value={processoFiltro}
@@ -554,6 +547,24 @@ export function ProcessamentoShopee() {
                   {t.nome_empresa}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+              <span>Status</span>
+            </label>
+            <select
+              value={statusFiltro}
+              onChange={e => setStatusFiltro(e.target.value as any)}
+              className="input-field py-2 px-3 text-xs w-full bg-slate-800/80 border-slate-700 text-white cursor-pointer font-medium"
+            >
+              <option value="TODOS">Todos os Status</option>
+              <option value="FINALIZADO">🟢 Finalizado</option>
+              <option value="PROCESSANDO">🟠 Processando</option>
+              <option value="NAO_INICIADO">🔴 Não Iniciado</option>
             </select>
           </div>
 
@@ -601,17 +612,15 @@ export function ProcessamentoShopee() {
             <thead className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 text-slate-400 uppercase font-bold text-[11px] tracking-wider">
               <tr>
                 <th className="py-3.5 px-4">Transportadora Shopee</th>
-                <th className="py-3.5 px-4">Base / ID</th>
                 <th className="py-3.5 px-4">Processo</th>
                 <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4">Registros</th>
                 <th className="py-3.5 px-4">Tempo de Processamento</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <td colSpan={4} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
                       <span>Carregando transportadoras Shopee...</span>
@@ -620,7 +629,7 @@ export function ProcessamentoShopee() {
                 </tr>
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <td colSpan={4} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <AlertCircle className="w-8 h-8 text-slate-500" />
                       <span className="font-semibold text-slate-300">Nenhum registro encontrado</span>
@@ -644,11 +653,6 @@ export function ProcessamentoShopee() {
                           {item.transportadora_nome}
                         </span>
                       </div>
-                    </td>
-
-                    {/* Base */}
-                    <td className="py-3.5 px-4 font-mono text-slate-400">
-                      {item.base_nome}
                     </td>
 
                     {/* Processo */}
@@ -687,17 +691,6 @@ export function ProcessamentoShopee() {
                           <AlertCircle className="w-3.5 h-3.5 text-red-400" />
                           <span>Não Iniciado</span>
                         </span>
-                      )}
-                    </td>
-
-                    {/* Registros */}
-                    <td className="py-3.5 px-4 font-mono text-slate-300">
-                      {item.registros_processados > 0 ? (
-                        <span className="font-semibold text-slate-200">
-                          {item.registros_processados.toLocaleString('pt-BR')} <span className="text-[10px] text-slate-500">cargas</span>
-                        </span>
-                      ) : (
-                        <span className="text-slate-600">-</span>
                       )}
                     </td>
 
