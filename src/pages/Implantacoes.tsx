@@ -81,6 +81,60 @@ const getProgressTextColor = (progress: number) => {
   return 'text-green-400'
 }
 
+const getUltimoStatusStyle = (daysDiff: number) => {
+  if (daysDiff >= 7) {
+    // 07 Dias ou Superior -> Vermelho e piscando
+    return {
+      statusLevel: 'critical',
+      badgeClass: 'bg-red-500/25 text-red-300 border-red-500/50 animate-pulse font-black shadow-[0_0_8px_rgba(239,68,68,0.4)]',
+      borderClass: 'border-red-500/50 bg-red-950/20 shadow-[inset_0_0_12px_rgba(239,68,68,0.15)]',
+      iconClass: 'text-red-400',
+      labelClass: 'text-red-300 font-semibold',
+      textClass: 'text-red-200'
+    }
+  } else if (daysDiff === 6) {
+    // 06 Dias -> Laranja (degradê para vermelho)
+    return {
+      statusLevel: 'warning-high',
+      badgeClass: 'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold',
+      borderClass: 'border-orange-500/40 bg-orange-950/20',
+      iconClass: 'text-orange-400',
+      labelClass: 'text-orange-300 font-semibold',
+      textClass: 'text-orange-100'
+    }
+  } else if (daysDiff === 5) {
+    // 05 Dias -> Amarelo
+    return {
+      statusLevel: 'warning',
+      badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold',
+      borderClass: 'border-amber-500/35 bg-amber-950/15',
+      iconClass: 'text-amber-400',
+      labelClass: 'text-amber-300 font-semibold',
+      textClass: 'text-amber-100'
+    }
+  } else if (daysDiff >= 3) {
+    // 03 a 04 Dias -> Verde Lima (degradê de verde para amarelo)
+    return {
+      statusLevel: 'normal-warning',
+      badgeClass: 'bg-lime-500/15 text-lime-300 border-lime-500/30 font-semibold',
+      borderClass: 'border-lime-500/25 bg-lime-950/10',
+      iconClass: 'text-lime-400',
+      labelClass: 'text-lime-300 font-medium',
+      textClass: 'text-slate-200'
+    }
+  } else {
+    // 00 a 02 Dias -> Verde Esmeralda
+    return {
+      statusLevel: 'ok',
+      badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 font-semibold',
+      borderClass: 'border-emerald-500/25 bg-emerald-950/10',
+      iconClass: 'text-emerald-400',
+      labelClass: 'text-emerald-300 font-medium',
+      textClass: 'text-slate-200'
+    }
+  }
+}
+
 const getUltimoStatusData = (impl: any) => {
   const historicos = impl.implantacao_historico || []
   const sorted = [...historicos].sort(
@@ -102,15 +156,13 @@ const getUltimoStatusData = (impl: any) => {
     ? '01 Dia Atrás' 
     : `${String(daysDiff).padStart(2, '0')} Dias Atrás`
 
-  const isCritical = daysDiff >= 7
-  const isWarning = daysDiff >= 5 && daysDiff < 7
+  const style = getUltimoStatusStyle(daysDiff)
 
   return {
     lastEntry,
     daysDiff,
     daysLabel,
-    isCritical,
-    isWarning,
+    ...style
   }
 }
 
@@ -490,36 +542,18 @@ export function Implantacoes() {
                             {(() => {
                               const statusData = getUltimoStatusData(impl)
                               return (
-                                <div className={`my-2 p-2 rounded-lg border flex flex-col gap-1 transition-all ${
-                                  statusData.isCritical
-                                    ? 'border-red-500/50 bg-red-950/20 shadow-[inset_0_0_12px_rgba(239,68,68,0.15)]'
-                                    : statusData.isWarning
-                                    ? 'border-amber-500/40 bg-amber-950/20'
-                                    : 'border-slate-800/80 bg-slate-900/60'
-                                }`}>
+                                <div className={`my-2 p-2 rounded-lg border flex flex-col gap-1 transition-all ${statusData.borderClass}`}>
                                   <div className="flex items-center justify-between text-[11px] gap-1">
                                     <span className="text-slate-400 font-medium flex items-center gap-1 shrink-0">
-                                      <History className={`w-3 h-3 ${statusData.isCritical ? 'text-red-400' : statusData.isWarning ? 'text-amber-400' : 'text-slate-400'}`} />
-                                      <span className={statusData.isCritical ? 'text-red-300 font-semibold' : statusData.isWarning ? 'text-amber-300 font-semibold' : ''}>Último Status:</span>
+                                      <History className={`w-3 h-3 ${statusData.iconClass}`} />
+                                      <span className={statusData.labelClass}>Último Status:</span>
                                     </span>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${
-                                      statusData.isCritical
-                                        ? 'bg-red-500/25 text-red-300 border-red-500/50 animate-pulse font-black shadow-[0_0_8px_rgba(239,68,68,0.4)]'
-                                        : statusData.isWarning
-                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
-                                        : 'bg-slate-800 text-slate-400 border-slate-700/80 font-medium'
-                                    }`}>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${statusData.badgeClass}`}>
                                       {statusData.daysLabel}
                                     </span>
                                   </div>
                                   <p 
-                                    className={`text-[11px] truncate font-medium ${
-                                      statusData.isCritical 
-                                        ? 'text-red-200' 
-                                        : statusData.isWarning 
-                                        ? 'text-amber-100' 
-                                        : 'text-slate-200'
-                                    }`}
+                                    className={`text-[11px] truncate font-medium ${statusData.textClass}`}
                                     title={statusData.lastEntry ? statusData.lastEntry.texto : 'Sem histórico registrado'}
                                   >
                                     {statusData.lastEntry ? (
@@ -665,18 +699,18 @@ export function Implantacoes() {
                           {(() => {
                             const statusData = getUltimoStatusData(impl)
                             return (
-                              <div className="my-2 p-2 rounded-lg border border-slate-800/80 bg-slate-900/60 flex flex-col gap-1">
+                              <div className={`my-2 p-2 rounded-lg border flex flex-col gap-1 transition-all ${statusData.borderClass}`}>
                                 <div className="flex items-center justify-between text-[11px] gap-1">
                                   <span className="text-slate-400 font-medium flex items-center gap-1 shrink-0">
-                                    <History className="w-3 h-3 text-slate-400" />
-                                    <span>Último Status:</span>
+                                    <History className={`w-3 h-3 ${statusData.iconClass}`} />
+                                    <span className={statusData.labelClass}>Último Status:</span>
                                   </span>
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded border shrink-0 bg-slate-800 text-slate-400 border-slate-700/80 font-medium">
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${statusData.badgeClass}`}>
                                     {statusData.daysLabel}
                                   </span>
                                 </div>
                                 <p 
-                                  className="text-[11px] text-slate-200 truncate font-medium" 
+                                  className={`text-[11px] truncate font-medium ${statusData.textClass}`}
                                   title={statusData.lastEntry ? statusData.lastEntry.texto : 'Sem histórico registrado'}
                                 >
                                   {statusData.lastEntry ? (
