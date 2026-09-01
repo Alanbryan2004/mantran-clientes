@@ -1,7 +1,24 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
+import { permissionsApi } from '../../lib/permissions'
+import { useEffect } from 'react'
 
 export function Layout() {
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const isAllowed = permissionsApi.canAccessRoute(location.pathname)
+    if (!isAllowed) {
+      const allowedProjId = permissionsApi.getAllowedProjectForUser()
+      if (allowedProjId) {
+        navigate(`/bases/${allowedProjId}`, { replace: true })
+      } else {
+        navigate('/', { replace: true })
+      }
+    }
+  }, [location.pathname, navigate])
+
   return (
     <div className="flex h-screen bg-dark-bg text-dark-text overflow-hidden">
       <Sidebar />
@@ -11,6 +28,3 @@ export function Layout() {
     </div>
   )
 }
-
-
-

@@ -3,6 +3,7 @@ import { Plus, LayoutTemplate, ArrowRight, Settings, Trash2, CheckCircle2, Clock
 import { supabase } from '../lib/supabase'
 import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
+import { permissionsApi } from '../lib/permissions'
 import { NovoProjetoModal } from '../components/NovoProjetoModal'
 import { EditarProjetoModal } from '../components/EditarProjetoModal'
 import { useNavigate } from 'react-router-dom'
@@ -38,16 +39,28 @@ export function Bases() {
   const navigate = useNavigate()
 
   useEffect(() => {
+    const specificProjId = permissionsApi.getAllowedProjectForUser()
+    if (specificProjId) {
+      navigate(`/bases/${specificProjId}`, { replace: true })
+      return
+    }
     fetchProjetos()
   }, [])
 
   const fetchProjetos = async () => {
     setLoading(true)
     try {
-      const { data: projs, error } = await supabase
+      const specificProjId = permissionsApi.getAllowedProjectForUser()
+      let query = supabase
         .from('projetos')
         .select('*')
         .order('created_at', { ascending: false })
+
+      if (specificProjId) {
+        query = query.eq('id', specificProjId)
+      }
+
+      const { data: projs, error } = await query
       
       if (error) throw error
 

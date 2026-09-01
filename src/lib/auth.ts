@@ -16,11 +16,21 @@ export function getLoggedUser(): LoggedUser | null {
 }
 
 /**
- * Retorna true se o usuário logado possui perfil 'Usuario' (Apenas Consulta / Read-Only).
+ * Retorna true se o usuário logado possui perfil 'Administrador'.
+ */
+export function isAdminUser(): boolean {
+  const user = getLoggedUser()
+  if (!user || !user.perfil) return false
+  return user.perfil.trim().toLowerCase() === 'administrador'
+}
+
+/**
+ * Retorna true se o usuário logado possui perfil de Apenas Consulta / Read-Only (ex: 'Usuario', 'Parceiro').
  * Usuários com este perfil não podem incluir, alterar ou excluir registros.
  */
 export function isReadOnlyUser(): boolean {
   const user = getLoggedUser()
   if (!user || !user.perfil) return false
-  return user.perfil.trim().toLowerCase() === 'usuario'
+  const p = user.perfil.trim().toLowerCase()
+  return p === 'usuario' || p === 'parceiro'
 }
