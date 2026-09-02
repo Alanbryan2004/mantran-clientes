@@ -8,15 +8,25 @@ export function Layout() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const isAllowed = permissionsApi.canAccessRoute(location.pathname)
-    if (!isAllowed) {
-      const allowedProjId = permissionsApi.getAllowedProjectForUser()
-      if (allowedProjId) {
-        navigate(`/bases/${allowedProjId}`, { replace: true })
-      } else {
-        navigate('/', { replace: true })
+    const checkAccess = async () => {
+      let isAllowed = permissionsApi.canAccessRoute(location.pathname)
+      if (!isAllowed) {
+        // Tentar obter as permissões mais recentes do banco antes de redirecionar
+        await permissionsApi.getPermissions()
+        isAllowed = permissionsApi.canAccessRoute(location.pathname)
+      }
+
+      if (!isAllowed) {
+        const allowedProjId = permissionsApi.getAllowedProjectForUser()
+        if (allowedProjId) {
+          navigate(`/bases/${allowedProjId}`, { replace: true })
+        } else {
+          navigate('/', { replace: true })
+        }
       }
     }
+
+    checkAccess()
   }, [location.pathname, navigate])
 
   return (

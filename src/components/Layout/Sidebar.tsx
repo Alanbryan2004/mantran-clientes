@@ -26,23 +26,41 @@ export function Sidebar() {
   const isUsuario = user?.perfil?.toLowerCase() === 'usuario'
 
   useEffect(() => {
-    // Filter accessible navigation items
-    const filtered = allNavItems.filter(item => permissionsApi.canAccessRoute(item.path))
-    
-    // If user has a specific restricted project (e.g. Parceiro), link directly to that project
-    const specificProjId = permissionsApi.getAllowedProjectForUser()
-    const mapped = filtered.map(item => {
-      if (item.path === '/bases' && specificProjId) {
-        return {
-          ...item,
-          name: isParceiro ? 'Meu Projeto' : 'Projeto',
-          path: `/bases/${specificProjId}`
+    let isMounted = true
+
+    const updateNav = () => {
+      if (!isMounted) return
+      // Filter accessible navigation items
+      const filtered = allNavItems.filter(item => permissionsApi.canAccessRoute(item.path))
+      
+      // If user has a specific restricted project (e.g. Parceiro), link directly to that project
+      const specificProjId = permissionsApi.getAllowedProjectForUser()
+      const mapped = filtered.map(item => {
+        if (item.path === '/bases' && specificProjId) {
+          return {
+            ...item,
+            name: isParceiro ? 'Meu Projeto' : 'Projeto',
+            path: `/bases/${specificProjId}`
+          }
         }
-      }
-      return item
+        return item
+      })
+
+      setAllowedNavItems(mapped)
+    }
+
+    updateNav()
+
+    // Also fetch fresh permissions from Supabase
+    permissionsApi.getPermissions().then(() => {
+      updateNav()
+    }).catch(err => {
+      console.error('Erro ao atualizar permissões:', err)
     })
 
-    setAllowedNavItems(mapped)
+    return () => {
+      isMounted = false
+    }
   }, [user?.perfil, isParceiro])
 
   return (
@@ -60,13 +78,13 @@ export function Sidebar() {
         </button>
         
         {isExpanded && (
-          <div className="flex flex-col justify-center select-none overflow-hidden">
-            <div className="flex items-center space-x-0.5">
-              <span className="text-2xl font-black tracking-tighter text-white">MAN</span>
-              <span className="text-3xl font-black text-brand-500 leading-none">T</span>
-              <span className="text-2xl font-black tracking-tighter text-white">RAN</span>
-            </div>
-            <span className="text-[10px] font-bold text-brand-500 tracking-[0.15em] -mt-1 pl-0.5">TECNOLOGIAS</span>
+          <div className="flex items-center select-none overflow-hidden py-1">
+            <img 
+              src="/Logo_Mantran_Branco.png" 
+              onError={(e) => { e.currentTarget.src = '/Logo_Mantran.png' }}
+              alt="Mantran Tecnologias" 
+              className="h-9 w-auto object-contain"
+            />
           </div>
         )}
       </div>

@@ -200,11 +200,18 @@ export function ProcessamentoShopee() {
     })
   }, [dadosProcessamento, searchQuery, statusFiltro])
 
-  // Contadores métricos
-  const totalCount = filteredItems.length
-  const finalizadosCount = filteredItems.filter(i => i.status === 'FINALIZADO').length
-  const processandoCount = filteredItems.filter(i => i.status === 'PROCESSANDO').length
-  const naoIniciadosCount = filteredItems.filter(i => i.status === 'NAO_INICIADO').length
+  // Contadores métricos (calculados com base na busca para manter estabilidade ao clicar nos cards de status)
+  const itemsParaContadores = useMemo(() => {
+    return dadosProcessamento.filter(item => {
+      return item.transportadora_nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.processo.toLowerCase().includes(searchQuery.toLowerCase())
+    })
+  }, [dadosProcessamento, searchQuery])
+
+  const totalCount = itemsParaContadores.length
+  const naoIniciadosCount = itemsParaContadores.filter(i => i.status === 'NAO_INICIADO').length
+  const processandoCount = itemsParaContadores.filter(i => i.status === 'PROCESSANDO').length
+  const finalizadosCount = itemsParaContadores.filter(i => i.status === 'FINALIZADO').length
 
   const percentFinalizado = totalCount > 0 ? Math.round((finalizadosCount / totalCount) * 100) : 0
 
@@ -360,17 +367,65 @@ export function ProcessamentoShopee() {
       {/* Metric Cards Banner */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
-        {/* Total */}
-        <div className="bg-dark-card border border-slate-800 rounded-xl p-4 flex items-center gap-3.5 shadow-lg relative overflow-hidden">
+        {/* Total de Processos */}
+        <div 
+          onClick={() => setStatusFiltro('TODOS')}
+          className={clsx(
+            "bg-dark-card border rounded-xl p-4 flex items-center gap-3.5 shadow-lg relative overflow-hidden cursor-pointer transition-all",
+            statusFiltro === 'TODOS' 
+              ? "border-blue-500/50 bg-blue-500/5 shadow-[0_0_12px_rgba(59,130,246,0.1)]" 
+              : "border-slate-800 hover:border-slate-700"
+          )}
+        >
           <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total de Rotinas</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total de Processos</span>
             <div className="text-xl font-black text-white mt-0.5">{totalCount}</div>
             <span className="text-[10px] text-slate-500">
               {quinzena}ª Quinzena • {MESES.find(m => m.valor === mes)?.nome}/{ano}
             </span>
+          </div>
+        </div>
+
+        {/* Não Iniciado (Vermelho) */}
+        <div 
+          onClick={() => setStatusFiltro(statusFiltro === 'NAO_INICIADO' ? 'TODOS' : 'NAO_INICIADO')}
+          className={clsx(
+            "bg-dark-card border rounded-xl p-4 flex items-center gap-3.5 shadow-lg cursor-pointer transition-all",
+            statusFiltro === 'NAO_INICIADO' 
+              ? "border-red-500/50 bg-red-500/5 shadow-[0_0_12px_rgba(239,68,68,0.1)]" 
+              : "border-slate-800 hover:border-slate-700"
+          )}
+        >
+          <div className="w-11 h-11 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider">Não Iniciado</span>
+            <div className="text-xl font-black text-red-300 mt-0.5">{naoIniciadosCount}</div>
+            <span className="text-[10px] text-red-400/80">Aguardando disparo</span>
+          </div>
+        </div>
+
+        {/* Processando (Laranja) */}
+        <div 
+          onClick={() => setStatusFiltro(statusFiltro === 'PROCESSANDO' ? 'TODOS' : 'PROCESSANDO')}
+          className={clsx(
+            "bg-dark-card border rounded-xl p-4 flex items-center gap-3.5 shadow-lg cursor-pointer transition-all",
+            statusFiltro === 'PROCESSANDO' 
+              ? "border-orange-500/50 bg-orange-500/5 shadow-[0_0_12px_rgba(249,115,22,0.1)]" 
+              : "border-slate-800 hover:border-slate-700"
+          )}
+        >
+          <div className="w-11 h-11 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
+            <Loader2 className="w-5 h-5 animate-spin text-orange-400" />
+          </div>
+          <div>
+            <span className="text-[11px] font-bold text-orange-400 uppercase tracking-wider">Processando</span>
+            <div className="text-xl font-black text-orange-300 mt-0.5">{processandoCount}</div>
+            <span className="text-[10px] text-orange-400/80">Em execução no momento</span>
           </div>
         </div>
 
@@ -396,46 +451,6 @@ export function ProcessamentoShopee() {
             <div className="w-full bg-slate-800 rounded-full h-1 mt-1.5 overflow-hidden">
               <div className="bg-green-500 h-full rounded-full transition-all duration-500" style={{ width: `${percentFinalizado}%` }}></div>
             </div>
-          </div>
-        </div>
-
-        {/* Processando (Laranja) */}
-        <div 
-          onClick={() => setStatusFiltro(statusFiltro === 'PROCESSANDO' ? 'TODOS' : 'PROCESSANDO')}
-          className={clsx(
-            "bg-dark-card border rounded-xl p-4 flex items-center gap-3.5 shadow-lg cursor-pointer transition-all",
-            statusFiltro === 'PROCESSANDO' 
-              ? "border-orange-500/50 bg-orange-500/5 shadow-[0_0_12px_rgba(249,115,22,0.1)]" 
-              : "border-slate-800 hover:border-slate-700"
-          )}
-        >
-          <div className="w-11 h-11 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
-            <Loader2 className="w-5 h-5 animate-spin text-orange-400" />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold text-orange-400 uppercase tracking-wider">Processando</span>
-            <div className="text-xl font-black text-orange-300 mt-0.5">{processandoCount}</div>
-            <span className="text-[10px] text-orange-400/80">Em execução no momento</span>
-          </div>
-        </div>
-
-        {/* Não Iniciado (Vermelho) */}
-        <div 
-          onClick={() => setStatusFiltro(statusFiltro === 'NAO_INICIADO' ? 'TODOS' : 'NAO_INICIADO')}
-          className={clsx(
-            "bg-dark-card border rounded-xl p-4 flex items-center gap-3.5 shadow-lg cursor-pointer transition-all",
-            statusFiltro === 'NAO_INICIADO' 
-              ? "border-red-500/50 bg-red-500/5 shadow-[0_0_12px_rgba(239,68,68,0.1)]" 
-              : "border-slate-800 hover:border-slate-700"
-          )}
-        >
-          <div className="w-11 h-11 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
-            <AlertCircle className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider">Não Iniciado</span>
-            <div className="text-xl font-black text-red-300 mt-0.5">{naoIniciadosCount}</div>
-            <span className="text-[10px] text-red-400/80">Aguardando disparo</span>
           </div>
         </div>
 
@@ -722,7 +737,7 @@ export function ProcessamentoShopee() {
 
         {/* Footer bar */}
         <div className="p-3 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
-          <span>Exibindo <strong>{filteredItems.length}</strong> de <strong>{dadosProcessamento.length}</strong> rotinas da {quinzena}ª Quinzena</span>
+          <span>Exibindo <strong>{filteredItems.length}</strong> de <strong>{dadosProcessamento.length}</strong> processos da {quinzena}ª Quinzena</span>
           <span className="text-[11px] text-slate-500">
             Última sincronização: {new Date().toLocaleTimeString('pt-BR')}
           </span>

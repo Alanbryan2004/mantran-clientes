@@ -12,6 +12,7 @@ import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
 import { Login } from './pages/Login'
 
 import { useState, useEffect } from 'react'
+import { permissionsApi } from './lib/permissions'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -21,6 +22,7 @@ function App() {
     const user = localStorage.getItem('@Mantran:user')
     if (user) {
       setIsAuthenticated(true)
+      permissionsApi.getPermissions().catch(console.error)
     }
     setLoading(false)
   }, [])

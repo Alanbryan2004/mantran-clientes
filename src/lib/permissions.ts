@@ -35,7 +35,7 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Parceiro: {
     perfil: 'Parceiro',
-    rotas: ['/bases'],
+    rotas: ['/bases', '/processamento-shopee'],
     projeto_especifico_id: '9a1fa78a-f8de-4119-8ef3-643d89b64035', // Padrão: Shopee 4PL
     read_only: true
   }

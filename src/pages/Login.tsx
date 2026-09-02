@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { api } from '../lib/api'
+import { permissionsApi } from '../lib/permissions'
 
 export function Login() {
   const [login, setLogin] = useState('')
@@ -23,6 +24,9 @@ export function Login() {
 
       // Login bem-sucedido
       localStorage.setItem('@Mantran:user', JSON.stringify(data))
+      try {
+        await permissionsApi.getPermissions()
+      } catch (_) {}
       window.location.href = '/'
     } catch (err: any) {
       setError(err.message || 'Erro ao realizar login.')
@@ -35,17 +39,13 @@ export function Login() {
     <div className="min-h-screen bg-[#0f111a] flex items-center justify-center p-4 font-sans">
       <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-[420px] text-center">
         
-        {/* Logo Approximation */}
-        <div className="mb-2">
-          <div className="text-4xl font-black text-gray-800 flex justify-center items-center tracking-tighter">
-            MAN
-            <div className="mx-0.5 w-8 h-8 rounded-full bg-gradient-to-b from-gray-700 to-gray-900 flex items-center justify-center relative shadow-inner">
-              <div className="absolute top-0 w-full h-1/2 bg-red-600 rounded-t-full opacity-80"></div>
-              <span className="text-white z-10 text-2xl" style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.5)' }}>T</span>
-            </div>
-            RAN
-          </div>
-          <div className="text-[13px] font-bold text-red-600 tracking-[0.15em] mt-1">TECNOLOGIAS</div>
+        {/* Logo Mantran */}
+        <div className="mb-4 flex justify-center select-none">
+          <img 
+            src="/Logo_Mantran.png" 
+            alt="Mantran Tecnologias" 
+            className="h-16 w-auto object-contain"
+          />
         </div>
 
         <h1 className="text-xl font-serif font-bold text-red-800 mt-4 mb-1">Mantran Clientes</h1>
