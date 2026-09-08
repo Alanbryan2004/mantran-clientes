@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, CheckCircle2, Settings2, Settings, FileSpreadsheet, 
@@ -617,14 +617,14 @@ export function ProjetoDetalhes() {
           <table className="w-full text-left text-sm whitespace-nowrap min-w-max border-collapse">
             <thead className="bg-slate-900/95 text-slate-300 sticky top-0 z-20 border-b border-slate-800 backdrop-blur-md">
               <tr>
-                <th className="px-5 py-3.5 font-bold border-r border-slate-800 bg-slate-900 left-0 sticky z-30 min-w-[240px]">
+                <th className="px-5 py-3.5 font-bold border-r border-slate-800 bg-slate-900 left-0 sticky z-30 min-w-[260px]">
                   <div className="flex items-center gap-2">
                     <Layers className="w-4 h-4 text-brand-400" />
                     <span>Base / Cliente</span>
                   </div>
                 </th>
                 {colunas.map(col => (
-                  <th key={col.id} className="px-5 py-3.5 font-semibold text-slate-200">
+                  <th key={col.id} className="px-5 py-3.5 font-semibold text-slate-200 min-w-[150px]">
                     <div className="flex items-center space-x-2">
                       <span>{col.nome}</span>
                       {col.indicador_conclusao && (
@@ -652,13 +652,13 @@ export function ProjetoDetalhes() {
                   const hasMultiple = itemCount > 1
 
                   return (
-                    <tbody key={base.id} className="divide-y divide-slate-800/40 border-b border-slate-800/80">
+                    <Fragment key={base.id}>
                       
                       {/* Main Row (Sub-item 0) */}
                       <tr className={`transition-colors ${isExpanded ? 'bg-slate-800/20' : 'hover:bg-slate-800/30'}`}>
                         
                         {/* Coluna Base / Cliente */}
-                        <td className="px-5 py-3 border-r border-slate-800/60 bg-dark-card left-0 sticky z-10 font-mono text-white">
+                        <td className="px-5 py-3 border-r border-slate-800/60 bg-dark-card left-0 sticky z-10 font-mono text-white min-w-[260px]">
                           <div className="flex items-start gap-2.5">
                             
                             {/* Botão Expandir (+) */}
@@ -702,13 +702,13 @@ export function ProjetoDetalhes() {
                           const valor = getSubValor(base.id, col.id, 0)
 
                           return (
-                            <td key={col.id} className="px-5 py-2.5">
+                            <td key={col.id} className="px-5 py-2.5 min-w-[150px]">
                               {col.tipo?.toUpperCase() === 'STATUS' ? (
                                 <select
                                   value={valor}
                                   disabled={isReadOnlyUser()}
                                   onChange={(e) => handleUpdateSubDado(base.id, col.id, 0, e.target.value)}
-                                  className={`input-field w-36 py-1.5 px-2.5 text-xs font-bold border-transparent focus:border-brand-500 rounded-lg ${
+                                  className={`input-field w-full max-w-[140px] py-1.5 px-2.5 text-xs font-bold border-transparent focus:border-brand-500 rounded-lg ${
                                     isReadOnlyUser() ? 'cursor-default' : 'cursor-pointer'
                                   } ${
                                     valor === 'OK' ? 'bg-green-500/10 text-green-400 border-green-500/30' :
@@ -726,7 +726,7 @@ export function ProjetoDetalhes() {
                                   value={valor}
                                   disabled={isReadOnlyUser()}
                                   onChange={(e) => handleUpdateSubDado(base.id, col.id, 0, e.target.value)}
-                                  className={`input-field py-1.5 px-3 text-xs w-36 bg-slate-800/80 border-slate-700 focus:border-brand-500 rounded-lg ${
+                                  className={`input-field py-1.5 px-3 text-xs w-full max-w-[140px] bg-slate-800/80 border-slate-700 focus:border-brand-500 rounded-lg ${
                                     isReadOnlyUser() ? 'cursor-default opacity-80' : ''
                                   }`}
                                 />
@@ -737,7 +737,7 @@ export function ProjetoDetalhes() {
                                   disabled={isReadOnlyUser()}
                                   onChange={(e) => handleUpdateSubDado(base.id, col.id, 0, e.target.value)}
                                   placeholder={isReadOnlyUser() ? '' : '...'}
-                                  className={`input-field py-1.5 px-3 text-xs font-medium w-40 bg-slate-800/40 border-slate-700/60 rounded-lg text-slate-200 ${
+                                  className={`input-field py-1.5 px-3 text-xs font-medium w-full max-w-[140px] bg-slate-800/40 border-slate-700/60 rounded-lg text-slate-200 ${
                                     isReadOnlyUser() ? 'cursor-default opacity-80' : 'hover:bg-slate-800 focus:bg-slate-800 focus:border-brand-500'
                                   } transition-colors`}
                                 />
@@ -754,7 +754,7 @@ export function ProjetoDetalhes() {
                           <tr key={`${base.id}_sub_${subIndex}`} className="bg-slate-900/40 hover:bg-slate-900/60 transition-colors">
                             
                             {/* Sub-item Label */}
-                            <td className="px-5 py-2 border-r border-slate-800/60 bg-slate-900/90 left-0 sticky z-10">
+                            <td className="px-5 py-2 border-r border-slate-800/60 bg-slate-900/90 left-0 sticky z-10 min-w-[260px]">
                               <div className="flex items-center justify-between pl-8 pr-2">
                                 <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
                                   <span className="text-slate-600">↳</span>
@@ -777,13 +777,13 @@ export function ProjetoDetalhes() {
                               const valor = getSubValor(base.id, col.id, subIndex)
 
                               return (
-                                <td key={col.id} className="px-5 py-2">
+                                <td key={col.id} className="px-5 py-2 min-w-[150px]">
                                   {col.tipo?.toUpperCase() === 'STATUS' ? (
                                     <select
                                       value={valor}
                                       disabled={isReadOnlyUser()}
                                       onChange={(e) => handleUpdateSubDado(base.id, col.id, subIndex, e.target.value)}
-                                      className={`input-field w-36 py-1.5 px-2.5 text-xs font-bold border-transparent focus:border-brand-500 rounded-lg ${
+                                      className={`input-field w-full max-w-[140px] py-1.5 px-2.5 text-xs font-bold border-transparent focus:border-brand-500 rounded-lg ${
                                         isReadOnlyUser() ? 'cursor-default' : 'cursor-pointer'
                                       } ${
                                         valor === 'OK' ? 'bg-green-500/10 text-green-400 border-green-500/30' :
@@ -801,7 +801,7 @@ export function ProjetoDetalhes() {
                                       value={valor}
                                       disabled={isReadOnlyUser()}
                                       onChange={(e) => handleUpdateSubDado(base.id, col.id, subIndex, e.target.value)}
-                                      className={`input-field py-1.5 px-3 text-xs w-36 bg-slate-800/80 border-slate-700 focus:border-brand-500 rounded-lg ${
+                                      className={`input-field py-1.5 px-3 text-xs w-full max-w-[140px] bg-slate-800/80 border-slate-700 focus:border-brand-500 rounded-lg ${
                                         isReadOnlyUser() ? 'cursor-default opacity-80' : ''
                                       }`}
                                     />
@@ -812,7 +812,7 @@ export function ProjetoDetalhes() {
                                       disabled={isReadOnlyUser()}
                                       onChange={(e) => handleUpdateSubDado(base.id, col.id, subIndex, e.target.value)}
                                       placeholder={isReadOnlyUser() ? '' : '...'}
-                                      className={`input-field py-1.5 px-3 text-xs font-medium w-40 bg-slate-800/40 border-slate-700/60 rounded-lg text-slate-200 ${
+                                      className={`input-field py-1.5 px-3 text-xs font-medium w-full max-w-[140px] bg-slate-800/40 border-slate-700/60 rounded-lg text-slate-200 ${
                                         isReadOnlyUser() ? 'cursor-default opacity-80' : 'hover:bg-slate-800 focus:bg-slate-800 focus:border-brand-500'
                                       } transition-colors`}
                                     />
@@ -839,7 +839,7 @@ export function ProjetoDetalhes() {
                         </tr>
                       )}
 
-                    </tbody>
+                    </Fragment>
                   )
                 })
               )}
