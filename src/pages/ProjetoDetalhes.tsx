@@ -26,13 +26,25 @@ const getProgressTextColor = (progress: number) => {
 }
 
 // Helpers para valores múltiplos por pipe '|'
-const parsePipeValues = (val: string | undefined | null, targetLength: number = 1): string[] => {
+const parsePipeValues = (val: string | undefined | null, targetLength: number = 1, isStatus: boolean = false): string[] => {
   if (!val) {
     return Array.from({ length: Math.max(1, targetLength) }, () => '')
   }
   const parts = val.split('|').map(s => s.trim())
+
+  // Se for uma coluna de status e havia apenas 1 valor definido (ex: 'OK' ou 'PENDENTE') e a base tem múltiplas agências,
+  // repete o mesmo status para as demais agências!
+  if (isStatus && parts.length === 1 && targetLength > 1 && parts[0] !== '') {
+    return Array.from({ length: targetLength }, () => parts[0])
+  }
+
   while (parts.length < targetLength) {
-    parts.push('')
+    // Se for status e temos o primeiro valor não vazio, replica
+    if (isStatus && parts[0] !== '') {
+      parts.push(parts[0])
+    } else {
+      parts.push('')
+    }
   }
   return parts.length > 0 ? parts : ['']
 }
@@ -117,7 +129,9 @@ export function ProjetoDetalhes() {
   const getSubValor = (baseId: string, colunaId: string, subIndex: number): string => {
     const raw = dados[`${baseId}_${colunaId}`] || ''
     const totalItems = getBaseItemCount(baseId)
-    const arr = parsePipeValues(raw, totalItems)
+    const col = colunas.find(c => c.id === colunaId)
+    const isStatus = col?.tipo?.toUpperCase() === 'STATUS'
+    const arr = parsePipeValues(raw, totalItems, isStatus)
     return arr[subIndex] || ''
   }
 
@@ -127,7 +141,9 @@ export function ProjetoDetalhes() {
     const key = `${baseId}_${colunaId}`
     const raw = dados[key] || ''
     const totalItems = Math.max(getBaseItemCount(baseId), subIndex + 1)
-    const arr = parsePipeValues(raw, totalItems)
+    const col = colunas.find(c => c.id === colunaId)
+    const isStatus = col?.tipo?.toUpperCase() === 'STATUS'
+    const arr = parsePipeValues(raw, totalItems, isStatus)
     
     arr[subIndex] = novoValor
 
