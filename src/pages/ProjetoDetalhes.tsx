@@ -176,8 +176,8 @@ export function ProjetoDetalhes() {
     // Abre a base expandida automaticamente
     setExpandedBases(prev => ({ ...prev, [baseId]: true }))
 
-    // Identifica se há coluna de Agency ID ou primeira coluna de texto
-    const agencyCol = colunas.find(c => c.nome.toLowerCase().includes('agency') || c.tipo === 'TEXTO') || colunas[0]
+    // Identifica a coluna que define o desdobramento (TEXTO_MULTI ou Agency ID)
+    const agencyCol = colunas.find(c => c.tipo?.toUpperCase() === 'TEXTO_MULTI' || c.nome.toLowerCase().includes('agency')) || colunas.find(c => c.tipo?.toUpperCase() === 'TEXTO') || colunas[0]
     if (!agencyCol) return
 
     await handleUpdateSubDado(baseId, agencyCol.id, nextIndex, '')
@@ -840,7 +840,7 @@ export function ProjetoDetalhes() {
                         )
                       })}
 
-                      {/* Expanded Action: Add Agency ID */}
+                      {/* Expanded Action: Add Sub-Item */}
                       {isExpanded && !isReadOnlyUser() && (
                         <tr className="bg-slate-900/30">
                           <td colSpan={colunas.length + 1} className="px-5 py-2 pl-12">
@@ -849,7 +849,7 @@ export function ProjetoDetalhes() {
                               className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1.5 py-1 px-2 rounded-md hover:bg-blue-500/10 border border-transparent hover:border-blue-500/20 transition-all cursor-pointer"
                             >
                               <Plus className="w-3.5 h-3.5" />
-                              <span>Adicionar outra Agência para {base.nome_base}</span>
+                              <span>Adicionar {colunas.find(c => c.tipo?.toUpperCase() === 'TEXTO_MULTI')?.nome || 'Agency ID'} para {base.nome_base}</span>
                             </button>
                           </td>
                         </tr>

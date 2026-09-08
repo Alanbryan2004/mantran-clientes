@@ -8,7 +8,7 @@ export interface ColunaItem {
   id: string
   isNew?: boolean
   nome: string
-  tipo: 'STATUS' | 'DATA' | 'TEXTO'
+  tipo: 'STATUS' | 'DATA' | 'TEXTO' | 'TEXTO_MULTI'
   indicador_conclusao: boolean
   ordem: number
 }
@@ -307,7 +307,7 @@ export function EditarProjetoModal({ isOpen, onClose, projetoId, onSuccess }: Ed
                       </div>
 
                       {/* Tipo */}
-                      <div className="w-full md:w-36 shrink-0">
+                      <div className="w-full md:w-48 shrink-0">
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 md:hidden">
                           Tipo de Dado
                         </label>
@@ -318,7 +318,8 @@ export function EditarProjetoModal({ isOpen, onClose, projetoId, onSuccess }: Ed
                         >
                           <option value="STATUS">STATUS (OK/Pend.)</option>
                           <option value="DATA">DATA</option>
-                          <option value="TEXTO">TEXTO</option>
+                          <option value="TEXTO">TEXTO (1 por base)</option>
+                          <option value="TEXTO_MULTI">TEXTO MÚLTIPLO (Sub-linhas)</option>
                         </select>
                       </div>
 

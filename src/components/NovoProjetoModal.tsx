@@ -13,7 +13,7 @@ interface Base {
 interface ColunaDef {
   id: string // temporary internal id
   nome: string
-  tipo: 'DATA' | 'TEXTO' | 'STATUS'
+  tipo: 'DATA' | 'TEXTO' | 'TEXTO_MULTI' | 'STATUS'
   indicador_conclusao: boolean
 }
 
@@ -294,35 +294,53 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
                           placeholder="Ex: Treinamento Realizado"
                         />
                       </div>
-                      <div className="w-full sm:w-48">
+                      <div className="w-full sm:w-64">
                         <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 block">Tipo de Dado</label>
                         <select
                           value={coluna.tipo}
                           onChange={e => handleChangeColuna(coluna.id, 'tipo', e.target.value as any)}
                           className="input-field w-full h-10 text-sm pr-8"
                         >
-                          <option value="TEXTO">Texto Curto</option>
-                          <option value="DATA">Data (DD/MM/AAAA)</option>
                           <option value="STATUS">Status (OK/PENDENTE)</option>
+                          <option value="DATA">Data (DD/MM/AAAA)</option>
+                          <option value="TEXTO">Texto Curto (1 por base)</option>
+                          <option value="TEXTO_MULTI">Texto Múltiplo (Desdobra em sub-linhas, ex: Agency ID)</option>
                         </select>
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between pt-3 mt-1 border-t border-slate-800/50">
-                      <label className="flex items-center space-x-2 cursor-pointer group/check select-none">
-                        <input 
-                          type="checkbox" 
-                          checked={coluna.indicador_conclusao}
-                          onChange={e => handleChangeColuna(coluna.id, 'indicador_conclusao', e.target.checked)}
-                          className="accent-brand-500 w-4 h-4 cursor-pointer"
-                        />
-                        <span className="text-xs text-slate-400 group-hover/check:text-slate-300 transition-colors">
-                          Usar como <span className="font-bold text-brand-400">Indicador de Conclusão</span>
-                        </span>
-                      </label>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-3 mt-1 border-t border-slate-800/50 gap-2">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <label className="flex items-center space-x-2 cursor-pointer group/check select-none">
+                          <input 
+                            type="checkbox" 
+                            checked={coluna.indicador_conclusao}
+                            onChange={e => handleChangeColuna(coluna.id, 'indicador_conclusao', e.target.checked)}
+                            className="accent-brand-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span className="text-xs text-slate-400 group-hover/check:text-slate-300 transition-colors">
+                            Usar como <span className="font-bold text-brand-400">Indicador de Conclusão</span>
+                          </span>
+                        </label>
+
+                        {(coluna.tipo === 'TEXTO' || coluna.tipo === 'TEXTO_MULTI') && (
+                          <label className="flex items-center space-x-2 cursor-pointer group/multi select-none">
+                            <input 
+                              type="checkbox" 
+                              checked={coluna.tipo === 'TEXTO_MULTI'}
+                              onChange={e => handleChangeColuna(coluna.id, 'tipo', e.target.checked ? 'TEXTO_MULTI' : 'TEXTO')}
+                              className="accent-blue-500 w-4 h-4 cursor-pointer"
+                            />
+                            <span className="text-xs text-slate-400 group-hover/multi:text-slate-300 transition-colors">
+                              Permitir <span className="font-bold text-blue-400">Múltiplas Linhas por Base</span> (ex: Agency IDs)
+                            </span>
+                          </label>
+                        )}
+                      </div>
+
                       <button 
                         onClick={() => handleRemoveColuna(coluna.id)}
-                        className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors p-1.5 rounded-lg flex items-center justify-center"
+                        className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors p-1.5 rounded-lg flex items-center justify-center self-end sm:self-auto"
                         title="Remover Coluna"
                       >
                         <Trash2 className="w-4 h-4" />
