@@ -206,7 +206,9 @@ export function VisualizarCheckpointModal({
                     <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-800">
                       <p className="text-slate-400 text-[11px] mb-0.5">CNPJ HUB Shopee (Origem)</p>
                       <p className="font-mono font-bold text-slate-200">{percurso.cnpj_hub_shopee || 'Não informado'}</p>
-                      <p className="text-[11px] text-slate-400 mt-1">UF Origem: <strong className="text-white">{percurso.uf_origem || 'SP'}</strong></p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Origem: <strong className="text-white">{percurso.cidade_origem ? `${percurso.cidade_origem} / ` : ''}{percurso.uf_origem || 'SP'}</strong>
+                      </p>
                     </div>
 
                     <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-800">

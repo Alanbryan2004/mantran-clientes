@@ -39,6 +39,7 @@ export interface CheckpointFormData {
   processos_shopee: string[]
   percurso_line_haul: {
     cnpj_hub_shopee: string
+    cidade_origem: string
     uf_origem: string
     cnpj_recebedor: string
     endereco_destino: string
@@ -103,6 +104,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
     processos_shopee: implantacao?.operacoes_shopee || ['Last Mile'],
     percurso_line_haul: {
       cnpj_hub_shopee: '',
+      cidade_origem: '',
       uf_origem: 'SP',
       cnpj_recebedor: '',
       endereco_destino: ''
@@ -274,6 +276,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
     if (current === 'line_haul') {
       return (
         formData.percurso_line_haul.cnpj_hub_shopee.trim() !== '' &&
+        formData.percurso_line_haul.cidade_origem.trim() !== '' &&
         formData.percurso_line_haul.uf_origem.trim() !== '' &&
         formData.percurso_line_haul.cnpj_recebedor.trim() !== '' &&
         formData.percurso_line_haul.endereco_destino.trim() !== ''
@@ -668,7 +671,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
               </div>
 
               <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
                       CNPJ HUB Shopee (Origem do Frete) <span className="text-red-400">*</span>
@@ -681,6 +684,22 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                       onChange={(e) => setFormData(prev => ({
                         ...prev,
                         percurso_line_haul: { ...prev.percurso_line_haul, cnpj_hub_shopee: formatCNPJ(e.target.value) }
+                      }))}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Cidade de Origem <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: São Paulo"
+                      value={formData.percurso_line_haul.cidade_origem}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        percurso_line_haul: { ...prev.percurso_line_haul, cidade_origem: e.target.value }
                       }))}
                       className="input-field text-sm"
                     />
