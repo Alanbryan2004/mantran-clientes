@@ -1,7 +1,7 @@
 import type { BaseMantran } from '../data/mockBases'
 import { isReadOnlyUser } from '../lib/auth'
 import clsx from 'clsx'
-import { Users, Blocks, Pencil, Trash2 } from 'lucide-react'
+import { Users, Blocks, Pencil, Trash2, Eye } from 'lucide-react'
 
 interface ClientesTableProps {
   clientes: BaseMantran[]
@@ -9,9 +9,10 @@ interface ClientesTableProps {
   onOpenModulos: (clienteDbId: string, clienteNome: string) => void
   onEdit: (cliente: BaseMantran) => void
   onDelete: (clienteDbId: string, baseId: string, empresa: string) => void
+  onVisualizarAditivo?: (cliente: BaseMantran) => void
 }
 
-export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit, onDelete }: ClientesTableProps) {
+export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit, onDelete, onVisualizarAditivo }: ClientesTableProps) {
   
   const getBadgeStyle = (col: string, value: string) => {
     if (!value) return ''
@@ -115,7 +116,15 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
               <td className="px-4 py-2 text-center">
                 {cliente.empresa && cliente.clienteDbId ? (
                   cliente.possui_aditivo ? (
-                    <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-medium rounded border border-green-500/30">SIM</span>
+                    <button
+                      type="button"
+                      onClick={() => onVisualizarAditivo?.(cliente)}
+                      className="px-2 py-0.5 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-semibold rounded border border-green-500/30 inline-flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Visualizar / Baixar Aditivo Contratual"
+                    >
+                      <span>SIM</span>
+                      <Eye className="w-3 h-3 text-green-300" />
+                    </button>
                   ) : (
                     <span className="px-2 py-0.5 bg-slate-800/50 text-slate-500 text-xs font-medium rounded border border-slate-700/50">NÃO</span>
                   )

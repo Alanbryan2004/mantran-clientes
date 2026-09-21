@@ -3,7 +3,7 @@ import {
   Building, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, 
   HelpCircle, Plus, Rocket, Send, Sparkles, Trash2, Upload, Users, 
   X, AlertCircle, FileText, Check, ShieldCheck, MapPin, Truck,
-  KeyRound, Eye, EyeOff, Save, Lock
+  KeyRound, Eye, EyeOff, Save, Lock, Download
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { getLoggedUser } from '../lib/auth'
@@ -44,6 +44,14 @@ export interface PercursoLineHaulItem {
   endereco_destino: string
 }
 
+export interface CstConfigData {
+  habilitar_cst: boolean | null
+  cst_por_processo: Record<string, string>
+  arquivo_aditivo_nome: string
+  arquivo_aditivo_base64: string
+  arquivo_aditivo_tamanho?: number
+}
+
 export interface CheckpointFormData {
   cnpjs: CnpjItem[]
   processos_shopee: string[]
@@ -74,6 +82,7 @@ export interface CheckpointFormData {
     arquivo_tamanho?: number
     observacoes: string
   }
+  cst_config: CstConfigData
 }
 
 const formatCNPJ = (value: string) => {
@@ -149,6 +158,12 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
       arquivo_base64: '',
       arquivo_tipo: '',
       observacoes: ''
+    },
+    cst_config: {
+      habilitar_cst: null,
+      cst_por_processo: {},
+      arquivo_aditivo_nome: '',
+      arquivo_aditivo_base64: ''
     }
   })
 
@@ -163,7 +178,12 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
         setFormData(prev => ({
           ...prev,
           ...dataObj,
-          percursos_line_haul: percursos && percursos.length > 0 ? percursos : prev.percursos_line_haul
+          percursos_line_haul: percursos && percursos.length > 0 ? percursos : prev.percursos_line_haul,
+          cst_config: dataObj.cst_config ? {
+            ...prev.cst_config,
+            ...dataObj.cst_config,
+            cst_por_processo: dataObj.cst_config.cst_por_processo || {}
+          } : prev.cst_config
         }))
       }
 
@@ -196,6 +216,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
     { id: 'nfse', title: '8. Emissão de NFSe' },
     { id: 'certificado', title: '9. Certificado Digital (.pfx)' },
     { id: 'tabela_frete', title: '10. Tabela de Frete' },
+    { id: 'cst_aditivo', title: '11. CST por Processo & Aditivo' },
     { id: 'conclusao', title: 'Conclusão e Envio' }
   ]
 
@@ -345,6 +366,31 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
           arquivo_nome: file.name,
           arquivo_base64: base64,
           arquivo_tamanho: file.size
+        }
+      }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleAditivoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 15 * 1024 * 1024) {
+      alert('O arquivo de aditivo é muito grande. O limite é de 15MB.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = reader.result as string
+      setFormData(prev => ({
+        ...prev,
+        cst_config: {
+          ...prev.cst_config,
+          arquivo_aditivo_nome: file.name,
+          arquivo_aditivo_base64: base64,
+          arquivo_aditivo_tamanho: file.size
         }
       }))
     }
@@ -1350,7 +1396,234 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             </div>
           )}
 
-          {/* SLIDE 11: CONCLUSÃO E ENVIO */}
+          {/* SLIDE 11: CONFIGURAÇÃO DE CST & ADITIVO */}
+          {currentSlideObj.id === 'cst_aditivo' && (() => {
+            const shopeeProcessesList = ['Line Haul', 'Last Mile', 'Mobile Hub', 'First Mile']
+            const processosCstFiltrados = formData.processos_shopee.filter(p => shopeeProcessesList.includes(p))
+            const processosExibidos = processosCstFiltrados.length > 0 ? processosCstFiltrados : ['Last Mile']
+
+            return (
+              <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
+                <div>
+                  <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
+                    <FileText className="w-4 h-4" /> Pergunta Final (Configuração Fiscal & Aditivo)
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-bold text-white">
+                    Deseja Configurar a CST a ser Utilizada nos Processos?
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                    Exibindo apenas os processos selecionados pela sua operação.
+                  </p>
+                </div>
+
+                {/* Lista dos Processos Selecionados */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-3.5 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-400 font-medium mr-1">Seus processos ativos:</span>
+                  {processosExibidos.map((proc) => (
+                    <span key={proc} className="px-2.5 py-1 rounded-lg bg-orange-500/15 text-orange-300 border border-orange-500/30 text-xs font-bold flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5" />
+                      {proc}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Opções SIM / NÃO */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      cst_config: { ...prev.cst_config, habilitar_cst: true }
+                    }))}
+                    className={clsx(
+                      "p-4 sm:p-5 rounded-2xl border-2 text-left flex items-center justify-between transition-all cursor-pointer",
+                      formData.cst_config.habilitar_cst === true
+                        ? "border-emerald-500 bg-emerald-500/15 shadow-lg shadow-emerald-500/10 text-white"
+                        : "border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-700"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={clsx(
+                        "w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0",
+                        formData.cst_config.habilitar_cst === true ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-400"
+                      )}>
+                        <Check className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-white">SIM, desejo configurar</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Informar CST personalizada e assinar aditivo</p>
+                      </div>
+                    </div>
+                    <div className={clsx(
+                      "w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ml-2",
+                      formData.cst_config.habilitar_cst === true ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-700"
+                    )}>
+                      {formData.cst_config.habilitar_cst === true && <Check className="w-3.5 h-3.5" />}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      cst_config: { ...prev.cst_config, habilitar_cst: false }
+                    }))}
+                    className={clsx(
+                      "p-4 sm:p-5 rounded-2xl border-2 text-left flex items-center justify-between transition-all cursor-pointer",
+                      formData.cst_config.habilitar_cst === false
+                        ? "border-brand-500 bg-brand-500/15 shadow-lg shadow-brand-500/10 text-white"
+                        : "border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-700"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={clsx(
+                        "w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0",
+                        formData.cst_config.habilitar_cst === false ? "bg-brand-500/20 text-brand-400" : "bg-slate-800 text-slate-400"
+                      )}>
+                        <X className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-white">NÃO, manter padrão</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Utilizar regras padrão do sistema</p>
+                      </div>
+                    </div>
+                    <div className={clsx(
+                      "w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ml-2",
+                      formData.cst_config.habilitar_cst === false ? "border-brand-500 bg-brand-500 text-white" : "border-slate-700"
+                    )}>
+                      {formData.cst_config.habilitar_cst === false && <Check className="w-3.5 h-3.5" />}
+                    </div>
+                  </button>
+                </div>
+
+                {/* Conteúdo exibido se o usuário escolheu SIM */}
+                {formData.cst_config.habilitar_cst === true && (
+                  <div className="space-y-5 pt-2 animate-fadeIn">
+                    
+                    {/* 1. Código CST por Processo */}
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-3">
+                        <Truck className="w-4 h-4 text-orange-400" />
+                        <span>Informe o Código CST (2 Dígitos) de cada Processo</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {processosExibidos.map((processo) => (
+                          <div key={processo} className="bg-slate-800/50 border border-slate-700/80 rounded-xl p-4 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <span className="text-xs font-extrabold text-orange-400 uppercase tracking-wide block">
+                                {processo}
+                              </span>
+                              <span className="text-[11px] text-slate-400">Código CST</span>
+                            </div>
+                            <div className="w-24 shrink-0">
+                              <input
+                                type="text"
+                                maxLength={2}
+                                placeholder="00"
+                                value={formData.cst_config.cst_por_processo[processo] || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, '').slice(0, 2)
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    cst_config: {
+                                      ...prev.cst_config,
+                                      cst_por_processo: {
+                                        ...prev.cst_config.cst_por_processo,
+                                        [processo]: val
+                                      }
+                                    }
+                                  }))
+                                }}
+                                className="input-field text-center font-mono font-extrabold text-base py-1.5 uppercase tracking-wider"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 2. Download do Aditivo em PDF & Instrução GOV */}
+                    <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-brand-950/40 border border-brand-500/30 rounded-2xl p-5 space-y-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-bold text-white">
+                            Download e Assinatura do Aditivo Contratual
+                          </h4>
+                          <p className="text-xs text-slate-300 leading-relaxed">
+                            Para ativar este parâmetro, baixe o documento PDF abaixo, realize a assinatura (<strong>pode ser assinado digitalmente pelo GOV.BR</strong>) e anexe o arquivo assinado.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-1">
+                        <a
+                          href="/AditivoMantran.pdf"
+                          download="AditivoMantran.pdf"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-lg shadow-brand-600/20 transition-all cursor-pointer"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>Baixar Documento do Aditivo (PDF)</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* 3. Upload do Aditivo Assinado */}
+                    <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500 rounded-2xl p-6 bg-slate-900/50 text-center transition-all">
+                      <input
+                        type="file"
+                        id="aditivo-file"
+                        accept=".pdf"
+                        onChange={handleAditivoUpload}
+                        className="hidden"
+                      />
+
+                      {formData.cst_config.arquivo_aditivo_nome ? (
+                        <div className="flex flex-col items-center space-y-3">
+                          <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                            <CheckCircle2 className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-white flex items-center justify-center gap-1.5">
+                              <span>{formData.cst_config.arquivo_aditivo_nome}</span>
+                            </p>
+                            <p className="text-xs text-emerald-400 font-semibold mt-0.5">
+                              ✓ Aditivo assinado anexado com sucesso {formData.cst_config.arquivo_aditivo_tamanho ? `(${(formData.cst_config.arquivo_aditivo_tamanho / 1024).toFixed(1)} KB)` : ''}
+                            </p>
+                          </div>
+
+                          <label
+                            htmlFor="aditivo-file"
+                            className="btn-secondary text-xs py-1.5 px-3 cursor-pointer"
+                          >
+                            Substituir Aditivo Anexado
+                          </label>
+                        </div>
+                      ) : (
+                        <label htmlFor="aditivo-file" className="cursor-pointer flex flex-col items-center space-y-3">
+                          <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center">
+                            <Upload className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-200">Anexar Aditivo Assinado (.pdf)</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Clique para enviar o arquivo assinado pelo GOV.BR ou certificado digital</p>
+                          </div>
+                        </label>
+                      )}
+                    </div>
+
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* SLIDE 12: CONCLUSÃO E ENVIO */}
           {currentSlideObj.id === 'conclusao' && (
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn py-2">
               <div className="text-center">
@@ -1365,7 +1638,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
                 <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
                   <p className="font-bold text-brand-400 uppercase text-[11px]">CNPJs e Tributação</p>
                   <p className="text-slate-300"><strong>Total de CNPJs:</strong> {formData.cnpjs.length}</p>
@@ -1384,7 +1657,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                     <strong>Processos:</strong> {formData.processos_shopee.join(', ') || 'Nenhum'}
                   </p>
                   <p className="text-slate-300">
-                    <strong>Usuários Cadastrados:</strong> {formData.usuarios.length}
+                    <strong>Usuários:</strong> {formData.usuarios.length}
                   </p>
                   <p className="text-slate-300">
                     <strong>NFSe:</strong> {formData.nfse.emitira_nfse ? 'Sim' : 'Não'}
@@ -1401,6 +1674,16 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   </p>
                   <p className="text-slate-300">
                     <strong>Tabela Frete:</strong> {formData.tabela_frete.arquivo_nome ? '✓ Anexada' : 'Pendente'}
+                  </p>
+                </div>
+
+                <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
+                  <p className="font-bold text-purple-400 uppercase text-[11px]">CST & Aditivo</p>
+                  <p className="text-slate-300">
+                    <strong>Config. CST:</strong> {formData.cst_config.habilitar_cst === true ? 'Sim' : formData.cst_config.habilitar_cst === false ? 'Padrão' : 'Não definido'}
+                  </p>
+                  <p className="text-slate-300">
+                    <strong>Aditivo:</strong> {formData.cst_config.arquivo_aditivo_nome ? '✓ Anexado' : 'Pendente'}
                   </p>
                 </div>
               </div>

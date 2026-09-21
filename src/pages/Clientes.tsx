@@ -129,6 +129,41 @@ export function Clientes() {
     setIsModulosOpen(true)
   }
 
+  const handleVisualizarAditivo = async (cliente: BaseMantran) => {
+    try {
+      // 1. Search for implantacao checkpoint with aditivo
+      const implantacoes = await api.getImplantacoes()
+      const imp = implantacoes.find((i: any) => 
+        (i.cliente_id && i.cliente_id === cliente.clienteDbId) ||
+        (i.nome_empresa && cliente.empresa && i.nome_empresa.trim().toLowerCase() === cliente.empresa.trim().toLowerCase())
+      )
+
+      if (imp) {
+        const cp = await api.getImplantacaoCheckpoint(imp.id)
+        if (cp?.dados?.cst_config?.arquivo_aditivo_base64) {
+          const link = document.createElement('a')
+          link.href = cp.dados.cst_config.arquivo_aditivo_base64
+          link.download = cp.dados.cst_config.arquivo_aditivo_nome || `Aditivo_${cliente.empresa}.pdf`
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          return
+        }
+      }
+
+      // Fallback to template
+      const link = document.createElement('a')
+      link.href = '/AditivoMantran.pdf'
+      link.download = `AditivoMantran_${cliente.empresa || 'Modelo'}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (err) {
+      console.error('Erro ao visualizar aditivo:', err)
+      window.open('/AditivoMantran.pdf', '_blank')
+    }
+  }
+
   const handleSaveLote = async (quantidade: number, baseInicial: number) => {
     try {
       const basesToInsert = []
@@ -360,6 +395,7 @@ export function Clientes() {
             onOpenModulos={handleOpenModulos}
             onEdit={handleEditCliente}
             onDelete={handleDeleteCliente}
+            onVisualizarAditivo={handleVisualizarAditivo}
           />
         </div>
       )}

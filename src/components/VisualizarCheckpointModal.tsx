@@ -22,7 +22,7 @@ export function VisualizarCheckpointModal({
   implantacao,
   onEdit
 }: VisualizarCheckpointModalProps) {
-  const [activeTab, setActiveTab] = useState<'cnpjs' | 'shopee' | 'usuarios' | 'nfse' | 'certificado' | 'frete'>('cnpjs')
+  const [activeTab, setActiveTab] = useState<'cnpjs' | 'shopee' | 'usuarios' | 'nfse' | 'certificado' | 'frete' | 'cst_aditivo'>('cnpjs')
   const [showCertSenha, setShowCertSenha] = useState(false)
   const [copiedSenha, setCopiedSenha] = useState(false)
 
@@ -36,6 +36,7 @@ export function VisualizarCheckpointModal({
   const nfse = dados.nfse || {}
   const certificado = dados.certificado_digital || { arquivo_nome: '', arquivo_base64: '', senha: '' }
   const frete = dados.tabela_frete || {}
+  const cstConfig = dados.cst_config || { habilitar_cst: null, cst_por_processo: {}, arquivo_aditivo_nome: '', arquivo_aditivo_base64: '' }
 
   const downloadFrete = () => {
     if (!frete.arquivo_base64) return
@@ -55,6 +56,24 @@ export function VisualizarCheckpointModal({
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  const downloadAditivo = () => {
+    if (cstConfig.arquivo_aditivo_base64) {
+      const link = document.createElement('a')
+      link.href = cstConfig.arquivo_aditivo_base64
+      link.download = cstConfig.arquivo_aditivo_nome || 'Aditivo_Assinado.pdf'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } else {
+      const link = document.createElement('a')
+      link.href = '/AditivoMantran.pdf'
+      link.download = 'AditivoMantran.pdf'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
   }
 
   const handleCopySenha = () => {
@@ -116,6 +135,7 @@ export function VisualizarCheckpointModal({
             { id: 'nfse', label: 'NFSe', icon: FileText },
             { id: 'certificado', label: 'Certificado Digital', icon: KeyRound },
             { id: 'frete', label: 'Tabela de Frete', icon: FileSpreadsheet },
+            { id: 'cst_aditivo', label: 'CST & Aditivo', icon: FileText },
           ].map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
@@ -476,6 +496,95 @@ export function VisualizarCheckpointModal({
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB 7: CST & ADITIVO */}
+          {activeTab === 'cst_aditivo' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Configuração de CST por Operação & Termo Aditivo
+                </h3>
+                <span className={clsx(
+                  "text-xs font-bold px-2.5 py-1 rounded-full border",
+                  cstConfig.habilitar_cst === true 
+                    ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" 
+                    : cstConfig.habilitar_cst === false
+                    ? "bg-blue-500/15 text-blue-300 border-blue-500/30"
+                    : "bg-slate-800 text-slate-400 border-slate-700"
+                )}>
+                  {cstConfig.habilitar_cst === true ? 'CST Personalizada Ativada' : cstConfig.habilitar_cst === false ? 'Padrão do Sistema' : 'Não Informado'}
+                </span>
+              </div>
+
+              {/* Tabela / Cards de CST por Processo */}
+              {cstConfig.habilitar_cst === true && (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                  <div className="flex items-center gap-2 text-xs font-bold text-brand-400 uppercase tracking-wider border-b border-slate-800 pb-2">
+                    <Truck className="w-4 h-4" />
+                    <span>CSTs Informadas por Processo</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {Object.keys(cstConfig.cst_por_processo || {}).length > 0 ? (
+                      Object.entries(cstConfig.cst_por_processo).map(([proc, cstVal]) => (
+                        <div key={proc} className="bg-slate-800/50 border border-slate-700/80 rounded-xl p-3.5 flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-bold text-white">{proc}</p>
+                            <p className="text-[10px] text-slate-400">Código CST</p>
+                          </div>
+                          <span className="text-sm font-mono font-extrabold px-3 py-1 bg-brand-500/20 text-brand-300 border border-brand-500/30 rounded-lg">
+                            {cstVal || 'N/A'}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-400 col-span-full italic">Nenhum código CST preenchido.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Termo Aditivo Anexado / Download */}
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-2">
+                  <FileText className="w-4 h-4 text-emerald-400" />
+                  <span>Documento do Termo Aditivo</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-slate-800/50 rounded-xl border border-slate-700/60">
+                  <div className="flex items-center space-x-3.5">
+                    <div className={clsx(
+                      "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 font-bold",
+                      cstConfig.arquivo_aditivo_base64 
+                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
+                        : "bg-slate-800 text-slate-400 border border-slate-700"
+                    )}>
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">
+                        {cstConfig.arquivo_aditivo_nome || 'AditivoMantran.pdf (Modelo Original)'}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {cstConfig.arquivo_aditivo_base64 
+                          ? `✓ Aditivo assinado pelo cliente (${cstConfig.arquivo_aditivo_tamanho ? (cstConfig.arquivo_aditivo_tamanho / 1024).toFixed(1) + ' KB' : 'PDF'})` 
+                          : 'Modelo padrão disponível para download'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={downloadAditivo}
+                    className="btn-primary text-xs py-2 px-4 flex items-center gap-2 shrink-0 shadow-lg shadow-brand-500/10"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{cstConfig.arquivo_aditivo_base64 ? 'Baixar Aditivo Assinado' : 'Baixar Modelo PDF'}</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

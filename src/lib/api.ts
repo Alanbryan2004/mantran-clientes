@@ -743,6 +743,36 @@ export const api = {
       console.warn('Aviso ao inserir histórico:', histErr)
     }
 
+    // 4. Update cliente possui_aditivo if aditivo is attached or confirmed
+    try {
+      const temAditivo = !!(
+        dados?.cst_config?.arquivo_aditivo_base64 || 
+        (dados?.cst_config?.habilitar_cst && dados?.cst_config?.arquivo_aditivo_nome)
+      )
+
+      if (temAditivo) {
+        const { data: imp } = await supabase
+          .from('implantacoes')
+          .select('cliente_id, nome_empresa')
+          .eq('id', implantacaoId)
+          .single()
+
+        if (imp?.cliente_id) {
+          await supabase
+            .from('clientes')
+            .update({ possui_aditivo: true })
+            .eq('id', imp.cliente_id)
+        } else if (imp?.nome_empresa) {
+          await supabase
+            .from('clientes')
+            .update({ possui_aditivo: true })
+            .ilike('nome_empresa', imp.nome_empresa)
+        }
+      }
+    } catch (aditivoErr) {
+      console.warn('Aviso ao atualizar possui_aditivo no cliente:', aditivoErr)
+    }
+
     return result
   },
 
