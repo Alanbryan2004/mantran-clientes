@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock } from 'lucide-react'
 import { api } from '../lib/api'
-import { isReadOnlyUser } from '../lib/auth'
+import { isReadOnlyUser, isClienteUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
 import { AlterarAnalistaModal } from '../components/AlterarAnalistaModal'
+import { AcessoClienteModal } from '../components/AcessoClienteModal'
 import clsx from 'clsx'
+
 
 const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'checkpoint': 1,
@@ -60,11 +62,14 @@ export function ImplantacaoDetalhes() {
   const navigate = useNavigate()
   
   const [implantacao, setImplantacao] = useState<any>(null)
+  const [clienteUser, setClienteUser] = useState<any | null>(null)
   const [etapas, setEtapas] = useState<any[]>([])
   const [historico, setHistorico] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isAnalistaModalOpen, setIsAnalistaModalOpen] = useState(false)
+  const [isAcessoModalOpen, setIsAcessoModalOpen] = useState(false)
+
 
   // Historico form state
   const getCurrentDateTimeLocal = () => {
@@ -96,6 +101,16 @@ export function ImplantacaoDetalhes() {
       setImplantacao(data)
       const sorted = sortEtapasWithOrder(data.implantacao_etapas || [], data.tipo_cliente === 'SHOPEE')
       setEtapas(sorted)
+
+      // Verificar se já existe acesso criado para o cliente
+      if (data?.nome_empresa) {
+        try {
+          const user = await api.getUsuarioClienteByEmpresa(data.nome_empresa)
+          setClienteUser(user)
+        } catch (uErr) {
+          console.error('Erro ao verificar usuário do cliente:', uErr)
+        }
+      }
     } catch (err) {
       console.error(err)
       alert('Erro ao carregar a implantação')
@@ -266,27 +281,81 @@ export function ImplantacaoDetalhes() {
           </div>
         </div>
 
-        {/* Edit Operations / Modules button */}
+        {/* Action buttons */}
         {!isReadOnlyUser() && (
-          <button
-            onClick={() => setIsEditModalOpen(true)}
-            className="btn-secondary flex items-center gap-2 text-sm shadow-md"
-          >
-            <Settings2 className="w-4 h-4 text-brand-400" />
-            {isShopee ? 'Alterar Operações' : 'Alterar Módulos'}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Botão Dinâmico: Liberar Acesso vs Acesso do Cliente */}
+            {clienteUser ? (
+              <button
+                type="button"
+                onClick={() => setIsAcessoModalOpen(true)}
+                className="flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all shadow-md cursor-pointer"
+                title="Visualizar ou alterar credenciais de acesso do cliente"
+              >
+                <KeyRound className="w-4 h-4 text-emerald-400" />
+                <span>Acesso do Cliente</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAcessoModalOpen(true)}
+                className="flex items-center gap-2 text-xs font-bold px-3.5 py-2 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/50 hover:bg-amber-500/30 transition-all shadow-lg shadow-amber-500/10 cursor-pointer animate-pulse hover:animate-none"
+                title="Liberar usuário e senha para o cliente acompanhar a implantação"
+              >
+                <Unlock className="w-4 h-4 text-amber-400" />
+                <span>Liberar Acesso</span>
+                <span className="text-[10px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded uppercase">Pendente</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+              className="btn-secondary flex items-center gap-2 text-xs py-2 shadow-md cursor-pointer"
+            >
+              <Settings2 className="w-4 h-4 text-brand-400" />
+              <span>{isShopee ? 'Alterar Operações' : 'Alterar Módulos'}</span>
+            </button>
+          </div>
         )}
       </div>
 
+
       {/* Full Width Top Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Base Info */}
+        {/* Base Info & Acesso */}
         <div className="bg-dark-card border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col justify-between">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Base Alocada</span>
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Base Alocada</span>
+            {!isReadOnlyUser() && (
+              clienteUser ? (
+                <button
+                  type="button"
+                  onClick={() => setIsAcessoModalOpen(true)}
+                  className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full hover:bg-emerald-500/20 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  Acesso Ativo
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAcessoModalOpen(true)}
+                  className="text-[10px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-full hover:bg-amber-500/30 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  Liberar Acesso
+                </button>
+              )
+            )}
+          </div>
           <p className="text-xl font-black font-mono text-white mt-1">
             {implantacao.bases?.nome_base || '—'}
           </p>
-          <span className="text-xs text-slate-500">Base do sistema</span>
+          <span className="text-xs text-slate-500 truncate">
+            {clienteUser ? `Login: ${clienteUser.login}` : 'Base do sistema'}
+          </span>
         </div>
 
         {/* Analista Responsável */}
@@ -299,7 +368,7 @@ export function ImplantacaoDetalhes() {
             {!isReadOnlyUser() && (
               <button 
                 onClick={() => setIsAnalistaModalOpen(true)}
-                className="text-xs text-brand-400 hover:text-brand-300 font-semibold underline"
+                className="text-xs text-brand-400 hover:text-brand-300 font-semibold underline cursor-pointer"
               >
                 {implantacao.analista_responsavel ? 'Alterar' : '+ Atribuir'}
               </button>
@@ -324,7 +393,7 @@ export function ImplantacaoDetalhes() {
               {!isReadOnlyUser() && (
                 <button
                   onClick={() => setIsAnalistaModalOpen(true)}
-                  className="mt-1.5 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-1 rounded-lg transition-colors inline-flex items-center gap-1"
+                  className="mt-1.5 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 py-1 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
                 >
                   <UserPlus className="w-3 h-3" /> Definir Analista
                 </button>
@@ -342,7 +411,7 @@ export function ImplantacaoDetalhes() {
             {!isReadOnlyUser() && (
               <button 
                 onClick={() => setIsEditModalOpen(true)}
-                className="text-xs text-brand-400 hover:text-brand-300 font-semibold underline"
+                className="text-xs text-brand-400 hover:text-brand-300 font-semibold underline cursor-pointer"
               >
                 Editar
               </button>
@@ -471,125 +540,127 @@ export function ImplantacaoDetalhes() {
         </div>
       </div>
 
-      {/* 2. CARD DE HISTÓRICO (AGORA NO FINAL DA PÁGINA) */}
-      <div className="bg-dark-card border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-          <div className="flex items-center gap-2.5">
-            <History className="w-5 h-5 text-brand-400" />
-            <div>
-              <h3 className="text-lg font-bold text-white">Histórico da Implantação</h3>
-              <p className="text-xs text-slate-400">Registro de eventos, contatos e ocorrências com o cliente</p>
+      {/* 2. CARD DE HISTÓRICO (OCULTO PARA PERFIL CLIENTE) */}
+      {!isClienteUser() && (
+        <div className="bg-dark-card border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+          <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+            <div className="flex items-center gap-2.5">
+              <History className="w-5 h-5 text-brand-400" />
+              <div>
+                <h3 className="text-lg font-bold text-white">Histórico da Implantação</h3>
+                <p className="text-xs text-slate-400">Registro de eventos, contatos e ocorrências com o cliente</p>
+              </div>
             </div>
+            <span className="text-xs text-slate-400 font-mono bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
+              {historico.length} {historico.length === 1 ? 'registro' : 'registros'}
+            </span>
           </div>
-          <span className="text-xs text-slate-400 font-mono bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
-            {historico.length} {historico.length === 1 ? 'registro' : 'registros'}
-          </span>
-        </div>
 
-        <div className="p-5 space-y-5">
-          {/* Add History Form */}
-          {!isReadOnlyUser() && (
-            <form onSubmit={handleAddHistorico} className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Novo Registro no Histórico</h4>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative shrink-0">
+          <div className="p-5 space-y-5">
+            {/* Add History Form */}
+            {!isReadOnlyUser() && (
+              <form onSubmit={handleAddHistorico} className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Novo Registro no Histórico</h4>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative shrink-0">
+                    <input
+                      type="datetime-local"
+                      value={historicoDataHora}
+                      onChange={e => setHistoricoDataHora(e.target.value)}
+                      className="input-field py-2 px-3 text-xs w-full sm:w-48 bg-slate-800 border-slate-700 text-slate-200"
+                      required
+                    />
+                  </div>
                   <input
-                    type="datetime-local"
-                    value={historicoDataHora}
-                    onChange={e => setHistoricoDataHora(e.target.value)}
-                    className="input-field py-2 px-3 text-xs w-full sm:w-48 bg-slate-800 border-slate-700 text-slate-200"
+                    type="text"
+                    value={historicoTexto}
+                    onChange={e => setHistoricoTexto(e.target.value)}
+                    placeholder="Ex: Cliente não atendeu / Reagendou treinamento / Enviou documentos..."
+                    className="input-field py-2 px-3 text-xs flex-1 bg-slate-800 border-slate-700 text-slate-200"
                     required
                   />
-                </div>
-                <input
-                  type="text"
-                  value={historicoTexto}
-                  onChange={e => setHistoricoTexto(e.target.value)}
-                  placeholder="Ex: Cliente não atendeu / Reagendou treinamento / Enviou documentos..."
-                  className="input-field py-2 px-3 text-xs flex-1 bg-slate-800 border-slate-700 text-slate-200"
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={addingHistorico || !historicoTexto.trim()}
-                  className="btn-primary py-2 px-4 text-xs flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{addingHistorico ? 'Adicionando...' : 'Adicionar'}</span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* History Timeline */}
-          {historico.length === 0 ? (
-            <div className="text-center py-6 text-slate-500 text-xs italic bg-slate-900/30 rounded-xl border border-slate-800/50">
-              Nenhum evento registrado no histórico. Adicione o primeiro registro acima.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {visibleHistorico.map((item) => (
-                <div 
-                  key={item.id}
-                  className="flex items-center justify-between p-3.5 bg-slate-900/40 hover:bg-slate-900/80 rounded-xl border border-slate-800/80 group transition-all gap-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="px-2.5 py-1 rounded-lg bg-brand-500/10 text-brand-400 border border-brand-500/20 text-xs font-mono font-bold shrink-0 flex items-center gap-1.5">
-                      <Calendar className="w-3 h-3" />
-                      {formatDateTimeDisplay(item.data_hora)}
-                    </span>
-                    <p className="text-xs text-slate-200 font-medium truncate flex-1">
-                      {item.texto}
-                    </p>
-                  </div>
-
-                  {/* Usuário que adicionou o registro */}
-                  {item.usuario_nome && (
-                    <span className="px-2.5 py-1 rounded-lg bg-slate-800/90 text-slate-300 border border-slate-700/80 text-[11px] font-semibold flex items-center gap-1.5 shrink-0 shadow-sm" title={`Adicionado por ${item.usuario_nome}`}>
-                      <User className="w-3 h-3 text-brand-400" />
-                      <span>{item.usuario_nome}</span>
-                    </span>
-                  )}
-
-                  {!isReadOnlyUser() && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteHistorico(item.id)}
-                      className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
-                      title="Excluir evento"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-
-              {/* Show Expand / Collapse button if > 3 items */}
-              {hasMoreHistorico && (
-                <div className="pt-2 flex justify-center">
                   <button
-                    type="button"
-                    onClick={() => setIsHistoricoExpanded(!isHistoricoExpanded)}
-                    className="text-xs font-bold text-brand-400 hover:text-brand-300 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900/60 hover:bg-slate-800 border border-slate-800 transition-colors"
+                    type="submit"
+                    disabled={addingHistorico || !historicoTexto.trim()}
+                    className="btn-primary py-2 px-4 text-xs flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
                   >
-                    {isHistoricoExpanded ? (
-                      <>
-                        <ChevronUp className="w-4 h-4" />
-                        <span>Recolher Histórico</span>
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="w-4 h-4" />
-                        <span>Ver mais ({historico.length - 3} registros restantes)</span>
-                      </>
-                    )}
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{addingHistorico ? 'Adicionando...' : 'Adicionar'}</span>
                   </button>
                 </div>
-              )}
-            </div>
-          )}
+              </form>
+            )}
+
+            {/* History Timeline */}
+            {historico.length === 0 ? (
+              <div className="text-center py-6 text-slate-500 text-xs italic bg-slate-900/30 rounded-xl border border-slate-800/50">
+                Nenhum evento registrado no histórico. Adicione o primeiro registro acima.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {visibleHistorico.map((item) => (
+                  <div 
+                    key={item.id}
+                    className="flex items-center justify-between p-3.5 bg-slate-900/40 hover:bg-slate-900/80 rounded-xl border border-slate-800/80 group transition-all gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <span className="px-2.5 py-1 rounded-lg bg-brand-500/10 text-brand-400 border border-brand-500/20 text-xs font-mono font-bold shrink-0 flex items-center gap-1.5">
+                        <Calendar className="w-3 h-3" />
+                        {formatDateTimeDisplay(item.data_hora)}
+                      </span>
+                      <p className="text-xs text-slate-200 font-medium truncate flex-1">
+                        {item.texto}
+                      </p>
+                    </div>
+
+                    {/* Usuário que adicionou o registro */}
+                    {item.usuario_nome && (
+                      <span className="px-2.5 py-1 rounded-lg bg-slate-800/90 text-slate-300 border border-slate-700/80 text-[11px] font-semibold flex items-center gap-1.5 shrink-0 shadow-sm" title={`Adicionado por ${item.usuario_nome}`}>
+                        <User className="w-3 h-3 text-brand-400" />
+                        <span>{item.usuario_nome}</span>
+                      </span>
+                    )}
+
+                    {!isReadOnlyUser() && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteHistorico(item.id)}
+                        className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0 cursor-pointer"
+                        title="Excluir evento"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {/* Show Expand / Collapse button if > 3 items */}
+                {hasMoreHistorico && (
+                  <div className="pt-2 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setIsHistoricoExpanded(!isHistoricoExpanded)}
+                      className="text-xs font-bold text-brand-400 hover:text-brand-300 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900/60 hover:bg-slate-800 border border-slate-800 transition-colors cursor-pointer"
+                    >
+                      {isHistoricoExpanded ? (
+                        <>
+                          <ChevronUp className="w-4 h-4" />
+                          <span>Recolher Histórico</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-4 h-4" />
+                          <span>Ver mais ({historico.length - 3} registros restantes)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal for editing operations / modules */}
       <EditarOperacoesModal
@@ -615,6 +686,15 @@ export function ImplantacaoDetalhes() {
           fetchHistorico()
         }}
       />
+
+      {/* Modal de Acesso do Cliente */}
+      <AcessoClienteModal
+        isOpen={isAcessoModalOpen}
+        onClose={() => setIsAcessoModalOpen(false)}
+        implantacao={implantacao}
+        onSuccess={fetchImplantacao}
+      />
     </div>
   )
 }
+

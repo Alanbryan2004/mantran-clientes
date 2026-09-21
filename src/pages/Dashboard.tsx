@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { isClienteUser } from '../lib/auth'
 import { Users, Database, Server, ShoppingBag, Briefcase, Building, Rocket, ArrowRight, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
@@ -58,8 +59,13 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (isClienteUser()) {
+      navigate('/implantacoes', { replace: true })
+      return
+    }
     fetchStats()
   }, [])
+
 
   const fetchStats = async () => {
     setLoading(true)

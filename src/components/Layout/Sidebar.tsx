@@ -24,12 +24,22 @@ export function Sidebar() {
   const isAdmin = isAdminUser()
   const isParceiro = user?.perfil?.toLowerCase() === 'parceiro'
   const isUsuario = user?.perfil?.toLowerCase() === 'usuario'
+  const isCliente = user?.perfil?.toLowerCase() === 'cliente'
 
   useEffect(() => {
     let isMounted = true
 
     const updateNav = () => {
       if (!isMounted) return
+      
+      // Se for perfil Cliente, exibir apenas "Minha Implantação"
+      if (isCliente) {
+        setAllowedNavItems([
+          { name: 'Minha Implantação', path: '/implantacoes', icon: Rocket }
+        ])
+        return
+      }
+
       // Filter accessible navigation items
       const filtered = allNavItems.filter(item => permissionsApi.canAccessRoute(item.path))
       
@@ -61,7 +71,8 @@ export function Sidebar() {
     return () => {
       isMounted = false
     }
-  }, [user?.perfil, isParceiro])
+  }, [user?.perfil, isParceiro, isCliente])
+
 
   return (
     <div className={clsx(
@@ -140,6 +151,8 @@ export function Sidebar() {
                 ? "bg-orange-500/20 border-orange-500/30 text-orange-400"
                 : isUsuario
                 ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
+                : isCliente
+                ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
                 : "bg-brand-500/20 border-brand-500/30 text-brand-400"
             )}>
               {(user?.nome || user?.login || 'U').charAt(0)}
@@ -154,17 +167,22 @@ export function Sidebar() {
                   ? "bg-orange-500/15 text-orange-300 border-orange-500/30"
                   : isUsuario
                   ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                  : isCliente
+                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
                   : "bg-brand-500/10 text-brand-400 border-brand-500/20"
               )}>
                 {isParceiro 
                   ? '🤝 Parceiro' 
                   : isUsuario 
                   ? '🔒 Consulta' 
+                  : isCliente
+                  ? '🏢 Cliente'
                   : user?.perfil || 'Acesso Total'}
               </span>
             </div>
           </div>
         )}
+
 
         <button 
           onClick={() => {

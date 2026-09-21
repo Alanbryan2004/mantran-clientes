@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, ChevronRight, ChevronLeft, Check, ShoppingBag, Building, Rocket, UserCheck, ShieldAlert } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Check, ShoppingBag, Building, Rocket, UserCheck, ShieldAlert, KeyRound, ShieldCheck } from 'lucide-react'
 import { api } from '../lib/api'
 import clsx from 'clsx'
 
@@ -16,6 +16,13 @@ const ETAPAS_BASE_NORMAL = [
   'Configurar Base',
   'Testes',
 ]
+
+const getBaseNumero = (baseName: string) => {
+  if (!baseName) return '001'
+  const match = baseName.match(/\d+/)
+  return match ? match[0] : '001'
+}
+
 
 export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplantacaoModalProps) {
   const [step, setStep] = useState(1)
@@ -197,6 +204,18 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
       }))
       await api.insertImplantacaoEtapas(etapasToInsert)
 
+      // 5. Gerar automaticamente o Usuário e Senha do Cliente
+      try {
+        const baseNum = getBaseNumero(selectedBase)
+        await api.insertUsuarioCliente({
+          nome: nomeEmpresa.trim(),
+          login: `${nomeEmpresa.trim()}@Mantran`,
+          senha: `${baseNum}@Mantran`
+        })
+      } catch (userErr) {
+        console.error('Aviso ao criar usuário do cliente:', userErr)
+      }
+
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -215,6 +234,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
       setSaving(false)
     }
   }
+
 
   if (!isOpen) return null
 
@@ -573,9 +593,35 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
                 </div>
               </div>
 
+              {/* Acesso do Cliente Pré-Visualização */}
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-brand-500/20 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-brand-400" />
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">Acesso do Cliente (Automático)</span>
+                  </div>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" /> Perfil Cliente
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/50">
+                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">Usuário (Login)</span>
+                    <span className="font-bold text-white">{nomeEmpresa}@Mantran</span>
+                  </div>
+                  <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/50">
+                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">Senha Padrão</span>
+                    <span className="font-mono font-bold text-emerald-400">{getBaseNumero(selectedBase)}@Mantran</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  O cliente terá acesso exclusivo à visualização do processo da sua implantação (sem histórico e sem permissão de alteração).
+                </p>
+              </div>
+
               <div>
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Etapas a serem criadas</h4>
-                <div className="bg-slate-900/50 rounded-lg border border-slate-700/50 p-3 max-h-48 overflow-y-auto custom-scrollbar">
+                <div className="bg-slate-900/50 rounded-lg border border-slate-700/50 p-3 max-h-40 overflow-y-auto custom-scrollbar">
                   {previewEtapas.map((etapa, i) => (
                     <div key={i} className="flex items-center gap-2 py-1.5">
                       <span className="text-xs text-slate-600 w-5 shrink-0">{i + 1}.</span>
@@ -587,6 +633,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
               </div>
             </div>
           )}
+
         </div>
 
         {/* Footer */}

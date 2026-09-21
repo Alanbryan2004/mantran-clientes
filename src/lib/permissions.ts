@@ -38,8 +38,15 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
     rotas: ['/bases', '/processamento-shopee'],
     projeto_especifico_id: '9a1fa78a-f8de-4119-8ef3-643d89b64035', // Padrão: Shopee 4PL
     read_only: true
+  },
+  Cliente: {
+    perfil: 'Cliente',
+    rotas: ['/implantacoes'],
+    projeto_especifico_id: null,
+    read_only: true
   }
 }
+
 
 const STORAGE_KEY = '@Mantran:perfil_permissoes'
 

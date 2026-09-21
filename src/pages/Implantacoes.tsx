@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Plus, Rocket, Trash2, Settings, ShoppingBag, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck, History } from 'lucide-react'
+import { Plus, Rocket, Trash2, Settings, ShoppingBag, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck, History, KeyRound } from 'lucide-react'
 import { api } from '../lib/api'
-import { isReadOnlyUser } from '../lib/auth'
+import { isReadOnlyUser, isClienteUser, getLoggedUser } from '../lib/auth'
 import { NovaImplantacaoModal } from '../components/NovaImplantacaoModal'
+import { AcessoClienteModal } from '../components/AcessoClienteModal'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 
@@ -83,7 +84,6 @@ const getProgressTextColor = (progress: number) => {
 
 const getUltimoStatusStyle = (daysDiff: number) => {
   if (daysDiff >= 5) {
-    // 05 Dias ou Superior -> Vermelho e piscando
     return {
       statusLevel: 'critical',
       badgeClass: 'bg-red-500/25 text-red-300 border-red-500/50 animate-pulse font-black shadow-[0_0_8px_rgba(239,68,68,0.4)]',
@@ -93,7 +93,6 @@ const getUltimoStatusStyle = (daysDiff: number) => {
       textClass: 'text-red-200'
     }
   } else if (daysDiff === 4) {
-    // 04 Dias -> Laranja / Âmbar (degradê para vermelho)
     return {
       statusLevel: 'warning-high',
       badgeClass: 'bg-orange-500/20 text-orange-300 border-orange-500/40 font-bold',
@@ -103,7 +102,6 @@ const getUltimoStatusStyle = (daysDiff: number) => {
       textClass: 'text-orange-100'
     }
   } else if (daysDiff === 3) {
-    // 03 Dias -> Amarelo
     return {
       statusLevel: 'warning',
       badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold',
@@ -113,7 +111,6 @@ const getUltimoStatusStyle = (daysDiff: number) => {
       textClass: 'text-amber-100'
     }
   } else {
-    // 00 a 02 Dias -> Verde
     return {
       statusLevel: 'ok',
       badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 font-semibold',
@@ -163,6 +160,7 @@ export function Implantacoes() {
   const [selectedEtapa, setSelectedEtapa] = useState('')
   const [selectedAnalista, setSelectedAnalista] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedAcessoImpl, setSelectedAcessoImpl] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const navigate = useNavigate()
@@ -174,6 +172,15 @@ export function Implantacoes() {
   const fetchImplantacoes = async () => {
     setLoading(true)
     try {
+      const user = getLoggedUser()
+      if (isClienteUser() && user) {
+        const clienteImpl = await api.getImplantacaoForLoggedCliente(user.nome || user.login)
+        if (clienteImpl) {
+          navigate(`/implantacoes/${clienteImpl.id}`, { replace: true })
+          return
+        }
+      }
+
       const data = await api.getImplantacoes()
       setImplantacoes(data)
     } catch (err) {
@@ -207,21 +214,18 @@ export function Implantacoes() {
     .filter(i => i.status === 'Concluído')
     .sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR', { sensitivity: 'base' }))
 
-  // Unique analistas for filter
   const analistasList = Array.from(
     new Set(implantacoes.map(i => i.analista_responsavel).filter(Boolean))
   ).sort()
 
   const filterList = (list: any[]) => {
     return list.filter(impl => {
-      // 1. Filtro por nome do cliente
       if (searchTerm.trim() !== '') {
         const term = searchTerm.toLowerCase().trim()
         const matchName = (impl.nome_empresa || '').toLowerCase().includes(term)
         if (!matchName) return false
       }
 
-      // 2. Filtro por etapa (filtra apenas a Próxima Etapa exibida no card)
       if (selectedEtapa !== '') {
         const isShopee = impl.tipo_cliente === 'SHOPEE'
         const proxima = getProximaEtapa(impl.implantacao_etapas, isShopee)
@@ -232,7 +236,6 @@ export function Implantacoes() {
         }
       }
 
-      // 3. Filtro por Analista
       if (selectedAnalista === 'SEM_ANALISTA') {
         if (impl.analista_responsavel) return false
       } else if (selectedAnalista !== '') {
@@ -308,7 +311,7 @@ export function Implantacoes() {
           </button>
         </div>
 
-        {/* Barra de Filtros: Por Cliente e Por Etapa */}
+        {/* Barra de Filtros */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Busca por cliente */}
           <div className="relative min-w-[200px] flex-1 sm:flex-initial">
@@ -469,10 +472,16 @@ export function Implantacoes() {
                                   </button>
                                   
                                   {openMenuId === impl.id && (
-                                    <div className="absolute right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50">
+                                    <div className="absolute right-0 mt-1 w-52 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50 divide-y divide-slate-700/50">
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setSelectedAcessoImpl(impl) }}
+                                        className="w-full text-left px-4 py-2.5 text-xs text-brand-300 hover:bg-brand-500/10 flex items-center gap-2 transition-colors font-semibold"
+                                      >
+                                        <KeyRound className="w-4 h-4 text-brand-400" /> Acesso do Cliente
+                                      </button>
                                       <button 
                                         onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDelete(impl.id, impl.nome_empresa) }}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
+                                        className="w-full text-left px-4 py-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
                                       >
                                         <Trash2 className="w-4 h-4" /> Excluir Implantação
                                       </button>
@@ -609,7 +618,7 @@ export function Implantacoes() {
                       <p className="text-base font-bold text-white mb-1">Nenhuma implantação concluída encontrada com os filtros</p>
                       <p className="text-xs text-slate-400 mb-4">Tente alterar o termo de busca.</p>
                       <button
-                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); }}
+                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); }}
                         className="btn-primary text-xs py-1.5 px-3 inline-flex items-center gap-1.5"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -658,10 +667,16 @@ export function Implantacoes() {
                                 </button>
                                 
                                 {openMenuId === impl.id && (
-                                  <div className="absolute right-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50">
+                                  <div className="absolute right-0 mt-1 w-52 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50 divide-y divide-slate-700/50">
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setSelectedAcessoImpl(impl) }}
+                                      className="w-full text-left px-4 py-2.5 text-xs text-brand-300 hover:bg-brand-500/10 flex items-center gap-2 transition-colors font-semibold"
+                                    >
+                                      <KeyRound className="w-4 h-4 text-brand-400" /> Acesso do Cliente
+                                    </button>
                                     <button 
                                       onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDelete(impl.id, impl.nome_empresa) }}
-                                      className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
+                                      className="w-full text-left px-4 py-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
                                     >
                                       <Trash2 className="w-4 h-4" /> Excluir Implantação
                                     </button>
@@ -756,6 +771,14 @@ export function Implantacoes() {
       <NovaImplantacaoModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        onSuccess={fetchImplantacoes}
+      />
+
+      {/* Modal de Acesso do Cliente */}
+      <AcessoClienteModal
+        isOpen={!!selectedAcessoImpl}
+        onClose={() => setSelectedAcessoImpl(null)}
+        implantacao={selectedAcessoImpl}
         onSuccess={fetchImplantacoes}
       />
     </div>

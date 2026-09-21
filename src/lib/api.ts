@@ -8,17 +8,24 @@ import { supabase } from './supabase'
 export const api = {
   // --- Auth ---
   async authenticateUser(login: string, senha: string) {
+    const cleanLogin = (login || '').trim()
+    const cleanSenha = (senha || '').trim()
     const { data, error } = await supabase
       .from('usuario')
       .select('*')
-      .eq('login', login)
-      .eq('senha', senha)
+      .ilike('login', cleanLogin)
+      .eq('senha', cleanSenha)
       .eq('ativo', true)
     
     if (error) throw error
     if (!data || data.length === 0) return null
-    return data[0]
+    const user = data[0]
+    if ((user.login || '').trim().toLowerCase().endsWith('@mantran') && (user.perfil === 'Usuario' || user.perfil === 'Cliente')) {
+      return { ...user, perfil: 'Cliente' }
+    }
+    return user
   },
+
 
   // --- Bases ---
   async getBasesWithClientes() {
@@ -666,6 +673,113 @@ export const api = {
     
     if (error) throw error
     return data || []
+  },
+
+  // --- Usuários Perfil Cliente ---
+  async getUsuarioClienteByEmpresa(nomeEmpresa: string) {
+    const cleanNome = (nomeEmpresa || '').trim().toLowerCase()
+    const expectedLogin = `${cleanNome}@mantran`
+    
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('*')
+
+    if (error) throw error
+    if (!data || data.length === 0) return null
+
+    const found = data.find((u: any) => {
+      const uNome = (u.nome || '').trim().toLowerCase()
+      const uLogin = (u.login || '').trim().toLowerCase()
+      const isClientLogin = uLogin.endsWith('@mantran')
+      return (isClientLogin || u.perfil === 'Cliente') && (
+        uNome === cleanNome || 
+        uLogin === expectedLogin || 
+        uLogin.startsWith(cleanNome) || 
+        cleanNome.startsWith(uNome)
+      )
+    })
+
+    return found || null
+  },
+
+
+  async insertUsuarioCliente(dados: { nome: string, login: string, senha: string }) {
+    const cleanNome = (dados.nome || '').trim()
+    const cleanLogin = (dados.login || '').trim()
+    const cleanSenha = (dados.senha || '').trim()
+
+    const { data, error } = await supabase
+      .from('usuario')
+      .insert({
+        nome: cleanNome,
+        login: cleanLogin,
+        senha: cleanSenha,
+        perfil: 'Usuario', // Compatível com constraint usuario_perfil_check ('Administrador', 'Tecnico', 'Suporte', 'Usuario', 'Parceiro')
+        ativo: true,
+        e_tecnico: false,
+        meta_semanal: 0
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async updateUsuarioCliente(id: string, updates: { nome?: string, login?: string, senha?: string, ativo?: boolean }) {
+    const payload: any = {}
+    if (updates.nome !== undefined) payload.nome = updates.nome.trim()
+    if (updates.login !== undefined) payload.login = updates.login.trim()
+    if (updates.senha !== undefined) payload.senha = updates.senha.trim()
+    if (updates.ativo !== undefined) payload.ativo = updates.ativo
+
+    const { data, error } = await supabase
+      .from('usuario')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async deleteUsuarioCliente(id: string) {
+    const { error } = await supabase
+      .from('usuario')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+  },
+
+  async getImplantacaoForLoggedCliente(userNameOrLogin: string) {
+    const raw = (userNameOrLogin || '').trim()
+    const baseName = raw.replace(/@mantran$/i, '').trim()
+
+    // Query all implantacoes and match client
+    const { data, error } = await supabase
+      .from('implantacoes')
+      .select(`
+        *,
+        bases ( id, nome_base ),
+        implantacao_etapas ( id, nome_etapa, valor, ordem )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    if (!data || data.length === 0) return null
+
+    // Exact match or contains
+    const found = data.find((imp: any) => {
+      const impNome = (imp.nome_empresa || '').trim().toLowerCase()
+      const search1 = raw.toLowerCase()
+      const search2 = baseName.toLowerCase()
+      return impNome === search1 || impNome === search2 || search1.includes(impNome) || search2.includes(impNome)
+    })
+
+    return found || data[0] || null
   }
 }
+
 
