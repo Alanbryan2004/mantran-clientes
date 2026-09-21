@@ -28,8 +28,10 @@ const SHOPEE_ORDER_MAP = {
   'treinamento cadastro': { ordem: 7, nome: 'Treinamento de Cadastros' },
   'treinamento de line haul': { ordem: 8, nome: 'Treinamento de Line Haul' },
   'treinamento line haul': { ordem: 8, nome: 'Treinamento de Line Haul' },
-  'treinamento fatura': { ordem: 9, nome: 'Treinamento Fatura' },
-  'feedback': { ordem: 10, nome: 'Feedback' },
+  'treinamento mobile hub': { ordem: 9, nome: 'Treinamento Mobile Hub' },
+  'treinamento de mobile hub': { ordem: 9, nome: 'Treinamento Mobile Hub' },
+  'treinamento fatura': { ordem: 10, nome: 'Treinamento Fatura' },
+  'feedback': { ordem: 11, nome: 'Feedback' },
 }
 
 async function updateAll() {

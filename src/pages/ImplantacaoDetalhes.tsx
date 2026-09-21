@@ -24,10 +24,10 @@ const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'treinamento cadastro': 7,
   'treinamento de line haul': 8,
   'treinamento line haul': 8,
-  'treinamento mobile hub': 8.5,
-  'treinamento de mobile hub': 8.5,
-  'treinamento fatura': 9,
-  'feedback': 10,
+  'treinamento mobile hub': 9,
+  'treinamento de mobile hub': 9,
+  'treinamento fatura': 10,
+  'feedback': 11,
 }
 
 export const normalizeEtapaNome = (nome: string): string => {
@@ -36,6 +36,7 @@ export const normalizeEtapaNome = (nome: string): string => {
   if (lower === 'treinamento first mile' || lower === 'treinamento de first mile') return 'Treinamento de First Mile'
   if (lower === 'treinamento de cadastro' || lower === 'treinamento de cadastros' || lower === 'treinamento cadastro' || lower === 'treinamento cadastros') return 'Treinamento de Cadastros'
   if (lower === 'treinamento line haul' || lower === 'treinamento de line haul') return 'Treinamento de Line Haul'
+  if (lower === 'treinamento mobile hub' || lower === 'treinamento de mobile hub') return 'Treinamento Mobile Hub'
   return nome
 }
 

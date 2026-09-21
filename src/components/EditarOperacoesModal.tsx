@@ -33,18 +33,19 @@ const SHOPEE_ORDER_MAP: Record<string, number> = {
   'treinamento cadastro': 7,
   'treinamento de line haul': 8,
   'treinamento line haul': 8,
-  'treinamento mobile hub': 8.5,
-  'treinamento de mobile hub': 8.5,
-  'treinamento fatura': 9,
-  'feedback': 10,
+  'treinamento mobile hub': 9,
+  'treinamento de mobile hub': 9,
+  'treinamento fatura': 10,
+  'feedback': 11,
 }
 
 const normalizeShopeeEtapaName = (nome: string): string => {
-  const lower = nome.trim().toLowerCase()
+  const lower = (nome || '').trim().toLowerCase()
   if (lower === 'ativo 4pl' || lower === 'ativo 4pi') return 'Ativo 4PL'
   if (lower === 'treinamento first mile' || lower === 'treinamento de first mile') return 'Treinamento de First Mile'
   if (lower === 'treinamento de cadastro' || lower === 'treinamento de cadastros' || lower === 'treinamento cadastro' || lower === 'treinamento cadastros') return 'Treinamento de Cadastros'
   if (lower === 'treinamento line haul' || lower === 'treinamento de line haul') return 'Treinamento de Line Haul'
+  if (lower === 'treinamento mobile hub' || lower === 'treinamento de mobile hub') return 'Treinamento Mobile Hub'
   return nome
 }
 
@@ -156,12 +157,12 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
       if (etapasToAdd.length > 0) {
         const toInsert = etapasToAdd.map((nome, i) => {
           const lower = nome.trim().toLowerCase()
-          const ordem = isShopee && lower in SHOPEE_ORDER_MAP ? SHOPEE_ORDER_MAP[lower] : existingEtapas.length + i + 1
+          const rawOrdem = isShopee && lower in SHOPEE_ORDER_MAP ? SHOPEE_ORDER_MAP[lower] : (targetEtapaNames.indexOf(nome) + 1 || existingEtapas.length + i + 1)
           return {
             implantacao_id: implantacao.id,
             nome_etapa: nome,
             valor: 'EM BRANCO',
-            ordem
+            ordem: Math.round(Number(rawOrdem))
           }
         })
         await api.insertImplantacaoEtapas(toInsert)
