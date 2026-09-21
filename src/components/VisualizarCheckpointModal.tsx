@@ -31,7 +31,7 @@ export function VisualizarCheckpointModal({
   const dados: CheckpointFormData = checkpoint.dados || {}
   const cnpjs = dados.cnpjs || []
   const processos = dados.processos_shopee || []
-  const percurso = dados.percurso_line_haul || {}
+  const percursos = dados.percursos_line_haul || (dados.percurso_line_haul ? [dados.percurso_line_haul] : [])
   const usuarios = dados.usuarios || []
   const nfse = dados.nfse || {}
   const certificado = dados.certificado_digital || { arquivo_nome: '', arquivo_base64: '', senha: '' }
@@ -218,26 +218,46 @@ export function VisualizarCheckpointModal({
               </div>
 
               {processos.includes('Line Haul') && (
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
-                  <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider border-b border-slate-800 pb-2">
-                    <MapPin className="w-4 h-4" /> Percurso do Line Haul
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider">
+                    <MapPin className="w-4 h-4" /> Percursos do Line Haul ({percursos.length})
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-800">
-                      <p className="text-slate-400 text-[11px] mb-0.5">CNPJ HUB Shopee (Origem)</p>
-                      <p className="font-mono font-bold text-slate-200">{percurso.cnpj_hub_shopee || 'Não informado'}</p>
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        Origem: <strong className="text-white">{percurso.cidade_origem ? `${percurso.cidade_origem} / ` : ''}{percurso.uf_origem || 'SP'}</strong>
-                      </p>
+                  {percursos.length === 0 ? (
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs text-slate-500 italic">
+                      Nenhum percurso informado.
                     </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {percursos.map((percursoItem: any, idx: number) => (
+                        <div key={percursoItem.id || idx} className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                              Percurso #{idx + 1}
+                            </span>
+                          </div>
 
-                    <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-800">
-                      <p className="text-slate-400 text-[11px] mb-0.5">CNPJ Recebedor (Destino)</p>
-                      <p className="font-mono font-bold text-slate-200">{percurso.cnpj_recebedor || 'Não informado'}</p>
-                      <p className="text-[11px] text-slate-400 mt-1">Endereço Destino: <strong className="text-white">{percurso.endereco_destino || 'Não informado'}</strong></p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                            <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-800">
+                              <p className="text-slate-400 text-[11px] mb-0.5">CNPJ HUB Shopee (Origem)</p>
+                              <p className="font-mono font-bold text-slate-200">{percursoItem.cnpj_hub_shopee || 'Não informado'}</p>
+                              <p className="text-[11px] text-slate-400 mt-1">
+                                Origem: <strong className="text-white">{percursoItem.cidade_origem ? `${percursoItem.cidade_origem} / ` : ''}{percursoItem.uf_origem || 'SP'}</strong>
+                              </p>
+                            </div>
+
+                            <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-800">
+                              <p className="text-slate-400 text-[11px] mb-0.5">CNPJ Recebedor (Destino)</p>
+                              <p className="font-mono font-bold text-slate-200">{percursoItem.cnpj_recebedor || 'Não informado'}</p>
+                              <p className="text-[11px] text-slate-400 mt-1">
+                                Endereço Destino: <strong className="text-white">{percursoItem.endereco_destino || 'Não informado'}</strong>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>

@@ -35,16 +35,20 @@ export interface UsuarioItem {
   funcao: string
 }
 
+export interface PercursoLineHaulItem {
+  id: string
+  cnpj_hub_shopee: string
+  cidade_origem: string
+  uf_origem: string
+  cnpj_recebedor: string
+  endereco_destino: string
+}
+
 export interface CheckpointFormData {
   cnpjs: CnpjItem[]
   processos_shopee: string[]
-  percurso_line_haul: {
-    cnpj_hub_shopee: string
-    cidade_origem: string
-    uf_origem: string
-    cnpj_recebedor: string
-    endereco_destino: string
-  }
+  percursos_line_haul: PercursoLineHaulItem[]
+  percurso_line_haul?: any
   usuarios: UsuarioItem[]
   nfse: {
     emitira_nfse: boolean | null
@@ -111,13 +115,16 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
       }
     ],
     processos_shopee: implantacao?.operacoes_shopee || ['Last Mile'],
-    percurso_line_haul: {
-      cnpj_hub_shopee: '',
-      cidade_origem: '',
-      uf_origem: 'SP',
-      cnpj_recebedor: '',
-      endereco_destino: ''
-    },
+    percursos_line_haul: [
+      {
+        id: '1',
+        cnpj_hub_shopee: '',
+        cidade_origem: '',
+        uf_origem: 'SP',
+        cnpj_recebedor: '',
+        endereco_destino: ''
+      }
+    ],
     usuarios: [
       { id: '1', nome: '', email: '', funcao: 'Operador' }
     ],
@@ -147,12 +154,25 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
 
   useEffect(() => {
     if (isOpen && implantacao) {
+      const loadData = (dataObj: any) => {
+        if (!dataObj) return
+        let percursos = dataObj.percursos_line_haul
+        if ((!percursos || percursos.length === 0) && dataObj.percurso_line_haul) {
+          percursos = [{ id: '1', ...dataObj.percurso_line_haul }]
+        }
+        setFormData(prev => ({
+          ...prev,
+          ...dataObj,
+          percursos_line_haul: percursos && percursos.length > 0 ? percursos : prev.percursos_line_haul
+        }))
+      }
+
       if (initialData?.dados) {
-        setFormData(prev => ({ ...prev, ...initialData.dados }))
+        loadData(initialData.dados)
       } else {
         api.getImplantacaoCheckpoint(implantacao.id).then(cp => {
           if (cp?.dados) {
-            setFormData(prev => ({ ...prev, ...cp.dados }))
+            loadData(cp.dados)
           }
         }).catch(console.error)
       }
@@ -215,6 +235,40 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
       const updated = [...prev.cnpjs]
       updated[index] = { ...updated[index], [field]: value }
       return { ...prev, cnpjs: updated }
+    })
+  }
+
+  // Percursos Line Haul helpers
+  const handleAddPercursoLineHaul = () => {
+    setFormData(prev => ({
+      ...prev,
+      percursos_line_haul: [
+        ...prev.percursos_line_haul,
+        {
+          id: String(Date.now()),
+          cnpj_hub_shopee: '',
+          cidade_origem: '',
+          uf_origem: 'SP',
+          cnpj_recebedor: '',
+          endereco_destino: ''
+        }
+      ]
+    }))
+  }
+
+  const handleRemovePercursoLineHaul = (index: number) => {
+    if (formData.percursos_line_haul.length <= 1) return
+    setFormData(prev => ({
+      ...prev,
+      percursos_line_haul: prev.percursos_line_haul.filter((_, i) => i !== index)
+    }))
+  }
+
+  const handleUpdatePercursoLineHaul = (index: number, field: keyof PercursoLineHaulItem, value: any) => {
+    setFormData(prev => {
+      const updated = [...prev.percursos_line_haul]
+      updated[index] = { ...updated[index], [field]: value }
+      return { ...prev, percursos_line_haul: updated }
     })
   }
 
@@ -673,95 +727,109 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   <MapPin className="w-4 h-4" /> Pergunta 4 de 10 (Exclusivo Line Haul)
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
-                  Informe o Percurso do Line Haul
+                  Informe os Percursos do Line Haul
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                  Dados de origem (HUB Shopee), Cidade/UF e destino da sua linha de transferência.
+                  Dados de origem (HUB Shopee), Cidade/UF e destino de cada linha ou rota de transferência.
                 </p>
               </div>
 
-              <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      CNPJ HUB Shopee (Origem do Frete)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="00.000.000/0000-00"
-                      value={formData.percurso_line_haul.cnpj_hub_shopee}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        percurso_line_haul: { ...prev.percurso_line_haul, cnpj_hub_shopee: formatCNPJ(e.target.value) }
-                      }))}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Cidade de Origem
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: São Paulo"
-                      value={formData.percurso_line_haul.cidade_origem}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        percurso_line_haul: { ...prev.percurso_line_haul, cidade_origem: e.target.value }
-                      }))}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      UF da Origem
-                    </label>
-                    <select
-                      value={formData.percurso_line_haul.uf_origem}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        percurso_line_haul: { ...prev.percurso_line_haul, uf_origem: e.target.value }
-                      }))}
-                      className="input-field text-sm"
-                    >
-                      {UFS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
-                    </select>
-                  </div>
-                </div>
+              <div className="space-y-4">
+                {formData.percursos_line_haul.map((percurso, index) => (
+                  <div key={percurso.id || index} className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4 relative group">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                      <span className="text-xs font-extrabold uppercase px-2.5 py-1 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30">
+                        Percurso #{index + 1}
+                      </span>
+                      {formData.percursos_line_haul.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePercursoLineHaul(index)}
+                          className="text-slate-500 hover:text-red-400 text-xs flex items-center gap-1 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span className="hidden sm:inline">Remover Percurso</span>
+                        </button>
+                      )}
+                    </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      CNPJ Recebedor (Transportadora/Hub)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="00.000.000/0000-00"
-                      value={formData.percurso_line_haul.cnpj_recebedor}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        percurso_line_haul: { ...prev.percurso_line_haul, cnpj_recebedor: formatCNPJ(e.target.value) }
-                      }))}
-                      className="input-field text-sm"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          CNPJ HUB Shopee (Origem do Frete)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="00.000.000/0000-00"
+                          value={percurso.cnpj_hub_shopee}
+                          onChange={(e) => handleUpdatePercursoLineHaul(index, 'cnpj_hub_shopee', formatCNPJ(e.target.value))}
+                          className="input-field text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Cidade de Origem
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: São Paulo"
+                          value={percurso.cidade_origem}
+                          onChange={(e) => handleUpdatePercursoLineHaul(index, 'cidade_origem', e.target.value)}
+                          className="input-field text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          UF da Origem
+                        </label>
+                        <select
+                          value={percurso.uf_origem || 'SP'}
+                          onChange={(e) => handleUpdatePercursoLineHaul(index, 'uf_origem', e.target.value)}
+                          className="input-field text-sm"
+                        >
+                          {UFS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          CNPJ Recebedor (Transportadora/Hub)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="00.000.000/0000-00"
+                          value={percurso.cnpj_recebedor}
+                          onChange={(e) => handleUpdatePercursoLineHaul(index, 'cnpj_recebedor', formatCNPJ(e.target.value))}
+                          className="input-field text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Endereço de Destino
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Av. das Nações, 1000 - Galpão 3 - Curitiba/PR"
+                          value={percurso.endereco_destino}
+                          onChange={(e) => handleUpdatePercursoLineHaul(index, 'endereco_destino', e.target.value)}
+                          className="input-field text-sm"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Endereço de Destino
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Av. das Nações, 1000 - Galpão 3 - Curitiba/PR"
-                      value={formData.percurso_line_haul.endereco_destino}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        percurso_line_haul: { ...prev.percurso_line_haul, endereco_destino: e.target.value }
-                      }))}
-                      className="input-field text-sm"
-                    />
-                  </div>
-                </div>
+                ))}
               </div>
+
+              <button
+                type="button"
+                onClick={handleAddPercursoLineHaul}
+                className="w-full py-3 rounded-xl border border-dashed border-slate-700 hover:border-orange-500 bg-slate-900/30 hover:bg-orange-500/10 text-slate-300 hover:text-orange-300 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Adicionar Mais 1 Percurso do Line Haul</span>
+              </button>
             </div>
           )}
 
