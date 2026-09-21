@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   Building, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, 
   HelpCircle, Plus, Rocket, Send, Sparkles, Trash2, Upload, Users, 
-  X, AlertCircle, FileText, Check, ShieldCheck, MapPin, Truck
+  X, AlertCircle, FileText, Check, ShieldCheck, MapPin, Truck,
+  KeyRound, Eye, EyeOff, Save, Lock
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { getLoggedUser } from '../lib/auth'
@@ -13,7 +14,7 @@ interface ClienteFormularioModalProps {
   onClose?: () => void
   implantacao: any
   onSuccess: () => void
-  isReadOnly?: boolean
+  initialData?: any
 }
 
 export interface CnpjItem {
@@ -56,6 +57,12 @@ export interface CheckpointFormData {
     nome_municipio: string
     cnpj_emissao: string
   }
+  certificado_digital: {
+    arquivo_nome: string
+    arquivo_base64: string
+    arquivo_tamanho?: number
+    senha: string
+  }
   tabela_frete: {
     arquivo_nome: string
     arquivo_base64: string
@@ -80,12 +87,14 @@ const UFS = [
   'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
 ]
 
-export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess }: ClienteFormularioModalProps) {
+export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess, initialData }: ClienteFormularioModalProps) {
   const user = getLoggedUser()
   const isShopee = implantacao?.tipo_cliente === 'SHOPEE'
 
   const [currentSlide, setCurrentSlide] = useState(0)
   const [submitting, setSubmitting] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [showCertSenha, setShowCertSenha] = useState(false)
 
   // Form State Initializer
   const [formData, setFormData] = useState<CheckpointFormData>({
@@ -123,6 +132,11 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
       nome_municipio: '',
       cnpj_emissao: ''
     },
+    certificado_digital: {
+      arquivo_nome: '',
+      arquivo_base64: '',
+      senha: ''
+    },
     tabela_frete: {
       arquivo_nome: '',
       arquivo_base64: '',
@@ -131,34 +145,37 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
     }
   })
 
+  useEffect(() => {
+    if (isOpen && implantacao) {
+      if (initialData?.dados) {
+        setFormData(prev => ({ ...prev, ...initialData.dados }))
+      } else {
+        api.getImplantacaoCheckpoint(implantacao.id).then(cp => {
+          if (cp?.dados) {
+            setFormData(prev => ({ ...prev, ...cp.dados }))
+          }
+        }).catch(console.error)
+      }
+    }
+  }, [isOpen, implantacao, initialData])
+
   if (!isOpen || !implantacao) return null
 
   // Dynamic list of slides based on whether Line Haul is selected
   const hasLineHaul = formData.processos_shopee.includes('Line Haul')
 
-  // Slides configuration
-  // 0: Boas-Vindas
-  // 1: CNPJs (Pergunta 1)
-  // 2: Tributação (Pergunta 2)
-  // 3: Processos Shopee (Pergunta 3)
-  // 4: Percurso Line Haul (Pergunta 4) - Se selecionou Line Haul
-  // 5: RNTRC (Pergunta 5)
-  // 6: Emissão Anterior CTe/MDF-e (Pergunta 6)
-  // 7: Usuários (Pergunta 7)
-  // 8: NFSe (Pergunta 8)
-  // 9: Tabela de Frete (Pergunta 9)
-  // 10: Conclusão
   const slides = [
     { id: 'welcome', title: 'Boas-Vindas' },
     { id: 'cnpjs', title: '1. CNPJs para CTe e Manifesto' },
     { id: 'tributacao', title: '2. Tributação por CNPJ' },
     ...(isShopee ? [{ id: 'shopee_processos', title: '3. Processos Shopee' }] : []),
     ...(isShopee && hasLineHaul ? [{ id: 'line_haul', title: '4. Percurso do Line Haul' }] : []),
-    { id: 'rntrc', title: isShopee && hasLineHaul ? '5. RNTRC / ANTT' : isShopee ? '4. RNTRC / ANTT' : '3. RNTRC / ANTT' },
-    { id: 'cte_anterior', title: 'Emissão Anterior CTe' },
-    { id: 'usuarios', title: 'Usuários do Sistema' },
-    { id: 'nfse', title: 'Emissão de NFSe' },
-    { id: 'tabela_frete', title: 'Tabela de Frete' },
+    { id: 'rntrc', title: '5. RNTRC / ANTT' },
+    { id: 'cte_anterior', title: '6. Emissão Anterior CTe' },
+    { id: 'usuarios', title: '7. Usuários do Sistema' },
+    { id: 'nfse', title: '8. Emissão de NFSe' },
+    { id: 'certificado', title: '9. Certificado Digital (.pfx)' },
+    { id: 'tabela_frete', title: '10. Tabela de Frete' },
     { id: 'conclusao', title: 'Conclusão e Envio' }
   ]
 
@@ -228,7 +245,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
     })
   }
 
-  // File Upload helper
+  // File Upload helpers
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -255,70 +272,32 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
     reader.readAsDataURL(file)
   }
 
-  // Slide validation before next
-  const canAdvance = (): boolean => {
-    const current = currentSlideObj.id
+  const handleCertificadoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
 
-    if (current === 'welcome') return true
-
-    if (current === 'cnpjs') {
-      return formData.cnpjs.every(c => c.cnpj.trim().length >= 14 && c.razao_social.trim() !== '')
+    if (file.size > 10 * 1024 * 1024) {
+      alert('O arquivo de certificado é muito grande. O limite é de 10MB.')
+      return
     }
 
-    if (current === 'tributacao') {
-      return formData.cnpjs.every(c => c.tributacao !== '')
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = reader.result as string
+      setFormData(prev => ({
+        ...prev,
+        certificado_digital: {
+          ...prev.certificado_digital,
+          arquivo_nome: file.name,
+          arquivo_base64: base64,
+          arquivo_tamanho: file.size
+        }
+      }))
     }
-
-    if (current === 'shopee_processos') {
-      return formData.processos_shopee.length > 0
-    }
-
-    if (current === 'line_haul') {
-      return (
-        formData.percurso_line_haul.cnpj_hub_shopee.trim() !== '' &&
-        formData.percurso_line_haul.cidade_origem.trim() !== '' &&
-        formData.percurso_line_haul.uf_origem.trim() !== '' &&
-        formData.percurso_line_haul.cnpj_recebedor.trim() !== '' &&
-        formData.percurso_line_haul.endereco_destino.trim() !== ''
-      )
-    }
-
-    if (current === 'rntrc') {
-      return formData.cnpjs.every(c => c.rntrc.trim() !== '')
-    }
-
-    if (current === 'cte_anterior') {
-      return formData.cnpjs.every(c => {
-        if (c.ja_emitiu_cte === null) return false
-        if (c.ja_emitiu_cte === true) return c.serie_nao_utilizada.trim() !== ''
-        return true
-      })
-    }
-
-    if (current === 'usuarios') {
-      return formData.usuarios.some(u => u.nome.trim() !== '')
-    }
-
-    if (current === 'nfse') {
-      if (formData.nfse.emitira_nfse === null) return false
-      if (formData.nfse.emitira_nfse === true) {
-        return (
-          formData.nfse.inscricao_municipal.trim() !== '' &&
-          formData.nfse.codigo_servico.trim() !== '' &&
-          formData.nfse.aliquota_iss.trim() !== '' &&
-          formData.nfse.nome_municipio.trim() !== ''
-        )
-      }
-      return true
-    }
-
-    if (current === 'tabela_frete') {
-      return true // Opcional ou pode conter anotação
-    }
-
-    return true
+    reader.readAsDataURL(file)
   }
 
+  // Livre navegação: o usuário pode avançar livremente mesmo sem ter respondido tudo no momento
   const handleNext = () => {
     if (currentSlide < totalSlides - 1) {
       setCurrentSlide(prev => prev + 1)
@@ -331,6 +310,24 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
     }
   }
 
+  const handleSaveDraft = async () => {
+    setSavingDraft(true)
+    try {
+      await api.saveImplantacaoCheckpoint(
+        implantacao.id, 
+        formData, 
+        user?.nome || user?.login || implantacao.nome_empresa
+      )
+      alert('Progresso salvo com sucesso! Você pode continuar preenchendo agora ou depois.')
+      onSuccess()
+    } catch (err: any) {
+      console.error('Erro ao salvar rascunho:', err)
+      alert('Erro ao salvar: ' + err.message)
+    } finally {
+      setSavingDraft(false)
+    }
+  }
+
   const handleSubmit = async () => {
     setSubmitting(true)
     try {
@@ -339,7 +336,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
         formData, 
         user?.nome || user?.login || implantacao.nome_empresa
       )
-      alert('Dados enviados com sucesso! Iremos dar segmento à sua implantação com os dados coletados.')
+      alert('Dados salvos e enviados com sucesso! Iremos dar segmento à sua implantação com os dados coletados.')
       onSuccess()
     } catch (err: any) {
       console.error('Erro ao salvar formulário de checkpoint:', err)
@@ -375,16 +372,28 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
               <h2 className="text-sm font-bold text-slate-200">
                 Formulário de Onboarding & Parametrização
               </h2>
-              <p className="text-xs text-slate-400 truncate max-w-[280px] sm:max-w-md">
+              <p className="text-xs text-slate-400 truncate max-w-[240px] sm:max-w-md">
                 {implantacao.nome_empresa}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={savingDraft || submitting}
+              className="text-xs font-semibold py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Salvar progresso para continuar depois"
+            >
+              <Save className="w-3.5 h-3.5 text-brand-400" />
+              <span className="hidden sm:inline">{savingDraft ? 'Salvando...' : 'Salvar Progresso'}</span>
+            </button>
+
             <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
               Etapa {currentSlide + 1} de {totalSlides}
             </span>
+
             {onClose && (
               <button 
                 onClick={onClose}
@@ -417,6 +426,9 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   Ficamos felizes em tê-lo conosco! Para configurarmos sua base, parâmetros fiscais, 
                   integrações com a Shopee e tabelas operacionais com precisão, precisamos de alguns dados essenciais.
                 </p>
+                <p className="text-xs text-slate-400 mt-2">
+                  💡 <em>Você pode navegar livremente e salvar o que tiver em mãos para continuar quando desejar.</em>
+                </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full text-left pt-2">
@@ -427,8 +439,8 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                 </div>
                 <div className="bg-slate-900/60 border border-slate-800 p-3.5 rounded-xl">
                   <Sparkles className="w-5 h-5 text-amber-400 mb-1.5" />
-                  <p className="text-xs font-bold text-white">Rápido e Prático</p>
-                  <p className="text-[11px] text-slate-400">Questionário guiado passo a passo em menos de 5 minutos.</p>
+                  <p className="text-xs font-bold text-white">Preenchimento Flexível</p>
+                  <p className="text-[11px] text-slate-400">Avance e salve mesmo se faltar algum dado no momento.</p>
                 </div>
                 <div className="bg-slate-900/60 border border-slate-800 p-3.5 rounded-xl">
                   <Truck className="w-5 h-5 text-brand-400 mb-1.5" />
@@ -444,7 +456,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <Building className="w-4 h-4" /> Pergunta 1 de 9
+                  <Building className="w-4 h-4" /> Pergunta 1 de 10
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Quantos CNPJs irão Emitir CTe e Manifesto (MDF-e)?
@@ -479,11 +491,10 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-xs font-semibold text-slate-300 mb-1">
-                          CNPJ <span className="text-red-400">*</span>
+                          CNPJ
                         </label>
                         <input
                           type="text"
-                          required
                           placeholder="00.000.000/0000-00"
                           value={cnpjItem.cnpj}
                           onChange={(e) => handleUpdateCnpj(index, 'cnpj', formatCNPJ(e.target.value))}
@@ -492,11 +503,10 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-300 mb-1">
-                          Razão Social <span className="text-red-400">*</span>
+                          Razão Social
                         </label>
                         <input
                           type="text"
-                          required
                           placeholder="Nome da Empresa Ltda"
                           value={cnpjItem.razao_social}
                           onChange={(e) => handleUpdateCnpj(index, 'razao_social', e.target.value)}
@@ -536,7 +546,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <FileText className="w-4 h-4" /> Pergunta 2 de 9
+                  <FileText className="w-4 h-4" /> Pergunta 2 de 10
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Informe a Tributação de cada CNPJ
@@ -551,7 +561,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   <div key={c.id} className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 sm:p-5">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-extrabold text-white">
-                        {c.razao_social || `CNPJ #${index + 1}`} ({c.cnpj || 'Sem CNPJ'})
+                        {c.razao_social || `CNPJ #${index + 1}`} ({c.cnpj || 'Sem CNPJ informado'})
                       </span>
                     </div>
 
@@ -592,7 +602,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <Truck className="w-4 h-4" /> Pergunta 3 de 9
+                  <Truck className="w-4 h-4" /> Pergunta 3 de 10
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Quais Processos irá transportar para a Shopee?
@@ -660,13 +670,13 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <MapPin className="w-4 h-4" /> Pergunta 4 de 9 (Exclusivo Line Haul)
+                  <MapPin className="w-4 h-4" /> Pergunta 4 de 10 (Exclusivo Line Haul)
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Informe o Percurso do Line Haul
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                  Dados de origem (HUB Shopee) e destino da sua linha de transferência.
+                  Dados de origem (HUB Shopee), Cidade/UF e destino da sua linha de transferência.
                 </p>
               </div>
 
@@ -674,11 +684,10 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      CNPJ HUB Shopee (Origem do Frete) <span className="text-red-400">*</span>
+                      CNPJ HUB Shopee (Origem do Frete)
                     </label>
                     <input
                       type="text"
-                      required
                       placeholder="00.000.000/0000-00"
                       value={formData.percurso_line_haul.cnpj_hub_shopee}
                       onChange={(e) => setFormData(prev => ({
@@ -690,11 +699,10 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Cidade de Origem <span className="text-red-400">*</span>
+                      Cidade de Origem
                     </label>
                     <input
                       type="text"
-                      required
                       placeholder="Ex: São Paulo"
                       value={formData.percurso_line_haul.cidade_origem}
                       onChange={(e) => setFormData(prev => ({
@@ -706,7 +714,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      UF da Origem <span className="text-red-400">*</span>
+                      UF da Origem
                     </label>
                     <select
                       value={formData.percurso_line_haul.uf_origem}
@@ -724,11 +732,10 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      CNPJ Recebedor (Transportadora/Hub) <span className="text-red-400">*</span>
+                      CNPJ Recebedor (Transportadora/Hub)
                     </label>
                     <input
                       type="text"
-                      required
                       placeholder="00.000.000/0000-00"
                       value={formData.percurso_line_haul.cnpj_recebedor}
                       onChange={(e) => setFormData(prev => ({
@@ -740,11 +747,10 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Endereço de Destino <span className="text-red-400">*</span>
+                      Endereço de Destino
                     </label>
                     <input
                       type="text"
-                      required
                       placeholder="Ex: Av. das Nações, 1000 - Galpão 3 - Curitiba/PR"
                       value={formData.percurso_line_haul.endereco_destino}
                       onChange={(e) => setFormData(prev => ({
@@ -764,7 +770,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <ShieldCheck className="w-4 h-4" /> Pergunta 5 de 9
+                  <ShieldCheck className="w-4 h-4" /> Pergunta 5 de 10
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Informe o RNTRC / ANTT de cada CNPJ
@@ -781,13 +787,12 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                       <p className="text-xs font-extrabold text-white">
                         {c.razao_social || `CNPJ #${index + 1}`}
                       </p>
-                      <p className="text-[11px] text-slate-400">{c.cnpj}</p>
+                      <p className="text-[11px] text-slate-400">{c.cnpj || 'Sem CNPJ'}</p>
                     </div>
 
                     <div className="w-full sm:w-64">
                       <input
                         type="text"
-                        required
                         placeholder="Ex: 12345678"
                         value={c.rntrc}
                         onChange={(e) => handleUpdateCnpj(index, 'rntrc', e.target.value.replace(/\D/g, ''))}
@@ -805,7 +810,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <HelpCircle className="w-4 h-4" /> Pergunta 6 de 9
+                  <HelpCircle className="w-4 h-4" /> Pergunta 6 de 10
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Já Emitiu CTe ou Manifesto antes neste CNPJ?
@@ -820,7 +825,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   <div key={c.id} className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-extrabold text-white">
-                        {c.razao_social || `CNPJ #${index + 1}`} ({c.cnpj})
+                        {c.razao_social || `CNPJ #${index + 1}`} ({c.cnpj || 'Sem CNPJ'})
                       </span>
                     </div>
 
@@ -859,7 +864,6 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                         </label>
                         <input
                           type="text"
-                          required
                           placeholder="Ex: Série 2 ou Série 10"
                           value={c.serie_nao_utilizada}
                           onChange={(e) => handleUpdateCnpj(index, 'serie_nao_utilizada', e.target.value)}
@@ -878,7 +882,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <Users className="w-4 h-4" /> Pergunta 7 de 9
+                  <Users className="w-4 h-4" /> Pergunta 7 de 10
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Informe os Usuários que irão utilizar o Sistema
@@ -892,10 +896,9 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                 {formData.usuarios.map((u, index) => (
                   <div key={u.id} className="bg-slate-900/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-center gap-3">
                     <div className="w-full sm:flex-1">
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Nome Completo *</label>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Nome Completo</label>
                       <input
                         type="text"
-                        required
                         placeholder="Ex: João da Silva"
                         value={u.nome}
                         onChange={(e) => handleUpdateUsuario(index, 'nome', e.target.value)}
@@ -955,7 +958,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <FileSpreadsheet className="w-4 h-4" /> Pergunta 8 de 9
+                  <FileSpreadsheet className="w-4 h-4" /> Pergunta 8 de 10
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Irá Emitir NFSe (Nota Fiscal de Serviço)?
@@ -1001,10 +1004,9 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Inscrição Municipal *</label>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Inscrição Municipal</label>
                       <input
                         type="text"
-                        required
                         placeholder="Ex: 123456-7"
                         value={formData.nfse.inscricao_municipal}
                         onChange={(e) => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, inscricao_municipal: e.target.value } }))}
@@ -1012,10 +1014,9 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Nome do Município *</label>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Nome do Município</label>
                       <input
                         type="text"
-                        required
                         placeholder="Ex: São Paulo / Curitiba"
                         value={formData.nfse.nome_municipio}
                         onChange={(e) => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, nome_municipio: e.target.value } }))}
@@ -1036,10 +1037,9 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Código do Serviço *</label>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Código do Serviço</label>
                       <input
                         type="text"
-                        required
                         placeholder="Ex: 16.01"
                         value={formData.nfse.codigo_servico}
                         onChange={(e) => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, codigo_servico: e.target.value } }))}
@@ -1060,10 +1060,9 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Alíquota ISS do Município (%) *</label>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Alíquota ISS do Município (%)</label>
                       <input
                         type="text"
-                        required
                         placeholder="Ex: 2.5% ou 5%"
                         value={formData.nfse.aliquota_iss}
                         onChange={(e) => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, aliquota_iss: e.target.value } }))}
@@ -1102,12 +1101,119 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             </div>
           )}
 
-          {/* SLIDE 9: TABELA DE FRETE */}
+          {/* SLIDE 9: CERTIFICADO DIGITAL (.PFX) */}
+          {currentSlideObj.id === 'certificado' && (
+            <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
+              <div>
+                <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
+                  <KeyRound className="w-4 h-4" /> Pergunta 9 de 10
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold text-white">
+                  Importe seu Certificado Digital A1 (.pfx) e informe a Senha
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                  O certificado digital A1 é necessário para a emissão e assinatura eletrônica dos seus CTes e MDF-es na SEFAZ.
+                </p>
+              </div>
+
+              <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-5">
+                {/* Upload do Certificado */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-2">
+                    Arquivo do Certificado Digital (.pfx / .p12):
+                  </label>
+
+                  <input
+                    type="file"
+                    id="cert-file"
+                    accept=".pfx,.p12,application/x-pkcs12"
+                    onChange={handleCertificadoUpload}
+                    className="hidden"
+                  />
+
+                  {formData.certificado_digital.arquivo_nome ? (
+                    <div className="flex items-center justify-between p-4 bg-slate-800/60 rounded-xl border border-emerald-500/40">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                          <Lock className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                            {formData.certificado_digital.arquivo_nome}
+                            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 uppercase">
+                              Anexado
+                            </span>
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {formData.certificado_digital.arquivo_tamanho 
+                              ? `${(formData.certificado_digital.arquivo_tamanho / 1024).toFixed(1)} KB` 
+                              : 'Certificado pronto'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <label
+                        htmlFor="cert-file"
+                        className="btn-secondary text-xs py-1.5 px-3 cursor-pointer"
+                      >
+                        Substituir Certificado
+                      </label>
+                    </div>
+                  ) : (
+                    <label
+                      htmlFor="cert-file"
+                      className="border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-xl p-6 bg-slate-900/40 text-center transition-all cursor-pointer flex flex-col items-center space-y-2 block"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-brand-500/10 border border-brand-500/30 text-brand-400 flex items-center justify-center">
+                        <KeyRound className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-200">Clique para selecionar o certificado (.pfx)</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Formatos suportados: .pfx ou .p12 (Certificado A1)</p>
+                      </div>
+                    </label>
+                  )}
+                </div>
+
+                {/* Senha do Certificado */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Senha do Certificado Digital:
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCertSenha ? "text" : "password"}
+                      placeholder="Informe a senha do certificado A1..."
+                      value={formData.certificado_digital.senha}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        certificado_digital: { ...prev.certificado_digital, senha: e.target.value }
+                      }))}
+                      className="input-field text-sm pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCertSenha(!showCertSenha)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      title={showCertSenha ? "Ocultar senha" : "Ver senha"}
+                    >
+                      {showCertSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    🔒 A senha será utilizada unicamente para instalação e emissão dos documentos fiscais no servidor seguro.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SLIDE 10: TABELA DE FRETE */}
           {currentSlideObj.id === 'tabela_frete' && (
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <Upload className="w-4 h-4" /> Pergunta 9 de 9
+                  <Upload className="w-4 h-4" /> Pergunta 10 de 10
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Importar sua Tabela de Frete
@@ -1176,7 +1282,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             </div>
           )}
 
-          {/* SLIDE 10: CONCLUSÃO E ENVIO */}
+          {/* SLIDE 11: CONCLUSÃO E ENVIO */}
           {currentSlideObj.id === 'conclusao' && (
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn py-2">
               <div className="text-center">
@@ -1187,11 +1293,11 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   Tudo Pronto para o Envio!
                 </h3>
                 <p className="text-sm text-slate-300 max-w-lg mx-auto mt-1">
-                  Confira o resumo das informações antes de confirmar. Iremos dar segmento imediato à sua implantação.
+                  Confira o resumo das informações. Mesmo se houver campos em branco, seus dados serão salvos com segurança e você poderá complementar depois.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
                   <p className="font-bold text-brand-400 uppercase text-[11px]">CNPJs e Tributação</p>
                   <p className="text-slate-300"><strong>Total de CNPJs:</strong> {formData.cnpjs.length}</p>
@@ -1216,12 +1322,25 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                     <strong>NFSe:</strong> {formData.nfse.emitira_nfse ? 'Sim' : 'Não'}
                   </p>
                 </div>
+
+                <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
+                  <p className="font-bold text-emerald-400 uppercase text-[11px]">Arquivos & Certificado</p>
+                  <p className="text-slate-300">
+                    <strong>Certificado:</strong> {formData.certificado_digital.arquivo_nome ? '✓ Anexado' : 'Pendente'}
+                  </p>
+                  <p className="text-slate-300">
+                    <strong>Senha Certificado:</strong> {formData.certificado_digital.senha ? '✓ Informada' : 'Pendente'}
+                  </p>
+                  <p className="text-slate-300">
+                    <strong>Tabela Frete:</strong> {formData.tabela_frete.arquivo_nome ? '✓ Anexada' : 'Pendente'}
+                  </p>
+                </div>
               </div>
 
               <div className="p-4 rounded-xl bg-brand-500/10 border border-brand-500/30 flex items-start gap-3">
                 <Rocket className="w-5 h-5 text-brand-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-brand-200 leading-relaxed">
-                  Ao clicar em <strong>"Finalizar e Enviar Dados"</strong>, sua etapa de <strong>Checkpoint</strong> será automaticamente marcada como concluída e nossa equipe técnica iniciará a preparação da sua infraestrutura.
+                  Ao clicar em <strong>"Finalizar e Salvar Dados"</strong>, sua etapa de <strong>Checkpoint</strong> será marcada como concluída e nossa equipe técnica iniciará a preparação da sua infraestrutura.
                 </p>
               </div>
             </div>
@@ -1234,7 +1353,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
           <button
             type="button"
             onClick={handlePrev}
-            disabled={currentSlide === 0 || submitting}
+            disabled={currentSlide === 0 || submitting || savingDraft}
             className={clsx(
               "btn-secondary flex items-center gap-1.5 text-xs sm:text-sm",
               currentSlide === 0 ? "opacity-30 cursor-not-allowed pointer-events-none" : ""
@@ -1261,27 +1380,29 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             ))}
           </div>
 
-          {currentSlide < totalSlides - 1 ? (
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={!canAdvance() || submitting}
-              className="btn-primary flex items-center gap-1.5 text-xs sm:text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <span>Avançar</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-2 text-xs sm:text-sm transition-all"
-            >
-              <Send className="w-4 h-4" />
-              <span>{submitting ? 'Enviando Dados...' : 'Finalizar e Enviar Dados'}</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {currentSlide < totalSlides - 1 ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={submitting || savingDraft}
+                className="btn-primary flex items-center gap-1.5 text-xs sm:text-sm"
+              >
+                <span>Avançar</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || savingDraft}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-2 text-xs sm:text-sm transition-all"
+              >
+                <Send className="w-4 h-4" />
+                <span>{submitting ? 'Salvando...' : 'Finalizar e Salvar Dados'}</span>
+              </button>
+            )}
+          </div>
         </div>
 
       </div>

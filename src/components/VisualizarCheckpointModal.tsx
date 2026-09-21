@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { 
   Building, CheckCircle2, Download, FileSpreadsheet, 
   FileText, MapPin, Truck, Users, 
-  X, Edit3
+  X, Edit3, KeyRound, Lock, Eye, EyeOff, Copy
 } from 'lucide-react'
 import type { CheckpointFormData } from './ClienteFormularioModal'
 import clsx from 'clsx'
@@ -22,7 +22,9 @@ export function VisualizarCheckpointModal({
   implantacao,
   onEdit
 }: VisualizarCheckpointModalProps) {
-  const [activeTab, setActiveTab] = useState<'cnpjs' | 'shopee' | 'usuarios' | 'nfse' | 'frete'>('cnpjs')
+  const [activeTab, setActiveTab] = useState<'cnpjs' | 'shopee' | 'usuarios' | 'nfse' | 'certificado' | 'frete'>('cnpjs')
+  const [showCertSenha, setShowCertSenha] = useState(false)
+  const [copiedSenha, setCopiedSenha] = useState(false)
 
   if (!isOpen || !checkpoint) return null
 
@@ -32,9 +34,10 @@ export function VisualizarCheckpointModal({
   const percurso = dados.percurso_line_haul || {}
   const usuarios = dados.usuarios || []
   const nfse = dados.nfse || {}
+  const certificado = dados.certificado_digital || { arquivo_nome: '', arquivo_base64: '', senha: '' }
   const frete = dados.tabela_frete || {}
 
-  const downloadFile = () => {
+  const downloadFrete = () => {
     if (!frete.arquivo_base64) return
     const link = document.createElement('a')
     link.href = frete.arquivo_base64
@@ -42,6 +45,23 @@ export function VisualizarCheckpointModal({
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  const downloadCertificado = () => {
+    if (!certificado.arquivo_base64) return
+    const link = document.createElement('a')
+    link.href = certificado.arquivo_base64
+    link.download = certificado.arquivo_nome || 'certificado.pfx'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handleCopySenha = () => {
+    if (!certificado.senha) return
+    navigator.clipboard.writeText(certificado.senha)
+    setCopiedSenha(true)
+    setTimeout(() => setCopiedSenha(false), 2000)
   }
 
   return (
@@ -94,6 +114,7 @@ export function VisualizarCheckpointModal({
             { id: 'shopee', label: 'Operações Shopee', icon: Truck },
             { id: 'usuarios', label: `Usuários (${usuarios.length})`, icon: Users },
             { id: 'nfse', label: 'NFSe', icon: FileText },
+            { id: 'certificado', label: 'Certificado Digital', icon: KeyRound },
             { id: 'frete', label: 'Tabela de Frete', icon: FileSpreadsheet },
           ].map((tab) => {
             const Icon = tab.icon
@@ -135,10 +156,10 @@ export function VisualizarCheckpointModal({
                         <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30 mr-2">
                           CNPJ #{i + 1}
                         </span>
-                        <span className="text-sm font-bold text-white">{c.razao_social}</span>
+                        <span className="text-sm font-bold text-white">{c.razao_social || 'Sem Razão Social'}</span>
                       </div>
                       <span className="text-xs font-mono font-bold text-brand-400 bg-slate-800 px-2.5 py-1 rounded">
-                        {c.cnpj}
+                        {c.cnpj || 'Não informado'}
                       </span>
                     </div>
 
@@ -304,7 +325,86 @@ export function VisualizarCheckpointModal({
             </div>
           )}
 
-          {/* TAB 5: TABELA DE FRETE */}
+          {/* TAB 5: CERTIFICADO DIGITAL */}
+          {activeTab === 'certificado' && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Certificado Digital A1 (.pfx)
+              </h3>
+
+              {certificado.arquivo_base64 || certificado.arquivo_nome || certificado.senha ? (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                  {/* Arquivo */}
+                  <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700/60">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">{certificado.arquivo_nome || 'Certificado Digital .pfx'}</p>
+                        <p className="text-xs text-slate-400">
+                          {certificado.arquivo_tamanho ? `${(certificado.arquivo_tamanho / 1024).toFixed(1)} KB` : 'Pronto para download'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {certificado.arquivo_base64 && (
+                      <button
+                        type="button"
+                        onClick={downloadCertificado}
+                        className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Baixar Certificado</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Senha */}
+                  <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Senha do Certificado Digital:</p>
+                      <p className="text-sm font-mono font-bold text-emerald-400">
+                        {certificado.senha 
+                          ? (showCertSenha ? certificado.senha : '••••••••••••') 
+                          : <span className="text-slate-500 italic font-sans font-normal">Não informada</span>}
+                      </p>
+                    </div>
+
+                    {certificado.senha && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowCertSenha(!showCertSenha)}
+                          className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+                        >
+                          {showCertSenha ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          <span>{showCertSenha ? 'Ocultar' : 'Revelar Senha'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleCopySenha}
+                          className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>{copiedSenha ? 'Copiada!' : 'Copiar'}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 text-center text-slate-400 text-xs">
+                  <KeyRound className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="font-bold text-white text-sm mb-1">Certificado Digital não informado</p>
+                  <p>O cliente ainda não anexou o arquivo .pfx ou senha do certificado.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 6: TABELA DE FRETE */}
           {activeTab === 'frete' && (
             <div className="space-y-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -328,7 +428,7 @@ export function VisualizarCheckpointModal({
 
                     <button
                       type="button"
-                      onClick={downloadFile}
+                      onClick={downloadFrete}
                       className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5"
                     >
                       <Download className="w-3.5 h-3.5" />
