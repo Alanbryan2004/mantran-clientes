@@ -5,6 +5,7 @@ export interface LoggedUser {
   perfil: string
   ativo: boolean
   meta_semanal?: number
+  implantacao_id?: string
 }
 
 export function getLoggedUser(): LoggedUser | null {

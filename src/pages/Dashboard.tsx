@@ -58,13 +58,22 @@ export function Dashboard() {
   const [activeProjects, setActiveProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
+  const isCliente = isClienteUser()
+
   useEffect(() => {
-    if (isClienteUser()) {
-      navigate('/implantacoes', { replace: true })
+    if (isCliente) {
       return
     }
     fetchStats()
-  }, [])
+  }, [isCliente])
+
+  if (isCliente) {
+    return (
+      <div className="flex items-center justify-center p-12 text-slate-400">
+        Carregando sua implantação...
+      </div>
+    )
+  }
 
 
   const fetchStats = async () => {

@@ -164,23 +164,33 @@ export function Implantacoes() {
   const [loading, setLoading] = useState(true)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const navigate = useNavigate()
+  const isCliente = isClienteUser()
 
   useEffect(() => {
+    if (isCliente) {
+      const user = getLoggedUser()
+      if (user?.implantacao_id) {
+        navigate(`/implantacoes/${user.implantacao_id}`, { replace: true })
+        return
+      }
+      api.getImplantacaoForLoggedCliente(user?.nome || user?.login || '').then(clienteImpl => {
+        if (clienteImpl) {
+          if (user) {
+            user.implantacao_id = clienteImpl.id
+            localStorage.setItem('@Mantran:user', JSON.stringify(user))
+          }
+          navigate(`/implantacoes/${clienteImpl.id}`, { replace: true })
+        }
+      }).catch(console.error)
+      return
+    }
+
     fetchImplantacoes()
-  }, [])
+  }, [isCliente])
 
   const fetchImplantacoes = async () => {
     setLoading(true)
     try {
-      const user = getLoggedUser()
-      if (isClienteUser() && user) {
-        const clienteImpl = await api.getImplantacaoForLoggedCliente(user.nome || user.login)
-        if (clienteImpl) {
-          navigate(`/implantacoes/${clienteImpl.id}`, { replace: true })
-          return
-        }
-      }
-
       const data = await api.getImplantacoes()
       setImplantacoes(data)
     } catch (err) {
@@ -249,6 +259,14 @@ export function Implantacoes() {
   const filteredEmAndamento = filterList(emAndamento)
   const filteredConcluidos = filterList(concluidos)
   const isFiltering = searchTerm.trim() !== '' || selectedEtapa !== '' || selectedAnalista !== ''
+
+  if (isCliente) {
+    return (
+      <div className="flex items-center justify-center p-12 text-slate-400">
+        Carregando sua implantação...
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6" onClick={() => setOpenMenuId(null)}>

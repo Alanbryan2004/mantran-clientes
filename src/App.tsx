@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { Dashboard } from './pages/Dashboard'
 import { Clientes } from './pages/Clientes'
@@ -13,6 +13,53 @@ import { Login } from './pages/Login'
 
 import { useState, useEffect } from 'react'
 import { permissionsApi } from './lib/permissions'
+import { getLoggedUser, isClienteUser } from './lib/auth'
+import { api } from './lib/api'
+
+function RootRoute() {
+  const isCliente = isClienteUser()
+  const user = getLoggedUser()
+  const [targetId, setTargetId] = useState<string | null>(user?.implantacao_id || null)
+  const [resolving, setResolving] = useState(isCliente && !user?.implantacao_id)
+
+  useEffect(() => {
+    if (isCliente && !user?.implantacao_id) {
+      api.getImplantacaoForLoggedCliente(user?.nome || user?.login || '').then(impl => {
+        if (impl) {
+          if (user) {
+            user.implantacao_id = impl.id
+            localStorage.setItem('@Mantran:user', JSON.stringify(user))
+          }
+          setTargetId(impl.id)
+        }
+        setResolving(false)
+      }).catch(() => setResolving(false))
+    }
+  }, [isCliente])
+
+  if (isCliente) {
+    if (resolving) {
+      return <div className="flex items-center justify-center p-12 text-slate-400">Carregando implantação...</div>
+    }
+    if (targetId) {
+      return <Navigate to={`/implantacoes/${targetId}`} replace />
+    }
+    return <Implantacoes />
+  }
+
+  return <Dashboard />
+}
+
+function ImplantacoesRoute() {
+  const isCliente = isClienteUser()
+  const user = getLoggedUser()
+
+  if (isCliente && user?.implantacao_id) {
+    return <Navigate to={`/implantacoes/${user.implantacao_id}`} replace />
+  }
+
+  return <Implantacoes />
+}
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -39,9 +86,9 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
+          <Route index element={<RootRoute />} />
           <Route path="clientes" element={<Clientes />} />
-          <Route path="implantacoes" element={<Implantacoes />} />
+          <Route path="implantacoes" element={<ImplantacoesRoute />} />
           <Route path="implantacoes/:id" element={<ImplantacaoDetalhes />} />
           <Route path="bases" element={<Bases />} />
           <Route path="bases/:id" element={<ProjetoDetalhes />} />

@@ -27,7 +27,14 @@ export function Login() {
       try {
         await permissionsApi.getPermissions()
       } catch (_) {}
-      window.location.href = '/'
+
+      // Redirecionamento direto para evitar telas piscando
+      if (data.perfil === 'Cliente') {
+        const dest = data.implantacao_id ? `/implantacoes/${data.implantacao_id}` : '/implantacoes'
+        window.location.href = dest
+      } else {
+        window.location.href = '/'
+      }
     } catch (err: any) {
       setError(err.message || 'Erro ao realizar login.')
     } finally {

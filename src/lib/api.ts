@@ -21,7 +21,12 @@ export const api = {
     if (!data || data.length === 0) return null
     const user = data[0]
     if ((user.login || '').trim().toLowerCase().endsWith('@mantran') && (user.perfil === 'Usuario' || user.perfil === 'Cliente')) {
-      return { ...user, perfil: 'Cliente' }
+      const clienteImpl = await api.getImplantacaoForLoggedCliente(user.nome || user.login).catch(() => null)
+      return { 
+        ...user, 
+        perfil: 'Cliente',
+        implantacao_id: clienteImpl?.id || null
+      }
     }
     return user
   },
@@ -757,6 +762,18 @@ export const api = {
     const raw = (userNameOrLogin || '').trim()
     const baseName = raw.replace(/@mantran$/i, '').trim()
 
+    // Helper to sanitize for comparison: remove accents, lowercase, remove non-alphanumeric
+    const normalize = (str: string) => {
+      return (str || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+    }
+
+    const normRaw = normalize(raw)
+    const normBase = normalize(baseName)
+
     // Query all implantacoes and match client
     const { data, error } = await supabase
       .from('implantacoes')
@@ -770,12 +787,15 @@ export const api = {
     if (error) throw error
     if (!data || data.length === 0) return null
 
-    // Exact match or contains
+    // Exact or partial match
     const found = data.find((imp: any) => {
-      const impNome = (imp.nome_empresa || '').trim().toLowerCase()
-      const search1 = raw.toLowerCase()
-      const search2 = baseName.toLowerCase()
-      return impNome === search1 || impNome === search2 || search1.includes(impNome) || search2.includes(impNome)
+      const normImp = normalize(imp.nome_empresa)
+      return (
+        normImp === normBase ||
+        normImp === normRaw ||
+        (normBase.length >= 3 && normImp.includes(normBase)) ||
+        (normImp.length >= 3 && normBase.includes(normImp))
+      )
     })
 
     return found || data[0] || null

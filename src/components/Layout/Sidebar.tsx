@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { LayoutDashboard, Database, Users, LogOut, Menu, Cloud, Rocket, Shield, ShoppingBag } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
+import { api } from '../../lib/api'
 import { PermissoesModal } from '../PermissoesModal'
 import clsx from 'clsx'
 
@@ -32,11 +33,26 @@ export function Sidebar() {
     const updateNav = () => {
       if (!isMounted) return
       
-      // Se for perfil Cliente, exibir apenas "Minha Implantação"
+      // Se for perfil Cliente, exibir apenas "Minha Implantação" com link direto
       if (isCliente) {
+        const directPath = user?.implantacao_id ? `/implantacoes/${user.implantacao_id}` : '/implantacoes'
         setAllowedNavItems([
-          { name: 'Minha Implantação', path: '/implantacoes', icon: Rocket }
+          { name: 'Minha Implantação', path: directPath, icon: Rocket }
         ])
+
+        if (!user?.implantacao_id) {
+          api.getImplantacaoForLoggedCliente(user?.nome || user?.login || '').then(impl => {
+            if (impl && isMounted) {
+              if (user) {
+                user.implantacao_id = impl.id
+                localStorage.setItem('@Mantran:user', JSON.stringify(user))
+              }
+              setAllowedNavItems([
+                { name: 'Minha Implantação', path: `/implantacoes/${impl.id}`, icon: Rocket }
+              ])
+            }
+          }).catch(console.error)
+        }
         return
       }
 
