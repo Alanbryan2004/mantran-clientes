@@ -5,6 +5,91 @@ import { supabase } from './supabase'
 // All methods maintain the same interface as before
 // ----------------------------------------------------
 
+export function checkCheckpointCompleto(dados: any, isShopee: boolean = true) {
+  const pendencias: string[] = []
+
+  // 1. CNPJs
+  const cnpjs = dados?.cnpjs || []
+  const hasValidCnpj = cnpjs.length > 0 && cnpjs.every((c: any) => c.cnpj && c.cnpj.trim().length >= 14 && c.razao_social)
+  if (!hasValidCnpj) {
+    pendencias.push('CNPJ dos emissores')
+  }
+
+  // 2. Tributação
+  const hasValidTrib = cnpjs.length > 0 && cnpjs.every((c: any) => c.tributacao)
+  if (!hasValidTrib) {
+    pendencias.push('Regime Tributário')
+  }
+
+  // 3. Processos Shopee & Line Haul
+  if (isShopee) {
+    const processos = dados?.processos_shopee || []
+    if (processos.length === 0) {
+      pendencias.push('Processos Shopee')
+    }
+    if (processos.includes('Line Haul')) {
+      const percursos = dados?.percursos_line_haul || []
+      const percursosOk = percursos.length > 0 && percursos.every((p: any) => 
+        p.cnpj_hub_shopee && p.cidade_origem && p.cnpj_recebedor && p.endereco_destino
+      )
+      if (!percursosOk) {
+        pendencias.push('Percurso do Line Haul')
+      }
+    }
+  }
+
+  // 4. RNTRC
+  const hasValidRntrc = cnpjs.length > 0 && cnpjs.every((c: any) => c.rntrc && c.rntrc.trim().length > 0)
+  if (!hasValidRntrc) {
+    pendencias.push('RNTRC / ANTT')
+  }
+
+  // 5. CTe Anterior
+  const hasValidCte = cnpjs.length > 0 && cnpjs.every((c: any) => c.ja_emitiu_cte !== null && c.ja_emitiu_cte !== undefined)
+  if (!hasValidCte) {
+    pendencias.push('Histórico CTe')
+  }
+
+  // 6. Usuários
+  const usuarios = dados?.usuarios || []
+  const hasValidUsers = usuarios.length > 0 && usuarios.some((u: any) => u.nome && u.email)
+  if (!hasValidUsers) {
+    pendencias.push('Usuários do Sistema')
+  }
+
+  // 7. NFSe
+  if (dados?.nfse?.emitira_nfse === null || dados?.nfse?.emitira_nfse === undefined) {
+    pendencias.push('Emissão de NFSe')
+  }
+
+  // 8. Certificado Digital
+  const cert = dados?.certificado_digital
+  if (!cert?.arquivo_nome || !cert?.senha) {
+    pendencias.push('Certificado Digital (.pfx) e Senha')
+  }
+
+  // 9. Tabela de Frete
+  const frete = dados?.tabela_frete
+  if (!frete?.arquivo_nome && !frete?.observacoes) {
+    pendencias.push('Tabela de Frete')
+  }
+
+  // 10. CST & Aditivo
+  const cst = dados?.cst_config
+  if (cst?.habilitar_cst === null || cst?.habilitar_cst === undefined) {
+    pendencias.push('Configuração de CST')
+  } else if (cst.habilitar_cst === true) {
+    if (!cst.arquivo_aditivo_nome) {
+      pendencias.push('Aditivo Assinado')
+    }
+  }
+
+  return {
+    isCompleto: pendencias.length === 0,
+    pendencias
+  }
+}
+
 export const api = {
   // --- Auth ---
   async authenticateUser(login: string, senha: string) {
@@ -679,8 +764,26 @@ export const api = {
     return data
   },
 
-  async saveImplantacaoCheckpoint(implantacaoId: string, dados: any, _usuarioNome?: string, isFinal: boolean = true) {
-    // 1. Check if checkpoint already exists
+  async saveImplantacaoCheckpoint(implantacaoId: string, dados: any, _usuarioNome?: string, _isFinal: boolean = true) {
+    // 1. Check if implantacao is Shopee or Normal to validate required fields
+    let isShopee = true
+    try {
+      const { data: imp } = await supabase
+        .from('implantacoes')
+        .select('tipo_cliente')
+        .eq('id', implantacaoId)
+        .single()
+      if (imp && imp.tipo_cliente) {
+        isShopee = imp.tipo_cliente === 'SHOPEE'
+      }
+    } catch (e) {
+      console.warn('Aviso ao consultar tipo de cliente:', e)
+    }
+
+    const { isCompleto, pendencias } = checkCheckpointCompleto(dados, isShopee)
+    const isReallyConcluido = isCompleto // ONLY true if 100% of required fields are provided
+
+    // 2. Check if checkpoint already exists
     const existing = await api.getImplantacaoCheckpoint(implantacaoId)
     
     let result: any = null
@@ -689,7 +792,7 @@ export const api = {
         .from('implantacao_checkpoint')
         .update({
           dados,
-          concluido: isFinal ? true : existing.concluido,
+          concluido: isReallyConcluido,
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id)
@@ -703,7 +806,7 @@ export const api = {
         .insert({
           implantacao_id: implantacaoId,
           dados,
-          concluido: isFinal
+          concluido: isReallyConcluido
         })
         .select()
         .single()
@@ -711,30 +814,28 @@ export const api = {
       result = data
     }
 
-    // 2. Automatically mark the Checkpoint step as OK in implantacao_etapas when finalized
-    if (isFinal) {
-      try {
-        const { data: etapas } = await supabase
+    // 3. Update the Checkpoint step in implantacao_etapas (OK only if 100% complete, else PENDENTE)
+    try {
+      const { data: etapas } = await supabase
+        .from('implantacao_etapas')
+        .select('id, nome_etapa')
+        .eq('implantacao_id', implantacaoId)
+
+      const checkpointEtapa = etapas?.find(
+        (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint'
+      )
+
+      if (checkpointEtapa) {
+        await supabase
           .from('implantacao_etapas')
-          .select('id, nome_etapa')
-          .eq('implantacao_id', implantacaoId)
-
-        const checkpointEtapa = etapas?.find(
-          (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint'
-        )
-
-        if (checkpointEtapa) {
-          await supabase
-            .from('implantacao_etapas')
-            .update({ valor: 'OK' })
-            .eq('id', checkpointEtapa.id)
-        }
-      } catch (etapaErr) {
-        console.warn('Aviso ao atualizar etapa Checkpoint:', etapaErr)
+          .update({ valor: isReallyConcluido ? 'OK' : 'PENDENTE' })
+          .eq('id', checkpointEtapa.id)
       }
+    } catch (etapaErr) {
+      console.warn('Aviso ao atualizar etapa Checkpoint:', etapaErr)
     }
 
-    // 3. Register detailed entry in history
+    // 4. Register detailed entry in history
     try {
       const respondidas: string[] = []
 
@@ -800,13 +901,17 @@ export const api = {
         respondidas.push(`P11: CST & Aditivo (${cstStatus})`)
       }
 
-      const statusTitle = isFinal 
-        ? 'Checkpoint Concluído pelo Cliente' 
-        : 'Progresso do Checkpoint salvo pelo Cliente'
-
-      const historicoTexto = respondidas.length > 0
-        ? `${statusTitle}. Perguntas respondidas: ${respondidas.join(' • ')}.`
-        : `${statusTitle}.`
+      let historicoTexto = ''
+      if (isReallyConcluido) {
+        historicoTexto = `Checkpoint Concluído 100% pelo Cliente. Todas as informações e anexos foram enviados com sucesso.`
+      } else {
+        const pendenciasStr = pendencias.join(', ')
+        if (respondidas.length > 0) {
+          historicoTexto = `Formulário salvo pelo Cliente com pendências. Perguntas respondidas: ${respondidas.join(' • ')} | Pendências: ${pendenciasStr}.`
+        } else {
+          historicoTexto = `Formulário iniciado pelo Cliente com pendências: ${pendenciasStr}.`
+        }
+      }
 
       await api.insertImplantacaoHistorico({
         implantacao_id: implantacaoId,
@@ -817,7 +922,7 @@ export const api = {
       console.warn('Aviso ao inserir histórico:', histErr)
     }
 
-    // 4. Update cliente possui_aditivo if aditivo is attached or confirmed
+    // 5. Update cliente possui_aditivo if aditivo is attached or confirmed
     try {
       const temAditivo = !!(
         dados?.cst_config?.arquivo_aditivo_base64 || 

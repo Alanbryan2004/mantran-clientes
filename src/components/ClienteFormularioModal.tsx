@@ -3,9 +3,9 @@ import {
   Building, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, 
   HelpCircle, Plus, Rocket, Send, Sparkles, Trash2, Upload, Users, 
   X, AlertCircle, FileText, Check, ShieldCheck, MapPin, Truck,
-  KeyRound, Eye, EyeOff, Save, Lock, Download
+  KeyRound, Eye, EyeOff, Save, Lock, Download, Clock
 } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, checkCheckpointCompleto } from '../lib/api'
 import clsx from 'clsx'
 
 interface ClienteFormularioModalProps {
@@ -430,13 +430,18 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
   const handleSubmit = async () => {
     setSubmitting(true)
     try {
+      const { isCompleto, pendencias } = checkCheckpointCompleto(formData, isShopee)
       await api.saveImplantacaoCheckpoint(
         implantacao.id, 
         formData, 
         'Cliente',
         true
       )
-      alert('Dados salvos e enviados com sucesso! Iremos dar segmento à sua implantação com os dados coletados.')
+      if (isCompleto) {
+        alert('Parabéns! Todos os dados e arquivos foram enviados. Seu Checkpoint foi 100% concluído!')
+      } else {
+        alert(`Respostas salvas com sucesso!\n\nNota: Seu Checkpoint permanecerá como PENDENTE pois ainda faltam itens (${pendencias.join(', ')}). Você poderá complementar a qualquer momento.`)
+      }
       onSuccess()
     } catch (err: any) {
       console.error('Erro ao salvar formulário de checkpoint:', err)
@@ -1624,78 +1629,104 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
           })()}
 
           {/* SLIDE 12: CONCLUSÃO E ENVIO */}
-          {currentSlideObj.id === 'conclusao' && (
-            <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn py-2">
-              <div className="text-center">
-                <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-3">
-                  <CheckCircle2 className="w-8 h-8" />
+          {currentSlideObj.id === 'conclusao' && (() => {
+            const { isCompleto, pendencias } = checkCheckpointCompleto(formData, isShopee)
+
+            return (
+              <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn py-2">
+                <div className="text-center">
+                  <div className={clsx(
+                    "w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3",
+                    isCompleto ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"
+                  )}>
+                    {isCompleto ? <CheckCircle2 className="w-8 h-8" /> : <Clock className="w-8 h-8" />}
+                  </div>
+                  <h3 className="text-2xl font-extrabold text-white">
+                    {isCompleto ? "Tudo Pronto e 100% Preenchido!" : "Resumo das Informações Preenchidas"}
+                  </h3>
+                  <p className="text-sm text-slate-300 max-w-lg mx-auto mt-1">
+                    {isCompleto 
+                      ? "Todas as informações e arquivos foram preenchidos. Ao salvar, seu Checkpoint será concluído com sucesso." 
+                      : "Seus dados informados serão salvos com segurança, mas o Checkpoint permanecerá como PENDENTE até que todas as informações e arquivos sejam fornecidos."}
+                  </p>
                 </div>
-                <h3 className="text-2xl font-extrabold text-white">
-                  Tudo Pronto para o Envio!
-                </h3>
-                <p className="text-sm text-slate-300 max-w-lg mx-auto mt-1">
-                  Confira o resumo das informações. Mesmo se houver campos em branco, seus dados serão salvos com segurança e você poderá complementar depois.
-                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
+                    <p className="font-bold text-brand-400 uppercase text-[11px]">CNPJs e Tributação</p>
+                    <p className="text-slate-300"><strong>Total de CNPJs:</strong> {formData.cnpjs.length}</p>
+                    <ul className="list-disc list-inside text-slate-400 space-y-1">
+                      {formData.cnpjs.map((c, i) => (
+                        <li key={c.id} className="truncate">
+                          {c.razao_social || `CNPJ #${i + 1}`} ({c.tributacao || 'Não informado'})
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
+                    <p className="font-bold text-orange-400 uppercase text-[11px]">Operações & Usuários</p>
+                    <p className="text-slate-300">
+                      <strong>Processos:</strong> {formData.processos_shopee.join(', ') || 'Nenhum'}
+                    </p>
+                    <p className="text-slate-300">
+                      <strong>Usuários:</strong> {formData.usuarios.length}
+                    </p>
+                    <p className="text-slate-300">
+                      <strong>NFSe:</strong> {formData.nfse.emitira_nfse ? 'Sim' : 'Não'}
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
+                    <p className="font-bold text-emerald-400 uppercase text-[11px]">Arquivos & Certificado</p>
+                    <p className="text-slate-300">
+                      <strong>Certificado:</strong> {formData.certificado_digital.arquivo_nome ? '✓ Anexado' : 'Pendente'}
+                    </p>
+                    <p className="text-slate-300">
+                      <strong>Senha Certificado:</strong> {formData.certificado_digital.senha ? '✓ Informada' : 'Pendente'}
+                    </p>
+                    <p className="text-slate-300">
+                      <strong>Tabela Frete:</strong> {formData.tabela_frete.arquivo_nome ? '✓ Anexada' : 'Pendente'}
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
+                    <p className="font-bold text-purple-400 uppercase text-[11px]">CST & Aditivo</p>
+                    <p className="text-slate-300">
+                      <strong>Config. CST:</strong> {formData.cst_config.habilitar_cst === true ? 'Sim' : formData.cst_config.habilitar_cst === false ? 'Padrão' : 'Não definido'}
+                    </p>
+                    <p className="text-slate-300">
+                      <strong>Aditivo:</strong> {formData.cst_config.arquivo_aditivo_nome ? '✓ Anexado' : 'Pendente'}
+                    </p>
+                  </div>
+                </div>
+
+                {isCompleto ? (
+                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3">
+                    <Rocket className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-emerald-200 leading-relaxed">
+                      Ao clicar em <strong>"Finalizar e Concluir Checkpoint"</strong>, sua etapa de <strong>Checkpoint</strong> será concluída como OK e nossa equipe técnica iniciará a preparação da base imediatamente.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+                      <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Itens pendentes a serem complementados depois ({pendencias.length}):</span>
+                    </div>
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-amber-200/90 list-disc list-inside">
+                      {pendencias.map((p, idx) => (
+                        <li key={idx}><strong>{p}</strong></li>
+                      ))}
+                    </ul>
+                    <p className="text-[11px] text-slate-400 pt-1 border-t border-amber-500/20">
+                      💡 <em>Ao salvar agora, o Checkpoint permanecerá como <strong>PENDENTE</strong>. Você poderá voltar a qualquer momento para anexar o restante e finalizar.</em>
+                    </p>
+                  </div>
+                )}
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
-                  <p className="font-bold text-brand-400 uppercase text-[11px]">CNPJs e Tributação</p>
-                  <p className="text-slate-300"><strong>Total de CNPJs:</strong> {formData.cnpjs.length}</p>
-                  <ul className="list-disc list-inside text-slate-400 space-y-1">
-                    {formData.cnpjs.map((c, i) => (
-                      <li key={c.id} className="truncate">
-                        {c.razao_social || `CNPJ #${i + 1}`} ({c.tributacao || 'Não informado'})
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
-                  <p className="font-bold text-orange-400 uppercase text-[11px]">Operações & Usuários</p>
-                  <p className="text-slate-300">
-                    <strong>Processos:</strong> {formData.processos_shopee.join(', ') || 'Nenhum'}
-                  </p>
-                  <p className="text-slate-300">
-                    <strong>Usuários:</strong> {formData.usuarios.length}
-                  </p>
-                  <p className="text-slate-300">
-                    <strong>NFSe:</strong> {formData.nfse.emitira_nfse ? 'Sim' : 'Não'}
-                  </p>
-                </div>
-
-                <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
-                  <p className="font-bold text-emerald-400 uppercase text-[11px]">Arquivos & Certificado</p>
-                  <p className="text-slate-300">
-                    <strong>Certificado:</strong> {formData.certificado_digital.arquivo_nome ? '✓ Anexado' : 'Pendente'}
-                  </p>
-                  <p className="text-slate-300">
-                    <strong>Senha Certificado:</strong> {formData.certificado_digital.senha ? '✓ Informada' : 'Pendente'}
-                  </p>
-                  <p className="text-slate-300">
-                    <strong>Tabela Frete:</strong> {formData.tabela_frete.arquivo_nome ? '✓ Anexada' : 'Pendente'}
-                  </p>
-                </div>
-
-                <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
-                  <p className="font-bold text-purple-400 uppercase text-[11px]">CST & Aditivo</p>
-                  <p className="text-slate-300">
-                    <strong>Config. CST:</strong> {formData.cst_config.habilitar_cst === true ? 'Sim' : formData.cst_config.habilitar_cst === false ? 'Padrão' : 'Não definido'}
-                  </p>
-                  <p className="text-slate-300">
-                    <strong>Aditivo:</strong> {formData.cst_config.arquivo_aditivo_nome ? '✓ Anexado' : 'Pendente'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-brand-500/10 border border-brand-500/30 flex items-start gap-3">
-                <Rocket className="w-5 h-5 text-brand-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-brand-200 leading-relaxed">
-                  Ao clicar em <strong>"Finalizar e Salvar Dados"</strong>, sua etapa de <strong>Checkpoint</strong> será marcada como concluída e nossa equipe técnica iniciará a preparação da sua infraestrutura.
-                </p>
-              </div>
-            </div>
-          )}
+            )
+          })()}
 
         </div>
 
@@ -1742,17 +1773,31 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                 <span>Avançar</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={submitting || savingDraft}
-                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-2 text-xs sm:text-sm transition-all"
-              >
-                <Send className="w-4 h-4" />
-                <span>{submitting ? 'Salvando...' : 'Finalizar e Salvar Dados'}</span>
-              </button>
-            )}
+            ) : (() => {
+              const { isCompleto } = checkCheckpointCompleto(formData, isShopee)
+              return (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting || savingDraft}
+                  className={clsx(
+                    "text-white font-bold px-6 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs sm:text-sm transition-all cursor-pointer",
+                    isCompleto
+                      ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-500/20"
+                      : "bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 shadow-brand-500/20"
+                  )}
+                >
+                  <Send className="w-4 h-4" />
+                  <span>
+                    {submitting 
+                      ? 'Salvando...' 
+                      : isCompleto 
+                      ? 'Finalizar e Concluir Checkpoint' 
+                      : 'Salvar Respostas (Manter Pendente)'}
+                  </span>
+                </button>
+              )
+            })()}
           </div>
         </div>
 
