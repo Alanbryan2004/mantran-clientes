@@ -6,7 +6,6 @@ import {
   KeyRound, Eye, EyeOff, Save, Lock, Download
 } from 'lucide-react'
 import { api } from '../lib/api'
-import { getLoggedUser } from '../lib/auth'
 import clsx from 'clsx'
 
 interface ClienteFormularioModalProps {
@@ -101,7 +100,6 @@ const UFS = [
 ]
 
 export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess, initialData }: ClienteFormularioModalProps) {
-  const user = getLoggedUser()
   const isShopee = implantacao?.tipo_cliente === 'SHOPEE'
 
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -416,7 +414,8 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
       await api.saveImplantacaoCheckpoint(
         implantacao.id, 
         formData, 
-        user?.nome || user?.login || implantacao.nome_empresa
+        'Cliente',
+        false
       )
       alert('Progresso salvo com sucesso! Você pode continuar preenchendo agora ou depois.')
       onSuccess()
@@ -434,7 +433,8 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
       await api.saveImplantacaoCheckpoint(
         implantacao.id, 
         formData, 
-        user?.nome || user?.login || implantacao.nome_empresa
+        'Cliente',
+        true
       )
       alert('Dados salvos e enviados com sucesso! Iremos dar segmento à sua implantação com os dados coletados.')
       onSuccess()

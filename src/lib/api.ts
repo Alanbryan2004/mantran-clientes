@@ -679,7 +679,7 @@ export const api = {
     return data
   },
 
-  async saveImplantacaoCheckpoint(implantacaoId: string, dados: any, usuarioNome?: string) {
+  async saveImplantacaoCheckpoint(implantacaoId: string, dados: any, _usuarioNome?: string, isFinal: boolean = true) {
     // 1. Check if checkpoint already exists
     const existing = await api.getImplantacaoCheckpoint(implantacaoId)
     
@@ -689,7 +689,7 @@ export const api = {
         .from('implantacao_checkpoint')
         .update({
           dados,
-          concluido: true,
+          concluido: isFinal ? true : existing.concluido,
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id)
@@ -703,7 +703,7 @@ export const api = {
         .insert({
           implantacao_id: implantacaoId,
           dados,
-          concluido: true
+          concluido: isFinal
         })
         .select()
         .single()
@@ -711,33 +711,107 @@ export const api = {
       result = data
     }
 
-    // 2. Automatically mark the Checkpoint step as OK in implantacao_etapas
-    try {
-      const { data: etapas } = await supabase
-        .from('implantacao_etapas')
-        .select('id, nome_etapa')
-        .eq('implantacao_id', implantacaoId)
-
-      const checkpointEtapa = etapas?.find(
-        (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint'
-      )
-
-      if (checkpointEtapa) {
-        await supabase
+    // 2. Automatically mark the Checkpoint step as OK in implantacao_etapas when finalized
+    if (isFinal) {
+      try {
+        const { data: etapas } = await supabase
           .from('implantacao_etapas')
-          .update({ valor: 'OK' })
-          .eq('id', checkpointEtapa.id)
+          .select('id, nome_etapa')
+          .eq('implantacao_id', implantacaoId)
+
+        const checkpointEtapa = etapas?.find(
+          (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint'
+        )
+
+        if (checkpointEtapa) {
+          await supabase
+            .from('implantacao_etapas')
+            .update({ valor: 'OK' })
+            .eq('id', checkpointEtapa.id)
+        }
+      } catch (etapaErr) {
+        console.warn('Aviso ao atualizar etapa Checkpoint:', etapaErr)
       }
-    } catch (etapaErr) {
-      console.warn('Aviso ao atualizar etapa Checkpoint:', etapaErr)
     }
 
-    // 3. Register entry in history
+    // 3. Register detailed entry in history
     try {
+      const respondidas: string[] = []
+
+      // P1. CNPJs
+      const cnpjsValidos = (dados?.cnpjs || []).filter((c: any) => c.cnpj || c.razao_social)
+      if (cnpjsValidos.length > 0) {
+        respondidas.push(`P1: CNPJs (${cnpjsValidos.length} filial/empresa)`)
+      }
+
+      // P2. Tributação
+      const tribValidos = (dados?.cnpjs || []).filter((c: any) => c.tributacao)
+      if (tribValidos.length > 0) {
+        respondidas.push(`P2: Tributação (${tribValidos.map((c: any) => c.tributacao).join(', ')})`)
+      }
+
+      // P3. Processos Shopee
+      if ((dados?.processos_shopee || []).length > 0) {
+        respondidas.push(`P3: Processos Shopee (${dados.processos_shopee.join(', ')})`)
+      }
+
+      // P4. Line Haul
+      const percursosValidos = (dados?.percursos_line_haul || []).filter((p: any) => p.cnpj_hub_shopee || p.cidade_origem || p.cnpj_recebedor)
+      if (percursosValidos.length > 0) {
+        respondidas.push(`P4: Line Haul (${percursosValidos.length} percurso${percursosValidos.length > 1 ? 's' : ''})`)
+      }
+
+      // P5. RNTRC
+      const rntrcValidos = (dados?.cnpjs || []).filter((c: any) => c.rntrc)
+      if (rntrcValidos.length > 0) {
+        respondidas.push(`P5: RNTRC/ANTT`)
+      }
+
+      // P6. CTe Anterior
+      const cteValidos = (dados?.cnpjs || []).filter((c: any) => c.ja_emitiu_cte !== null)
+      if (cteValidos.length > 0) {
+        respondidas.push(`P6: Histórico CTe`)
+      }
+
+      // P7. Usuários
+      const usuariosValidos = (dados?.usuarios || []).filter((u: any) => u.nome || u.email)
+      if (usuariosValidos.length > 0) {
+        respondidas.push(`P7: Usuários (${usuariosValidos.length} cadastrado${usuariosValidos.length > 1 ? 's' : ''})`)
+      }
+
+      // P8. NFSe
+      if (dados?.nfse?.emitira_nfse !== null) {
+        respondidas.push(`P8: NFSe (${dados.nfse.emitira_nfse ? 'Sim' : 'Não'})`)
+      }
+
+      // P9. Certificado Digital
+      if (dados?.certificado_digital?.arquivo_nome || dados?.certificado_digital?.senha) {
+        respondidas.push(`P9: Certificado Digital (${dados.certificado_digital.arquivo_nome ? 'Anexado' : 'Senha'})`)
+      }
+
+      // P10. Tabela de Frete
+      if (dados?.tabela_frete?.arquivo_nome || dados?.tabela_frete?.observacoes) {
+        respondidas.push(`P10: Tabela de Frete`)
+      }
+
+      // P11. CST & Aditivo
+      if (dados?.cst_config?.habilitar_cst !== null || dados?.cst_config?.arquivo_aditivo_nome) {
+        const cstStatus = dados.cst_config.habilitar_cst ? 'Sim (Aditivo anexado)' : 'Padrão'
+        respondidas.push(`P11: CST & Aditivo (${cstStatus})`)
+      }
+
+      const statusTitle = isFinal 
+        ? 'Checkpoint Concluído pelo Cliente' 
+        : 'Progresso do Checkpoint salvo pelo Cliente'
+
+      const historicoTexto = respondidas.length > 0
+        ? `${statusTitle}. Perguntas respondidas: ${respondidas.join(' • ')}.`
+        : `${statusTitle}.`
+
       await api.insertImplantacaoHistorico({
         implantacao_id: implantacaoId,
-        texto: 'Formulário de Checkpoint preenchido e enviado com sucesso.',
-        usuario_nome: usuarioNome || 'Cliente'
+        texto: historicoTexto,
+        usuario_nome: 'Cliente'
       })
     } catch (histErr) {
       console.warn('Aviso ao inserir histórico:', histErr)
