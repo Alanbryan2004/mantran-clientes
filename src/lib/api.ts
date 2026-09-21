@@ -667,6 +667,85 @@ export const api = {
     if (error) throw error
   },
 
+  // --- Implantação Checkpoint / Formulário do Cliente ---
+  async getImplantacaoCheckpoint(implantacaoId: string) {
+    const { data, error } = await supabase
+      .from('implantacao_checkpoint')
+      .select('*')
+      .eq('implantacao_id', implantacaoId)
+      .maybeSingle()
+    
+    if (error) throw error
+    return data
+  },
+
+  async saveImplantacaoCheckpoint(implantacaoId: string, dados: any, usuarioNome?: string) {
+    // 1. Check if checkpoint already exists
+    const existing = await api.getImplantacaoCheckpoint(implantacaoId)
+    
+    let result: any = null
+    if (existing) {
+      const { data, error } = await supabase
+        .from('implantacao_checkpoint')
+        .update({
+          dados,
+          concluido: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.id)
+        .select()
+        .single()
+      if (error) throw error
+      result = data
+    } else {
+      const { data, error } = await supabase
+        .from('implantacao_checkpoint')
+        .insert({
+          implantacao_id: implantacaoId,
+          dados,
+          concluido: true
+        })
+        .select()
+        .single()
+      if (error) throw error
+      result = data
+    }
+
+    // 2. Automatically mark the Checkpoint step as OK in implantacao_etapas
+    try {
+      const { data: etapas } = await supabase
+        .from('implantacao_etapas')
+        .select('id, nome_etapa')
+        .eq('implantacao_id', implantacaoId)
+
+      const checkpointEtapa = etapas?.find(
+        (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint'
+      )
+
+      if (checkpointEtapa) {
+        await supabase
+          .from('implantacao_etapas')
+          .update({ valor: 'OK' })
+          .eq('id', checkpointEtapa.id)
+      }
+    } catch (etapaErr) {
+      console.warn('Aviso ao atualizar etapa Checkpoint:', etapaErr)
+    }
+
+    // 3. Register entry in history
+    try {
+      await api.insertImplantacaoHistorico({
+        implantacao_id: implantacaoId,
+        texto: 'Formulário de Checkpoint preenchido e enviado com sucesso.',
+        usuario_nome: usuarioNome || 'Cliente'
+      })
+    } catch (histErr) {
+      console.warn('Aviso ao inserir histórico:', histErr)
+    }
+
+    return result
+  },
+
   // --- Usuários do Sistema ---
   async getUsuariosSuporte() {
     const { data, error } = await supabase

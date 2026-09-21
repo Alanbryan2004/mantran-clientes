@@ -1,0 +1,372 @@
+import { useState } from 'react'
+import { 
+  Building, CheckCircle2, Download, FileSpreadsheet, 
+  FileText, MapPin, Truck, Users, 
+  X, Edit3
+} from 'lucide-react'
+import type { CheckpointFormData } from './ClienteFormularioModal'
+import clsx from 'clsx'
+
+interface VisualizarCheckpointModalProps {
+  isOpen: boolean
+  onClose: () => void
+  checkpoint: any
+  implantacao: any
+  onEdit?: () => void
+}
+
+export function VisualizarCheckpointModal({ 
+  isOpen, 
+  onClose, 
+  checkpoint, 
+  implantacao,
+  onEdit
+}: VisualizarCheckpointModalProps) {
+  const [activeTab, setActiveTab] = useState<'cnpjs' | 'shopee' | 'usuarios' | 'nfse' | 'frete'>('cnpjs')
+
+  if (!isOpen || !checkpoint) return null
+
+  const dados: CheckpointFormData = checkpoint.dados || {}
+  const cnpjs = dados.cnpjs || []
+  const processos = dados.processos_shopee || []
+  const percurso = dados.percurso_line_haul || {}
+  const usuarios = dados.usuarios || []
+  const nfse = dados.nfse || {}
+  const frete = dados.tabela_frete || {}
+
+  const downloadFile = () => {
+    if (!frete.arquivo_base64) return
+    const link = document.createElement('a')
+    link.href = frete.arquivo_base64
+    link.download = frete.arquivo_nome || 'tabela_frete'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
+      <div className="bg-[#111420] border border-slate-700/80 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden text-white">
+        
+        {/* Header */}
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 shrink-0">
+          <div className="flex items-center space-x-3.5">
+            <div className="w-11 h-11 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-white">Dados do Checkpoint</h2>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase">
+                  Formulário Respondido
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {implantacao?.nome_empresa} • Enviado em {new Date(checkpoint.created_at || Date.now()).toLocaleDateString('pt-BR')} às {new Date(checkpoint.created_at || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 border-slate-700 hover:border-brand-500 text-slate-300 hover:text-white"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Editar Respostas</span>
+              </button>
+            )}
+            <button 
+              onClick={onClose} 
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="px-6 border-b border-slate-800 bg-slate-900/30 flex gap-2 overflow-x-auto shrink-0 custom-scrollbar">
+          {[
+            { id: 'cnpjs', label: `CNPJs & Tributação (${cnpjs.length})`, icon: Building },
+            { id: 'shopee', label: 'Operações Shopee', icon: Truck },
+            { id: 'usuarios', label: `Usuários (${usuarios.length})`, icon: Users },
+            { id: 'nfse', label: 'NFSe', icon: FileText },
+            { id: 'frete', label: 'Tabela de Frete', icon: FileSpreadsheet },
+          ].map((tab) => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as any)}
+                className={clsx(
+                  "py-3 px-3.5 text-xs font-bold border-b-2 flex items-center gap-2 whitespace-nowrap transition-colors cursor-pointer",
+                  isActive
+                    ? "border-brand-500 text-brand-400 bg-brand-500/5"
+                    : "border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700"
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{tab.label}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar space-y-6">
+          
+          {/* TAB 1: CNPJs */}
+          {activeTab === 'cnpjs' && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                CNPJs Emissores de CTe / Manifesto ({cnpjs.length})
+              </h3>
+
+              <div className="grid grid-cols-1 gap-4">
+                {cnpjs.map((c, i) => (
+                  <div key={c.id || i} className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30 mr-2">
+                          CNPJ #{i + 1}
+                        </span>
+                        <span className="text-sm font-bold text-white">{c.razao_social}</span>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-brand-400 bg-slate-800 px-2.5 py-1 rounded">
+                        {c.cnpj}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                      <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                        <p className="text-slate-400 text-[11px] mb-0.5">Nome Fantasia</p>
+                        <p className="font-semibold text-slate-200">{c.nome_fantasia || 'Não informado'}</p>
+                      </div>
+
+                      <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                        <p className="text-slate-400 text-[11px] mb-0.5">Regime Tributário</p>
+                        <p className="font-bold text-amber-400">{c.tributacao || 'Não informado'}</p>
+                      </div>
+
+                      <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                        <p className="text-slate-400 text-[11px] mb-0.5">RNTRC / ANTT</p>
+                        <p className="font-semibold text-slate-200 font-mono">{c.rntrc || 'Não informado'}</p>
+                      </div>
+
+                      <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                        <p className="text-slate-400 text-[11px] mb-0.5">Emissão Anterior CTe</p>
+                        {c.ja_emitiu_cte ? (
+                          <span className="text-amber-300 font-bold">
+                            Sim (Série: {c.serie_nao_utilizada || 'N/A'})
+                          </span>
+                        ) : (
+                          <span className="text-emerald-400 font-bold">Não, 1ª emissão</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: SHOPEE */}
+          {activeTab === 'shopee' && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Processos Selecionados para a Shopee
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {processos.length > 0 ? (
+                    processos.map((p) => (
+                      <span key={p} className="px-3 py-1.5 rounded-lg bg-orange-500/15 text-orange-300 border border-orange-500/30 text-xs font-extrabold flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5" />
+                        {p}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-slate-500 italic text-xs">Nenhum processo específico selecionado.</span>
+                  )}
+                </div>
+              </div>
+
+              {processos.includes('Line Haul') && (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                  <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider border-b border-slate-800 pb-2">
+                    <MapPin className="w-4 h-4" /> Percurso do Line Haul
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-800">
+                      <p className="text-slate-400 text-[11px] mb-0.5">CNPJ HUB Shopee (Origem)</p>
+                      <p className="font-mono font-bold text-slate-200">{percurso.cnpj_hub_shopee || 'Não informado'}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">UF Origem: <strong className="text-white">{percurso.uf_origem || 'SP'}</strong></p>
+                    </div>
+
+                    <div className="bg-slate-800/40 p-3.5 rounded-lg border border-slate-800">
+                      <p className="text-slate-400 text-[11px] mb-0.5">CNPJ Recebedor (Destino)</p>
+                      <p className="font-mono font-bold text-slate-200">{percurso.cnpj_recebedor || 'Não informado'}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Endereço Destino: <strong className="text-white">{percurso.endereco_destino || 'Não informado'}</strong></p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: USUÁRIOS */}
+          {activeTab === 'usuarios' && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Colaboradores e Operadores Cadastrados ({usuarios.length})
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {usuarios.map((u, i) => (
+                  <div key={u.id || i} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-brand-500/20 border border-brand-500/30 text-brand-400 font-bold flex items-center justify-center shrink-0 text-xs">
+                      {u.nome?.charAt(0)?.toUpperCase() || 'U'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-white truncate">{u.nome || `Usuário #${i + 1}`}</p>
+                      <p className="text-[11px] text-brand-400 font-medium">{u.funcao || 'Operador'}</p>
+                      {u.email && <p className="text-[11px] text-slate-400 truncate mt-0.5">{u.email}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: NFSE */}
+          {activeTab === 'nfse' && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Configurações de Nota Fiscal de Serviço (NFSe)
+              </h3>
+
+              {nfse.emitira_nfse ? (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                      <p className="text-slate-400 text-[11px] mb-0.5">Município de Emissão</p>
+                      <p className="font-bold text-slate-200">{nfse.nome_municipio || 'Não informado'}</p>
+                    </div>
+
+                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                      <p className="text-slate-400 text-[11px] mb-0.5">Inscrição Municipal</p>
+                      <p className="font-mono font-bold text-slate-200">{nfse.inscricao_municipal || 'Não informado'}</p>
+                    </div>
+
+                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                      <p className="text-slate-400 text-[11px] mb-0.5">Alíquota ISS</p>
+                      <p className="font-bold text-emerald-400">{nfse.aliquota_iss || 'Não informado'}</p>
+                    </div>
+
+                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                      <p className="text-slate-400 text-[11px] mb-0.5">Código do Serviço</p>
+                      <p className="font-mono font-semibold text-slate-200">{nfse.codigo_servico || 'Não informado'}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                      <p className="text-slate-400 text-[11px] mb-0.5">Código de Tributação</p>
+                      <p className="font-mono text-slate-200">{nfse.codigo_tributacao || 'Não informado'}</p>
+                    </div>
+
+                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                      <p className="text-slate-400 text-[11px] mb-0.5">CNAE</p>
+                      <p className="font-mono text-slate-200">{nfse.cnae || 'Não informado'}</p>
+                    </div>
+
+                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                      <p className="text-slate-400 text-[11px] mb-0.5">Emitia RPS Anteriormente?</p>
+                      <p className="font-bold text-slate-200">{nfse.emitia_rps ? 'Sim' : 'Não'}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 text-center text-slate-400 text-xs">
+                  <FileText className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="font-bold text-white text-sm mb-1">Não emitirá NFSe</p>
+                  <p>O cliente informou que não realizará emissão de Notas Fiscais de Serviço.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 5: TABELA DE FRETE */}
+          {activeTab === 'frete' && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Tabela de Frete Anexada
+              </h3>
+
+              {frete.arquivo_base64 || frete.arquivo_nome ? (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700/60">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center">
+                        <FileSpreadsheet className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">{frete.arquivo_nome || 'Arquivo de Tabela de Frete'}</p>
+                        <p className="text-xs text-slate-400">
+                          {frete.arquivo_tamanho ? `${(frete.arquivo_tamanho / 1024).toFixed(1)} KB` : 'Pronto para download'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={downloadFile}
+                      className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Baixar Arquivo</span>
+                    </button>
+                  </div>
+
+                  {frete.observacoes && (
+                    <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-800">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Observações do Frete:</p>
+                      <p className="text-xs text-slate-300 whitespace-pre-wrap">{frete.observacoes}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 text-center text-slate-400 text-xs">
+                  <FileSpreadsheet className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="font-bold text-white text-sm mb-1">Nenhum arquivo anexado</p>
+                  <p>O cliente não anexou arquivo da tabela de frete neste formulário.</p>
+                  {frete.observacoes && (
+                    <div className="mt-4 p-3 bg-slate-800/30 rounded-lg text-left max-w-md mx-auto">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Observações:</p>
+                      <p className="text-xs text-slate-300">{frete.observacoes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-slate-800 bg-slate-900/60 flex justify-end shrink-0">
+          <button type="button" onClick={onClose} className="btn-secondary text-xs py-2 px-4">
+            Fechar
+          </button>
+        </div>
+
+      </div>
+    </div>
+  )
+}

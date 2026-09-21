@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
 import { AlterarAnalistaModal } from '../components/AlterarAnalistaModal'
 import { AcessoClienteModal } from '../components/AcessoClienteModal'
+import { ClienteFormularioModal } from '../components/ClienteFormularioModal'
+import { VisualizarCheckpointModal } from '../components/VisualizarCheckpointModal'
 import clsx from 'clsx'
 
 
@@ -70,7 +72,9 @@ export function ImplantacaoDetalhes() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isAnalistaModalOpen, setIsAnalistaModalOpen] = useState(false)
   const [isAcessoModalOpen, setIsAcessoModalOpen] = useState(false)
-
+  const [checkpointData, setCheckpointData] = useState<any | null>(null)
+  const [isFormularioModalOpen, setIsFormularioModalOpen] = useState(false)
+  const [isVisualizarCheckpointModalOpen, setIsVisualizarCheckpointModalOpen] = useState(false)
 
   // Historico form state
   const getCurrentDateTimeLocal = () => {
@@ -92,8 +96,22 @@ export function ImplantacaoDetalhes() {
     if (id) {
       fetchImplantacao()
       fetchHistorico()
+      fetchCheckpoint()
     }
   }, [id])
+
+  const fetchCheckpoint = async () => {
+    try {
+      const data = await api.getImplantacaoCheckpoint(id!)
+      setCheckpointData(data)
+      // Se for perfil Cliente e ainda não preencheu o formulário, abrir automaticamente
+      if (isClienteUser() && !data) {
+        setIsFormularioModalOpen(true)
+      }
+    } catch (err) {
+      console.error('Erro ao buscar dados do checkpoint:', err)
+    }
+  }
 
   const fetchImplantacao = async () => {
     setLoading(true)
@@ -539,6 +557,30 @@ export function ImplantacaoDetalhes() {
                   <option value="PENDENTE">PENDENTE</option>
                 </select>
               </div>
+
+              {((etapa.nome_etapa || '').trim().toLowerCase() === 'checkpoint') && (
+                <div className="mt-3 pt-2.5 border-t border-slate-800/60">
+                  {checkpointData ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsVisualizarCheckpointModalOpen(true)}
+                      className="w-full text-xs font-bold py-1.5 px-3 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Ver Formulário Preenchido</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsFormularioModalOpen(true)}
+                      className="w-full text-xs font-bold py-1.5 px-3 rounded-lg bg-brand-500/15 text-brand-300 hover:bg-brand-500/25 border border-brand-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>{isClienteUser() ? 'Preencher Formulário' : 'Preencher Questionário'}</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -697,6 +739,31 @@ export function ImplantacaoDetalhes() {
         onClose={() => setIsAcessoModalOpen(false)}
         implantacao={implantacao}
         onSuccess={fetchImplantacao}
+      />
+
+      {/* Modal do Formulário de Checkpoint do Cliente */}
+      <ClienteFormularioModal
+        isOpen={isFormularioModalOpen}
+        onClose={() => setIsFormularioModalOpen(false)}
+        implantacao={implantacao}
+        onSuccess={() => {
+          fetchImplantacao()
+          fetchCheckpoint()
+          fetchHistorico()
+          setIsFormularioModalOpen(false)
+        }}
+      />
+
+      {/* Modal de Visualização das Respostas do Checkpoint */}
+      <VisualizarCheckpointModal
+        isOpen={isVisualizarCheckpointModalOpen}
+        onClose={() => setIsVisualizarCheckpointModalOpen(false)}
+        checkpoint={checkpointData}
+        implantacao={implantacao}
+        onEdit={() => {
+          setIsVisualizarCheckpointModalOpen(false)
+          setIsFormularioModalOpen(true)
+        }}
       />
     </div>
   )
