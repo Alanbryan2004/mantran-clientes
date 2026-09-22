@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag } from 'lucide-react'
+import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, TrendingUp } from 'lucide-react'
 import { permissionsApi, DEFAULT_PERMISSOES } from '../lib/permissions'
 import type { PerfilPermissao } from '../lib/permissions'
 import { supabase } from '../lib/supabase'
@@ -14,7 +14,7 @@ const AVAILABLE_PROFILES = [
   { id: 'Administrador', label: 'Administrador', desc: 'Acesso total e irrestrito ao sistema', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
   { id: 'Tecnico', label: 'Técnico', desc: 'Acesso técnico operacional', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' },
   { id: 'Suporte', label: 'Suporte', desc: 'Acesso aos módulos e suporte a implantações', color: 'text-purple-400 border-purple-500/30 bg-purple-500/10' },
-  { id: 'Comercial', label: 'Comercial', desc: 'Acompanhamento e gestão de Implantações', color: 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10' },
+  { id: 'Comercial', label: 'Comercial', desc: 'Acompanhamento e gestão de Implantações e Vendas', color: 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10' },
   { id: 'Usuario', label: 'Usuário', desc: 'Acesso geral em modo somente leitura', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
   { id: 'Parceiro', label: 'Parceiro', desc: 'Acesso restrito para parceiros externos', color: 'text-orange-400 border-orange-500/30 bg-orange-500/10' },
   { id: 'Cliente', label: 'Cliente', desc: 'Acesso restrito ao seu próprio onboarding/implantação', color: 'text-rose-400 border-rose-500/30 bg-rose-500/10' },
@@ -22,6 +22,7 @@ const AVAILABLE_PROFILES = [
 
 const AVAILABLE_MODULES = [
   { path: '/', label: 'Dashboard', desc: 'Métricas gerais e visão executiva', icon: LayoutDashboard },
+  { path: '/comercial', label: 'Comercial', desc: 'Pipeline de vendas, simulador de propostas e metas', icon: TrendingUp },
   { path: '/clientes', label: 'Clientes', desc: 'Gerenciamento de clientes e bases de dados', icon: Users },
   { path: '/implantacoes', label: 'Implantações', desc: 'Processo de onboarding e etapas de implantação', icon: Rocket },
   { path: '/bases', label: 'Projetos', desc: 'Planilha e controle de status de projetos', icon: Database },

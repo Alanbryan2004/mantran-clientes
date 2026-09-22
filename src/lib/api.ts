@@ -1446,6 +1446,212 @@ export const api = {
 
     if (error) throw error
     return true
+  },
+
+  // --- Comercial / CRM ---
+  async getOportunidadesComerciais(): Promise<OportunidadeComercial[]> {
+    const { data, error } = await supabase
+      .from('comercial_oportunidades')
+      .select('*')
+      .order('updated_at', { ascending: false })
+
+    if (error) throw error
+    return (data || []).map((row: any) => ({
+      ...row,
+      valor_setup: Number(row.valor_setup) || 0,
+      valor_mensalidade: Number(row.valor_mensalidade) || 0,
+      modulos_interesse: Array.isArray(row.modulos_interesse) 
+        ? row.modulos_interesse 
+        : typeof row.modulos_interesse === 'string'
+        ? JSON.parse(row.modulos_interesse || '[]')
+        : []
+    }))
+  },
+
+  async createOportunidadeComercial(payload: Partial<OportunidadeComercial>): Promise<OportunidadeComercial> {
+    const { data, error } = await supabase
+      .from('comercial_oportunidades')
+      .insert({
+        nome_empresa: payload.nome_empresa?.trim(),
+        nome_contato: payload.nome_contato?.trim() || null,
+        telefone: payload.telefone?.trim() || null,
+        email: payload.email?.trim() || null,
+        estagio: payload.estagio || 'lead',
+        valor_setup: Number(payload.valor_setup) || 0,
+        valor_mensalidade: Number(payload.valor_mensalidade) || 0,
+        tipo_cliente: payload.tipo_cliente || 'NORMAL',
+        volume_estimado_cte: Number(payload.volume_estimado_cte) || 0,
+        qtd_usuarios: Number(payload.qtd_usuarios) || 1,
+        modulos_interesse: payload.modulos_interesse || [],
+        origem_lead: payload.origem_lead || 'Site Mantran',
+        vendedor_id: payload.vendedor_id || null,
+        vendedor_nome: payload.vendedor_nome || null,
+        motivo_perda: payload.motivo_perda || null,
+        tms_atual: payload.tms_atual || null,
+        observacoes: payload.observacoes || null,
+        data_previsao_fechamento: payload.data_previsao_fechamento || null
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return {
+      ...data,
+      valor_setup: Number(data.valor_setup) || 0,
+      valor_mensalidade: Number(data.valor_mensalidade) || 0,
+      modulos_interesse: Array.isArray(data.modulos_interesse) ? data.modulos_interesse : []
+    }
+  },
+
+  async updateOportunidadeComercial(id: string, payload: Partial<OportunidadeComercial>): Promise<OportunidadeComercial> {
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    }
+    if (payload.nome_empresa !== undefined) updateData.nome_empresa = payload.nome_empresa.trim()
+    if (payload.nome_contato !== undefined) updateData.nome_contato = payload.nome_contato.trim()
+    if (payload.telefone !== undefined) updateData.telefone = payload.telefone.trim()
+    if (payload.email !== undefined) updateData.email = payload.email.trim()
+    if (payload.estagio !== undefined) updateData.estagio = payload.estagio
+    if (payload.valor_setup !== undefined) updateData.valor_setup = Number(payload.valor_setup) || 0
+    if (payload.valor_mensalidade !== undefined) updateData.valor_mensalidade = Number(payload.valor_mensalidade) || 0
+    if (payload.tipo_cliente !== undefined) updateData.tipo_cliente = payload.tipo_cliente
+    if (payload.volume_estimado_cte !== undefined) updateData.volume_estimado_cte = Number(payload.volume_estimado_cte) || 0
+    if (payload.qtd_usuarios !== undefined) updateData.qtd_usuarios = Number(payload.qtd_usuarios) || 1
+    if (payload.modulos_interesse !== undefined) updateData.modulos_interesse = payload.modulos_interesse
+    if (payload.origem_lead !== undefined) updateData.origem_lead = payload.origem_lead
+    if (payload.vendedor_id !== undefined) updateData.vendedor_id = payload.vendedor_id
+    if (payload.vendedor_nome !== undefined) updateData.vendedor_nome = payload.vendedor_nome
+    if (payload.motivo_perda !== undefined) updateData.motivo_perda = payload.motivo_perda
+    if (payload.tms_atual !== undefined) updateData.tms_atual = payload.tms_atual
+    if (payload.observacoes !== undefined) updateData.observacoes = payload.observacoes
+    if (payload.data_previsao_fechamento !== undefined) updateData.data_previsao_fechamento = payload.data_previsao_fechamento
+    if (payload.implantacao_id !== undefined) updateData.implantacao_id = payload.implantacao_id
+
+    const { data, error } = await supabase
+      .from('comercial_oportunidades')
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return {
+      ...data,
+      valor_setup: Number(data.valor_setup) || 0,
+      valor_mensalidade: Number(data.valor_mensalidade) || 0,
+      modulos_interesse: Array.isArray(data.modulos_interesse) ? data.modulos_interesse : []
+    }
+  },
+
+  async updateEstagioOportunidade(id: string, estagio: string, motivo_perda?: string): Promise<boolean> {
+    const updatePayload: any = {
+      estagio,
+      updated_at: new Date().toISOString()
+    }
+    if (motivo_perda !== undefined) {
+      updatePayload.motivo_perda = motivo_perda
+    }
+
+    const { error } = await supabase
+      .from('comercial_oportunidades')
+      .update(updatePayload)
+      .eq('id', id)
+
+    if (error) throw error
+    return true
+  },
+
+  async deleteOportunidadeComercial(id: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('comercial_oportunidades')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+    return true
+  },
+
+  async getMetasComerciais(mesAno: string): Promise<MetaComercial[]> {
+    const { data, error } = await supabase
+      .from('comercial_metas')
+      .select('*')
+      .eq('mes_ano', mesAno)
+
+    if (error) throw error
+    return (data || []).map((r: any) => ({
+      ...r,
+      meta_mrr: Number(r.meta_mrr) || 0,
+      meta_setup: Number(r.meta_setup) || 0,
+      meta_qtd_fechamentos: Number(r.meta_qtd_fechamentos) || 0
+    }))
+  },
+
+  async saveMetaComercial(payload: {
+    mes_ano: string
+    vendedor_id?: string | null
+    vendedor_nome?: string | null
+    meta_mrr: number
+    meta_setup: number
+    meta_qtd_fechamentos: number
+  }): Promise<MetaComercial> {
+    // Check if exists
+    let query = supabase
+      .from('comercial_metas')
+      .select('id')
+      .eq('mes_ano', payload.mes_ano)
+    
+    if (payload.vendedor_id) {
+      query = query.eq('vendedor_id', payload.vendedor_id)
+    } else {
+      query = query.is('vendedor_id', null)
+    }
+
+    const { data: existing } = await query.maybeSingle()
+
+    if (existing) {
+      const { data, error } = await supabase
+        .from('comercial_metas')
+        .update({
+          meta_mrr: payload.meta_mrr,
+          meta_setup: payload.meta_setup,
+          meta_qtd_fechamentos: payload.meta_qtd_fechamentos,
+          vendedor_nome: payload.vendedor_nome
+        })
+        .eq('id', existing.id)
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return data
+    } else {
+      const { data, error } = await supabase
+        .from('comercial_metas')
+        .insert({
+          mes_ano: payload.mes_ano,
+          vendedor_id: payload.vendedor_id || null,
+          vendedor_nome: payload.vendedor_nome || null,
+          meta_mrr: payload.meta_mrr,
+          meta_setup: payload.meta_setup,
+          meta_qtd_fechamentos: payload.meta_qtd_fechamentos
+        })
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return data
+    }
+  },
+
+  async getVendedoresComerciais() {
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('id, nome, login, perfil')
+      .in('perfil', ['Comercial', 'Administrador', 'Tecnico', 'Suporte'])
+      .eq('ativo', true)
+      .order('nome', { ascending: true })
+
+    if (error) throw error
+    return data || []
   }
 }
 
@@ -1460,6 +1666,43 @@ export interface UsuarioSistema {
   meta_semanal?: number
   created_at?: string
 }
+
+export interface OportunidadeComercial {
+  id: string
+  nome_empresa: string
+  nome_contato?: string
+  telefone?: string
+  email?: string
+  estagio: 'lead' | 'apresentacao' | 'proposta' | 'negociacao' | 'ganho' | 'perdido'
+  valor_setup?: number
+  valor_mensalidade?: number
+  tipo_cliente?: 'NORMAL' | 'SHOPEE'
+  volume_estimado_cte?: number
+  qtd_usuarios?: number
+  modulos_interesse?: string[]
+  origem_lead?: string
+  vendedor_id?: string | null
+  vendedor_nome?: string | null
+  motivo_perda?: string | null
+  tms_atual?: string | null
+  observacoes?: string | null
+  data_previsao_fechamento?: string | null
+  implantacao_id?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface MetaComercial {
+  id: string
+  mes_ano: string
+  vendedor_id?: string | null
+  vendedor_nome?: string | null
+  meta_mrr?: number
+  meta_setup?: number
+  meta_qtd_fechamentos?: number
+  created_at?: string
+}
+
 
 
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Database, Users, LogOut, Menu, Cloud, Rocket, Shield, ShoppingBag, UserCog } from 'lucide-react'
+import { LayoutDashboard, Database, Users, LogOut, Menu, Cloud, Rocket, Shield, ShoppingBag, UserCog, TrendingUp } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
 import { api } from '../../lib/api'
@@ -9,6 +9,7 @@ import clsx from 'clsx'
 
 const allNavItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { name: 'Comercial', path: '/comercial', icon: TrendingUp },
   { name: 'Clientes', path: '/clientes', icon: Users },
   { name: 'Implantações', path: '/implantacoes', icon: Rocket },
   { name: 'Projetos', path: '/bases', icon: Database },

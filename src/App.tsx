@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { Dashboard } from './pages/Dashboard'
+import { Comercial } from './pages/Comercial'
 import { Clientes } from './pages/Clientes'
 import { Bases } from './pages/Bases'
 import { ProjetoDetalhes } from './pages/ProjetoDetalhes'
@@ -47,10 +48,10 @@ function RootRoute() {
     return <Implantacoes />
   }
 
-  // Se o usuário não tem permissão para o Dashboard (/), redireciona para a primeira rota permitida (ex: Comercial -> /implantacoes)
+  // Se o usuário não tem permissão para o Dashboard (/), redireciona para a primeira rota permitida (ex: Comercial -> /comercial ou /implantacoes)
   if (!permissionsApi.canAccessRoute('/')) {
     const firstAllowed = permissionsApi.getFirstAllowedRouteForUser()
-    return <Navigate to={firstAllowed || '/implantacoes'} replace />
+    return <Navigate to={firstAllowed || '/comercial'} replace />
   }
 
   return <Dashboard />
@@ -93,6 +94,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<RootRoute />} />
+          <Route path="comercial" element={<Comercial />} />
           <Route path="clientes" element={<Clientes />} />
           <Route path="implantacoes" element={<ImplantacoesRoute />} />
           <Route path="implantacoes/:id" element={<ImplantacaoDetalhes />} />

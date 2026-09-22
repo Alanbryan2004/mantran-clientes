@@ -11,7 +11,7 @@ export interface PerfilPermissao {
 export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Administrador: {
     perfil: 'Administrador',
-    rotas: ['/', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras'],
+    rotas: ['/', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras'],
     projeto_especifico_id: null,
     read_only: false
   },
@@ -37,11 +37,11 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
     perfil: 'Parceiro',
     rotas: ['/bases', '/processamento-shopee'],
     projeto_especifico_id: '9a1fa78a-f8de-4119-8ef3-643d89b64035', // Padrão: Shopee 4PL
-    read_only: true
+    read_only: false
   },
   Comercial: {
     perfil: 'Comercial',
-    rotas: ['/implantacoes'],
+    rotas: ['/comercial', '/implantacoes'],
     projeto_especifico_id: null,
     read_only: false
   },
