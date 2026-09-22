@@ -37,6 +37,7 @@ export function Header() {
   const isCliente = user?.perfil?.toLowerCase() === 'cliente'
   const isParceiro = user?.perfil?.toLowerCase() === 'parceiro'
   const isUsuario = user?.perfil?.toLowerCase() === 'usuario'
+  const isComercial = user?.perfil?.toLowerCase() === 'comercial'
 
   return (
     <header className="h-16 border-b border-slate-800/80 bg-[#0f111a]/80 backdrop-blur-md px-6 flex items-center justify-between z-30 shrink-0 select-none">
@@ -68,6 +69,8 @@ export function Header() {
             "w-8 h-8 rounded-xl font-bold flex items-center justify-center text-xs uppercase shrink-0 border shadow-sm",
             isParceiro
               ? "bg-orange-500/15 border-orange-500/30 text-orange-400"
+              : isComercial
+              ? "bg-cyan-500/15 border-cyan-500/30 text-cyan-400"
               : isUsuario
               ? "bg-amber-500/15 border-amber-500/30 text-amber-400"
               : isCliente
@@ -82,7 +85,7 @@ export function Header() {
               {user?.nome || user?.login || 'Usuário'}
             </span>
             <span className="text-[10px] text-slate-400 leading-tight">
-              {isCliente ? 'Acesso Cliente' : isParceiro ? 'Parceiro' : isUsuario ? 'Consulta' : (user?.perfil || 'Suporte')}
+              {isCliente ? 'Acesso Cliente' : isParceiro ? 'Parceiro' : isComercial ? 'Comercial' : isUsuario ? 'Consulta' : (user?.perfil || 'Suporte')}
             </span>
           </div>
         </div>

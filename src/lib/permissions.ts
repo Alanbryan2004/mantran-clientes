@@ -39,6 +39,12 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
     projeto_especifico_id: '9a1fa78a-f8de-4119-8ef3-643d89b64035', // Padrão: Shopee 4PL
     read_only: true
   },
+  Comercial: {
+    perfil: 'Comercial',
+    rotas: ['/implantacoes'],
+    projeto_especifico_id: null,
+    read_only: false
+  },
   Cliente: {
     perfil: 'Cliente',
     rotas: ['/implantacoes'],
@@ -144,5 +150,18 @@ export const permissionsApi = {
     const perms = this.getStoredPermissions()
     const userPerm = perms[user.perfil] || DEFAULT_PERMISSOES[user.perfil]
     return userPerm?.projeto_especifico_id || null
+  },
+
+  getFirstAllowedRouteForUser(): string {
+    const user = getLoggedUser()
+    if (!user || !user.perfil) return '/implantacoes'
+    const perfilName = user.perfil.trim()
+    if (perfilName.toLowerCase() === 'administrador') return '/'
+    const perms = this.getStoredPermissions()
+    const userPerm = perms[perfilName] || DEFAULT_PERMISSOES[perfilName]
+    if (userPerm && userPerm.rotas && userPerm.rotas.length > 0) {
+      return userPerm.rotas[0]
+    }
+    return '/implantacoes'
   }
 }

@@ -14,6 +14,7 @@ const AVAILABLE_PROFILES = [
   { id: 'Administrador', label: 'Administrador', desc: 'Acesso total e irrestrito ao sistema', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
   { id: 'Tecnico', label: 'Técnico', desc: 'Acesso técnico operacional', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' },
   { id: 'Suporte', label: 'Suporte', desc: 'Acesso aos módulos e suporte a implantações', color: 'text-purple-400 border-purple-500/30 bg-purple-500/10' },
+  { id: 'Comercial', label: 'Comercial', desc: 'Acompanhamento e gestão de Implantações', color: 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10' },
   { id: 'Usuario', label: 'Usuário', desc: 'Acesso geral em modo somente leitura', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
   { id: 'Parceiro', label: 'Parceiro', desc: 'Acesso restrito para parceiros externos', color: 'text-orange-400 border-orange-500/30 bg-orange-500/10' },
 ]

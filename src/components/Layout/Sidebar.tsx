@@ -26,6 +26,7 @@ export function Sidebar() {
   const isParceiro = user?.perfil?.toLowerCase() === 'parceiro'
   const isUsuario = user?.perfil?.toLowerCase() === 'usuario'
   const isCliente = user?.perfil?.toLowerCase() === 'cliente'
+  const isComercial = user?.perfil?.toLowerCase() === 'comercial'
 
   useEffect(() => {
     let isMounted = true
@@ -165,6 +166,8 @@ export function Sidebar() {
               "w-8 h-8 rounded-full border font-bold flex items-center justify-center text-xs uppercase shrink-0",
               isParceiro
                 ? "bg-orange-500/20 border-orange-500/30 text-orange-400"
+                : isComercial
+                ? "bg-cyan-500/20 border-cyan-500/30 text-cyan-400"
                 : isUsuario
                 ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
                 : isCliente
@@ -181,6 +184,8 @@ export function Sidebar() {
                 "text-[10px] font-semibold px-1.5 py-0.5 rounded inline-block mt-0.5 border",
                 isParceiro
                   ? "bg-orange-500/15 text-orange-300 border-orange-500/30"
+                  : isComercial
+                  ? "bg-cyan-500/15 text-cyan-300 border-cyan-500/30"
                   : isUsuario
                   ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
                   : isCliente
@@ -189,6 +194,8 @@ export function Sidebar() {
               )}>
                 {isParceiro 
                   ? '🤝 Parceiro' 
+                  : isComercial
+                  ? '💼 Comercial'
                   : isUsuario 
                   ? '🔒 Consulta' 
                   : isCliente

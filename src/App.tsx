@@ -47,6 +47,12 @@ function RootRoute() {
     return <Implantacoes />
   }
 
+  // Se o usuário não tem permissão para o Dashboard (/), redireciona para a primeira rota permitida (ex: Comercial -> /implantacoes)
+  if (!permissionsApi.canAccessRoute('/')) {
+    const firstAllowed = permissionsApi.getFirstAllowedRouteForUser()
+    return <Navigate to={firstAllowed || '/implantacoes'} replace />
+  }
+
   return <Dashboard />
 }
 

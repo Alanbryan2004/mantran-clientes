@@ -22,7 +22,8 @@ export function Layout() {
         if (allowedProjId) {
           navigate(`/bases/${allowedProjId}`, { replace: true })
         } else {
-          navigate('/', { replace: true })
+          const firstAllowed = permissionsApi.getFirstAllowedRouteForUser()
+          navigate(firstAllowed || '/implantacoes', { replace: true })
         }
       }
     }
