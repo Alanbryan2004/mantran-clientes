@@ -382,6 +382,89 @@ export function Comercial() {
   }
 
   // Geradores de Proposta Comercial
+  const generateEmailProposalHtml = (params?: {
+    empresa?: string
+    contato?: string
+    tipo?: 'NORMAL' | 'SHOPEE'
+    volumeCte?: number
+    qtdUsuarios?: number
+    modulos?: string[]
+    setup?: number
+    mensalidade?: number
+    vendedor?: string
+  }) => {
+    const empresa = (params?.empresa !== undefined ? params.empresa : simEmpresa).trim()
+    const contato = (params?.contato !== undefined ? params.contato : simContato).trim()
+    const tipo = params?.tipo !== undefined ? params.tipo : simTipo
+    const volumeCte = params?.volumeCte !== undefined ? params.volumeCte : simVolumeCte
+    const qtdUsuarios = params?.qtdUsuarios !== undefined ? params.qtdUsuarios : simQtdUsuarios
+    const modulos = params?.modulos !== undefined ? params.modulos : simModulos
+    const setup = params?.setup !== undefined ? params.setup : Math.max(0, simSetupBase - simDesconto)
+    const mensalidade = params?.mensalidade !== undefined ? params.mensalidade : simMensalidadeBase
+    const vendedor = (params?.vendedor !== undefined ? params.vendedor : (user?.nome || 'Alan')).trim()
+
+    const saudacaoContato = contato ? contato : (empresa ? empresa : 'Jose Carlos')
+    const empresaDesc = empresa || 'sua empresa'
+    const tipoOpDesc = tipo === 'SHOPEE' ? 'Operações Shopee 4PL' : 'Transporte Rodoviário de Cargas'
+
+    return `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #111827;">
+  <p style="margin: 0 0 16px 0;">Prezado ${saudacaoContato},</p>
+
+  <p style="margin: 0 0 4px 0;">Conforme alinhado, apresentamos nossa proposta comercial para utilização do Mantran TMS, contemplando os recursos necessários para atendimento à operação da ${empresaDesc}.</p>
+  <p style="margin: 0 0 16px 0;">A solução Mantran foi desenvolvida para apoiar a gestão das operações de transporte, proporcionando maior controle operacional, integração entre processos e eficiência na gestão das informações.</p>
+
+  <p style="margin: 0 0 14px 0;"><strong>ESCOPO DA SOLUÇÃO</strong></p>
+
+  <p style="margin: 0 0 2px 0;"><strong>Tipo de Operação</strong></p>
+  <p style="margin: 0 0 14px 0;">${tipoOpDesc}</p>
+
+  <p style="margin: 0 0 2px 0;"><strong>Volume estimado</strong></p>
+  <p style="margin: 0 0 14px 0;">${volumeCte.toLocaleString('pt-BR')} CT-e/mês</p>
+
+  <p style="margin: 0 0 2px 0;"><strong>Usuários</strong></p>
+  <p style="margin: 0 0 14px 0;">Até ${qtdUsuarios} usuários GPO</p>
+
+  <p style="margin: 0 0 4px 0;"><strong>Módulos e integrações contemplados</strong></p>
+  <div style="margin: 0 0 16px 0;">
+    ${(modulos.length > 0 ? modulos : ['Operação', 'Financeiro', 'EDI Proceda']).map(m => `<div style="margin: 0 0 2px 0;">- ${m}</div>`).join('')}
+  </div>
+
+  <p style="margin: 0 0 6px 0;"><strong>INVESTIMENTO</strong></p>
+  <table style="border-collapse: collapse; margin-bottom: 16px; font-size: 14px; width: 100%; max-width: 480px;">
+    <thead>
+      <tr style="text-align: left;">
+        <th style="padding: 2px 28px 4px 0; font-weight: normal; color: #111827;">Descrição</th>
+        <th style="padding: 2px 0 4px 0; font-weight: normal; color: #111827;">Valor</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding: 2px 28px 2px 0; color: #111827;">Implantação e configuração inicial</td>
+        <td style="padding: 2px 0 2px 0; color: #111827;">R$ ${setup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+      </tr>
+      <tr>
+        <td style="padding: 2px 28px 2px 0; color: #111827;">Licenciamento mensal da solução</td>
+        <td style="padding: 2px 0 2px 0; color: #111827;">R$ ${mensalidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="margin: 0 0 4px 0;">O valor de implantação contempla as atividades necessárias para configuração inicial da solução, parametrização do ambiente e preparação para início da operação, conforme o escopo apresentado.</p>
+  <p style="margin: 0 0 16px 0;">A mensalidade corresponde ao licenciamento e utilização dos módulos e integrações descritos nesta proposta.</p>
+
+  <p style="margin: 0 0 6px 0;"><strong>PRÓXIMOS PASSOS</strong></p>
+  <p style="margin: 0 0 4px 0;">Após a aprovação da proposta, nossa equipe dará início ao processo de implantação e onboarding, realizando o levantamento das informações necessárias, parametrizações e acompanhamento até a entrada em operação.</p>
+  <p style="margin: 0 0 16px 0;">Esta proposta comercial possui validade de 15 dias a partir da data de emissão.</p>
+
+  <p style="margin: 0 0 4px 0;">Permanecemos à disposição para quaisquer esclarecimentos e esperamos iniciar em breve esta parceria.</p>
+  <p style="margin: 0 0 14px 0;">Atenciosamente,</p>
+
+  <p style="margin: 0; font-weight: 500;">${vendedor}</p>
+  <p style="margin: 0; color: #374151;">Mantran Tecnologias</p>
+  <p style="margin: 0; color: #4B5563;">Soluções em Tecnologia para Transporte e Logística</p>
+</div>`
+  }
+
   const generateEmailProposalText = (params?: {
     empresa?: string
     contato?: string
@@ -401,40 +484,47 @@ export function Comercial() {
     const modulos = params?.modulos !== undefined ? params.modulos : simModulos
     const setup = params?.setup !== undefined ? params.setup : Math.max(0, simSetupBase - simDesconto)
     const mensalidade = params?.mensalidade !== undefined ? params.mensalidade : simMensalidadeBase
-    const vendedor = (params?.vendedor !== undefined ? params.vendedor : (user?.nome || 'Equipe Comercial')).trim()
+    const vendedor = (params?.vendedor !== undefined ? params.vendedor : (user?.nome || 'Alan')).trim()
 
-    const opTitulo = tipo === 'SHOPEE' ? 'Operação Shopee 4PL' : (empresa ? `Operação ${empresa}` : 'Operação TMS')
-    const saudacaoContato = contato ? contato : (empresa ? empresa : 'Alan')
+    const saudacaoContato = contato ? contato : (empresa ? empresa : 'Jose Carlos')
     const empresaDesc = empresa || 'sua empresa'
     const tipoOpDesc = tipo === 'SHOPEE' ? 'Operações Shopee 4PL' : 'Transporte Rodoviário de Cargas'
 
-    return `Assunto: Proposta Comercial | Mantran TMS – ${opTitulo}
-Prezado ${saudacaoContato},
+    return `Prezado ${saudacaoContato},
+
 Conforme alinhado, apresentamos nossa proposta comercial para utilização do Mantran TMS, contemplando os recursos necessários para atendimento à operação da ${empresaDesc}.
 A solução Mantran foi desenvolvida para apoiar a gestão das operações de transporte, proporcionando maior controle operacional, integração entre processos e eficiência na gestão das informações.
+
 ESCOPO DA SOLUÇÃO
-Tipo de operação
+
+Tipo de Operação
 ${tipoOpDesc}
+
 Volume estimado
 ${volumeCte.toLocaleString('pt-BR')} CT-e/mês
+
 Usuários
 Até ${qtdUsuarios} usuários GPO
-Módulos e integrações contemplados
-${modulos.length > 0 ? modulos.map(m => `- ${m}`).join('\n') : '- Módulo Operacional Completo'}
-INVESTIMENTO
-Descrição	Valor
-Implantação e configuração inicial	R$ ${setup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-Licenciamento mensal da solução	R$ ${mensalidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
 
+Módulos e integrações contemplados
+${(modulos.length > 0 ? modulos : ['Operação', 'Financeiro', 'EDI Proceda']).map(m => `- ${m}`).join('\n')}
+
+INVESTIMENTO
+Descrição\tValor
+Implantação e configuração inicial\tR$ ${setup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Licenciamento mensal da solução\tR$ ${mensalidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
 
 O valor de implantação contempla as atividades necessárias para configuração inicial da solução, parametrização do ambiente e preparação para início da operação, conforme o escopo apresentado.
 A mensalidade corresponde ao licenciamento e utilização dos módulos e integrações descritos nesta proposta.
+
 PRÓXIMOS PASSOS
 Após a aprovação da proposta, nossa equipe dará início ao processo de implantação e onboarding, realizando o levantamento das informações necessárias, parametrizações e acompanhamento até a entrada em operação.
 Esta proposta comercial possui validade de 15 dias a partir da data de emissão.
+
 Permanecemos à disposição para quaisquer esclarecimentos e esperamos iniciar em breve esta parceria.
 Atenciosamente,
-${vendedor || 'Equipe Comercial'}
+
+${vendedor}
 Mantran Tecnologias
 Soluções em Tecnologia para Transporte e Logística`
   }
@@ -458,22 +548,23 @@ Soluções em Tecnologia para Transporte e Logística`
     const modulos = params?.modulos !== undefined ? params.modulos : simModulos
     const setup = params?.setup !== undefined ? params.setup : Math.max(0, simSetupBase - simDesconto)
     const mensalidade = params?.mensalidade !== undefined ? params.mensalidade : simMensalidadeBase
-    const vendedor = (params?.vendedor !== undefined ? params.vendedor : (user?.nome || 'Equipe Comercial')).trim()
+    const vendedor = (params?.vendedor !== undefined ? params.vendedor : (user?.nome || 'Alan')).trim()
 
     const opTitulo = tipo === 'SHOPEE' ? 'Operação Shopee 4PL' : (empresa ? `Operação ${empresa}` : 'Operação TMS')
-    const saudacaoContato = contato ? contato : (empresa ? empresa : 'Alan')
+    const saudacaoContato = contato ? contato : (empresa ? empresa : 'Jose Carlos')
     const empresaDesc = empresa || 'sua empresa'
     const tipoOpDesc = tipo === 'SHOPEE' ? 'Operações Shopee 4PL' : 'Transporte Rodoviário de Cargas'
 
     return `*Assunto: Proposta Comercial | Mantran TMS – ${opTitulo}*
 
 Prezado(a) *${saudacaoContato}*,
-Conforme alinhado, apresentamos nossa proposta comercial para utilização do *Mantran TMS*, contemplando os recursos necessários para atendimento à operação da *${empresaDesc}*.
 
+Conforme alinhado, apresentamos nossa proposta comercial para utilização do *Mantran TMS*, contemplando os recursos necessários para atendimento à operação da *${empresaDesc}*.
 A solução Mantran foi desenvolvida para apoiar a gestão das operações de transporte, proporcionando maior controle operacional, integração entre processos e eficiência na gestão das informações.
 
 *ESCOPO DA SOLUÇÃO*
-*Tipo de operação*
+
+*Tipo de Operação*
 ${tipoOpDesc}
 
 *Volume estimado*
@@ -483,9 +574,10 @@ ${volumeCte.toLocaleString('pt-BR')} CT-e/mês
 Até ${qtdUsuarios} usuários GPO
 
 *Módulos e integrações contemplados*
-${modulos.length > 0 ? modulos.map(m => `- ${m}`).join('\n') : '- Módulo Operacional Completo'}
+${(modulos.length > 0 ? modulos : ['Operação', 'Financeiro', 'EDI Proceda']).map(m => `- ${m}`).join('\n')}
 
 *INVESTIMENTO*
+Descrição | Valor
 • *Implantação e configuração inicial:* R$ ${setup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 • *Licenciamento mensal da solução:* R$ ${mensalidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
 
@@ -494,25 +586,51 @@ _A mensalidade corresponde ao licenciamento e utilização dos módulos e integr
 
 *PRÓXIMOS PASSOS*
 Após a aprovação da proposta, nossa equipe dará início ao processo de implantação e onboarding, realizando o levantamento das informações necessárias, parametrizações e acompanhamento até a entrada em operação.
-
 Esta proposta comercial possui validade de 15 dias a partir da data de emissão.
-Permanecemos à disposição para quaisquer esclarecimentos e esperamos iniciar em breve esta parceria.
 
+Permanecemos à disposição para quaisquer esclarecimentos e esperamos iniciar em breve esta parceria.
 Atenciosamente,
-*${vendedor || 'Equipe Comercial'}*
-*Mantran Tecnologias*
-_Soluções em Tecnologia para Transporte e Logística_`
+
+*${vendedor}*
+Mantran Tecnologias
+Soluções em Tecnologia para Transporte e Logística`
+  }
+
+  // Função utilitária para cópia com Rich Text HTML e Fallback Plain Text
+  const copyRichAndPlainText = async (htmlContent: string, plainText: string) => {
+    try {
+      if (navigator.clipboard && window.ClipboardItem) {
+        const blobHtml = new Blob([htmlContent], { type: 'text/html' })
+        const blobText = new Blob([plainText], { type: 'text/plain' })
+        const item = new ClipboardItem({
+          'text/html': blobHtml,
+          'text/plain': blobText
+        })
+        await navigator.clipboard.write([item])
+        return true
+      }
+    } catch (err) {
+      console.warn('ClipboardItem error, fallback to writeText:', err)
+    }
+    try {
+      await navigator.clipboard.writeText(plainText)
+      return true
+    } catch (err) {
+      console.error('Falha geral ao copiar:', err)
+      return false
+    }
   }
 
   // Handlers de Cópia e Envio
   const [simCopiedType, setSimCopiedType] = useState<'email' | 'whatsapp' | null>(null)
 
-  const handleCopyEmailProposal = () => {
-    const texto = generateEmailProposalText()
-    navigator.clipboard.writeText(texto)
+  const handleCopyEmailProposal = async () => {
+    const html = generateEmailProposalHtml()
+    const text = generateEmailProposalText()
+    await copyRichAndPlainText(html, text)
     setSimCopiedType('email')
     setTimeout(() => setSimCopiedType(null), 2500)
-    showToast('Proposta formal para E-MAIL copiada com sucesso!')
+    showToast('Proposta formatada (com negritos e quebras) copiada para E-MAIL!')
   }
 
   const handleCopyWhatsAppProposal = () => {
@@ -527,10 +645,7 @@ _Soluções em Tecnologia para Transporte e Logística_`
     const opTitulo = simTipo === 'SHOPEE' ? 'Operação Shopee 4PL' : (simEmpresa ? `Operação ${simEmpresa}` : 'Operação TMS')
     const subject = encodeURIComponent(`Proposta Comercial | Mantran TMS – ${opTitulo}`)
     const fullText = generateEmailProposalText()
-    // Remove "Assunto: ..." da primeira linha para o body
-    const bodyLines = fullText.split('\n')
-    const cleanBody = bodyLines.slice(1).join('\n').trim()
-    const mailtoUrl = `mailto:${simEmail || ''}?subject=${subject}&body=${encodeURIComponent(cleanBody)}`
+    const mailtoUrl = `mailto:${simEmail || ''}?subject=${subject}&body=${encodeURIComponent(fullText)}`
     window.location.href = mailtoUrl
   }
 
@@ -561,8 +676,8 @@ _Soluções em Tecnologia para Transporte e Logística_`
     showToast(`Dados de "${opp.nome_empresa}" carregados no Simulador!`)
   }
 
-  const handleCopyOppEmailProposal = (opp: OportunidadeComercial) => {
-    const text = generateEmailProposalText({
+  const handleCopyOppEmailProposal = async (opp: OportunidadeComercial) => {
+    const params = {
       empresa: opp.nome_empresa,
       contato: opp.nome_contato || undefined,
       tipo: opp.tipo_cliente,
@@ -572,9 +687,11 @@ _Soluções em Tecnologia para Transporte e Logística_`
       setup: opp.valor_setup || undefined,
       mensalidade: opp.valor_mensalidade || undefined,
       vendedor: opp.vendedor_nome || undefined
-    })
-    navigator.clipboard.writeText(text)
-    showToast(`Proposta Formal de "${opp.nome_empresa}" copiada para E-MAIL!`)
+    }
+    const html = generateEmailProposalHtml(params)
+    const text = generateEmailProposalText(params)
+    await copyRichAndPlainText(html, text)
+    showToast(`Proposta Formal de "${opp.nome_empresa}" copiada com formatação!`)
   }
 
   const handleCopyOppWhatsAppProposal = (opp: OportunidadeComercial) => {
