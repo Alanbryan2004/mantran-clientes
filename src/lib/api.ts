@@ -982,6 +982,67 @@ export const api = {
       console.warn('Aviso ao atualizar possui_aditivo no cliente:', aditivoErr)
     }
 
+    // 7. Sincronizar Usuários informados no Checkpoint para a tabela usuarios_gpo (Tela Clientes)
+    try {
+      const usuariosList = dados?.usuarios || []
+      let clienteId = impInfo?.cliente_id
+
+      if (!clienteId && impInfo?.nome_empresa) {
+        const { data: clis } = await supabase
+          .from('clientes')
+          .select('id')
+          .ilike('nome_empresa', impInfo.nome_empresa)
+          .limit(1)
+        if (clis && clis.length > 0) {
+          clienteId = clis[0].id
+        }
+      }
+
+      if (clienteId && usuariosList.length > 0) {
+        // Obter número da base para formar a senha padrão (ex: dbMantran120 -> 120@Mantran)
+        let nomeBase = ''
+        try {
+          const { data: impWithBase } = await supabase
+            .from('implantacoes')
+            .select('base_id, bases ( nome_base )')
+            .eq('id', implantacaoId)
+            .single()
+          nomeBase = (impWithBase?.bases as any)?.nome_base || impWithBase?.base_id || ''
+        } catch {}
+
+        const baseDigits = (nomeBase || '').replace(/\D/g, '')
+        const senhaPadrao = baseDigits 
+          ? `${baseDigits}@Mantran` 
+          : `${(impInfo?.nome_empresa || 'Cliente').replace(/\s+/g, '')}@Mantran`
+
+        // Consultar usuários já existentes em usuarios_gpo
+        const { data: existingGpo } = await supabase
+          .from('usuarios_gpo')
+          .select('id, login')
+          .eq('cliente_id', clienteId)
+
+        const existingLogins = (existingGpo || []).map((u: any) => (u.login || '').trim().toLowerCase())
+
+        for (const u of usuariosList) {
+          const login = (u.nome || '').trim()
+          if (!login) continue
+
+          if (!existingLogins.includes(login.toLowerCase())) {
+            await supabase
+              .from('usuarios_gpo')
+              .insert({
+                cliente_id: clienteId,
+                login: login,
+                senha: senhaPadrao
+              })
+            existingLogins.push(login.toLowerCase())
+          }
+        }
+      }
+    } catch (usersSyncErr) {
+      console.warn('Aviso ao sincronizar usuarios_gpo a partir do Checkpoint:', usersSyncErr)
+    }
+
     return result
   },
 
