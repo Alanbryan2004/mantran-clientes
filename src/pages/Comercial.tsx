@@ -3,7 +3,7 @@ import {
   TrendingUp, Users, Plus, Search, 
   Calendar, Phone, Mail, CheckCircle2, 
   XCircle, Edit3, Trash2, Rocket, Calculator, 
-  Target, Award, RefreshCw, Copy, Check, MessageSquare, Briefcase, 
+  Target, Award, RefreshCw, Check, MessageSquare, Briefcase, 
   FileText, ShieldAlert, BarChart3, User
 } from 'lucide-react'
 import { 
@@ -148,7 +148,6 @@ export function Comercial() {
   const [simSetupBase, setSimSetupBase] = useState<number>(3000)
   const [simMensalidadeBase, setSimMensalidadeBase] = useState<number>(1200)
   const [simDesconto, setSimDesconto] = useState<number>(0)
-  const [simCopied, setSimCopied] = useState(false)
 
   const showToast = (msg: string) => {
     setSuccessToast(msg)
@@ -382,28 +381,216 @@ export function Comercial() {
     }
   }
 
-  // Copy proposal text
-  const handleCopyProposalText = () => {
-    const valorFinalSetup = Math.max(0, simSetupBase - simDesconto)
-    const texto = `*PROPOSTA COMERCIAL - MANTRAN TMS*
-🏢 *Cliente:* ${simEmpresa || 'Cliente'}
-👤 *Contato:* ${simContato || 'Responsável'}
-📦 *Tipo de Operação:* ${simTipo === 'SHOPEE' ? 'Operações Shopee 4PL' : 'Transportadora Padrão'}
-📊 *Volume Estimado:* ${simVolumeCte.toLocaleString('pt-BR')} CTe/mês | ${simQtdUsuarios} usuários GPO
+  // Geradores de Proposta Comercial
+  const generateEmailProposalText = (params?: {
+    empresa?: string
+    contato?: string
+    tipo?: 'NORMAL' | 'SHOPEE'
+    volumeCte?: number
+    qtdUsuarios?: number
+    modulos?: string[]
+    setup?: number
+    mensalidade?: number
+    vendedor?: string
+  }) => {
+    const empresa = (params?.empresa !== undefined ? params.empresa : simEmpresa).trim()
+    const contato = (params?.contato !== undefined ? params.contato : simContato).trim()
+    const tipo = params?.tipo !== undefined ? params.tipo : simTipo
+    const volumeCte = params?.volumeCte !== undefined ? params.volumeCte : simVolumeCte
+    const qtdUsuarios = params?.qtdUsuarios !== undefined ? params.qtdUsuarios : simQtdUsuarios
+    const modulos = params?.modulos !== undefined ? params.modulos : simModulos
+    const setup = params?.setup !== undefined ? params.setup : Math.max(0, simSetupBase - simDesconto)
+    const mensalidade = params?.mensalidade !== undefined ? params.mensalidade : simMensalidadeBase
+    const vendedor = (params?.vendedor !== undefined ? params.vendedor : (user?.nome || 'Equipe Comercial')).trim()
 
-🧩 *Módulos e Integrações Inclusos:*
-${simModulos.map(m => `• ${m}`).join('\n')}
+    const opTitulo = tipo === 'SHOPEE' ? 'Operação Shopee 4PL' : (empresa ? `Operação ${empresa}` : 'Operação TMS')
+    const saudacaoContato = contato ? contato : (empresa ? empresa : 'Alan')
+    const empresaDesc = empresa || 'sua empresa'
+    const tipoOpDesc = tipo === 'SHOPEE' ? 'Operações Shopee 4PL' : 'Transporte Rodoviário de Cargas'
 
-💰 *INVESTIMENTO:*
-• *Taxa de Implantação / Setup:* R$ ${valorFinalSetup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-• *Mensalidade Recorrente (MRR):* R$ ${simMensalidadeBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / mês
+    return `Assunto: Proposta Comercial | Mantran TMS – ${opTitulo}
+Prezado ${saudacaoContato},
+Conforme alinhado, apresentamos nossa proposta comercial para utilização do Mantran TMS, contemplando os recursos necessários para atendimento à operação da ${empresaDesc}.
+A solução Mantran foi desenvolvida para apoiar a gestão das operações de transporte, proporcionando maior controle operacional, integração entre processos e eficiência na gestão das informações.
+ESCOPO DA SOLUÇÃO
+Tipo de operação
+${tipoOpDesc}
+Volume estimado
+${volumeCte.toLocaleString('pt-BR')} CT-e/mês
+Usuários
+Até ${qtdUsuarios} usuários GPO
+Módulos e integrações contemplados
+${modulos.length > 0 ? modulos.map(m => `- ${m}`).join('\n') : '- Módulo Operacional Completo'}
+INVESTIMENTO
+Descrição	Valor
+Implantação e configuração inicial	R$ ${setup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+Licenciamento mensal da solução	R$ ${mensalidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
 
-_Proposta válida por 15 dias. Mantran Tecnologias._`
 
+O valor de implantação contempla as atividades necessárias para configuração inicial da solução, parametrização do ambiente e preparação para início da operação, conforme o escopo apresentado.
+A mensalidade corresponde ao licenciamento e utilização dos módulos e integrações descritos nesta proposta.
+PRÓXIMOS PASSOS
+Após a aprovação da proposta, nossa equipe dará início ao processo de implantação e onboarding, realizando o levantamento das informações necessárias, parametrizações e acompanhamento até a entrada em operação.
+Esta proposta comercial possui validade de 15 dias a partir da data de emissão.
+Permanecemos à disposição para quaisquer esclarecimentos e esperamos iniciar em breve esta parceria.
+Atenciosamente,
+${vendedor || 'Equipe Comercial'}
+Mantran Tecnologias
+Soluções em Tecnologia para Transporte e Logística`
+  }
+
+  const generateWhatsAppProposalText = (params?: {
+    empresa?: string
+    contato?: string
+    tipo?: 'NORMAL' | 'SHOPEE'
+    volumeCte?: number
+    qtdUsuarios?: number
+    modulos?: string[]
+    setup?: number
+    mensalidade?: number
+    vendedor?: string
+  }) => {
+    const empresa = (params?.empresa !== undefined ? params.empresa : simEmpresa).trim()
+    const contato = (params?.contato !== undefined ? params.contato : simContato).trim()
+    const tipo = params?.tipo !== undefined ? params.tipo : simTipo
+    const volumeCte = params?.volumeCte !== undefined ? params.volumeCte : simVolumeCte
+    const qtdUsuarios = params?.qtdUsuarios !== undefined ? params.qtdUsuarios : simQtdUsuarios
+    const modulos = params?.modulos !== undefined ? params.modulos : simModulos
+    const setup = params?.setup !== undefined ? params.setup : Math.max(0, simSetupBase - simDesconto)
+    const mensalidade = params?.mensalidade !== undefined ? params.mensalidade : simMensalidadeBase
+    const vendedor = (params?.vendedor !== undefined ? params.vendedor : (user?.nome || 'Equipe Comercial')).trim()
+
+    const opTitulo = tipo === 'SHOPEE' ? 'Operação Shopee 4PL' : (empresa ? `Operação ${empresa}` : 'Operação TMS')
+    const saudacaoContato = contato ? contato : (empresa ? empresa : 'Alan')
+    const empresaDesc = empresa || 'sua empresa'
+    const tipoOpDesc = tipo === 'SHOPEE' ? 'Operações Shopee 4PL' : 'Transporte Rodoviário de Cargas'
+
+    return `*Assunto: Proposta Comercial | Mantran TMS – ${opTitulo}*
+
+Prezado(a) *${saudacaoContato}*,
+Conforme alinhado, apresentamos nossa proposta comercial para utilização do *Mantran TMS*, contemplando os recursos necessários para atendimento à operação da *${empresaDesc}*.
+
+A solução Mantran foi desenvolvida para apoiar a gestão das operações de transporte, proporcionando maior controle operacional, integração entre processos e eficiência na gestão das informações.
+
+*ESCOPO DA SOLUÇÃO*
+*Tipo de operação*
+${tipoOpDesc}
+
+*Volume estimado*
+${volumeCte.toLocaleString('pt-BR')} CT-e/mês
+
+*Usuários*
+Até ${qtdUsuarios} usuários GPO
+
+*Módulos e integrações contemplados*
+${modulos.length > 0 ? modulos.map(m => `- ${m}`).join('\n') : '- Módulo Operacional Completo'}
+
+*INVESTIMENTO*
+• *Implantação e configuração inicial:* R$ ${setup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+• *Licenciamento mensal da solução:* R$ ${mensalidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
+
+_O valor de implantação contempla as atividades necessárias para configuração inicial da solução, parametrização do ambiente e preparação para início da operação, conforme o escopo apresentado._
+_A mensalidade corresponde ao licenciamento e utilização dos módulos e integrações descritos nesta proposta._
+
+*PRÓXIMOS PASSOS*
+Após a aprovação da proposta, nossa equipe dará início ao processo de implantação e onboarding, realizando o levantamento das informações necessárias, parametrizações e acompanhamento até a entrada em operação.
+
+Esta proposta comercial possui validade de 15 dias a partir da data de emissão.
+Permanecemos à disposição para quaisquer esclarecimentos e esperamos iniciar em breve esta parceria.
+
+Atenciosamente,
+*${vendedor || 'Equipe Comercial'}*
+*Mantran Tecnologias*
+_Soluções em Tecnologia para Transporte e Logística_`
+  }
+
+  // Handlers de Cópia e Envio
+  const [simCopiedType, setSimCopiedType] = useState<'email' | 'whatsapp' | null>(null)
+
+  const handleCopyEmailProposal = () => {
+    const texto = generateEmailProposalText()
     navigator.clipboard.writeText(texto)
-    setSimCopied(true)
-    setTimeout(() => setSimCopied(false), 2500)
-    showToast('Resumo da proposta copiado para a área de transferência!')
+    setSimCopiedType('email')
+    setTimeout(() => setSimCopiedType(null), 2500)
+    showToast('Proposta formal para E-MAIL copiada com sucesso!')
+  }
+
+  const handleCopyWhatsAppProposal = () => {
+    const texto = generateWhatsAppProposalText()
+    navigator.clipboard.writeText(texto)
+    setSimCopiedType('whatsapp')
+    setTimeout(() => setSimCopiedType(null), 2500)
+    showToast('Proposta formatada para WHATSAPP copiada com sucesso!')
+  }
+
+  const handleOpenEmailClient = () => {
+    const opTitulo = simTipo === 'SHOPEE' ? 'Operação Shopee 4PL' : (simEmpresa ? `Operação ${simEmpresa}` : 'Operação TMS')
+    const subject = encodeURIComponent(`Proposta Comercial | Mantran TMS – ${opTitulo}`)
+    const fullText = generateEmailProposalText()
+    // Remove "Assunto: ..." da primeira linha para o body
+    const bodyLines = fullText.split('\n')
+    const cleanBody = bodyLines.slice(1).join('\n').trim()
+    const mailtoUrl = `mailto:${simEmail || ''}?subject=${subject}&body=${encodeURIComponent(cleanBody)}`
+    window.location.href = mailtoUrl
+  }
+
+  const handleOpenWhatsAppWeb = () => {
+    const cleanPhone = simTelefone.replace(/\D/g, '')
+    const fullText = generateWhatsAppProposalText()
+    const waUrl = cleanPhone 
+      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(fullText)}`
+      : `https://wa.me/?text=${encodeURIComponent(fullText)}`
+    window.open(waUrl, '_blank')
+  }
+
+  const handleLoadOppIntoSimulator = (opp: OportunidadeComercial) => {
+    setSimEmpresa(opp.nome_empresa || '')
+    setSimContato(opp.nome_contato || '')
+    setSimTelefone(opp.telefone || '')
+    setSimEmail(opp.email || '')
+    setSimTipo(opp.tipo_cliente || 'NORMAL')
+    setSimVolumeCte(opp.volume_estimado_cte || 2500)
+    setSimQtdUsuarios(opp.qtd_usuarios || 4)
+    if (opp.modulos_interesse && opp.modulos_interesse.length > 0) {
+      setSimModulos(opp.modulos_interesse)
+    }
+    setSimSetupBase(opp.valor_setup || 3000)
+    setSimMensalidadeBase(opp.valor_mensalidade || 1200)
+    setSimDesconto(0)
+    setActiveTab('simulador')
+    showToast(`Dados de "${opp.nome_empresa}" carregados no Simulador!`)
+  }
+
+  const handleCopyOppEmailProposal = (opp: OportunidadeComercial) => {
+    const text = generateEmailProposalText({
+      empresa: opp.nome_empresa,
+      contato: opp.nome_contato || undefined,
+      tipo: opp.tipo_cliente,
+      volumeCte: opp.volume_estimado_cte || undefined,
+      qtdUsuarios: opp.qtd_usuarios || undefined,
+      modulos: opp.modulos_interesse || undefined,
+      setup: opp.valor_setup || undefined,
+      mensalidade: opp.valor_mensalidade || undefined,
+      vendedor: opp.vendedor_nome || undefined
+    })
+    navigator.clipboard.writeText(text)
+    showToast(`Proposta Formal de "${opp.nome_empresa}" copiada para E-MAIL!`)
+  }
+
+  const handleCopyOppWhatsAppProposal = (opp: OportunidadeComercial) => {
+    const text = generateWhatsAppProposalText({
+      empresa: opp.nome_empresa,
+      contato: opp.nome_contato || undefined,
+      tipo: opp.tipo_cliente,
+      volumeCte: opp.volume_estimado_cte || undefined,
+      qtdUsuarios: opp.qtd_usuarios || undefined,
+      modulos: opp.modulos_interesse || undefined,
+      setup: opp.valor_setup || undefined,
+      mensalidade: opp.valor_mensalidade || undefined,
+      vendedor: opp.vendedor_nome || undefined
+    })
+    navigator.clipboard.writeText(text)
+    showToast(`Proposta de "${opp.nome_empresa}" copiada para WHATSAPP!`)
   }
 
   // Filtered Kanban
@@ -821,6 +1008,36 @@ _Proposta válida por 15 dias. Mantran Tecnologias._`
                                 </button>
                               )}
 
+                              {/* Copiar Proposta E-mail */}
+                              <button
+                                type="button"
+                                onClick={() => handleCopyOppEmailProposal(opp)}
+                                title="Copiar Proposta Formal (E-mail)"
+                                className="p-1 rounded hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300"
+                              >
+                                <Mail className="w-3 h-3" />
+                              </button>
+
+                              {/* Copiar Proposta WhatsApp */}
+                              <button
+                                type="button"
+                                onClick={() => handleCopyOppWhatsAppProposal(opp)}
+                                title="Copiar Proposta (WhatsApp)"
+                                className="p-1 rounded hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-300"
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                              </button>
+
+                              {/* Abrir no Simulador */}
+                              <button
+                                type="button"
+                                onClick={() => handleLoadOppIntoSimulator(opp)}
+                                title="Abrir no Simulador de Propostas"
+                                className="p-1 rounded hover:bg-purple-500/20 text-slate-400 hover:text-purple-300"
+                              >
+                                <Calculator className="w-3 h-3" />
+                              </button>
+
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditOportunidade(opp)}
@@ -1115,14 +1332,61 @@ _Proposta válida por 15 dias. Mantran Tecnologias._`
                   Salvar Oportunidade no Funil de Vendas
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleCopyProposalText}
-                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all"
-                >
-                  {simCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  {simCopied ? 'Proposta Copiada!' : 'Copiar Texto para WhatsApp / Email'}
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyEmailProposal}
+                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all shadow-sm group hover:border-cyan-500/50"
+                  >
+                    {simCopiedType === 'email' ? (
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <Mail className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform shrink-0" />
+                    )}
+                    <span className="truncate">
+                      {simCopiedType === 'email' ? 'E-mail Copiado!' : 'Copiar Texto para E-mail'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyWhatsAppProposal}
+                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition-all shadow-sm group hover:border-emerald-500/50"
+                  >
+                    {simCopiedType === 'whatsapp' ? (
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <MessageSquare className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
+                    )}
+                    <span className="truncate">
+                      {simCopiedType === 'whatsapp' ? 'WhatsApp Copiado!' : 'Copiar para WhatsApp'}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Ações diretas de envio rápido */}
+                <div className="flex items-center gap-2 pt-1">
+                  {simEmail ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenEmailClient}
+                      className="flex-1 py-1.5 px-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 text-[11px] font-semibold rounded-lg border border-blue-500/30 flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>Abrir no App de E-mail</span>
+                    </button>
+                  ) : null}
+                  {simTelefone ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenWhatsAppWeb}
+                      className="flex-1 py-1.5 px-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-[11px] font-semibold rounded-lg border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Enviar no WhatsApp Web</span>
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
