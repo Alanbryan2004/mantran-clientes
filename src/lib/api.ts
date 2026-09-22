@@ -1098,7 +1098,7 @@ export const api = {
         nome: cleanNome,
         login: cleanLogin,
         senha: cleanSenha,
-        perfil: 'Usuario', // Compatível com constraint usuario_perfil_check ('Administrador', 'Tecnico', 'Suporte', 'Usuario', 'Parceiro')
+        perfil: 'Cliente',
         ativo: true,
         e_tecnico: false,
         meta_semanal: 0

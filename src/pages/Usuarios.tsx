@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { 
   Users, UserPlus, Search, Edit3, Trash2, CheckCircle2, XCircle, 
   Shield, UserCheck, Key, RefreshCw, Eye, EyeOff, AlertTriangle, 
-  Briefcase, Wrench, Headphones, Building2, Handshake, Lock
+  Briefcase, Wrench, Headphones, Building2, Handshake, Lock, Check
 } from 'lucide-react'
 import { api, type UsuarioSistema } from '../lib/api'
 import { isAdminUser } from '../lib/auth'
@@ -91,7 +91,7 @@ export function Usuarios() {
   const [nome, setNome] = useState('')
   const [login, setLogin] = useState('')
   const [senha, setSenha] = useState('')
-  const [perfil, setPerfil] = useState('Usuario')
+  const [perfil, setPerfil] = useState('Cliente')
   const [ativo, setAtivo] = useState(true)
   const [eTecnico, setETecnico] = useState(false)
   const [metaSemanal, setMetaSemanal] = useState<number>(0)
@@ -132,7 +132,7 @@ export function Usuarios() {
     setNome('')
     setLogin('')
     setSenha('')
-    setPerfil('Usuario')
+    setPerfil('Cliente')
     setAtivo(true)
     setETecnico(false)
     setMetaSemanal(0)
@@ -147,7 +147,7 @@ export function Usuarios() {
     setNome(user.nome || '')
     setLogin(user.login || '')
     setSenha('') // deixar em branco se não quiser alterar
-    setPerfil(user.perfil || 'Usuario')
+    setPerfil(user.perfil || 'Cliente')
     setAtivo(user.ativo ?? true)
     setETecnico(user.e_tecnico ?? false)
     setMetaSemanal(user.meta_semanal || 0)
@@ -260,7 +260,14 @@ export function Usuarios() {
         (u.login || '').toLowerCase().includes(searchTerm.toLowerCase())
 
       // Perfil
-      const perfilMatch = filtroPerfil === 'todos' || u.perfil === filtroPerfil
+      let perfilMatch = true
+      if (filtroPerfil !== 'todos') {
+        if (filtroPerfil === 'tecnico_suporte') {
+          perfilMatch = u.perfil === 'Tecnico' || u.perfil === 'Suporte'
+        } else {
+          perfilMatch = u.perfil === filtroPerfil
+        }
+      }
 
       // Status
       const statusMatch = filtroStatus === 'todos' 
@@ -281,7 +288,8 @@ export function Usuarios() {
     const admins = usuarios.filter(u => u.perfil === 'Administrador').length
     const tecnicosSuporte = usuarios.filter(u => u.perfil === 'Tecnico' || u.perfil === 'Suporte').length
     const comerciais = usuarios.filter(u => u.perfil === 'Comercial').length
-    return { total, ativos, inativos, admins, tecnicosSuporte, comerciais }
+    const clientes = usuarios.filter(u => u.perfil === 'Cliente').length
+    return { total, ativos, inativos, admins, tecnicosSuporte, comerciais, clientes }
   }, [usuarios])
 
   if (!isAdmin) {
@@ -354,47 +362,173 @@ export function Usuarios() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur">
+      {/* Clickable Stats Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        
+        {/* Total de Contas */}
+        <div 
+          onClick={() => {
+            setFiltroPerfil('todos')
+            setFiltroStatus('todos')
+            setSearchTerm('')
+          }}
+          title="Clique para exibir todos os usuários"
+          className={clsx(
+            "p-3.5 rounded-2xl border backdrop-blur cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
+            filtroPerfil === 'todos' && filtroStatus === 'todos' && !searchTerm
+              ? "bg-slate-800/90 border-brand-500/50 ring-2 ring-brand-500/30 shadow-lg shadow-brand-500/10"
+              : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
+          )}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-400 font-medium">Total de Contas</span>
             <Users className="w-4 h-4 text-slate-400" />
           </div>
-          <p className="text-2xl font-bold text-white mt-1.5">{stats.total}</p>
+          <div className="flex items-baseline justify-between mt-1.5">
+            <p className="text-2xl font-bold text-white">{stats.total}</p>
+            {filtroPerfil === 'todos' && filtroStatus === 'todos' && !searchTerm && (
+              <span className="text-[10px] text-brand-400 font-semibold flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> Todos
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur">
+        {/* Ativos */}
+        <div 
+          onClick={() => {
+            setFiltroStatus(filtroStatus === 'ativos' ? 'todos' : 'ativos')
+          }}
+          title="Clique para filtrar apenas usuários Ativos"
+          className={clsx(
+            "p-3.5 rounded-2xl border backdrop-blur cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
+            filtroStatus === 'ativos'
+              ? "bg-emerald-500/10 border-emerald-500/50 ring-2 ring-emerald-500/30 shadow-lg shadow-emerald-500/10"
+              : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
+          )}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs text-emerald-400 font-medium">Ativos</span>
             <UserCheck className="w-4 h-4 text-emerald-400" />
           </div>
-          <p className="text-2xl font-bold text-emerald-400 mt-1.5">{stats.ativos}</p>
+          <div className="flex items-baseline justify-between mt-1.5">
+            <p className="text-2xl font-bold text-emerald-400">{stats.ativos}</p>
+            {filtroStatus === 'ativos' && (
+              <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> Filtrado
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur">
+        {/* Administradores */}
+        <div 
+          onClick={() => {
+            setFiltroPerfil(filtroPerfil === 'Administrador' ? 'todos' : 'Administrador')
+          }}
+          title="Clique para filtrar perfil Administrador"
+          className={clsx(
+            "p-3.5 rounded-2xl border backdrop-blur cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
+            filtroPerfil === 'Administrador'
+              ? "bg-rose-500/10 border-rose-500/50 ring-2 ring-rose-500/30 shadow-lg shadow-rose-500/10"
+              : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
+          )}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs text-rose-400 font-medium">Administradores</span>
             <Shield className="w-4 h-4 text-rose-400" />
           </div>
-          <p className="text-2xl font-bold text-rose-400 mt-1.5">{stats.admins}</p>
+          <div className="flex items-baseline justify-between mt-1.5">
+            <p className="text-2xl font-bold text-rose-400">{stats.admins}</p>
+            {filtroPerfil === 'Administrador' && (
+              <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> Filtrado
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur">
+        {/* Técnico & Suporte */}
+        <div 
+          onClick={() => {
+            setFiltroPerfil(filtroPerfil === 'tecnico_suporte' ? 'todos' : 'tecnico_suporte')
+          }}
+          title="Clique para filtrar Técnicos e Suporte"
+          className={clsx(
+            "p-3.5 rounded-2xl border backdrop-blur cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
+            filtroPerfil === 'tecnico_suporte' || filtroPerfil === 'Tecnico' || filtroPerfil === 'Suporte'
+              ? "bg-blue-500/10 border-blue-500/50 ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10"
+              : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
+          )}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs text-blue-400 font-medium">Técnico & Suporte</span>
             <Wrench className="w-4 h-4 text-blue-400" />
           </div>
-          <p className="text-2xl font-bold text-blue-400 mt-1.5">{stats.tecnicosSuporte}</p>
+          <div className="flex items-baseline justify-between mt-1.5">
+            <p className="text-2xl font-bold text-blue-400">{stats.tecnicosSuporte}</p>
+            {(filtroPerfil === 'tecnico_suporte' || filtroPerfil === 'Tecnico' || filtroPerfil === 'Suporte') && (
+              <span className="text-[10px] text-blue-400 font-semibold flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> Filtrado
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur col-span-2 sm:col-span-1">
+        {/* Comercial */}
+        <div 
+          onClick={() => {
+            setFiltroPerfil(filtroPerfil === 'Comercial' ? 'todos' : 'Comercial')
+          }}
+          title="Clique para filtrar perfil Comercial"
+          className={clsx(
+            "p-3.5 rounded-2xl border backdrop-blur cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
+            filtroPerfil === 'Comercial'
+              ? "bg-cyan-500/10 border-cyan-500/50 ring-2 ring-cyan-500/30 shadow-lg shadow-cyan-500/10"
+              : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
+          )}
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs text-cyan-400 font-medium">Comercial</span>
             <Briefcase className="w-4 h-4 text-cyan-400" />
           </div>
-          <p className="text-2xl font-bold text-cyan-400 mt-1.5">{stats.comerciais}</p>
+          <div className="flex items-baseline justify-between mt-1.5">
+            <p className="text-2xl font-bold text-cyan-400">{stats.comerciais}</p>
+            {filtroPerfil === 'Comercial' && (
+              <span className="text-[10px] text-cyan-400 font-semibold flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> Filtrado
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Clientes */}
+        <div 
+          onClick={() => {
+            setFiltroPerfil(filtroPerfil === 'Cliente' ? 'todos' : 'Cliente')
+          }}
+          title="Clique para filtrar usuários de Clientes"
+          className={clsx(
+            "p-3.5 rounded-2xl border backdrop-blur cursor-pointer select-none transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]",
+            filtroPerfil === 'Cliente'
+              ? "bg-purple-500/10 border-purple-500/50 ring-2 ring-purple-500/30 shadow-lg shadow-purple-500/10"
+              : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
+          )}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-purple-400 font-medium">Clientes</span>
+            <Building2 className="w-4 h-4 text-purple-400" />
+          </div>
+          <div className="flex items-baseline justify-between mt-1.5">
+            <p className="text-2xl font-bold text-purple-400">{stats.clientes}</p>
+            {filtroPerfil === 'Cliente' && (
+              <span className="text-[10px] text-purple-400 font-semibold flex items-center gap-0.5">
+                <Check className="w-3 h-3" /> Filtrado
+              </span>
+            )}
+          </div>
+        </div>
+
       </div>
 
       {/* Filter and Search Bar */}
@@ -431,10 +565,11 @@ export function Usuarios() {
               <option value="Administrador">🛡️ Administrador</option>
               <option value="Tecnico">⚡ Técnico</option>
               <option value="Suporte">🎧 Suporte</option>
+              <option value="tecnico_suporte">⚡🎧 Técnico & Suporte</option>
               <option value="Comercial">💼 Comercial</option>
+              <option value="Cliente">🏢 Cliente</option>
               <option value="Usuario">👁️ Usuário (Consulta)</option>
               <option value="Parceiro">🤝 Parceiro</option>
-              <option value="Cliente">🏢 Cliente</option>
             </select>
 
             {/* Status Filter */}
@@ -452,7 +587,7 @@ export function Usuarios() {
                 onClick={() => setFiltroStatus('ativos')}
                 className={clsx(
                   "px-3 py-1.5 rounded-lg font-medium transition-all",
-                  filtroStatus === 'ativos' ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400 hover:text-slate-200"
+                  filtroStatus === 'ativos' ? "bg-emerald-500/20 text-emerald-400 font-bold" : "text-slate-400 hover:text-slate-200"
                 )}
               >
                 Ativos
@@ -461,7 +596,7 @@ export function Usuarios() {
                 onClick={() => setFiltroStatus('inativos')}
                 className={clsx(
                   "px-3 py-1.5 rounded-lg font-medium transition-all",
-                  filtroStatus === 'inativos' ? "bg-rose-500/20 text-rose-400" : "text-slate-400 hover:text-slate-200"
+                  filtroStatus === 'inativos' ? "bg-rose-500/20 text-rose-400 font-bold" : "text-slate-400 hover:text-slate-200"
                 )}
               >
                 Inativos
@@ -717,7 +852,7 @@ export function Usuarios() {
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Alan Bryan"
+                  placeholder="Ex: Alan Bryan ou Nome do Cliente"
                   value={nome}
                   onChange={e => setNome(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
@@ -733,14 +868,14 @@ export function Usuarios() {
                   <input
                     type="text"
                     required
-                    placeholder="Ex: alan"
+                    placeholder="Ex: alan ou Empresa@Mantran"
                     value={login}
-                    onChange={e => setLogin(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                    onChange={e => setLogin(e.target.value.replace(/\s+/g, ''))}
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-sm font-mono text-cyan-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  O login é único e sem espaços (ex: alan, marcio, bruno).
+                  O login deve ser único e sem espaços (ex: alan, marcio ou Empresa@Mantran).
                 </p>
               </div>
 

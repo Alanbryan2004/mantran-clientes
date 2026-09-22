@@ -17,6 +17,7 @@ const AVAILABLE_PROFILES = [
   { id: 'Comercial', label: 'Comercial', desc: 'Acompanhamento e gestão de Implantações', color: 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10' },
   { id: 'Usuario', label: 'Usuário', desc: 'Acesso geral em modo somente leitura', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
   { id: 'Parceiro', label: 'Parceiro', desc: 'Acesso restrito para parceiros externos', color: 'text-orange-400 border-orange-500/30 bg-orange-500/10' },
+  { id: 'Cliente', label: 'Cliente', desc: 'Acesso restrito ao seu próprio onboarding/implantação', color: 'text-rose-400 border-rose-500/30 bg-rose-500/10' },
 ]
 
 const AVAILABLE_MODULES = [
