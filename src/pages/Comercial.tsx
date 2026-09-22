@@ -406,62 +406,46 @@ export function Comercial() {
     const saudacaoContato = contato ? contato : (empresa ? empresa : 'Jose Carlos')
     const empresaDesc = empresa || 'sua empresa'
     const tipoOpDesc = tipo === 'SHOPEE' ? 'Operações Shopee 4PL' : 'Transporte Rodoviário de Cargas'
+    const modulosList = modulos.length > 0 ? modulos : ['Operação', 'Financeiro', 'EDI Proceda']
 
-    return `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #111827;">
-  <p style="margin: 0 0 16px 0;">Prezado ${saudacaoContato},</p>
-
-  <p style="margin: 0 0 4px 0;">Conforme alinhado, apresentamos nossa proposta comercial para utilização do Mantran TMS, contemplando os recursos necessários para atendimento à operação da ${empresaDesc}.</p>
-  <p style="margin: 0 0 16px 0;">A solução Mantran foi desenvolvida para apoiar a gestão das operações de transporte, proporcionando maior controle operacional, integração entre processos e eficiência na gestão das informações.</p>
-
-  <p style="margin: 0 0 14px 0;"><strong>ESCOPO DA SOLUÇÃO</strong></p>
-
-  <p style="margin: 0 0 2px 0;"><strong>Tipo de Operação</strong></p>
-  <p style="margin: 0 0 14px 0;">${tipoOpDesc}</p>
-
-  <p style="margin: 0 0 2px 0;"><strong>Volume estimado</strong></p>
-  <p style="margin: 0 0 14px 0;">${volumeCte.toLocaleString('pt-BR')} CT-e/mês</p>
-
-  <p style="margin: 0 0 2px 0;"><strong>Usuários</strong></p>
-  <p style="margin: 0 0 14px 0;">Até ${qtdUsuarios} usuários GPO</p>
-
-  <p style="margin: 0 0 4px 0;"><strong>Módulos e integrações contemplados</strong></p>
-  <div style="margin: 0 0 16px 0;">
-    ${(modulos.length > 0 ? modulos : ['Operação', 'Financeiro', 'EDI Proceda']).map(m => `<div style="margin: 0 0 2px 0;">- ${m}</div>`).join('')}
-  </div>
-
-  <p style="margin: 0 0 6px 0;"><strong>INVESTIMENTO</strong></p>
-  <table style="border-collapse: collapse; margin-bottom: 16px; font-size: 14px; width: 100%; max-width: 480px;">
-    <thead>
-      <tr style="text-align: left;">
-        <th style="padding: 2px 28px 4px 0; font-weight: normal; color: #111827;">Descrição</th>
-        <th style="padding: 2px 0 4px 0; font-weight: normal; color: #111827;">Valor</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td style="padding: 2px 28px 2px 0; color: #111827;">Implantação e configuração inicial</td>
-        <td style="padding: 2px 0 2px 0; color: #111827;">R$ ${setup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-      </tr>
-      <tr>
-        <td style="padding: 2px 28px 2px 0; color: #111827;">Licenciamento mensal da solução</td>
-        <td style="padding: 2px 0 2px 0; color: #111827;">R$ ${mensalidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <p style="margin: 0 0 4px 0;">O valor de implantação contempla as atividades necessárias para configuração inicial da solução, parametrização do ambiente e preparação para início da operação, conforme o escopo apresentado.</p>
-  <p style="margin: 0 0 16px 0;">A mensalidade corresponde ao licenciamento e utilização dos módulos e integrações descritos nesta proposta.</p>
-
-  <p style="margin: 0 0 6px 0;"><strong>PRÓXIMOS PASSOS</strong></p>
-  <p style="margin: 0 0 4px 0;">Após a aprovação da proposta, nossa equipe dará início ao processo de implantação e onboarding, realizando o levantamento das informações necessárias, parametrizações e acompanhamento até a entrada em operação.</p>
-  <p style="margin: 0 0 16px 0;">Esta proposta comercial possui validade de 15 dias a partir da data de emissão.</p>
-
-  <p style="margin: 0 0 4px 0;">Permanecemos à disposição para quaisquer esclarecimentos e esperamos iniciar em breve esta parceria.</p>
-  <p style="margin: 0 0 14px 0;">Atenciosamente,</p>
-
-  <p style="margin: 0; font-weight: 500;">${vendedor}</p>
-  <p style="margin: 0; color: #374151;">Mantran Tecnologias</p>
-  <p style="margin: 0; color: #4B5563;">Soluções em Tecnologia para Transporte e Logística</p>
+    return `<div style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6; color: #111827;">
+Prezado ${saudacaoContato},<br><br>
+Conforme alinhado, apresentamos nossa proposta comercial para utilização do Mantran TMS, contemplando os recursos necessários para atendimento à operação da ${empresaDesc}.<br>
+A solução Mantran foi desenvolvida para apoiar a gestão das operações de transporte, proporcionando maior controle operacional, integração entre processos e eficiência na gestão das informações.<br><br>
+<b>ESCOPO DA SOLUÇÃO</b><br><br>
+<b>Tipo de Operação</b><br>
+${tipoOpDesc}<br><br>
+<b>Volume estimado</b><br>
+${volumeCte.toLocaleString('pt-BR')} CT-e/mês<br><br>
+<b>Usuários</b><br>
+Até ${qtdUsuarios} usuários GPO<br><br>
+<b>Módulos e integrações contemplados</b><br>
+${modulosList.map(m => `- ${m}`).join('<br>')}<br><br>
+<b>INVESTIMENTO</b><br>
+<table style="border-collapse: collapse; margin-top: 4px; margin-bottom: 4px; font-size: 14px; font-family: Arial, Helvetica, sans-serif;">
+  <tr>
+    <td style="padding: 2px 28px 4px 0; color: #111827;">Descrição</td>
+    <td style="padding: 2px 0 4px 0; color: #111827;">Valor</td>
+  </tr>
+  <tr>
+    <td style="padding: 2px 28px 2px 0; color: #111827;">Implantação e configuração inicial</td>
+    <td style="padding: 2px 0 2px 0; color: #111827;">R$ ${setup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+  </tr>
+  <tr>
+    <td style="padding: 2px 28px 2px 0; color: #111827;">Licenciamento mensal da solução</td>
+    <td style="padding: 2px 0 2px 0; color: #111827;">R$ ${mensalidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</td>
+  </tr>
+</table><br>
+O valor de implantação contempla as atividades necessárias para configuração inicial da solução, parametrização do ambiente e preparação para início da operação, conforme o escopo apresentado.<br>
+A mensalidade corresponde ao licenciamento e utilização dos módulos e integrações descritos nesta proposta.<br><br>
+<b>PRÓXIMOS PASSOS</b><br>
+Após a aprovação da proposta, nossa equipe dará início ao processo de implantação e onboarding, realizando o levantamento das informações necessárias, parametrizações e acompanhamento até a entrada em operação.<br>
+Esta proposta comercial possui validade de 15 dias a partir da data de emissão.<br><br>
+Permanecemos à disposição para quaisquer esclarecimentos e esperamos iniciar em breve esta parceria.<br>
+Atenciosamente,<br><br>
+${vendedor}<br>
+Mantran Tecnologias<br>
+Soluções em Tecnologia para Transporte e Logística
 </div>`
   }
 
@@ -489,6 +473,7 @@ export function Comercial() {
     const saudacaoContato = contato ? contato : (empresa ? empresa : 'Jose Carlos')
     const empresaDesc = empresa || 'sua empresa'
     const tipoOpDesc = tipo === 'SHOPEE' ? 'Operações Shopee 4PL' : 'Transporte Rodoviário de Cargas'
+    const modulosList = modulos.length > 0 ? modulos : ['Operação', 'Financeiro', 'EDI Proceda']
 
     return `Prezado ${saudacaoContato},
 
@@ -507,7 +492,7 @@ Usuários
 Até ${qtdUsuarios} usuários GPO
 
 Módulos e integrações contemplados
-${(modulos.length > 0 ? modulos : ['Operação', 'Financeiro', 'EDI Proceda']).map(m => `- ${m}`).join('\n')}
+${modulosList.map(m => `- ${m}`).join('\n')}
 
 INVESTIMENTO
 Descrição\tValor
