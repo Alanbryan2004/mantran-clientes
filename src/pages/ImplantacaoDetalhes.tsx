@@ -117,8 +117,8 @@ export function ImplantacaoDetalhes() {
     try {
       const data = await api.getImplantacaoCheckpoint(id!)
       setCheckpointData(data)
-      // Se for perfil Cliente e ainda não preencheu o formulário, abrir automaticamente
-      if (isClienteUser() && !data) {
+      // Se for perfil Cliente e ainda não concluiu 100% o formulário, abrir automaticamente
+      if (isClienteUser() && (!data || !data.concluido)) {
         setIsFormularioModalOpen(true)
       }
     } catch (err) {
@@ -572,25 +572,47 @@ export function ImplantacaoDetalhes() {
               </div>
 
               {((etapa.nome_etapa || '').trim().toLowerCase() === 'checkpoint') && (
-                <div className="mt-3 pt-2.5 border-t border-slate-800/60">
-                  {checkpointData ? (
-                    <button
-                      type="button"
-                      onClick={() => setIsVisualizarCheckpointModalOpen(true)}
-                      className="w-full text-xs font-bold py-1.5 px-3 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>Ver Formulário Preenchido</span>
-                    </button>
+                <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
+                  {isClienteUser() ? (
+                    checkpointData?.concluido ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsVisualizarCheckpointModalOpen(true)}
+                        className="w-full text-xs font-bold py-1.5 px-3 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Ver Formulário Concluído</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsFormularioModalOpen(true)}
+                        className="w-full text-xs font-bold py-1.5 px-3 rounded-lg bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer animate-pulse"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>{checkpointData ? 'Continuar Preenchimento (Pendente)' : 'Preencher Formulário'}</span>
+                      </button>
+                    )
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => setIsFormularioModalOpen(true)}
-                      className="w-full text-xs font-bold py-1.5 px-3 rounded-lg bg-brand-500/15 text-brand-300 hover:bg-brand-500/25 border border-brand-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>{isClienteUser() ? 'Preencher Formulário' : 'Preencher Questionário'}</span>
-                    </button>
+                    checkpointData ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsVisualizarCheckpointModalOpen(true)}
+                        className="w-full text-xs font-bold py-1.5 px-3 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Ver Formulário Preenchido</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsFormularioModalOpen(true)}
+                        className="w-full text-xs font-bold py-1.5 px-3 rounded-lg bg-brand-500/15 text-brand-300 hover:bg-brand-500/25 border border-brand-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Preencher Questionário</span>
+                      </button>
+                    )
                   )}
                 </div>
               )}
