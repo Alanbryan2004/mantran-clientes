@@ -447,6 +447,22 @@ export const api = {
     return data || []
   },
 
+  async insertClienteModulos(clienteId: string, modulosNomes: string[]) {
+    if (!clienteId || !modulosNomes || modulosNomes.length === 0) return []
+    const payload = modulosNomes.map(nome => ({
+      cliente_id: clienteId,
+      nome_modulo: nome,
+      ativo: true
+    }))
+    const { data, error } = await supabase
+      .from('modulos')
+      .insert(payload)
+      .select()
+    
+    if (error) throw error
+    return data || []
+  },
+
   async deleteLeoModulo(id: string) {
     const { error } = await supabase
       .from('leo_modulos')
