@@ -163,5 +163,19 @@ export const permissionsApi = {
       return userPerm.rotas[0]
     }
     return '/implantacoes'
+  },
+
+  isReadOnly(): boolean {
+    const user = getLoggedUser()
+    if (!user || !user.perfil) return false
+    const perfilName = user.perfil.trim()
+    if (perfilName.toLowerCase() === 'administrador') return false
+
+    const perms = this.getStoredPermissions()
+    const userPerm = perms[perfilName] || DEFAULT_PERMISSOES[perfilName]
+    if (userPerm && userPerm.read_only !== undefined) {
+      return !!userPerm.read_only
+    }
+    return false
   }
 }

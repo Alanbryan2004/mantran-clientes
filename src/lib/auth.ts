@@ -26,14 +26,29 @@ export function isAdminUser(): boolean {
 }
 
 /**
- * Retorna true se o usuário logado possui perfil de Apenas Consulta / Read-Only (ex: 'Usuario', 'Parceiro', 'Cliente').
- * Usuários com este perfil não podem incluir, alterar ou excluir registros.
+ * Retorna true se o perfil do usuário logado está configurado como Somente Leitura (read_only: true).
+ * Consulta dinamicamente as permissões definidas no Controle de Permissões (perfil_permissoes).
  */
 export function isReadOnlyUser(): boolean {
   const user = getLoggedUser()
   if (!user || !user.perfil) return false
-  const p = user.perfil.trim().toLowerCase()
-  return p === 'usuario' || p === 'parceiro' || p === 'cliente'
+  const perfilName = user.perfil.trim()
+  if (perfilName.toLowerCase() === 'administrador') return false
+
+  try {
+    const cached = localStorage.getItem('@Mantran:perfil_permissoes')
+    if (cached) {
+      const perms = JSON.parse(cached)
+      if (perms[perfilName] && perms[perfilName].read_only !== undefined) {
+        return !!perms[perfilName].read_only
+      }
+    }
+  } catch (_) {}
+
+  // Fallbacks padrão caso não haja cache
+  const p = perfilName.toLowerCase()
+  if (p === 'usuario' || p === 'cliente') return true
+  return false
 }
 
 /**
