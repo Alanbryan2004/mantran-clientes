@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Database, Users, LogOut, Menu, Cloud, Rocket, Shield, ShoppingBag } from 'lucide-react'
+import { LayoutDashboard, Database, Users, LogOut, Menu, Cloud, Rocket, Shield, ShoppingBag, UserCog } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
 import { api } from '../../lib/api'
@@ -141,9 +141,26 @@ export function Sidebar() {
           )
         })}
 
-        {/* Admin only: Permissões de Acesso */}
+        {/* Admin only: Usuários & Permissões */}
         {isAdmin && (
-          <div className="pt-3 mt-3 border-t border-slate-800/80">
+          <div className="pt-3 mt-3 border-t border-slate-800/80 space-y-1.5">
+            <NavLink
+              to="/usuarios"
+              title={!isExpanded ? 'Usuários do Sistema' : undefined}
+              className={({ isActive }) =>
+                clsx(
+                  'flex items-center rounded-xl transition-all duration-200',
+                  isExpanded ? 'px-4 py-2.5 space-x-3' : 'p-3 justify-center',
+                  isActive 
+                    ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20' 
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'
+                )
+              }
+            >
+              <UserCog className="w-5 h-5 flex-shrink-0 text-cyan-400" />
+              {isExpanded && <span className="font-medium whitespace-nowrap text-sm">Usuários</span>}
+            </NavLink>
+
             <button
               onClick={() => setIsPermissoesModalOpen(true)}
               title={!isExpanded ? 'Permissões por Perfil' : undefined}

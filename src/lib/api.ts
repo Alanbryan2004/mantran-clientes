@@ -1306,8 +1306,145 @@ export const api = {
       console.warn('Erro ao limpar todas notificações:', err)
       return false
     }
+  },
+
+  // --- Usuários do Sistema ---
+  async getUsuariosSistema(): Promise<UsuarioSistema[]> {
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('*')
+      .order('nome', { ascending: true })
+
+    if (error) throw error
+    return data || []
+  },
+
+  async createUsuarioSistema(payload: {
+    nome: string
+    login: string
+    senha?: string
+    perfil: string
+    ativo?: boolean
+    e_tecnico?: boolean
+    meta_semanal?: number
+  }): Promise<UsuarioSistema> {
+    const cleanLogin = (payload.login || '').trim()
+
+    // Verifica se já existe login duplicado
+    const { data: existing } = await supabase
+      .from('usuario')
+      .select('id')
+      .ilike('login', cleanLogin)
+      .maybeSingle()
+
+    if (existing) {
+      throw new Error(`O login "${cleanLogin}" já está em uso por outro usuário.`)
+    }
+
+    const { data, error } = await supabase
+      .from('usuario')
+      .insert({
+        nome: payload.nome.trim(),
+        login: cleanLogin,
+        senha: payload.senha?.trim() || 'M4ntr4n@',
+        perfil: payload.perfil || 'Usuario',
+        ativo: payload.ativo !== undefined ? payload.ativo : true,
+        e_tecnico: payload.e_tecnico !== undefined ? payload.e_tecnico : payload.perfil === 'Tecnico',
+        meta_semanal: Number(payload.meta_semanal) || 0
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async updateUsuarioSistema(id: string, payload: {
+    nome?: string
+    login?: string
+    senha?: string
+    perfil?: string
+    ativo?: boolean
+    e_tecnico?: boolean
+    meta_semanal?: number
+  }): Promise<UsuarioSistema> {
+    const updateData: any = {}
+    if (payload.nome !== undefined) updateData.nome = payload.nome.trim()
+    if (payload.login !== undefined) {
+      const cleanLogin = payload.login.trim()
+      // Verifica duplicação de login em outro usuário
+      const { data: existing } = await supabase
+        .from('usuario')
+        .select('id')
+        .ilike('login', cleanLogin)
+        .neq('id', id)
+        .maybeSingle()
+
+      if (existing) {
+        throw new Error(`O login "${cleanLogin}" já está em uso por outro usuário.`)
+      }
+      updateData.login = cleanLogin
+    }
+    if (payload.senha && payload.senha.trim() !== '') {
+      updateData.senha = payload.senha.trim()
+    }
+    if (payload.perfil !== undefined) {
+      updateData.perfil = payload.perfil
+    }
+    if (payload.ativo !== undefined) {
+      updateData.ativo = payload.ativo
+    }
+    if (payload.e_tecnico !== undefined) {
+      updateData.e_tecnico = payload.e_tecnico
+    }
+    if (payload.meta_semanal !== undefined) {
+      updateData.meta_semanal = Number(payload.meta_semanal) || 0
+    }
+
+    const { data, error } = await supabase
+      .from('usuario')
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async toggleUsuarioAtivo(id: string, ativo: boolean): Promise<boolean> {
+    const { error } = await supabase
+      .from('usuario')
+      .update({ ativo })
+      .eq('id', id)
+
+    if (error) throw error
+    return true
+  },
+
+  async deleteUsuarioSistema(id: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('usuario')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+    return true
   }
 }
+
+export interface UsuarioSistema {
+  id: string
+  nome: string
+  login: string
+  senha?: string
+  perfil: string
+  ativo: boolean
+  e_tecnico?: boolean
+  meta_semanal?: number
+  created_at?: string
+}
+
 
 
 
