@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
@@ -9,6 +9,8 @@ import { AcessoClienteModal } from '../components/AcessoClienteModal'
 import { ClienteFormularioModal } from '../components/ClienteFormularioModal'
 import { VisualizarCheckpointModal } from '../components/VisualizarCheckpointModal'
 import { VisualizarHistoricoModal } from '../components/VisualizarHistoricoModal'
+import { EnviarFeedbackModal } from '../components/EnviarFeedbackModal'
+import { VisualizarFeedbackModal } from '../components/VisualizarFeedbackModal'
 import clsx from 'clsx'
 
 
@@ -77,6 +79,8 @@ export function ImplantacaoDetalhes() {
   const [checkpointData, setCheckpointData] = useState<any | null>(null)
   const [isFormularioModalOpen, setIsFormularioModalOpen] = useState(false)
   const [isVisualizarCheckpointModalOpen, setIsVisualizarCheckpointModalOpen] = useState(false)
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false)
+  const [isVisualizarFeedbackModalOpen, setIsVisualizarFeedbackModalOpen] = useState(false)
 
   // Historico form state
   const getCurrentDateTimeLocal = () => {
@@ -271,6 +275,17 @@ export function ImplantacaoDetalhes() {
   const progress = calculateProgress()
   const isComplete = progress === 100
   const isShopee = implantacao.tipo_cliente === 'SHOPEE'
+
+  const nonFeedbackEtapas = etapas.filter(e => (e.nome_etapa || '').trim().toLowerCase() !== 'feedback')
+  const areAllNonFeedbackEtapasOk = nonFeedbackEtapas.length > 0 && nonFeedbackEtapas.every(e => e.valor === 'OK')
+  const feedbackEtapa = etapas.find(e => (e.nome_etapa || '').trim().toLowerCase() === 'feedback')
+  const isFeedbackOk = feedbackEtapa?.valor === 'OK'
+
+  const feedbackHistoricoItem = historico.find(h => 
+    (h.texto || '').toUpperCase().includes('[FEEDBACK') || 
+    (h.texto || '').toUpperCase().includes('FEEDBACK DO CLIENTE') ||
+    (h.usuario_nome || '').toUpperCase().includes('FEEDBACK')
+  )
 
   // Limit items for display when collapsed
   const visibleHistorico = isHistoricoExpanded ? historico : historico.slice(0, 3)
@@ -510,6 +525,33 @@ export function ImplantacaoDetalhes() {
         </div>
       )}
 
+      {/* Feedback Banner for Client when ready */}
+      {isClienteUser() && areAllNonFeedbackEtapasOk && !isFeedbackOk && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-brand-500/15 to-emerald-500/15 border border-amber-500/40 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-5 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 text-2xl shrink-0 shadow-lg">
+              ⭐
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                Todas as etapas foram finalizadas! Falta apenas o seu Feedback 🎉
+              </h3>
+              <p className="text-xs text-slate-300 mt-1">
+                Sua avaliação sobre o atendimento, treinamentos e suporte é essencial para encerrarmos o processo com sucesso.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsFeedbackModalOpen(true)}
+            className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 flex items-center gap-2 shrink-0 cursor-pointer transition-all hover:scale-105"
+          >
+            <Star className="w-4 h-4 fill-slate-950 text-slate-950" />
+            <span>Enviar Feedback Agora</span>
+          </button>
+        </div>
+      )}
+
       {/* 1. Full-Width Interactive Etapas Grid / Table */}
       <div className="bg-dark-card border border-slate-800 rounded-xl overflow-hidden shadow-xl">
         <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
@@ -612,6 +654,51 @@ export function ImplantacaoDetalhes() {
                         <FileText className="w-3.5 h-3.5" />
                         <span>Preencher Questionário</span>
                       </button>
+                    )
+                  )}
+                </div>
+              )}
+
+              {((etapa.nome_etapa || '').trim().toLowerCase() === 'feedback') && (
+                <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
+                  {isClienteUser() ? (
+                    !areAllNonFeedbackEtapasOk ? (
+                      <div className="text-[11px] text-slate-500 text-center py-1.5 bg-slate-900/40 rounded-lg border border-slate-800/60 font-medium">
+                        🔒 Liberado após as etapas anteriores
+                      </div>
+                    ) : isFeedbackOk || feedbackHistoricoItem ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsVisualizarFeedbackModalOpen(true)}
+                        className="w-full text-xs font-bold py-1.5 px-3 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Star className="w-3.5 h-3.5 fill-emerald-400 text-emerald-400" />
+                        <span>Ver Feedback Enviado</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsFeedbackModalOpen(true)}
+                        className="w-full text-xs font-extrabold py-2 px-3 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer animate-pulse"
+                      >
+                        <Star className="w-3.5 h-3.5 fill-slate-950 text-slate-950" />
+                        <span>⭐ Enviar Feedback</span>
+                      </button>
+                    )
+                  ) : (
+                    feedbackHistoricoItem || isFeedbackOk ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsVisualizarFeedbackModalOpen(true)}
+                        className="w-full text-xs font-bold py-1.5 px-3 rounded-lg bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <span>Ver Feedback do Cliente</span>
+                      </button>
+                    ) : (
+                      <div className="text-[11px] text-slate-500 text-center py-1 font-medium">
+                        {areAllNonFeedbackEtapasOk ? 'Aguardando cliente' : 'Etapa de encerramento'}
+                      </div>
                     )
                   )}
                 </div>
@@ -833,6 +920,25 @@ export function ImplantacaoDetalhes() {
         onClose={() => setSelectedHistoricoItem(null)}
         item={selectedHistoricoItem}
         empresaNome={implantacao?.nome_empresa}
+      />
+
+      {/* Modal de Envio de Feedback (Cliente) */}
+      <EnviarFeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        implantacao={implantacao}
+        onSuccess={() => {
+          fetchImplantacao()
+          fetchHistorico()
+        }}
+      />
+
+      {/* Modal de Visualização de Feedback */}
+      <VisualizarFeedbackModal
+        isOpen={isVisualizarFeedbackModalOpen}
+        onClose={() => setIsVisualizarFeedbackModalOpen(false)}
+        implantacao={implantacao}
+        historicoItem={feedbackHistoricoItem}
       />
     </div>
   )
