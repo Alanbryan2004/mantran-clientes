@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser } from '../lib/auth'
@@ -64,6 +64,7 @@ const sortEtapasWithOrder = (list: any[], isShopee: boolean = false) => {
 export function ImplantacaoDetalhes() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   
   const [implantacao, setImplantacao] = useState<any>(null)
   const [clienteUser, setClienteUser] = useState<any | null>(null)
@@ -101,6 +102,16 @@ export function ImplantacaoDetalhes() {
       fetchCheckpoint()
     }
   }, [id])
+
+  // Auto open Checkpoint modal if directed from notifications (?checkpoint=true)
+  useEffect(() => {
+    if (searchParams.get('checkpoint') === 'true') {
+      setIsVisualizarCheckpointModalOpen(true)
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('checkpoint')
+      setSearchParams(nextParams, { replace: true })
+    }
+  }, [searchParams])
 
   const fetchCheckpoint = async () => {
     try {

@@ -767,14 +767,18 @@ export const api = {
   async saveImplantacaoCheckpoint(implantacaoId: string, dados: any, _usuarioNome?: string, _isFinal: boolean = true) {
     // 1. Check if implantacao is Shopee or Normal to validate required fields
     let isShopee = true
+    let impInfo: any = null
     try {
       const { data: imp } = await supabase
         .from('implantacoes')
-        .select('tipo_cliente')
+        .select('id, tipo_cliente, nome_empresa, cliente_id')
         .eq('id', implantacaoId)
         .single()
-      if (imp && imp.tipo_cliente) {
-        isShopee = imp.tipo_cliente === 'SHOPEE'
+      if (imp) {
+        impInfo = imp
+        if (imp.tipo_cliente) {
+          isShopee = imp.tipo_cliente === 'SHOPEE'
+        }
       }
     } catch (e) {
       console.warn('Aviso ao consultar tipo de cliente:', e)
@@ -918,11 +922,40 @@ export const api = {
         texto: historicoTexto,
         usuario_nome: 'Cliente'
       })
+
+      // 5. Inserir Notificação para a equipe do sistema
+      try {
+        const nomeEmpresa = impInfo?.nome_empresa || 'Cliente'
+        const tituloNotif = isReallyConcluido 
+          ? `🎉 Checkpoint Concluído!` 
+          : `📝 Checkpoint Preenchido`
+        
+        const msgNotif = isReallyConcluido
+          ? `O cliente "${nomeEmpresa}" completou 100% do Checkpoint e enviou todas as informações e arquivos.`
+          : `O cliente "${nomeEmpresa}" preencheu e salvou informações no Checkpoint (${respondidas.length} itens respondidos).`
+
+        await api.createNotificacao({
+          titulo: tituloNotif,
+          mensagem: msgNotif,
+          tipo: 'checkpoint',
+          implantacao_id: implantacaoId,
+          cliente_id: impInfo?.cliente_id || null,
+          dados_extras: {
+            nome_empresa: nomeEmpresa,
+            isCompleto: isReallyConcluido,
+            respondidas,
+            pendencias
+          }
+        })
+      } catch (notifErr) {
+        console.warn('Aviso ao gerar notificação de checkpoint:', notifErr)
+      }
+
     } catch (histErr) {
       console.warn('Aviso ao inserir histórico:', histErr)
     }
 
-    // 5. Update cliente possui_aditivo if aditivo is attached or confirmed
+    // 6. Update cliente possui_aditivo if aditivo is attached or confirmed
     try {
       const temAditivo = !!(
         dados?.cst_config?.arquivo_aditivo_base64 || 
@@ -930,22 +963,19 @@ export const api = {
       )
 
       if (temAditivo) {
-        const { data: imp } = await supabase
-          .from('implantacoes')
-          .select('cliente_id, nome_empresa')
-          .eq('id', implantacaoId)
-          .single()
+        const clienteId = impInfo?.cliente_id
+        const nomeEmp = impInfo?.nome_empresa
 
-        if (imp?.cliente_id) {
+        if (clienteId) {
           await supabase
             .from('clientes')
             .update({ possui_aditivo: true })
-            .eq('id', imp.cliente_id)
-        } else if (imp?.nome_empresa) {
+            .eq('id', clienteId)
+        } else if (nomeEmp) {
           await supabase
             .from('clientes')
             .update({ possui_aditivo: true })
-            .ilike('nome_empresa', imp.nome_empresa)
+            .ilike('nome_empresa', nomeEmp)
         }
       }
     } catch (aditivoErr) {
@@ -1087,7 +1117,136 @@ export const api = {
     })
 
     return found || data[0] || null
+  },
+
+  // --- Notificações do Sistema ---
+  async getNotificacoes(limit: number = 40) {
+    try {
+      const { data, error } = await supabase
+        .from('notificacoes')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      
+      if (error) {
+        console.warn('Aviso ao buscar notificações:', error.message)
+        return []
+      }
+      return data || []
+    } catch (err) {
+      console.warn('Erro ao buscar notificações:', err)
+      return []
+    }
+  },
+
+  async getUnreadNotificacoesCount() {
+    try {
+      const { count, error } = await supabase
+        .from('notificacoes')
+        .select('*', { count: 'exact', head: true })
+        .eq('lida', false)
+      
+      if (error) return 0
+      return count || 0
+    } catch {
+      return 0
+    }
+  },
+
+  async createNotificacao(payload: {
+    titulo: string
+    mensagem: string
+    tipo?: string
+    implantacao_id?: string | null
+    cliente_id?: string | null
+    dados_extras?: any
+  }) {
+    try {
+      const { data, error } = await supabase
+        .from('notificacoes')
+        .insert({
+          titulo: payload.titulo,
+          mensagem: payload.mensagem,
+          tipo: payload.tipo || 'checkpoint',
+          lida: false,
+          implantacao_id: payload.implantacao_id || null,
+          cliente_id: payload.cliente_id || null,
+          dados_extras: payload.dados_extras || null
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.warn('Aviso ao criar notificação:', error.message)
+        return null
+      }
+      return data
+    } catch (err) {
+      console.warn('Erro ao inserir notificação:', err)
+      return null
+    }
+  },
+
+  async markNotificacaoAsLida(id: string) {
+    try {
+      const { error } = await supabase
+        .from('notificacoes')
+        .update({ lida: true })
+        .eq('id', id)
+      
+      if (error) throw error
+      return true
+    } catch (err) {
+      console.warn('Erro ao marcar notificação como lida:', err)
+      return false
+    }
+  },
+
+  async markAllNotificacoesAsLidas() {
+    try {
+      const { error } = await supabase
+        .from('notificacoes')
+        .update({ lida: true })
+        .eq('lida', false)
+      
+      if (error) throw error
+      return true
+    } catch (err) {
+      console.warn('Erro ao marcar todas notificações como lidas:', err)
+      return false
+    }
+  },
+
+  async deleteNotificacao(id: string) {
+    try {
+      const { error } = await supabase
+        .from('notificacoes')
+        .delete()
+        .eq('id', id)
+      
+      if (error) throw error
+      return true
+    } catch (err) {
+      console.warn('Erro ao excluir notificação:', err)
+      return false
+    }
+  },
+
+  async clearAllNotificacoes() {
+    try {
+      const { error } = await supabase
+        .from('notificacoes')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000')
+      
+      if (error) throw error
+      return true
+    } catch (err) {
+      console.warn('Erro ao limpar todas notificações:', err)
+      return false
+    }
   }
 }
+
 
 
