@@ -50,9 +50,9 @@ export function checkCheckpointCompleto(dados: any, isShopee: boolean = true) {
     pendencias.push('Histórico CTe')
   }
 
-  // 6. Usuários
+  // 6. Usuários (Email é opcional, apenas Nome é obrigatório)
   const usuarios = dados?.usuarios || []
-  const hasValidUsers = usuarios.length > 0 && usuarios.some((u: any) => u.nome && u.email)
+  const hasValidUsers = usuarios.length > 0 && usuarios.some((u: any) => u.nome && u.nome.trim().length > 0)
   if (!hasValidUsers) {
     pendencias.push('Usuários do Sistema')
   }
