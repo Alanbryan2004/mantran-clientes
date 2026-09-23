@@ -5,6 +5,7 @@ import {
   Layers, PackageCheck, Sparkles
 } from 'lucide-react'
 import { api } from '../lib/api'
+import { getLoggedUser } from '../lib/auth'
 import clsx from 'clsx'
 
 interface NovaImplantacaoModalProps {
@@ -269,6 +270,26 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
         ordem: i + 1
       }))
       await api.insertImplantacaoEtapas(etapasToInsert)
+
+      // 5.1 Registrar Histórico inicial de Criação da Implantação
+      try {
+        const currentUser = getLoggedUser()
+        const usuarioNome = currentUser ? (currentUser.nome || currentUser.login) : 'Equipe Mantran'
+        const usuarioId = currentUser ? currentUser.id : null
+        const baseTxt = selectedBase ? ` na Base ${selectedBase}` : ''
+        const analistaTxt = selectedAnalistaNome ? ` • Analista Responsável: ${selectedAnalistaNome}` : ''
+        const tipoTxt = tipoCliente === 'SHOPEE' ? 'Shopee' : 'Padrão'
+
+        await api.insertImplantacaoHistorico({
+          implantacao_id: implData.id,
+          data_hora: new Date().toISOString(),
+          texto: `Implantação criada no sistema${baseTxt} para o cliente "${nomeEmpresa.trim()}" (${tipoTxt})${analistaTxt}.`,
+          usuario_id: usuarioId,
+          usuario_nome: usuarioNome
+        })
+      } catch (histErr) {
+        console.warn('Aviso ao registrar histórico de criação da implantação:', histErr)
+      }
 
       // 6. Gerar automaticamente o Usuário e Senha do Cliente com Perfil Cliente
       try {

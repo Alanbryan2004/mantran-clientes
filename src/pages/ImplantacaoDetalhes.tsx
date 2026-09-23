@@ -325,9 +325,29 @@ export function ImplantacaoDetalhes() {
                 {isComplete ? '✓ Concluído' : 'Em Andamento'}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Criado em {new Date(implantacao.created_at).toLocaleDateString('pt-BR')} • {etapas.length} etapas no processo
-            </p>
+            {(() => {
+              const criadorRegistro = [...historico].reverse().find(h => 
+                h.texto?.toLowerCase().includes('implantação criada') || 
+                h.texto?.toLowerCase().includes('implantacao criada') ||
+                h.texto?.toLowerCase().includes('criada no sistema')
+              )
+              const criadorNome = criadorRegistro?.usuario_nome || null
+
+              return (
+                <p className="text-xs text-slate-400 mt-1">
+                  {criadorNome ? (
+                    <>
+                      Criado por <span className="font-semibold text-slate-200">{criadorNome}</span> em {new Date(implantacao.created_at).toLocaleDateString('pt-BR')}
+                    </>
+                  ) : (
+                    <>
+                      Criado em {new Date(implantacao.created_at).toLocaleDateString('pt-BR')}
+                    </>
+                  )}
+                  {' '}• {etapas.length} etapas no processo
+                </p>
+              )
+            })()}
           </div>
         </div>
 
