@@ -1264,64 +1264,24 @@ export const api = {
     }
   },
 
-  async markNotificacaoAsLida(id: string) {
-    try {
-      const { error } = await supabase
-        .from('notificacoes')
-        .update({ lida: true })
-        .eq('id', id)
-      
-      if (error) throw error
-      return true
-    } catch (err) {
-      console.warn('Erro ao marcar notificação como lida:', err)
-      return false
-    }
+  async markNotificacaoAsLida(_id: string) {
+    // Gestão de leitura individualizada por usuário no frontend (NotificationsPopover)
+    return true
   },
 
   async markAllNotificacoesAsLidas() {
-    try {
-      const { error } = await supabase
-        .from('notificacoes')
-        .update({ lida: true })
-        .eq('lida', false)
-      
-      if (error) throw error
-      return true
-    } catch (err) {
-      console.warn('Erro ao marcar todas notificações como lidas:', err)
-      return false
-    }
+    // Gestão de leitura individualizada por usuário no frontend (NotificationsPopover)
+    return true
   },
 
-  async deleteNotificacao(id: string) {
-    try {
-      const { error } = await supabase
-        .from('notificacoes')
-        .delete()
-        .eq('id', id)
-      
-      if (error) throw error
-      return true
-    } catch (err) {
-      console.warn('Erro ao excluir notificação:', err)
-      return false
-    }
+  async deleteNotificacao(_id: string) {
+    // Gestão de exclusão individualizada por usuário (não apaga do banco para não sumir dos outros usuários)
+    return true
   },
 
   async clearAllNotificacoes() {
-    try {
-      const { error } = await supabase
-        .from('notificacoes')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000')
-      
-      if (error) throw error
-      return true
-    } catch (err) {
-      console.warn('Erro ao limpar todas notificações:', err)
-      return false
-    }
+    // Gestão de exclusão individualizada por usuário (não apaga do banco para não sumir dos outros usuários)
+    return true
   },
 
   // --- Usuários do Sistema ---
