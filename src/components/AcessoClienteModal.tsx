@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, KeyRound, Copy, Check, Eye, EyeOff, ShieldCheck, UserCheck, AlertCircle, Save, Send, Sparkles, UserPlus } from 'lucide-react'
+import { X, KeyRound, Copy, Check, Eye, EyeOff, ShieldCheck, UserCheck, AlertCircle, Save, Send, Sparkles, UserPlus, MessageSquare } from 'lucide-react'
 import { api } from '../lib/api'
 import clsx from 'clsx'
 
@@ -31,6 +31,7 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
   const [copiedLogin, setCopiedLogin] = useState(false)
   const [copiedSenha, setCopiedSenha] = useState(false)
   const [copiedMessage, setCopiedMessage] = useState(false)
+  const [copiedBoasVindas, setCopiedBoasVindas] = useState(false)
 
   // Extrair número da base (ex: dbMantran010 -> 010, dbMantran120 -> 120)
   const getBaseNumero = (baseName?: string) => {
@@ -113,7 +114,7 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
     }
   }
 
-  const handleCopy = (text: string, type: 'login' | 'senha' | 'message') => {
+  const handleCopy = (text: string, type: 'login' | 'senha' | 'message' | 'boasVindas') => {
     navigator.clipboard.writeText(text)
     if (type === 'login') {
       setCopiedLogin(true)
@@ -124,6 +125,9 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
     } else if (type === 'message') {
       setCopiedMessage(true)
       setTimeout(() => setCopiedMessage(false), 2500)
+    } else if (type === 'boasVindas') {
+      setCopiedBoasVindas(true)
+      setTimeout(() => setCopiedBoasVindas(false), 2500)
     }
   }
 
@@ -134,6 +138,25 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
     return `*Acesso ao Acompanhamento de Implantação - Mantran*\n\n` +
       `Olá! Seguem seus dados de acesso exclusivo para acompanhar o status e as etapas da sua implantação:\n\n` +
       `🏢 *Empresa:* ${implantacao?.nome_empresa}\n` +
+      `🌐 *Link de Acesso:* ${origin}\n` +
+      `👤 *Usuário:* ${login}\n` +
+      `🔑 *Senha:* ${senha}\n\n` +
+      `_Acompanhe em tempo real todas as etapas do processo de implantação._`
+  }
+
+  const getBoasVindasMessage = () => {
+    const isLocalhost = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+    const origin = isLocalhost ? 'https://mantran-clientes-five.vercel.app' : window.location.origin
+    const nomeEmpresa = implantacao?.nome_empresa || 'Cliente'
+
+    return `Olá! 👋\n` +
+      `Criamos este grupo para acompanharmos juntos o progresso da implantação do TMS.\n` +
+      `Aqui estarão o cliente (${nomeEmpresa}), o vendedor responsável e o time de implantação, garantindo uma comunicação clara e rápida durante todo o processo.\n\n` +
+      `👉 Importante: este grupo tem uso exclusivo para acompanhamento da implantação. Após a conclusão, o suporte e novas demandas deverão seguir pelo fluxo de abertura de tickets.\n\n` +
+      `Sejam bem-vindos e vamos juntos para uma implantação de sucesso! 🚀\n\n` +
+      `*Acesso ao Acompanhamento de Implantação - Mantran*\n\n` +
+      `Olá! Seguem seus dados de acesso exclusivo para acompanhar o status e as etapas da sua implantação:\n\n` +
+      `🏢 *Empresa:* ${nomeEmpresa}\n` +
       `🌐 *Link de Acesso:* ${origin}\n` +
       `👤 *Usuário:* ${login}\n` +
       `🔑 *Senha:* ${senha}\n\n` +
@@ -322,22 +345,6 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
                   </p>
                 </div>
 
-                {/* Perfil & Permissões info */}
-                <div className="pt-2">
-                  <div className="p-3 bg-slate-900/40 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="text-slate-400 block font-medium">Perfil atribuído:</span>
-                      <span className="font-bold text-white flex items-center gap-1 mt-0.5">
-                        <span className="w-2 h-2 rounded-full bg-brand-400"></span>
-                        Cliente (Apenas Consulta / Sem Histórico)
-                      </span>
-                    </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 font-semibold">
-                      Restrito
-                    </span>
-                  </div>
-                </div>
-
                 {/* Botões de Ação */}
                 <div className="pt-3 space-y-2.5">
                   {isNovoAcesso ? (
@@ -371,21 +378,41 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
                       </button>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2.5">
+                      {/* Botão Mensagem Boas-Vindas + Acesso */}
                       <button
                         type="button"
-                        onClick={() => handleCopy(getFullMessage(), 'message')}
-                        className="w-full py-2.5 px-4 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+                        onClick={() => handleCopy(getBoasVindasMessage(), 'boasVindas')}
+                        className="w-full py-2.5 px-4 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-500/10 active:scale-[0.99]"
                       >
-                        {copiedMessage ? (
+                        {copiedBoasVindas ? (
                           <>
-                            <Check className="w-4 h-4 text-emerald-400" />
-                            <span>Mensagem Copiada com Sucesso!</span>
+                            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>Mensagem de Boas-Vindas Copiada!</span>
                           </>
                         ) : (
                           <>
-                            <Send className="w-4 h-4 text-emerald-400" />
-                            <span>Copiar Mensagem Pronta para o Cliente (WhatsApp/Email)</span>
+                            <MessageSquare className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>Copiar Boas-Vindas + Acesso (WhatsApp)</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Botão Apenas Dados de Acesso */}
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(getFullMessage(), 'message')}
+                        className="w-full py-2 px-4 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white font-medium text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.99]"
+                      >
+                        {copiedMessage ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span className="text-emerald-400 font-semibold">Dados Copiados!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>Copiar Apenas Dados de Acesso</span>
                           </>
                         )}
                       </button>
@@ -393,7 +420,7 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
                       <button
                         type="button"
                         onClick={() => setIsEditing(true)}
-                        className="text-xs text-slate-400 hover:text-white py-1.5 transition-colors text-center underline cursor-pointer"
+                        className="text-xs text-slate-400 hover:text-white py-1 transition-colors text-center underline cursor-pointer"
                       >
                         Alterar Usuário ou Senha
                       </button>
@@ -409,3 +436,4 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
     </div>
   )
 }
+
