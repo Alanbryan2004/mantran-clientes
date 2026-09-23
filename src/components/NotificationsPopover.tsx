@@ -9,11 +9,13 @@ import {
   CheckCircle2, 
   Rocket, 
   X,
-  RefreshCw
+  RefreshCw,
+  FileText,
+  Sparkles
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
-import { isClienteUser } from '../lib/auth'
+import { getLoggedUser, isClienteUser } from '../lib/auth'
 import clsx from 'clsx'
 
 export function NotificationsPopover() {
@@ -26,13 +28,59 @@ export function NotificationsPopover() {
   const popoverRef = useRef<HTMLDivElement>(null)
 
   const isCliente = isClienteUser()
+  const currentUser = getLoggedUser()
+  const userKey = currentUser ? (currentUser.id || currentUser.login || 'user') : 'user'
+
+  const STORAGE_KEY_READ = `@Mantran:notificacoes_lidas_${userKey}`
+  const STORAGE_KEY_DELETED = `@Mantran:notificacoes_excluidas_${userKey}`
+
+  // Obter IDs lidos pelo usuário atual
+  const getReadIds = (): Set<string> => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_READ)
+      if (stored) return new Set(JSON.parse(stored))
+    } catch (_) {}
+    return new Set()
+  }
+
+  // Obter IDs excluídos pelo usuário atual
+  const getDeletedIds = (): Set<string> => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_DELETED)
+      if (stored) return new Set(JSON.parse(stored))
+    } catch (_) {}
+    return new Set()
+  }
+
+  const saveReadIds = (set: Set<string>) => {
+    try {
+      localStorage.setItem(STORAGE_KEY_READ, JSON.stringify(Array.from(set)))
+    } catch (_) {}
+  }
+
+  const saveDeletedIds = (set: Set<string>) => {
+    try {
+      localStorage.setItem(STORAGE_KEY_DELETED, JSON.stringify(Array.from(set)))
+    } catch (_) {}
+  }
 
   const fetchNotificacoes = async (showLoading = false) => {
     if (showLoading) setLoading(true)
     try {
-      const list = await api.getNotificacoes(30)
-      setNotificacoes(list)
-      const unread = list.filter((n: any) => !n.lida).length
+      const rawList = await api.getNotificacoes(50)
+      const readIds = getReadIds()
+      const deletedIds = getDeletedIds()
+
+      // Filtrar apenas as não excluídas por este usuário
+      const userList = (rawList || [])
+        .filter((n: any) => !deletedIds.has(n.id))
+        .map((n: any) => ({
+          ...n,
+          lida: readIds.has(n.id) // O status de lida é estritamente pessoal deste usuário
+        }))
+
+      setNotificacoes(userList)
+      const unread = userList.filter((n: any) => !n.lida).length
       setUnreadCount(unread)
     } catch (err) {
       console.warn('Erro ao carregar notificações:', err)
@@ -43,7 +91,6 @@ export function NotificationsPopover() {
 
   // Load initial notifications & subscribe to Realtime updates
   useEffect(() => {
-    // If logged user is a client, they don't necessarily need internal staff notifications
     if (isCliente) return
 
     fetchNotificacoes()
@@ -60,7 +107,7 @@ export function NotificationsPopover() {
       )
       .subscribe()
 
-    // 2. Fallback polling every 20 seconds
+    // 2. Polling de fallback a cada 20 segundos
     const interval = setInterval(() => {
       fetchNotificacoes()
     }, 20000)
@@ -69,7 +116,7 @@ export function NotificationsPopover() {
       supabase.removeChannel(channel)
       clearInterval(interval)
     }
-  }, [isCliente])
+  }, [isCliente, userKey])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -87,37 +134,60 @@ export function NotificationsPopover() {
     }
   }, [isOpen])
 
-  const handleMarkAsRead = async (id: string, e?: React.MouseEvent) => {
+  const handleMarkAsRead = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
+    const readIds = getReadIds()
+    readIds.add(id)
+    saveReadIds(readIds)
+
     setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
     setUnreadCount(prev => Math.max(0, prev - 1))
-    await api.markNotificacaoAsLida(id)
   }
 
-  const handleMarkAllAsRead = async () => {
+  const handleMarkAllAsRead = () => {
+    const readIds = getReadIds()
+    notificacoes.forEach(n => readIds.add(n.id))
+    saveReadIds(readIds)
+
     setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })))
     setUnreadCount(0)
-    await api.markAllNotificacoesAsLidas()
   }
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
+    const deletedIds = getDeletedIds()
+    deletedIds.add(id)
+    saveDeletedIds(deletedIds)
+
     const target = notificacoes.find(n => n.id === id)
     setNotificacoes(prev => prev.filter(n => n.id !== id))
     if (target && !target.lida) {
       setUnreadCount(prev => Math.max(0, prev - 1))
     }
-    await api.deleteNotificacao(id)
   }
 
-  const handleOpenNotificacao = async (item: any) => {
+  const handleClearAll = () => {
+    if (window.confirm('Deseja limpar suas notificações deste painel? (Não afetará os outros usuários da equipe)')) {
+      const deletedIds = getDeletedIds()
+      notificacoes.forEach(n => deletedIds.add(n.id))
+      saveDeletedIds(deletedIds)
+
+      setNotificacoes([])
+      setUnreadCount(0)
+    }
+  }
+
+  const handleOpenNotificacao = (item: any) => {
     if (!item.lida) {
-      await handleMarkAsRead(item.id)
+      handleMarkAsRead(item.id)
     }
     setIsOpen(false)
 
-    if (item.implantacao_id) {
-      // Direct navigation to client's implantação and auto-open Checkpoint Modal
+    if (item.tipo === 'nova_implantacao' && item.implantacao_id) {
+      // Redireciona diretamente para a Implantação recém-criada
+      navigate(`/implantacoes/${item.implantacao_id}`)
+    } else if (item.implantacao_id) {
+      // Redireciona para o Checkpoint preenchido
       navigate(`/implantacoes/${item.implantacao_id}?checkpoint=true`)
     } else {
       navigate('/implantacoes')
@@ -183,20 +253,18 @@ export function NotificationsPopover() {
 
         {/* Pulsing Badge for unread count */}
         {unreadCount > 0 && (
-          <>
-            <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center px-1">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex items-center justify-center rounded-full h-5 min-w-5 px-1 bg-gradient-to-r from-red-500 to-rose-600 text-[10px] font-black text-white shadow-md border border-dark-card">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
+          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center px-1">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span className="relative inline-flex items-center justify-center rounded-full h-5 min-w-5 px-1 bg-gradient-to-r from-red-500 to-rose-600 text-[10px] font-black text-white shadow-md border border-dark-card">
+              {unreadCount > 99 ? '99+' : unreadCount}
             </span>
-          </>
+          </span>
         )}
       </button>
 
       {/* Popover / Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-96 sm:w-[440px] max-w-[calc(100vw-2rem)] bg-[#131622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
+        <div className="absolute right-0 mt-3 w-96 sm:w-[450px] max-w-[calc(100vw-2rem)] bg-[#131622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
           
           {/* Header */}
           <div className="p-4 border-b border-slate-800/80 bg-slate-900/60 flex items-center justify-between">
@@ -213,7 +281,7 @@ export function NotificationsPopover() {
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-400">Atualizações de Checkpoints e Clientes</p>
+                <p className="text-[11px] text-slate-400">Atualizações de Implantações e Checkpoints</p>
               </div>
             </div>
 
@@ -222,14 +290,14 @@ export function NotificationsPopover() {
                 type="button"
                 onClick={() => fetchNotificacoes(true)}
                 title="Atualizar"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <RefreshCw className={clsx("w-3.5 h-3.5", loading && "animate-spin text-brand-400")} />
               </button>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -243,7 +311,7 @@ export function NotificationsPopover() {
                 type="button"
                 onClick={() => setFilter('all')}
                 className={clsx(
-                  "px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors",
+                  "px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer",
                   filter === 'all'
                     ? "bg-brand-500/20 text-brand-300 border border-brand-500/30"
                     : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
@@ -255,7 +323,7 @@ export function NotificationsPopover() {
                 type="button"
                 onClick={() => setFilter('unread')}
                 className={clsx(
-                  "px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1",
+                  "px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer",
                   filter === 'unread'
                     ? "bg-brand-500/20 text-brand-300 border border-brand-500/30"
                     : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
@@ -269,7 +337,7 @@ export function NotificationsPopover() {
               <button
                 type="button"
                 onClick={handleMarkAllAsRead}
-                className="text-[11px] text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors font-medium hover:underline"
+                className="text-[11px] text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors font-medium hover:underline cursor-pointer"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 Marcar lidas
@@ -293,11 +361,12 @@ export function NotificationsPopover() {
                   {filter === 'unread' ? 'Nenhuma notificação não lida' : 'Nenhuma notificação recente'}
                 </p>
                 <p className="text-xs text-slate-500 max-w-xs">
-                  Quando os clientes preencherem ou salvarem informações no Checkpoint, você será avisado aqui em tempo real.
+                  Quando novas implantações forem criadas ou os clientes preencherem o Checkpoint, você será avisado aqui em tempo real.
                 </p>
               </div>
             ) : (
               displayedNotificacoes.map((item) => {
+                const isNovaImplantacao = item.tipo === 'nova_implantacao'
                 const isConcluido = item.titulo?.includes('Concluído') || item.dados_extras?.isCompleto
                 const nomeCliente = item.dados_extras?.nome_empresa || 'Cliente'
 
@@ -314,15 +383,19 @@ export function NotificationsPopover() {
                   >
                     {/* Status Icon */}
                     <div className={clsx(
-                      "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5",
-                      isConcluido
-                        ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
-                        : "bg-blue-500/15 border-blue-500/30 text-blue-400"
+                      "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5 shadow-sm",
+                      isNovaImplantacao
+                        ? "bg-purple-500/15 border-purple-500/30 text-purple-400 shadow-purple-500/10"
+                        : isConcluido
+                        ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
+                        : "bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-blue-500/10"
                     )}>
-                      {isConcluido ? (
+                      {isNovaImplantacao ? (
+                        <Rocket className="w-4 h-4" />
+                      ) : isConcluido ? (
                         <CheckCircle2 className="w-4 h-4" />
                       ) : (
-                        <Rocket className="w-4 h-4" />
+                        <FileText className="w-4 h-4" />
                       )}
                     </div>
 
@@ -331,8 +404,10 @@ export function NotificationsPopover() {
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={clsx(
-                            "text-xs font-bold px-2 py-0.5 rounded-md border",
-                            isConcluido
+                            "text-[11px] font-bold px-2 py-0.5 rounded-md border",
+                            isNovaImplantacao
+                              ? "bg-purple-950/40 text-purple-300 border-purple-500/30"
+                              : isConcluido
                               ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
                               : "bg-blue-950/40 text-blue-300 border-blue-500/30"
                           )}>
@@ -367,17 +442,22 @@ export function NotificationsPopover() {
                               e.stopPropagation()
                               handleOpenNotificacao(item)
                             }}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border border-brand-500/20 text-[11px] font-medium transition-colors"
+                            className={clsx(
+                              "inline-flex items-center gap-1 px-2.5 py-1 rounded border text-[11px] font-semibold transition-all cursor-pointer",
+                              isNovaImplantacao
+                                ? "bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border-purple-500/30"
+                                : "bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border-brand-500/30"
+                            )}
                           >
                             <ExternalLink className="w-3 h-3" />
-                            Visualizar Checkpoint
+                            {isNovaImplantacao ? 'Abrir Implantação' : 'Visualizar Formulário'}
                           </button>
 
                           <button
                             type="button"
                             onClick={(e) => handleDelete(item.id, e)}
-                            title="Excluir notificação"
-                            className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                            title="Remover das minhas notificações"
+                            className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -396,16 +476,10 @@ export function NotificationsPopover() {
               <span>Total: {notificacoes.length} notificações</span>
               <button
                 type="button"
-                onClick={async () => {
-                  if (window.confirm('Deseja limpar todas as notificações do histórico?')) {
-                    setNotificacoes([])
-                    setUnreadCount(0)
-                    await api.clearAllNotificacoes()
-                  }
-                }}
-                className="text-[11px] text-red-400/80 hover:text-red-400 hover:underline transition-colors"
+                onClick={handleClearAll}
+                className="text-[11px] text-red-400/80 hover:text-red-400 hover:underline transition-colors cursor-pointer"
               >
-                Limpar histórico
+                Limpar meu histórico
               </button>
             </div>
           )}
@@ -415,3 +489,4 @@ export function NotificationsPopover() {
     </div>
   )
 }
+

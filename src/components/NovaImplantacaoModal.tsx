@@ -282,6 +282,27 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
         console.error('Aviso ao criar usuário do cliente:', userErr)
       }
 
+      // 7. Gerar Notificação para a equipe sobre a Nova Implantação
+      try {
+        const analistaTxt = selectedAnalistaNome ? ` • Analista: ${selectedAnalistaNome}` : ''
+        const baseTxt = selectedBase ? ` • Base: ${selectedBase}` : ''
+        await api.createNotificacao({
+          titulo: `🚀 Nova Implantação: ${nomeEmpresa.trim()}`,
+          mensagem: `A implantação da empresa "${nomeEmpresa.trim()}" (${tipoCliente === 'SHOPEE' ? 'Shopee' : 'Padrão'}) foi iniciada.${baseTxt}${analistaTxt}`,
+          tipo: 'nova_implantacao',
+          implantacao_id: implData.id,
+          cliente_id: clienteData.id,
+          dados_extras: {
+            nome_empresa: nomeEmpresa.trim(),
+            tipo_cliente: tipoCliente,
+            base: selectedBase,
+            analista: selectedAnalistaNome || null
+          }
+        })
+      } catch (notifErr) {
+        console.warn('Aviso ao gerar notificação de nova implantação:', notifErr)
+      }
+
       onSuccess()
       onClose()
     } catch (err: any) {
