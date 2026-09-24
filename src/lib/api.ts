@@ -1929,6 +1929,119 @@ export const api = {
       }
       return true
     }
+  },
+
+  // --- RH: Plantões de Final de Semana (Técnicos) ---
+  async getPlantoes(tecnicoId?: string): Promise<PlantaoTecnico[]> {
+    try {
+      let query = supabase
+        .from('rh_plantoes')
+        .select('*')
+        .order('data_inicio', { ascending: false })
+
+      if (tecnicoId) {
+        query = query.eq('tecnico_id', tecnicoId)
+      }
+
+      const { data, error } = await query
+      if (error) {
+        const local = localStorage.getItem('@Mantran:rh_plantoes')
+        const list: PlantaoTecnico[] = local ? JSON.parse(local) : []
+        if (tecnicoId) return list.filter(i => i.tecnico_id === tecnicoId)
+        return list
+      }
+
+      return data || []
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_plantoes')
+      const list: PlantaoTecnico[] = local ? JSON.parse(local) : []
+      if (tecnicoId) return list.filter(i => i.tecnico_id === tecnicoId)
+      return list
+    }
+  },
+
+  async insertPlantao(payload: Partial<PlantaoTecnico>): Promise<PlantaoTecnico> {
+    const item: PlantaoTecnico = {
+      id: payload.id || (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15)),
+      tecnico_id: payload.tecnico_id!,
+      tecnico_nome: payload.tecnico_nome!,
+      data_inicio: payload.data_inicio!,
+      data_fim: payload.data_fim || payload.data_inicio!,
+      status_pagamento: payload.status_pagamento || 'Pendente',
+      valor_plantao: payload.valor_plantao !== undefined ? payload.valor_plantao : null,
+      observacoes: payload.observacoes || null,
+      registrado_por: payload.registrado_por || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('rh_plantoes')
+        .insert(item)
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return data
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_plantoes')
+      const list: PlantaoTecnico[] = local ? JSON.parse(local) : []
+      list.unshift(item)
+      localStorage.setItem('@Mantran:rh_plantoes', JSON.stringify(list))
+      return item
+    }
+  },
+
+  async updateStatusPagamentoPlantao(
+    id: string, 
+    statusPagamento: 'Pendente' | 'Aprovado' | 'Pago', 
+    valorPlantao?: number | null, 
+    observacoes?: string
+  ): Promise<boolean> {
+    const updatePayload: any = {
+      status_pagamento: statusPagamento,
+      updated_at: new Date().toISOString()
+    }
+    if (valorPlantao !== undefined) updatePayload.valor_plantao = valorPlantao
+    if (observacoes !== undefined) updatePayload.observacoes = observacoes
+
+    try {
+      const { error } = await supabase
+        .from('rh_plantoes')
+        .update(updatePayload)
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_plantoes')
+      if (local) {
+        const list: PlantaoTecnico[] = JSON.parse(local)
+        const updated = list.map(i => i.id === id ? { ...i, ...updatePayload } : i)
+        localStorage.setItem('@Mantran:rh_plantoes', JSON.stringify(updated))
+      }
+      return true
+    }
+  },
+
+  async deletePlantao(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_plantoes')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_plantoes')
+      if (local) {
+        const list: PlantaoTecnico[] = JSON.parse(local)
+        localStorage.setItem('@Mantran:rh_plantoes', JSON.stringify(list.filter(i => i.id !== id)))
+      }
+      return true
+    }
   }
 }
 
@@ -2034,6 +2147,21 @@ export interface EscalaHomeOffice {
   created_at?: string
   updated_at?: string
 }
+
+export interface PlantaoTecnico {
+  id: string
+  tecnico_id: string
+  tecnico_nome: string
+  data_inicio: string // Sábado
+  data_fim: string    // Domingo
+  status_pagamento: 'Pendente' | 'Aprovado' | 'Pago'
+  valor_plantao?: number | null
+  observacoes?: string | null
+  registrado_por?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 
 
 

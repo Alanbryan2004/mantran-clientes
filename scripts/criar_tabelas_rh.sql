@@ -123,6 +123,42 @@ DROP POLICY IF EXISTS "Permitir delete rh_home_office" ON public.rh_home_office;
 CREATE POLICY "Permitir delete rh_home_office" ON public.rh_home_office FOR DELETE USING (true);
 
 
+-- 1.4 Tabela de Plantões de Final de Semana (Técnicos)
+CREATE TABLE IF NOT EXISTS public.rh_plantoes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tecnico_id UUID NOT NULL,
+  tecnico_nome VARCHAR(255) NOT NULL,
+  data_inicio DATE NOT NULL, -- Sábado
+  data_fim DATE NOT NULL,    -- Domingo
+  status_pagamento VARCHAR(50) NOT NULL DEFAULT 'Pendente', -- 'Pendente', 'Aprovado', 'Pago'
+  valor_plantao NUMERIC(10, 2) NULL,
+  observacoes TEXT NULL,
+  registrado_por VARCHAR(255) NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX IF NOT EXISTS idx_rh_plantoes_tecnico_id ON public.rh_plantoes(tecnico_id);
+CREATE INDEX IF NOT EXISTS idx_rh_plantoes_data_inicio ON public.rh_plantoes(data_inicio DESC);
+CREATE INDEX IF NOT EXISTS idx_rh_plantoes_status ON public.rh_plantoes(status_pagamento);
+
+-- RLS para Plantões
+ALTER TABLE public.rh_plantoes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Permitir leitura rh_plantoes" ON public.rh_plantoes;
+CREATE POLICY "Permitir leitura rh_plantoes" ON public.rh_plantoes FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Permitir insercao rh_plantoes" ON public.rh_plantoes;
+CREATE POLICY "Permitir insercao rh_plantoes" ON public.rh_plantoes FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Permitir update rh_plantoes" ON public.rh_plantoes;
+CREATE POLICY "Permitir update rh_plantoes" ON public.rh_plantoes FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Permitir delete rh_plantoes" ON public.rh_plantoes;
+CREATE POLICY "Permitir delete rh_plantoes" ON public.rh_plantoes FOR DELETE USING (true);
+
+
 -- ============================================================
 -- 2. SCRIPT PARA O SQL SERVER (DbSuporte)
 -- Copie e execute no SQL Server Management Studio (SSMS)
@@ -202,5 +238,27 @@ BEGIN
   );
 
   CREATE NONCLUSTERED INDEX [idx_rh_home_office_usuario_id] ON [dbo].[rh_home_office] ([usuario_id]);
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[rh_plantoes]') AND type in (N'U'))
+BEGIN
+  CREATE TABLE [dbo].[rh_plantoes] (
+    [id] UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
+    [tecnico_id] UNIQUEIDENTIFIER NOT NULL,
+    [tecnico_nome] NVARCHAR(255) NOT NULL,
+    [data_inicio] DATE NOT NULL,
+    [data_fim] DATE NOT NULL,
+    [status_pagamento] NVARCHAR(50) NOT NULL DEFAULT 'Pendente',
+    [valor_plantao] DECIMAL(10, 2) NULL,
+    [observacoes] NVARCHAR(MAX) NULL,
+    [registrado_por] NVARCHAR(255) NULL,
+    [created_at] DATETIME2 DEFAULT SYSUTCDATETIME(),
+    [updated_at] DATETIME2 DEFAULT SYSUTCDATETIME()
+  );
+
+  CREATE NONCLUSTERED INDEX [idx_rh_plantoes_tecnico_id] ON [dbo].[rh_plantoes] ([tecnico_id]);
+  CREATE NONCLUSTERED INDEX [idx_rh_plantoes_data_inicio] ON [dbo].[rh_plantoes] ([data_inicio] DESC);
+  CREATE NONCLUSTERED INDEX [idx_rh_plantoes_status] ON [dbo].[rh_plantoes] ([status_pagamento]);
 END
 GO

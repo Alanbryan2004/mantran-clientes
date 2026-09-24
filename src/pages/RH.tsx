@@ -37,13 +37,18 @@ import {
   MapPin,
   Settings,
   ChevronRight,
-  UserCheck
+  UserCheck,
+  PhoneCall,
+  DollarSign,
+  CreditCard,
+  CheckCheck
 } from 'lucide-react'
 import { 
   api, 
   type SolicitacaoFerias, 
   type FaltaAtestado, 
   type EscalaHomeOffice,
+  type PlantaoTecnico,
   type UsuarioSistema 
 } from '../lib/api'
 import { getLoggedUser, isAdminUser } from '../lib/auth'
@@ -53,10 +58,11 @@ export function RH() {
   const user = getLoggedUser()
   const isAdmin = isAdminUser()
   const isGestorRh = isAdmin || user?.perfil?.trim().toLowerCase() === 'rh'
+  const isTecnico = user?.perfil?.trim().toLowerCase() === 'tecnico' || user?.perfil?.trim().toLowerCase() === 'administrador'
 
   // Abas de navegação:
-  // Se for Gestor/Admin: 'dashboard' | 'ferias_equipe' | 'home_office_equipe' | 'faltas_equipe' | 'equipe_dossie' | 'gestao_aprovacoes'
-  // Se for Colaborador: 'minhas_ferias' | 'meu_home_office' | 'minhas_faltas'
+  // Se for Gestor/Admin: 'dashboard' | 'ferias_equipe' | 'plantoes_equipe' | 'home_office_equipe' | 'faltas_equipe' | 'equipe_dossie' | 'gestao_aprovacoes'
+  // Se for Colaborador: 'minhas_ferias' | 'meus_plantoes' | 'meu_home_office' | 'minhas_faltas'
   const [tab, setTab] = useState<string>(isGestorRh ? 'dashboard' : 'minhas_ferias')
   const [loading, setLoading] = useState(true)
 
@@ -65,15 +71,15 @@ export function RH() {
   const [todasFeriasEquipe, setTodasFeriasEquipe] = useState<SolicitacaoFerias[]>([])
   const [todasFaltasEquipe, setTodasFaltasEquipe] = useState<FaltaAtestado[]>([])
   const [todasEscalasEquipe, setTodasEscalasEquipe] = useState<EscalaHomeOffice[]>([])
+  const [todosPlantoesEquipe, setTodosPlantoesEquipe] = useState<PlantaoTecnico[]>([])
 
   // Filtros & Buscas
   const [filtroBusca, setFiltroBusca] = useState('')
-  const [filtroDiaHomeOffice, setFiltroDiaHomeOffice] = useState<string>('todos')
-  const [anoFiltro, setAnoFiltro] = useState<number>(new Date().getFullYear())
+  const [filtroStatusPagamento, setFiltroStatusPagamento] = useState<string>('todos')
+  const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
 
   // Modal Solicitar Férias
   const [isFeriasModalOpen, setIsFeriasModalOpen] = useState(false)
-  const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
   const [q1Inicio, setQ1Inicio] = useState('')
   const [q1Fim, setQ1Fim] = useState('')
   const [q2Inicio, setQ2Inicio] = useState('')
@@ -108,7 +114,24 @@ export function RH() {
   } | null>(null)
   const [salvandoHomeOffice, setSalvandoHomeOffice] = useState(false)
 
-  // Modal Avaliação RH (Apenas Gestor/Admin)
+  // Modal Informar / Cadastrar Plantão de Final de Semana
+  const [isPlantaoModalOpen, setIsPlantaoModalOpen] = useState(false)
+  const [plantaoTecnicoId, setPlantaoTecnicoId] = useState('')
+  const [plantaoTecnicoNome, setPlantaoTecnicoNome] = useState('')
+  const [plantaoDataInicio, setPlantaoDataInicio] = useState('')
+  const [plantaoDataFim, setPlantaoDataFim] = useState('')
+  const [plantaoValor, setPlantaoValor] = useState<number | ''>('')
+  const [plantaoObs, setPlantaoObs] = useState('')
+  const [salvandoPlantao, setSalvandoPlantao] = useState(false)
+
+  // Modal Pagamento / Avaliação de Plantão pelo RH
+  const [plantaoPagamentoItem, setPlantaoPagamentoItem] = useState<PlantaoTecnico | null>(null)
+  const [pagamentoStatus, setPagamentoStatus] = useState<'Pendente' | 'Aprovado' | 'Pago'>('Pago')
+  const [pagamentoValor, setPagamentoValor] = useState<number | ''>('')
+  const [pagamentoObs, setPagamentoObs] = useState('')
+  const [salvandoPagamentoPlantao, setSalvandoPagamentoPlantao] = useState(false)
+
+  // Modal Avaliação Férias/Faltas RH (Admin)
   const [itemAvaliacao, setItemAvaliacao] = useState<{ type: 'ferias' | 'falta'; item: any } | null>(null)
   const [statusAvaliacao, setStatusAvaliacao] = useState<string>('Aprovado')
   const [respostaRh, setRespostaRh] = useState('')
@@ -124,14 +147,15 @@ export function RH() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [allUsers, todasFerias, faltas, escalas] = await Promise.all([
+      const [allUsers, todasFerias, faltas, escalas, plantoes] = await Promise.all([
         api.getUsuariosSistema().catch(() => []),
         api.getSolicitacoesFerias().catch(() => []),
         api.getFaltasEAtestados().catch(() => []),
-        api.getEscalasHomeOffice().catch(() => [])
+        api.getEscalasHomeOffice().catch(() => []),
+        api.getPlantoes().catch(() => [])
       ])
 
-      // Filtra apenas funcionários internos da Mantran (exclui Cliente, Parceiro, Usuario Consulta)
+      // Filtra apenas funcionários da Mantran
       const isFuncionarioMantran = (perfil?: string) => {
         if (!perfil) return false
         const p = perfil.trim().toLowerCase()
@@ -144,9 +168,11 @@ export function RH() {
       const funcionariosIds = new Set(funcionariosMantran.map(f => f.id))
       const funcionariosNomes = new Set(funcionariosMantran.map(f => f.nome.toLowerCase()))
 
-      const isRecordDeFuncionario = (item: { usuario_id?: string; usuario_nome?: string }) => {
-        if (item.usuario_id && funcionariosIds.has(item.usuario_id)) return true
-        if (item.usuario_nome && funcionariosNomes.has(item.usuario_nome.toLowerCase())) return true
+      const isRecordDeFuncionario = (item: { usuario_id?: string; usuario_nome?: string; tecnico_id?: string; tecnico_nome?: string }) => {
+        const uid = item.usuario_id || item.tecnico_id
+        const unome = (item.usuario_nome || item.tecnico_nome || '').toLowerCase()
+        if (uid && funcionariosIds.has(uid)) return true
+        if (unome && funcionariosNomes.has(unome)) return true
         return false
       }
 
@@ -154,6 +180,7 @@ export function RH() {
       setTodasFeriasEquipe((todasFerias || []).filter(isRecordDeFuncionario))
       setTodasFaltasEquipe((faltas || []).filter(isRecordDeFuncionario))
       setTodasEscalasEquipe((escalas || []).filter(isRecordDeFuncionario))
+      setTodosPlantoesEquipe(plantoes || [])
     } catch (err) {
       console.error('Erro ao carregar dados do portal de RH:', err)
     } finally {
@@ -161,7 +188,7 @@ export function RH() {
     }
   }
 
-  // Filtragem dos dados do próprio usuário logado (Portal do Colaborador)
+  // Filtragem dos dados do próprio usuário logado
   const minhasFerias = useMemo(() => {
     return todasFeriasEquipe.filter(f => 
       f.usuario_id === user?.id || 
@@ -183,10 +210,17 @@ export function RH() {
     )
   }, [todasEscalasEquipe, user])
 
-  // Dia da semana atual
+  const meusPlantoes = useMemo(() => {
+    return todosPlantoesEquipe.filter(p => 
+      p.tecnico_id === user?.id || 
+      (user?.nome && p.tecnico_nome?.toLowerCase() === user?.nome?.toLowerCase())
+    )
+  }, [todosPlantoesEquipe, user])
+
+  // Data atual
   const hoje = new Date()
-  const diaSemanaHojeIndex = hoje.getDay()
   const hojeStr = hoje.toISOString().split('T')[0]
+  const diaSemanaHojeIndex = hoje.getDay()
 
   const getDiaSemanaProp = (index: number): 'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta' | 'sabado' | null => {
     switch (index) {
@@ -201,6 +235,14 @@ export function RH() {
   }
 
   const diaAtualProp = getDiaSemanaProp(diaSemanaHojeIndex)
+
+  // Próximo plantão de fim de semana
+  const proximoPlantao = useMemo(() => {
+    // Procura o plantão que está ativo hoje ou no próximo sábado/domingo
+    const ativos = todosPlantoesEquipe.filter(p => p.data_fim >= hojeStr)
+    ativos.sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))
+    return ativos[0] || null
+  }, [todosPlantoesEquipe, hojeStr])
 
   // Indicadores Executivos para Gestão/Admin
   const kpis = useMemo(() => {
@@ -224,6 +266,9 @@ export function RH() {
       return false
     })
 
+    const plantoesPendentesPagamento = todosPlantoesEquipe.filter(p => p.status_pagamento === 'Pendente')
+    const totalValorPendente = plantoesPendentesPagamento.reduce((acc, p) => acc + (Number(p.valor_plantao) || 0), 0)
+
     const feriasPendentes = todasFeriasEquipe.filter(f => f.status === 'Pendente')
     const faltasPendentes = todasFaltasEquipe.filter(f => f.status === 'Pendente' || f.status === 'Em Análise')
 
@@ -232,10 +277,13 @@ export function RH() {
       emFeriasHoje,
       emAtestadoHoje,
       emHomeOfficeHoje,
+      proximoPlantao,
+      plantoesPendentesPagamento,
+      totalValorPendente,
       feriasPendentes,
       faltasPendentes
     }
-  }, [todasFeriasEquipe, todasFaltasEquipe, todasEscalasEquipe, usuarios, hojeStr, diaAtualProp])
+  }, [todasFeriasEquipe, todasFaltasEquipe, todasEscalasEquipe, todosPlantoesEquipe, usuarios, hojeStr, diaAtualProp, proximoPlantao])
 
   // Verificação estrita de conflito de férias entre colaboradores
   const checkConflitoPeriodo = (inicio: string, fim: string, quinzenaNum: 1 | 2) => {
@@ -243,10 +291,8 @@ export function RH() {
 
     for (const f of todasFeriasEquipe) {
       if (f.status === 'Reprovado') continue
-      // Ignora as solicitações do próprio usuário logado
       if (f.usuario_id === user?.id || (user?.nome && f.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())) continue
 
-      // Checa 1ª quinzena do colega
       if (f.quinzena_1_inicio && f.quinzena_1_fim) {
         if (inicio <= f.quinzena_1_fim && fim >= f.quinzena_1_inicio) {
           return {
@@ -260,7 +306,6 @@ export function RH() {
         }
       }
 
-      // Checa 2ª quinzena do colega
       if (f.quinzena_2_inicio && f.quinzena_2_fim) {
         if (inicio <= f.quinzena_2_fim && fim >= f.quinzena_2_inicio) {
           return {
@@ -282,7 +327,7 @@ export function RH() {
     setQ1Inicio(dataStr)
     if (dataStr) {
       const d = new Date(dataStr + 'T00:00:00')
-      d.setDate(d.getDate() + 14) // 15 dias corridos
+      d.setDate(d.getDate() + 14)
       setQ1Fim(d.toISOString().split('T')[0])
     }
   }
@@ -291,7 +336,7 @@ export function RH() {
     setQ2Inicio(dataStr)
     if (dataStr) {
       const d = new Date(dataStr + 'T00:00:00')
-      d.setDate(d.getDate() + 14) // 15 dias corridos
+      d.setDate(d.getDate() + 14)
       setQ2Fim(d.toISOString().split('T')[0])
     }
   }
@@ -300,6 +345,17 @@ export function RH() {
     setFaltaInicio(dataStr)
     if (!faltaFim || faltaFim < dataStr) {
       setFaltaFim(dataStr)
+    }
+  }
+
+  // Preenchimento de data do plantão (auto-calcula domingo quando seleciona sábado)
+  const handlePlantaoDataInicioChange = (dataStr: string) => {
+    setPlantaoDataInicio(dataStr)
+    if (dataStr) {
+      const d = new Date(dataStr + 'T00:00:00')
+      // Se for sábado, dia seguinte é domingo
+      d.setDate(d.getDate() + 1)
+      setPlantaoDataFim(d.toISOString().split('T')[0])
     }
   }
 
@@ -330,18 +386,16 @@ export function RH() {
       return
     }
 
-    // 1. Validar conflito na 1ª Quinzena
     const conflitoQ1 = checkConflitoPeriodo(q1Inicio, q1Fim, 1)
     if (conflitoQ1) {
-      alert(`⚠️ Bloqueio de Férias: O funcionário "${conflitoQ1.funcionarioNome}" já possui férias agendadas neste período (${formatDateDisplay(conflitoQ1.periodoInicio)} até ${formatDateDisplay(conflitoQ1.periodoFim)}).\n\nNão é permitido que dois funcionários retirem férias simultâneas. Por favor escolha outra data.`)
+      alert(`⚠️ Bloqueio de Férias: O funcionário "${conflitoQ1.funcionarioNome}" já possui férias agendadas neste período (${formatDateDisplay(conflitoQ1.periodoInicio)} até ${formatDateDisplay(conflitoQ1.periodoFim)}).\n\nNão é permitido que dois funcionários retirem férias simultâneas.`)
       return
     }
 
-    // 2. Validar conflito na 2ª Quinzena (se preenchida)
     if (q2Inicio && q2Fim) {
       const conflitoQ2 = checkConflitoPeriodo(q2Inicio, q2Fim, 2)
       if (conflitoQ2) {
-        alert(`⚠️ Bloqueio de Férias na 2ª Quinzena: O funcionário "${conflitoQ2.funcionarioNome}" já possui férias agendadas neste período (${formatDateDisplay(conflitoQ2.periodoInicio)} até ${formatDateDisplay(conflitoQ2.periodoFim)}).\n\nNão é permitido que dois funcionários retirem férias simultâneas. Por favor escolha outra data.`)
+        alert(`⚠️ Bloqueio de Férias na 2ª Quinzena: O funcionário "${conflitoQ2.funcionarioNome}" já possui férias agendadas neste período (${formatDateDisplay(conflitoQ2.periodoInicio)} até ${formatDateDisplay(conflitoQ2.periodoFim)}).`)
         return
       }
 
@@ -481,6 +535,74 @@ export function RH() {
     }
   }
 
+  const handleAbrirModalPlantao = (tecnicoPre?: { id: string; nome: string }) => {
+    setPlantaoTecnicoId(tecnicoPre?.id || user?.id || '')
+    setPlantaoTecnicoNome(tecnicoPre?.nome || user?.nome || user?.login || 'Técnico')
+    setPlantaoDataInicio('')
+    setPlantaoDataFim('')
+    setPlantaoValor('')
+    setPlantaoObs('')
+    setIsPlantaoModalOpen(true)
+  }
+
+  const handleSalvarPlantao = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!plantaoDataInicio || !plantaoDataFim) {
+      alert('Por favor, informe a data de início e fim do plantão de final de semana.')
+      return
+    }
+
+    setSalvandoPlantao(true)
+    try {
+      await api.insertPlantao({
+        tecnico_id: plantaoTecnicoId || user?.id || 'temp',
+        tecnico_nome: plantaoTecnicoNome || user?.nome || 'Técnico',
+        data_inicio: plantaoDataInicio,
+        data_fim: plantaoDataFim,
+        status_pagamento: 'Pendente',
+        valor_plantao: plantaoValor !== '' ? Number(plantaoValor) : null,
+        observacoes: plantaoObs.trim() || null,
+        registrado_por: user?.nome || user?.login || 'Colaborador'
+      })
+
+      setIsPlantaoModalOpen(false)
+      setPlantaoDataInicio('')
+      setPlantaoDataFim('')
+      setPlantaoObs('')
+      await fetchData()
+      alert('Plantão de Final de Semana registrado com sucesso! O RH foi notificado para inclusão na folha de pagamento.')
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao registrar plantão: ' + err.message)
+    } finally {
+      setSalvandoPlantao(false)
+    }
+  }
+
+  const handleSalvarPagamentoPlantao = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!plantaoPagamentoItem) return
+
+    setSalvandoPagamentoPlantao(true)
+    try {
+      await api.updateStatusPagamentoPlantao(
+        plantaoPagamentoItem.id,
+        pagamentoStatus,
+        pagamentoValor !== '' ? Number(pagamentoValor) : null,
+        pagamentoObs.trim() || undefined
+      )
+
+      setPlantaoPagamentoItem(null)
+      await fetchData()
+      alert('Status de pagamento do plantão atualizado com sucesso!')
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao atualizar pagamento: ' + err.message)
+    } finally {
+      setSalvandoPagamentoPlantao(false)
+    }
+  }
+
   const handleSalvarAvaliacao = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!itemAvaliacao) return
@@ -531,7 +653,7 @@ export function RH() {
   }
 
   const getStatusBadge = (status: string) => {
-    if (status === 'Aprovado' || status === 'Abonado / Aprovado') {
+    if (status === 'Aprovado' || status === 'Abonado / Aprovado' || status === 'Pago') {
       return (
         <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
           <CheckCircle2 className="w-3.5 h-3.5" /> {status}
@@ -580,8 +702,8 @@ export function RH() {
               </div>
               <p className="text-xs text-slate-400">
                 {isGestorRh 
-                  ? 'Gestão integrada de Férias da equipe, Escala de Home Office, Faltas/Atestados e Indicadores'
-                  : 'Planejamento de férias em 2 quinzenas, minha escala de home office e envio de atestados'}
+                  ? 'Gestão de Férias, Plantões de Fim de Semana (Técnicos), Escala de Home Office, Faltas/Atestados e Folha'
+                  : 'Minhas férias em 2 quinzenas, informar plantão de final de semana, home office e atestados'}
               </p>
             </div>
           </div>
@@ -597,6 +719,18 @@ export function RH() {
             <Palmtree className="w-4 h-4" />
             <span>Solicitar Férias</span>
           </button>
+
+          {/* Botão de Plantão para Técnicos e RH */}
+          {(isTecnico || isGestorRh) && (
+            <button
+              type="button"
+              onClick={() => handleAbrirModalPlantao()}
+              className="py-2.5 px-4 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 border border-amber-500/40 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md"
+            >
+              <PhoneCall className="w-4 h-4 text-amber-400" />
+              <span>Informar Plantão</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -634,6 +768,20 @@ export function RH() {
           >
             <Activity className="w-4 h-4 text-brand-400" />
             <span>Dashboard & Indicadores</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('plantoes_equipe')}
+            className={clsx(
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              tab === 'plantoes_equipe'
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <PhoneCall className="w-4 h-4 text-amber-400" />
+            <span>Plantões Fim de Semana ({todosPlantoesEquipe.length})</span>
           </button>
 
           <button
@@ -708,12 +856,12 @@ export function RH() {
         </div>
       ) : (
         /* --- ABAS PARA COLABORADOR COMUM (NÃO-ADMIN) --- */
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setTab('minhas_ferias')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer",
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
               tab === 'minhas_ferias'
                 ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
@@ -723,11 +871,28 @@ export function RH() {
             <span>Minhas Férias ({minhasFerias.length})</span>
           </button>
 
+          {/* Aba Meus Plantões (Para Técnicos ou quem tem plantões) */}
+          {(isTecnico || meusPlantoes.length > 0) && (
+            <button
+              type="button"
+              onClick={() => setTab('meus_plantoes')}
+              className={clsx(
+                "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+                tab === 'meus_plantoes'
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+              )}
+            >
+              <PhoneCall className="w-4 h-4 text-amber-400" />
+              <span>Meus Plantões ({meusPlantoes.length})</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setTab('meu_home_office')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer",
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
               tab === 'meu_home_office'
                 ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
@@ -741,7 +906,7 @@ export function RH() {
             type="button"
             onClick={() => setTab('minhas_faltas')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer",
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
               tab === 'minhas_faltas'
                 ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
@@ -849,6 +1014,88 @@ export function RH() {
                         {f.aprovado_por && (
                           <span>Avaliado por: <strong className="text-slate-300">{f.aprovado_por}</strong></span>
                         )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: MEUS PLANTÕES (TÉCNICOS) */}
+          {tab === 'meus_plantoes' && (
+            <div className="space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-dark-card border border-slate-800 p-4 rounded-2xl">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <PhoneCall className="w-4 h-4 text-amber-400" />
+                    Meus Plantões de Final de Semana
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Histórico dos finais de semana em que você esteve de plantão de suporte e status de pagamento.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleAbrirModalPlantao()}
+                  className="btn-primary py-2 px-3.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Informar Plantão</span>
+                </button>
+              </div>
+
+              {meusPlantoes.length === 0 ? (
+                <div className="bg-dark-card border border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-3">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 mx-auto flex items-center justify-center text-amber-400">
+                    <PhoneCall className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-base font-bold text-white">Nenhum plantão registrado ainda</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Esteve de plantão no final de semana? Clique em "Informar Plantão" acima para registrar as datas e garantir o pagamento pelo RH.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {meusPlantoes.map((item) => (
+                    <div 
+                      key={item.id}
+                      className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3 hover:border-slate-700 transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-amber-400" />
+                          Final de Semana
+                        </span>
+                        {getStatusBadge(item.status_pagamento)}
+                      </div>
+
+                      <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 space-y-1">
+                        <span className="text-slate-400 text-[11px] block">Período de Plantão:</span>
+                        <p className="text-sm font-bold text-white font-mono">
+                          {formatDateDisplay(item.data_inicio)} a {formatDateDisplay(item.data_fim)}
+                        </p>
+                      </div>
+
+                      {item.valor_plantao !== null && item.valor_plantao !== undefined && (
+                        <div className="flex items-center justify-between text-xs bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+                          <span className="text-emerald-400 font-bold">Valor do Plantão:</span>
+                          <span className="text-emerald-300 font-bold font-mono">
+                            R$ {Number(item.valor_plantao).toFixed(2).replace('.', ',')}
+                          </span>
+                        </div>
+                      )}
+
+                      {item.observacoes && (
+                        <p className="text-xs text-slate-300 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40">
+                          <strong className="text-slate-400 block text-[10px] mb-0.5">Observações:</strong>
+                          {item.observacoes}
+                        </p>
+                      )}
+
+                      <div className="pt-2 border-t border-slate-800/60 text-[11px] text-slate-500">
+                        Registrado em {formatDateDisplay(item.created_at)}
                       </div>
                     </div>
                   ))}
@@ -1030,10 +1277,47 @@ export function RH() {
               
               {/* KPI CARDS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                {/* 1. Plantonista do Fim de Semana */}
+                <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plantão Fim de Semana</span>
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+                      <PhoneCall className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    {proximoPlantao ? (
+                      <div>
+                        <p className="text-lg font-black text-white truncate">{proximoPlantao.tecnico_nome}</p>
+                        <span className="text-[11px] text-amber-400 font-mono">
+                          {formatDateDisplay(proximoPlantao.data_inicio)} a {formatDateDisplay(proximoPlantao.data_fim)}
+                        </span>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="text-2xl font-black text-slate-500">-</span>
+                        <p className="text-[11px] text-slate-500">Nenhum plantão agendado</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                    <span>{kpis.plantoesPendentesPagamento.length} a pagar</span>
+                    <button
+                      type="button"
+                      onClick={() => setTab('plantoes_equipe')}
+                      className="text-amber-400 font-bold hover:underline"
+                    >
+                      Ver todos
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Em Férias Hoje */}
                 <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Em Férias Hoje</span>
-                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center">
                       <Palmtree className="w-4 h-4" />
                     </div>
                   </div>
@@ -1041,13 +1325,14 @@ export function RH() {
                     <span className="text-3xl font-black text-white">{kpis.emFeriasHoje.length}</span>
                     <span className="text-xs text-slate-400">colaboradores</span>
                   </div>
-                  <p className="mt-2 text-[11px] text-amber-300/80">
+                  <p className="mt-2 text-[11px] text-teal-300/80 truncate">
                     {kpis.emFeriasHoje.length > 0 
                       ? kpis.emFeriasHoje.map(f => f.usuario_nome).join(', ')
                       : 'Nenhum colaborador em férias hoje'}
                   </p>
                 </div>
 
+                {/* 3. Home Office Hoje */}
                 <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Home Office Hoje</span>
@@ -1059,31 +1344,14 @@ export function RH() {
                     <span className="text-3xl font-black text-white">{kpis.emHomeOfficeHoje.length}</span>
                     <span className="text-xs text-slate-400">remotos</span>
                   </div>
-                  <p className="mt-2 text-[11px] text-cyan-300/80">
+                  <p className="mt-2 text-[11px] text-cyan-300/80 truncate">
                     {kpis.emHomeOfficeHoje.length > 0
-                      ? `${kpis.emHomeOfficeHoje.map(h => h.usuario_nome).slice(0, 3).join(', ')}${kpis.emHomeOfficeHoje.length > 3 ? ` +${kpis.emHomeOfficeHoje.length - 3}` : ''}`
+                      ? kpis.emHomeOfficeHoje.map(h => h.usuario_nome).join(', ')
                       : 'Toda equipe em presencial hoje'}
                   </p>
                 </div>
 
-                <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Atestados no Mês</span>
-                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-white">{todasFaltasEquipe.length}</span>
-                    <span className="text-xs text-slate-400">registros</span>
-                  </div>
-                  <p className="mt-2 text-[11px] text-slate-400">
-                    {kpis.emAtestadoHoje.length > 0 
-                      ? `${kpis.emAtestadoHoje.length} em afastamento ativo hoje`
-                      : 'Nenhum afastamento ativo hoje'}
-                  </p>
-                </div>
-
+                {/* 4. Quadro Mantran */}
                 <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quadro Mantran</span>
@@ -1101,6 +1369,7 @@ export function RH() {
                       : 'Tudo em dia com o RH'}
                   </p>
                 </div>
+
               </div>
 
               {/* PRESENÇA HOJE */}
@@ -1189,6 +1458,138 @@ export function RH() {
                   })}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB: PLANTÕES DE FIM DE SEMANA (GESTAO RH) */}
+          {tab === 'plantoes_equipe' && (
+            <div className="space-y-5">
+              
+              <div className="bg-dark-card border border-slate-800 p-5 rounded-3xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <PhoneCall className="w-5 h-5 text-amber-400" />
+                    Gestão de Plantões de Final de Semana (Técnicos)
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Controle dos plantões informados pelos técnicos, aprovação e registro para pagamento.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleAbrirModalPlantao()}
+                    className="py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-amber-500/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Cadastrar Plantão</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Cards de Resumo de Pagamentos */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-1">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total de Plantões</span>
+                  <p className="text-2xl font-black text-white">{todosPlantoesEquipe.length}</p>
+                  <p className="text-[11px] text-slate-400">registrados no histórico</p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30 space-y-1">
+                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Pendentes de Pagamento</span>
+                  <p className="text-2xl font-black text-amber-300">
+                    {kpis.plantoesPendentesPagamento.length} plantões
+                  </p>
+                  <p className="text-[11px] text-amber-400/80">
+                    Aguardando lançamento/pagamento pelo RH
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-1">
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Plantões Pagos</span>
+                  <p className="text-2xl font-black text-emerald-300">
+                    {todosPlantoesEquipe.filter(p => p.status_pagamento === 'Pago').length} plantões
+                  </p>
+                  <p className="text-[11px] text-emerald-400/80">
+                    Quitados na folha de pagamento
+                  </p>
+                </div>
+              </div>
+
+              {/* Tabela de Plantões */}
+              <div className="bg-dark-card border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900/90 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                      <tr>
+                        <th className="p-4">Técnico Plantonista</th>
+                        <th className="p-4">Período (Fim de Semana)</th>
+                        <th className="p-4">Valor (R$)</th>
+                        <th className="p-4">Status Pagamento</th>
+                        <th className="p-4">Observações</th>
+                        <th className="p-4 text-right">Ações do RH</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {todosPlantoesEquipe.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-slate-500">
+                            Nenhum plantão de final de semana registrado no momento.
+                          </td>
+                        </tr>
+                      ) : (
+                        todosPlantoesEquipe.map((p) => (
+                          <tr key={p.id} className="hover:bg-slate-850/50 transition-colors">
+                            <td className="p-4 font-bold text-white">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold flex items-center justify-center text-xs">
+                                  {p.tecnico_nome.charAt(0)}
+                                </div>
+                                <span>{p.tecnico_nome}</span>
+                              </div>
+                            </td>
+
+                            <td className="p-4 font-mono font-bold text-white">
+                              {formatDateDisplay(p.data_inicio)} a {formatDateDisplay(p.data_fim)}
+                            </td>
+
+                            <td className="p-4 font-mono font-bold text-emerald-400">
+                              {p.valor_plantao !== null && p.valor_plantao !== undefined 
+                                ? `R$ ${Number(p.valor_plantao).toFixed(2).replace('.', ',')}` 
+                                : <span className="text-slate-500 font-normal">A definir</span>}
+                            </td>
+
+                            <td className="p-4">
+                              {getStatusBadge(p.status_pagamento)}
+                            </td>
+
+                            <td className="p-4 text-slate-400 max-w-xs truncate">
+                              {p.observacoes || '-'}
+                            </td>
+
+                            <td className="p-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPlantaoPagamentoItem(p)
+                                  setPagamentoStatus(p.status_pagamento || 'Pago')
+                                  setPagamentoValor(p.valor_plantao !== null && p.valor_plantao !== undefined ? p.valor_plantao : '')
+                                  setPagamentoObs(p.observacoes || '')
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all cursor-pointer"
+                              >
+                                {p.status_pagamento === 'Pago' ? 'Editar' : 'Pagar / Avaliar'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -1404,6 +1805,7 @@ export function RH() {
               {usuarios.map(u => {
                 const fUsuario = todasFeriasEquipe.filter(f => f.usuario_id === u.id || f.usuario_nome.toLowerCase() === u.nome.toLowerCase())
                 const hoUsuario = todasEscalasEquipe.find(h => h.usuario_id === u.id || h.usuario_nome.toLowerCase() === u.nome.toLowerCase())
+                const plantoesUsuario = todosPlantoesEquipe.filter(p => p.tecnico_id === u.id || p.tecnico_nome.toLowerCase() === u.nome.toLowerCase())
 
                 return (
                   <div key={u.id} className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
@@ -1424,8 +1826,14 @@ export function RH() {
                       </div>
                       <div className="flex justify-between text-[11px]">
                         <span className="text-slate-400">Férias no Ano:</span>
-                        <span className="font-bold text-amber-400">{fUsuario.length} período(s)</span>
+                        <span className="font-bold text-teal-400">{fUsuario.length} período(s)</span>
                       </div>
+                      {plantoesUsuario.length > 0 && (
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-slate-400">Plantões Realizados:</span>
+                          <span className="font-bold text-amber-400">{plantoesUsuario.length} fins de semana</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -1489,6 +1897,236 @@ export function RH() {
         </div>
       )}
 
+      {/* ================= MODAL INFORMAR / CADASTRAR PLANTÃO ================= */}
+      {isPlantaoModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-dark-card border border-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <PhoneCall className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">Plantão de Final de Semana</h2>
+                  <p className="text-xs text-slate-400">Registro de escala e adicional de plantão</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsPlantaoModalOpen(false)} 
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarPlantao} className="p-6 space-y-4">
+              {/* Seleção do Técnico (se Gestor/Admin) ou fixo no usuário */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Técnico Plantonista
+                </label>
+                {isGestorRh ? (
+                  <select
+                    value={plantaoTecnicoId}
+                    onChange={e => {
+                      const selId = e.target.value
+                      setPlantaoTecnicoId(selId)
+                      const found = usuarios.find(u => u.id === selId)
+                      if (found) setPlantaoTecnicoNome(found.nome)
+                    }}
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-amber-500"
+                  >
+                    <option value="">Selecione o técnico...</option>
+                    {usuarios.map(u => (
+                      <option key={u.id} value={u.id}>{u.nome} ({u.perfil})</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    disabled
+                    value={user?.nome || user?.login || 'Técnico'}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-300 text-xs font-bold"
+                  />
+                )}
+              </div>
+
+              {/* Datas do Final de Semana */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Data Início (Sábado)
+                  </label>
+                  <input
+                    type="date"
+                    value={plantaoDataInicio}
+                    onChange={e => handlePlantaoDataInicioChange(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-medium focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Data Fim (Domingo)
+                  </label>
+                  <input
+                    type="date"
+                    value={plantaoDataFim}
+                    onChange={e => setPlantaoDataFim(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-medium focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Valor do Plantão (opcional / RH) */}
+              {isGestorRh && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Valor a Pagar pelo Plantão (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Ex: 250,00"
+                    value={plantaoValor}
+                    onChange={e => setPlantaoValor(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold focus:border-amber-500"
+                  />
+                </div>
+              )}
+
+              {/* Observações */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Observações / Ocorrências no Plantão
+                </label>
+                <textarea
+                  value={plantaoObs}
+                  onChange={e => setPlantaoObs(e.target.value)}
+                  placeholder="Ex: Plantão tranquilo, 3 chamados de clientes atendidos..."
+                  rows={2}
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-xs focus:border-amber-500"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsPlantaoModalOpen(false)}
+                  className="btn-secondary flex-1 py-2.5"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoPlantao}
+                  className="py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex-1 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-amber-500/20"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{salvandoPlantao ? 'Salvando...' : 'Confirmar Plantão'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL GERENCIAR PAGAMENTO DE PLANTÃO (RH) ================= */}
+      {plantaoPagamentoItem && isGestorRh && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-dark-card border border-slate-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60">
+              <div className="flex items-center gap-2.5">
+                <DollarSign className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <h2 className="text-base font-bold text-white">Pagamento de Plantão</h2>
+                  <p className="text-xs text-slate-400">{plantaoPagamentoItem.tecnico_nome}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setPlantaoPagamentoItem(null)} 
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarPagamentoPlantao} className="p-6 space-y-4">
+              <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs space-y-1">
+                <span className="text-slate-400 block">Fim de Semana:</span>
+                <span className="font-mono font-bold text-white">
+                  {formatDateDisplay(plantaoPagamentoItem.data_inicio)} a {formatDateDisplay(plantaoPagamentoItem.data_fim)}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Status do Pagamento
+                </label>
+                <select
+                  value={pagamentoStatus}
+                  onChange={e => setPagamentoStatus(e.target.value as any)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-emerald-500"
+                >
+                  <option value="Pago">Pago (Quitado na Folha)</option>
+                  <option value="Aprovado">Aprovado (Aguardando Pagamento)</option>
+                  <option value="Pendente">Pendente de Avaliação</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Valor Pago pelo Plantão (R$)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={pagamentoValor}
+                  onChange={e => setPagamentoValor(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Observações do RH / Folha
+                </label>
+                <textarea
+                  value={pagamentoObs}
+                  onChange={e => setPagamentoObs(e.target.value)}
+                  placeholder="Ex: Pago via PIX / Adicionado no holerite de Setembro..."
+                  rows={2}
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-xs focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setPlantaoPagamentoItem(null)}
+                  className="btn-secondary flex-1 py-2.5"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoPagamentoPlantao}
+                  className="btn-primary flex-1 py-2.5 flex items-center justify-center gap-2 font-bold cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{salvandoPagamentoPlantao ? 'Salvando...' : 'Confirmar Pagamento'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL SOLICITAR FÉRIAS ================= */}
       {isFeriasModalOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
@@ -1520,7 +2158,6 @@ export function RH() {
 
               return (
                 <form onSubmit={handleSalvarFerias} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-                  {/* Banner de Bloqueio em caso de conflito de datas */}
                   {temConflito && conflitoAtivo && (
                     <div className="p-4 rounded-2xl bg-red-500/15 border-2 border-red-500/40 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-150">
                       <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
