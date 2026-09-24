@@ -38,6 +38,7 @@ export function RH() {
   // Listas
   const [feriasList, setFeriasList] = useState<SolicitacaoFerias[]>([])
   const [faltasList, setFaltasList] = useState<FaltaAtestado[]>([])
+  const [todasFeriasEquipe, setTodasFeriasEquipe] = useState<SolicitacaoFerias[]>([])
 
   // Modal Solicitar Férias
   const [isFeriasModalOpen, setIsFeriasModalOpen] = useState(false)
@@ -76,13 +77,14 @@ export function RH() {
   const fetchData = async () => {
     setLoading(true)
     try {
+      // Sempre carrega todas as férias da equipe para validação de sobreposição
+      const todasFerias = await api.getSolicitacoesFerias()
+      setTodasFeriasEquipe(todasFerias || [])
+
       if (tab === 'gestao' && isAdmin) {
         // Admin vê todas as solicitações
-        const [ferias, faltas] = await Promise.all([
-          api.getSolicitacoesFerias(),
-          api.getFaltasEAtestados()
-        ])
-        setFeriasList(ferias)
+        const faltas = await api.getFaltasEAtestados()
+        setFeriasList(todasFerias)
         setFaltasList(faltas)
       } else {
         // Usuário comum vê as próprias
@@ -98,6 +100,48 @@ export function RH() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Função para verificar se o período solicitado conflita com as férias de outro colega
+  const checkConflitoPeriodo = (inicio: string, fim: string, quinzenaNum: 1 | 2) => {
+    if (!inicio || !fim) return null
+
+    for (const f of todasFeriasEquipe) {
+      // Ignora solicitações reprovadas
+      if (f.status === 'Reprovado') continue
+      // Ignora as solicitações do próprio usuário logado
+      if (f.usuario_id === user?.id || (user?.nome && f.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())) continue
+
+      // 1. Checa 1ª quinzena do colega
+      if (f.quinzena_1_inicio && f.quinzena_1_fim) {
+        if (inicio <= f.quinzena_1_fim && fim >= f.quinzena_1_inicio) {
+          return {
+            conflito: true,
+            quinzena: quinzenaNum,
+            funcionarioNome: f.usuario_nome,
+            periodoInicio: f.quinzena_1_inicio,
+            periodoFim: f.quinzena_1_fim,
+            status: f.status
+          }
+        }
+      }
+
+      // 2. Checa 2ª quinzena do colega
+      if (f.quinzena_2_inicio && f.quinzena_2_fim) {
+        if (inicio <= f.quinzena_2_fim && fim >= f.quinzena_2_inicio) {
+          return {
+            conflito: true,
+            quinzena: quinzenaNum,
+            funcionarioNome: f.usuario_nome,
+            periodoInicio: f.quinzena_2_inicio,
+            periodoFim: f.quinzena_2_fim,
+            status: f.status
+          }
+        }
+      }
+    }
+
+    return null
   }
 
   // Auto-calcular Data Fim (15 dias) ao preencher Data Início
@@ -152,6 +196,28 @@ export function RH() {
     if (!q1Inicio || !q1Fim) {
       alert('Por favor, selecione as datas da 1ª Quinzena.')
       return
+    }
+
+    // 1. Validar conflito na 1ª Quinzena
+    const conflitoQ1 = checkConflitoPeriodo(q1Inicio, q1Fim, 1)
+    if (conflitoQ1) {
+      alert(`⚠️ Bloqueio de Férias: O funcionário "${conflitoQ1.funcionarioNome}" já possui férias agendadas neste período (${formatDateDisplay(conflitoQ1.periodoInicio)} até ${formatDateDisplay(conflitoQ1.periodoFim)}).\n\nNão é permitido que dois funcionários retirem férias simultâneas. Por favor escolha outra data.`)
+      return
+    }
+
+    // 2. Validar conflito na 2ª Quinzena (se preenchida)
+    if (q2Inicio && q2Fim) {
+      const conflitoQ2 = checkConflitoPeriodo(q2Inicio, q2Fim, 2)
+      if (conflitoQ2) {
+        alert(`⚠️ Bloqueio de Férias na 2ª Quinzena: O funcionário "${conflitoQ2.funcionarioNome}" já possui férias agendadas neste período (${formatDateDisplay(conflitoQ2.periodoInicio)} até ${formatDateDisplay(conflitoQ2.periodoFim)}).\n\nNão é permitido que dois funcionários retirem férias simultâneas. Por favor escolha outra data.`)
+        return
+      }
+
+      // Validar sobreposição entre a própria 1ª e 2ª Quinzena
+      if (q1Inicio <= q2Fim && q1Fim >= q2Inicio) {
+        alert('A 2ª Quinzena não pode sobrepor ou ser no mesmo período da 1ª Quinzena.')
+        return
+      }
     }
 
     setSalvandoFerias(true)
@@ -764,119 +830,226 @@ export function RH() {
               </button>
             </div>
 
-            <form onSubmit={handleSalvarFerias} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              {/* Ano de Vigência */}
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Ano de Exercício / Vigência
-                </label>
-                <input
-                  type="number"
-                  min={2024}
-                  max={2030}
-                  value={anoVigencia}
-                  onChange={e => setAnoVigencia(Number(e.target.value))}
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-sm font-semibold focus:border-brand-500"
-                />
-              </div>
+            {(() => {
+              const conflitoQ1 = checkConflitoPeriodo(q1Inicio, q1Fim, 1)
+              const conflitoQ2 = q2Inicio && q2Fim ? checkConflitoPeriodo(q2Inicio, q2Fim, 2) : null
+              const temConflito = !!conflitoQ1 || !!conflitoQ2
+              const conflitoAtivo = conflitoQ1 || conflitoQ2
 
-              {/* 1ª Quinzena */}
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-brand-500/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-brand-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4" /> 1ª Quinzena (Obrigatória - 15 dias)
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold">15 Dias</span>
-                </div>
+              // Outras férias da equipe para visualização
+              const outrasFeriasEquipe = todasFeriasEquipe.filter(f => 
+                f.status !== 'Reprovado' && 
+                f.usuario_id !== user?.id && 
+                (!user?.nome || f.usuario_nome?.toLowerCase() !== user?.nome?.toLowerCase())
+              )
 
-                <div className="grid grid-cols-2 gap-3">
+              return (
+                <form onSubmit={handleSalvarFerias} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                  {/* Banner de Bloqueio em caso de conflito de datas */}
+                  {temConflito && conflitoAtivo && (
+                    <div className="p-4 rounded-xl bg-red-500/15 border-2 border-red-500/40 flex items-start gap-3 animate-in fade-in zoom-in-95 duration-150">
+                      <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                      <div className="text-xs text-red-200 space-y-1">
+                        <p className="font-bold text-red-300 text-sm flex items-center gap-1.5">
+                          <span>⛔ Período Bloqueado para Férias</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-red-900/60 text-red-300 border border-red-700">
+                            {conflitoAtivo.quinzena}ª Quinzena
+                          </span>
+                        </p>
+                        <p>
+                          O colaborador <strong className="text-white underline">{conflitoAtivo.funcionarioNome}</strong> já estará em período de férias de <strong className="text-white font-mono">{formatDateDisplay(conflitoAtivo.periodoInicio)}</strong> até <strong className="text-white font-mono">{formatDateDisplay(conflitoAtivo.periodoFim)}</strong>.
+                        </p>
+                        <p className="text-[11px] text-red-300/90 font-medium">
+                          Não é permitido retirar férias simultaneamente com outro colega. Por favor escolha um intervalo livre.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ano de Vigência */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Data Início</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Ano de Exercício / Vigência
+                    </label>
                     <input
-                      type="date"
-                      value={q1Inicio}
-                      onChange={e => handleQ1InicioChange(e.target.value)}
+                      type="number"
+                      min={2024}
+                      max={2030}
+                      value={anoVigencia}
+                      onChange={e => setAnoVigencia(Number(e.target.value))}
                       required
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs font-medium focus:border-brand-500"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-sm font-semibold focus:border-brand-500"
                     />
                   </div>
+
+                  {/* 1ª Quinzena */}
+                  <div className={clsx(
+                    "p-4 rounded-xl bg-slate-900/60 border transition-all space-y-3",
+                    conflitoQ1 
+                      ? "border-red-500/60 bg-red-950/20" 
+                      : "border-brand-500/30"
+                  )}>
+                    <div className="flex items-center justify-between">
+                      <span className={clsx(
+                        "text-xs font-bold uppercase tracking-wider flex items-center gap-1.5",
+                        conflitoQ1 ? "text-red-400" : "text-brand-400"
+                      )}>
+                        <Calendar className="w-4 h-4" /> 1ª Quinzena (Obrigatória - 15 dias)
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold">15 Dias</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Data Início</label>
+                        <input
+                          type="date"
+                          value={q1Inicio}
+                          onChange={e => handleQ1InicioChange(e.target.value)}
+                          required
+                          className={clsx(
+                            "w-full px-3 py-2 rounded-lg bg-slate-900 border text-white text-xs font-medium focus:outline-none",
+                            conflitoQ1 
+                              ? "border-red-500 focus:border-red-400" 
+                              : "border-slate-700 focus:border-brand-500"
+                          )}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Data Fim (15º dia)</label>
+                        <input
+                          type="date"
+                          value={q1Fim}
+                          onChange={e => setQ1Fim(e.target.value)}
+                          required
+                          className={clsx(
+                            "w-full px-3 py-2 rounded-lg bg-slate-900 border text-white text-xs font-medium focus:outline-none",
+                            conflitoQ1 
+                              ? "border-red-500 focus:border-red-400" 
+                              : "border-slate-700 focus:border-brand-500"
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2ª Quinzena (Opcional) */}
+                  <div className={clsx(
+                    "p-4 rounded-xl bg-slate-900/60 border transition-all space-y-3",
+                    conflitoQ2 
+                      ? "border-red-500/60 bg-red-950/20" 
+                      : "border-teal-500/30"
+                  )}>
+                    <div className="flex items-center justify-between">
+                      <span className={clsx(
+                        "text-xs font-bold uppercase tracking-wider flex items-center gap-1.5",
+                        conflitoQ2 ? "text-red-400" : "text-teal-400"
+                      )}>
+                        <Calendar className="w-4 h-4" /> 2ª Quinzena (Opcional / Agendamento)
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 font-bold">15 Dias</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Data Início</label>
+                        <input
+                          type="date"
+                          value={q2Inicio}
+                          onChange={e => handleQ2InicioChange(e.target.value)}
+                          className={clsx(
+                            "w-full px-3 py-2 rounded-lg bg-slate-900 border text-white text-xs font-medium focus:outline-none",
+                            conflitoQ2 
+                              ? "border-red-500 focus:border-red-400" 
+                              : "border-slate-700 focus:border-teal-500"
+                          )}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1">Data Fim (15º dia)</label>
+                        <input
+                          type="date"
+                          value={q2Fim}
+                          onChange={e => setQ2Fim(e.target.value)}
+                          className={clsx(
+                            "w-full px-3 py-2 rounded-lg bg-slate-900 border text-white text-xs font-medium focus:outline-none",
+                            conflitoQ2 
+                              ? "border-red-500 focus:border-red-400" 
+                              : "border-slate-700 focus:border-teal-500"
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Observações */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Data Fim (15º dia)</label>
-                    <input
-                      type="date"
-                      value={q1Fim}
-                      onChange={e => setQ1Fim(e.target.value)}
-                      required
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs font-medium focus:border-brand-500"
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Observações / Justificativa
+                    </label>
+                    <textarea
+                      value={feriasObs}
+                      onChange={e => setFeriasObs(e.target.value)}
+                      placeholder="Ex: Alinhado previamente com a equipe de suporte..."
+                      rows={2}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-xs focus:border-brand-500"
                     />
                   </div>
-                </div>
-              </div>
 
-              {/* 2ª Quinzena (Opcional) */}
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-teal-500/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4" /> 2ª Quinzena (Opcional / Agendamento)
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 font-bold">15 Dias</span>
-                </div>
+                  {/* Períodos já agendados por outros colaboradores */}
+                  {outrasFeriasEquipe.length > 0 && (
+                    <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                        Períodos de Férias Ocupados pela Equipe ({anoVigencia}):
+                      </span>
+                      <div className="space-y-1.5 max-h-28 overflow-y-auto">
+                        {outrasFeriasEquipe.map(of => (
+                          <div key={of.id} className="text-[11px] bg-slate-950/60 p-2 rounded-lg border border-slate-800/80 flex items-center justify-between">
+                            <span className="font-bold text-slate-200">
+                              👤 {of.usuario_nome}
+                            </span>
+                            <span className="font-mono text-slate-400">
+                              {formatDateDisplay(of.quinzena_1_inicio)} a {formatDateDisplay(of.quinzena_1_fim)}
+                              {of.quinzena_2_inicio && ` • ${formatDateDisplay(of.quinzena_2_inicio)} a ${formatDateDisplay(of.quinzena_2_fim)}`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Data Início</label>
-                    <input
-                      type="date"
-                      value={q2Inicio}
-                      onChange={e => handleQ2InicioChange(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs font-medium focus:border-teal-500"
-                    />
+                  <div className="pt-2 flex gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsFeriasModalOpen(false)}
+                      className="btn-secondary flex-1 py-2.5"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={salvandoFerias || temConflito}
+                      className={clsx(
+                        "flex-1 py-2.5 flex items-center justify-center gap-2 font-bold cursor-pointer transition-all",
+                        temConflito
+                          ? "bg-red-500/20 text-red-300 border border-red-500/30 opacity-70 cursor-not-allowed"
+                          : "btn-primary"
+                      )}
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>
+                        {salvandoFerias 
+                          ? 'Enviando...' 
+                          : temConflito 
+                          ? 'Período Indisponível' 
+                          : 'Enviar Solicitação'}
+                      </span>
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Data Fim (15º dia)</label>
-                    <input
-                      type="date"
-                      value={q2Fim}
-                      onChange={e => setQ2Fim(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs font-medium focus:border-teal-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Observações */}
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Observações / Justificativa
-                </label>
-                <textarea
-                  value={feriasObs}
-                  onChange={e => setFeriasObs(e.target.value)}
-                  placeholder="Ex: Alinhado previamente com a equipe de suporte..."
-                  rows={2}
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-xs focus:border-brand-500"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsFeriasModalOpen(false)}
-                  className="btn-secondary flex-1 py-2.5"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={salvandoFerias}
-                  className="btn-primary flex-1 py-2.5 flex items-center justify-center gap-2 font-bold cursor-pointer"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>{salvandoFerias ? 'Enviando...' : 'Enviar Solicitação'}</span>
-                </button>
-              </div>
-            </form>
+                </form>
+              )
+            })()}
           </div>
         </div>
       )}
