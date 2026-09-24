@@ -80,6 +80,8 @@ export function RH() {
 
   // Modal Solicitar Férias
   const [isFeriasModalOpen, setIsFeriasModalOpen] = useState(false)
+  const [feriasUsuarioId, setFeriasUsuarioId] = useState('')
+  const [feriasUsuarioNome, setFeriasUsuarioNome] = useState('')
   const [q1Inicio, setQ1Inicio] = useState('')
   const [q1Fim, setQ1Fim] = useState('')
   const [q2Inicio, setQ2Inicio] = useState('')
@@ -89,6 +91,8 @@ export function RH() {
 
   // Modal Comunicar Falta / Enviar Atestado
   const [isFaltaModalOpen, setIsFaltaModalOpen] = useState(false)
+  const [faltaUsuarioId, setFaltaUsuarioId] = useState('')
+  const [faltaUsuarioNome, setFaltaUsuarioNome] = useState('')
   const [faltaInicio, setFaltaInicio] = useState('')
   const [faltaFim, setFaltaFim] = useState('')
   const [motivoFalta, setMotivoFalta] = useState('Doença / Atestado Médico')
@@ -196,6 +200,23 @@ export function RH() {
     )
   }, [todasFeriasEquipe, user])
 
+  // Ordenação de férias cronológica por data de início
+  const feriasEquipeOrdenadas = useMemo(() => {
+    return [...todasFeriasEquipe].sort((a, b) => {
+      const dataA = a.quinzena_1_inicio || a.quinzena_2_inicio || ''
+      const dataB = b.quinzena_1_inicio || b.quinzena_2_inicio || ''
+      return dataA.localeCompare(dataB)
+    })
+  }, [todasFeriasEquipe])
+
+  const minhasFeriasOrdenadas = useMemo(() => {
+    return [...minhasFerias].sort((a, b) => {
+      const dataA = a.quinzena_1_inicio || a.quinzena_2_inicio || ''
+      const dataB = b.quinzena_1_inicio || b.quinzena_2_inicio || ''
+      return dataA.localeCompare(dataB)
+    })
+  }, [minhasFerias])
+
   const minhasFaltas = useMemo(() => {
     return todasFaltasEquipe.filter(f => 
       f.usuario_id === user?.id || 
@@ -286,12 +307,15 @@ export function RH() {
   }, [todasFeriasEquipe, todasFaltasEquipe, todasEscalasEquipe, todosPlantoesEquipe, usuarios, hojeStr, diaAtualProp, proximoPlantao])
 
   // Verificação estrita de conflito de férias entre colaboradores
-  const checkConflitoPeriodo = (inicio: string, fim: string, quinzenaNum: 1 | 2) => {
+  const checkConflitoPeriodo = (inicio: string, fim: string, quinzenaNum: 1 | 2, currentUserId?: string, currentUserName?: string) => {
     if (!inicio || !fim) return null
+
+    const targetId = currentUserId || user?.id
+    const targetNome = (currentUserName || user?.nome || '').toLowerCase()
 
     for (const f of todasFeriasEquipe) {
       if (f.status === 'Reprovado') continue
-      if (f.usuario_id === user?.id || (user?.nome && f.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())) continue
+      if (f.usuario_id === targetId || (targetNome && f.usuario_nome?.toLowerCase() === targetNome)) continue
 
       if (f.quinzena_1_inicio && f.quinzena_1_fim) {
         if (inicio <= f.quinzena_1_fim && fim >= f.quinzena_1_inicio) {
@@ -379,6 +403,17 @@ export function RH() {
     reader.readAsDataURL(file)
   }
 
+  const handleAbrirModalFerias = (colaboradorPre?: { id: string; nome: string }) => {
+    setFeriasUsuarioId(colaboradorPre?.id || user?.id || (usuarios[0]?.id || ''))
+    setFeriasUsuarioNome(colaboradorPre?.nome || user?.nome || user?.login || (usuarios[0]?.nome || 'Colaborador'))
+    setQ1Inicio('')
+    setQ1Fim('')
+    setQ2Inicio('')
+    setQ2Fim('')
+    setFeriasObs('')
+    setIsFeriasModalOpen(true)
+  }
+
   const handleSalvarFerias = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!q1Inicio || !q1Fim) {
@@ -386,14 +421,17 @@ export function RH() {
       return
     }
 
-    const conflitoQ1 = checkConflitoPeriodo(q1Inicio, q1Fim, 1)
+    const targetUserId = feriasUsuarioId || user?.id || 'temp'
+    const targetUserNome = feriasUsuarioNome || user?.nome || user?.login || 'Colaborador'
+
+    const conflitoQ1 = checkConflitoPeriodo(q1Inicio, q1Fim, 1, targetUserId, targetUserNome)
     if (conflitoQ1) {
       alert(`⚠️ Bloqueio de Férias: O funcionário "${conflitoQ1.funcionarioNome}" já possui férias agendadas neste período (${formatDateDisplay(conflitoQ1.periodoInicio)} até ${formatDateDisplay(conflitoQ1.periodoFim)}).\n\nNão é permitido que dois funcionários retirem férias simultâneas.`)
       return
     }
 
     if (q2Inicio && q2Fim) {
-      const conflitoQ2 = checkConflitoPeriodo(q2Inicio, q2Fim, 2)
+      const conflitoQ2 = checkConflitoPeriodo(q2Inicio, q2Fim, 2, targetUserId, targetUserNome)
       if (conflitoQ2) {
         alert(`⚠️ Bloqueio de Férias na 2ª Quinzena: O funcionário "${conflitoQ2.funcionarioNome}" já possui férias agendadas neste período (${formatDateDisplay(conflitoQ2.periodoInicio)} até ${formatDateDisplay(conflitoQ2.periodoFim)}).`)
         return
@@ -408,8 +446,8 @@ export function RH() {
     setSalvandoFerias(true)
     try {
       await api.insertSolicitacaoFerias({
-        usuario_id: user?.id || 'temp',
-        usuario_nome: user?.nome || user?.login || 'Colaborador',
+        usuario_id: targetUserId,
+        usuario_nome: targetUserNome,
         ano_vigencia: anoVigencia,
         quinzena_1_inicio: q1Inicio,
         quinzena_1_fim: q1Fim,
@@ -427,13 +465,26 @@ export function RH() {
       setQ2Fim('')
       setFeriasObs('')
       await fetchData()
-      alert('Solicitação de férias enviada com sucesso para aprovação do RH!')
+      alert('Solicitação de férias registrada com sucesso!')
     } catch (err: any) {
       console.error(err)
       alert('Erro ao enviar solicitação: ' + err.message)
     } finally {
       setSalvandoFerias(false)
     }
+  }
+
+  const handleAbrirModalFalta = (colaboradorPre?: { id: string; nome: string }) => {
+    setFaltaUsuarioId(colaboradorPre?.id || user?.id || (usuarios[0]?.id || ''))
+    setFaltaUsuarioNome(colaboradorPre?.nome || user?.nome || user?.login || (usuarios[0]?.nome || 'Colaborador'))
+    setFaltaInicio('')
+    setFaltaFim('')
+    setMotivoFalta('Doença / Atestado Médico')
+    setDescricaoFalta('')
+    setArquivoNome('')
+    setArquivoUrl('')
+    setArquivoTipo('')
+    setIsFaltaModalOpen(true)
   }
 
   const handleSalvarFalta = async (e: React.FormEvent) => {
@@ -451,8 +502,8 @@ export function RH() {
     setSalvandoFalta(true)
     try {
       await api.insertFaltaAtestado({
-        usuario_id: user?.id || 'temp',
-        usuario_nome: user?.nome || user?.login || 'Colaborador',
+        usuario_id: faltaUsuarioId || user?.id || 'temp',
+        usuario_nome: faltaUsuarioNome || user?.nome || user?.login || 'Colaborador',
         data_falta_inicio: faltaInicio,
         data_falta_fim: faltaFim || faltaInicio,
         dias_afastamento: dias,
@@ -642,6 +693,10 @@ export function RH() {
   const formatDateDisplay = (dateStr?: string | null) => {
     if (!dateStr) return '-'
     try {
+      if (dateStr.includes('T')) {
+        const d = new Date(dateStr)
+        return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('pt-BR')
+      }
       const parts = dateStr.split('-')
       if (parts.length === 3) {
         return `${parts[2]}/${parts[1]}/${parts[0]}`
@@ -687,19 +742,9 @@ export function RH() {
               {isGestorRh ? <Users2 className="w-6 h-6" /> : <Palmtree className="w-6 h-6" />}
             </div>
             <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-2xl font-black text-white tracking-tight">
-                  {isGestorRh ? 'Recursos Humanos & Gestão de Pessoas' : 'Portal do Colaborador - RH'}
-                </h1>
-                <span className={clsx(
-                  "text-[11px] font-bold px-2.5 py-0.5 rounded-full border",
-                  isGestorRh 
-                    ? "bg-purple-500/15 text-purple-300 border-purple-500/30" 
-                    : "bg-brand-500/15 text-brand-300 border-brand-500/30"
-                )}>
-                  {isGestorRh ? 'Gestão & RH' : (user?.perfil || 'Colaborador')}
-                </span>
-              </div>
+              <h1 className="text-2xl font-black text-white tracking-tight">
+                {isGestorRh ? 'Recursos Humanos & Gestão de Pessoas' : 'Portal do Colaborador - RH'}
+              </h1>
               <p className="text-xs text-slate-400">
                 {isGestorRh 
                   ? 'Gestão de Férias, Plantões de Fim de Semana (Técnicos), Escala de Home Office, Faltas/Atestados e Folha'
@@ -713,7 +758,7 @@ export function RH() {
         <div className="flex flex-wrap items-center gap-2.5 z-10">
           <button
             type="button"
-            onClick={() => setIsFeriasModalOpen(true)}
+            onClick={() => handleAbrirModalFerias()}
             className="btn-primary py-2.5 px-4 flex items-center gap-2 text-xs font-bold shadow-lg shadow-brand-500/20 cursor-pointer"
           >
             <Palmtree className="w-4 h-4" />
@@ -738,17 +783,25 @@ export function RH() {
             className="py-2.5 px-4 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md"
           >
             <Home className="w-4 h-4 text-cyan-400" />
-            <span>Meu Home Office</span>
+            <span>{isGestorRh ? 'Escala Home Office' : 'Meu Home Office'}</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setIsFaltaModalOpen(true)}
+            onClick={() => handleAbrirModalFalta()}
             className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md"
           >
             <FileText className="w-4 h-4 text-emerald-400" />
             <span>Atestado / Falta</span>
           </button>
+
+          {/* Botão / Badge Gestão & RH posicionado depois do Atestado / Falta */}
+          {isGestorRh && (
+            <div className="py-2.5 px-3.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-bold flex items-center gap-1.5 shadow-sm select-none">
+              <Shield className="w-4 h-4 text-purple-400" />
+              <span>Gestão & RH</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -998,7 +1051,7 @@ export function RH() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {minhasFerias.map((f) => (
+                  {minhasFeriasOrdenadas.map((f) => (
                     <div 
                       key={f.id} 
                       className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4 hover:border-slate-700 transition-all"
@@ -1652,7 +1705,7 @@ export function RH() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {todasFeriasEquipe.map((f) => (
+                {feriasEquipeOrdenadas.map((f) => (
                   <div 
                     key={f.id} 
                     className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4 hover:border-slate-700 transition-all"
@@ -2196,8 +2249,10 @@ export function RH() {
             </div>
 
             {(() => {
-              const conflitoQ1 = checkConflitoPeriodo(q1Inicio, q1Fim, 1)
-              const conflitoQ2 = q2Inicio && q2Fim ? checkConflitoPeriodo(q2Inicio, q2Fim, 2) : null
+              const targetUserId = feriasUsuarioId || user?.id || 'temp'
+              const targetUserNome = feriasUsuarioNome || user?.nome || user?.login || 'Colaborador'
+              const conflitoQ1 = checkConflitoPeriodo(q1Inicio, q1Fim, 1, targetUserId, targetUserNome)
+              const conflitoQ2 = q2Inicio && q2Fim ? checkConflitoPeriodo(q2Inicio, q2Fim, 2, targetUserId, targetUserNome) : null
               const temConflito = !!conflitoQ1 || !!conflitoQ2
               const conflitoAtivo = conflitoQ1 || conflitoQ2
 
@@ -2222,6 +2277,37 @@ export function RH() {
                       </div>
                     </div>
                   )}
+
+                  {/* Seleção do Colaborador (se Gestor/Admin) */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Colaborador
+                    </label>
+                    {isGestorRh ? (
+                      <select
+                        value={feriasUsuarioId}
+                        onChange={e => {
+                          const selId = e.target.value
+                          setFeriasUsuarioId(selId)
+                          const found = usuarios.find(u => u.id === selId)
+                          if (found) setFeriasUsuarioNome(found.nome)
+                        }}
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-brand-500"
+                      >
+                        {usuarios.map(u => (
+                          <option key={u.id} value={u.id}>{u.nome} ({u.perfil})</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        disabled
+                        value={user?.nome || user?.login || 'Colaborador'}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-300 text-xs font-bold"
+                      />
+                    )}
+                  </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -2394,6 +2480,37 @@ export function RH() {
             </div>
 
             <form onSubmit={handleSalvarHomeOffice} className="p-6 space-y-4">
+              {/* Seleção do Colaborador (se Gestor/Admin) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Colaborador
+                </label>
+                {isGestorRh ? (
+                  <select
+                    value={editingHomeOffice.usuario_id}
+                    onChange={e => {
+                      const selId = e.target.value
+                      const targetUser = usuarios.find(u => u.id === selId)
+                      if (targetUser) {
+                        handleAbrirEdicaoHomeOffice(targetUser)
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-cyan-500"
+                  >
+                    {usuarios.map(u => (
+                      <option key={u.id} value={u.id}>{u.nome} ({u.perfil})</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    disabled
+                    value={editingHomeOffice.usuario_nome}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-300 text-xs font-bold"
+                  />
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   Regime / Modalidade de Trabalho
@@ -2504,6 +2621,37 @@ export function RH() {
             </div>
 
             <form onSubmit={handleSalvarFalta} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Seleção do Colaborador (se Gestor/Admin) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Colaborador
+                </label>
+                {isGestorRh ? (
+                  <select
+                    value={faltaUsuarioId}
+                    onChange={e => {
+                      const selId = e.target.value
+                      setFaltaUsuarioId(selId)
+                      const found = usuarios.find(u => u.id === selId)
+                      if (found) setFaltaUsuarioNome(found.nome)
+                    }}
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-emerald-500"
+                  >
+                    {usuarios.map(u => (
+                      <option key={u.id} value={u.id}>{u.nome} ({u.perfil})</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    disabled
+                    value={user?.nome || user?.login || 'Colaborador'}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-300 text-xs font-bold"
+                  />
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   Motivo da Ausência
