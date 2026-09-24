@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { 
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
-  Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Palmtree, KeyRound 
+  Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Users2 
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
 import { api } from '../../lib/api'
 import { PermissoesModal } from '../PermissoesModal'
-import { AlterarMinhaSenhaModal } from '../AlterarMinhaSenhaModal'
 import clsx from 'clsx'
 
 const allNavItems = [
@@ -19,13 +18,12 @@ const allNavItems = [
   { name: 'Projetos', path: '/bases', icon: Database },
   { name: 'Processamento Shopee', path: '/processamento-shopee', icon: ShoppingBag },
   { name: 'Léo Madeiras', path: '/leo-madeiras', icon: Cloud },
-  { name: 'RH & Férias', path: '/rh', icon: Palmtree },
+  { name: 'Gestão de RH', path: '/rh', icon: Users2 },
 ]
 
 export function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(true)
   const [isPermissoesModalOpen, setIsPermissoesModalOpen] = useState(false)
-  const [isAlterarSenhaModalOpen, setIsAlterarSenhaModalOpen] = useState(false)
   const [allowedNavItems, setAllowedNavItems] = useState(allNavItems)
 
   const user = getLoggedUser()
@@ -231,17 +229,6 @@ export function Sidebar() {
         )}
 
 
-        {isExpanded && (
-          <button
-            type="button"
-            onClick={() => setIsAlterarSenhaModalOpen(true)}
-            className="flex items-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all duration-200 w-full px-4 py-2 space-x-3 text-xs font-medium cursor-pointer"
-          >
-            <KeyRound className="w-4 h-4 flex-shrink-0 text-brand-400" />
-            <span>Alterar Senha</span>
-          </button>
-        )}
-
         <button 
           onClick={() => {
             localStorage.removeItem('@Mantran:user')
@@ -267,12 +254,6 @@ export function Sidebar() {
           const filtered = allNavItems.filter(item => permissionsApi.canAccessRoute(item.path))
           setAllowedNavItems(filtered)
         }}
-      />
-
-      {/* Modal de Alteração de Senha */}
-      <AlterarMinhaSenhaModal
-        isOpen={isAlterarSenhaModalOpen}
-        onClose={() => setIsAlterarSenhaModalOpen(false)}
       />
     </div>
   )

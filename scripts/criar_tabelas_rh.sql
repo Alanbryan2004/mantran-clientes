@@ -86,6 +86,39 @@ DROP POLICY IF EXISTS "Permitir delete rh_faltas" ON public.rh_faltas_atestados;
 CREATE POLICY "Permitir delete rh_faltas" ON public.rh_faltas_atestados FOR DELETE USING (true);
 
 
+-- 1.3 Tabela de Escala de Home Office dos Colaboradores
+CREATE TABLE IF NOT EXISTS public.rh_home_office (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id UUID NOT NULL UNIQUE,
+  usuario_nome VARCHAR(255) NOT NULL,
+  modalidade VARCHAR(50) NOT NULL DEFAULT 'Híbrido', -- 'Híbrido', '100% Presencial', '100% Remoto'
+  segunda BOOLEAN DEFAULT FALSE,
+  terca BOOLEAN DEFAULT FALSE,
+  quarta BOOLEAN DEFAULT FALSE,
+  quinta BOOLEAN DEFAULT FALSE,
+  sexta BOOLEAN DEFAULT FALSE,
+  sabado BOOLEAN DEFAULT FALSE,
+  observacoes TEXT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS para Home Office
+ALTER TABLE public.rh_home_office ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Permitir leitura rh_home_office" ON public.rh_home_office;
+CREATE POLICY "Permitir leitura rh_home_office" ON public.rh_home_office FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Permitir insercao rh_home_office" ON public.rh_home_office;
+CREATE POLICY "Permitir insercao rh_home_office" ON public.rh_home_office FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Permitir update rh_home_office" ON public.rh_home_office;
+CREATE POLICY "Permitir update rh_home_office" ON public.rh_home_office FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Permitir delete rh_home_office" ON public.rh_home_office;
+CREATE POLICY "Permitir delete rh_home_office" ON public.rh_home_office FOR DELETE USING (true);
+
+
 -- ============================================================
 -- 2. SCRIPT PARA O SQL SERVER (DbSuporte)
 -- Copie e execute no SQL Server Management Studio (SSMS)
@@ -143,5 +176,27 @@ BEGIN
   CREATE NONCLUSTERED INDEX [idx_rh_faltas_usuario_id] ON [dbo].[rh_faltas_atestados] ([usuario_id]);
   CREATE NONCLUSTERED INDEX [idx_rh_faltas_data_inicio] ON [dbo].[rh_faltas_atestados] ([data_falta_inicio] DESC);
   CREATE NONCLUSTERED INDEX [idx_rh_faltas_status] ON [dbo].[rh_faltas_atestados] ([status]);
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[rh_home_office]') AND type in (N'U'))
+BEGIN
+  CREATE TABLE [dbo].[rh_home_office] (
+    [id] UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
+    [usuario_id] UNIQUEIDENTIFIER NOT NULL UNIQUE,
+    [usuario_nome] NVARCHAR(255) NOT NULL,
+    [modalidade] NVARCHAR(50) NOT NULL DEFAULT 'Híbrido',
+    [segunda] BIT DEFAULT 0,
+    [terca] BIT DEFAULT 0,
+    [quarta] BIT DEFAULT 0,
+    [quinta] BIT DEFAULT 0,
+    [sexta] BIT DEFAULT 0,
+    [sabado] BIT DEFAULT 0,
+    [observacoes] NVARCHAR(MAX) NULL,
+    [created_at] DATETIME2 DEFAULT SYSUTCDATETIME(),
+    [updated_at] DATETIME2 DEFAULT SYSUTCDATETIME()
+  );
+
+  CREATE NONCLUSTERED INDEX [idx_rh_home_office_usuario_id] ON [dbo].[rh_home_office] ([usuario_id]);
 END
 GO

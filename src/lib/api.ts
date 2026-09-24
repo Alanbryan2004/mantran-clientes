@@ -1849,6 +1849,86 @@ export const api = {
       }
       return true
     }
+  },
+
+  // --- RH: Escala de Home Office ---
+  async getEscalasHomeOffice(): Promise<EscalaHomeOffice[]> {
+    try {
+      const { data, error } = await supabase
+        .from('rh_home_office')
+        .select('*')
+        .order('usuario_nome', { ascending: true })
+
+      if (error) {
+        const local = localStorage.getItem('@Mantran:rh_home_office')
+        return local ? JSON.parse(local) : []
+      }
+
+      return data || []
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_home_office')
+      return local ? JSON.parse(local) : []
+    }
+  },
+
+  async upsertEscalaHomeOffice(payload: Partial<EscalaHomeOffice>): Promise<EscalaHomeOffice> {
+    const item: EscalaHomeOffice = {
+      id: payload.id || (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15)),
+      usuario_id: payload.usuario_id!,
+      usuario_nome: payload.usuario_nome!,
+      modalidade: payload.modalidade || 'Híbrido',
+      segunda: !!payload.segunda,
+      terca: !!payload.terca,
+      quarta: !!payload.quarta,
+      quinta: !!payload.quinta,
+      sexta: !!payload.sexta,
+      sabado: !!payload.sabado,
+      observacoes: payload.observacoes || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    try {
+      // Upsert by usuario_id
+      const { data, error } = await supabase
+        .from('rh_home_office')
+        .upsert(item, { onConflict: 'usuario_id' })
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return data
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_home_office')
+      let list: EscalaHomeOffice[] = local ? JSON.parse(local) : []
+      const index = list.findIndex(i => i.usuario_id === item.usuario_id)
+      if (index >= 0) {
+        list[index] = { ...list[index], ...item }
+      } else {
+        list.push(item)
+      }
+      localStorage.setItem('@Mantran:rh_home_office', JSON.stringify(list))
+      return item
+    }
+  },
+
+  async deleteEscalaHomeOffice(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_home_office')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_home_office')
+      if (local) {
+        const list: EscalaHomeOffice[] = JSON.parse(local)
+        localStorage.setItem('@Mantran:rh_home_office', JSON.stringify(list.filter(i => i.id !== id)))
+      }
+      return true
+    }
   }
 }
 
@@ -1938,6 +2018,23 @@ export interface FaltaAtestado {
   created_at?: string
   updated_at?: string
 }
+
+export interface EscalaHomeOffice {
+  id: string
+  usuario_id: string
+  usuario_nome: string
+  modalidade: 'Híbrido' | '100% Presencial' | '100% Remoto'
+  segunda: boolean
+  terca: boolean
+  quarta: boolean
+  quinta: boolean
+  sexta: boolean
+  sabado: boolean
+  observacoes?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 
 
 
