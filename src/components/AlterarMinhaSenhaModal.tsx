@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { X, Lock, KeyRound, Eye, EyeOff, Check, AlertCircle, ShieldCheck } from 'lucide-react'
+import { X, Lock, KeyRound, Eye, EyeOff, Check, AlertCircle } from 'lucide-react'
 import { api } from '../lib/api'
 import { getLoggedUser } from '../lib/auth'
-import clsx from 'clsx'
 
 interface AlterarMinhaSenhaModalProps {
   isOpen: boolean

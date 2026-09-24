@@ -10,38 +10,21 @@ import {
   AlertCircle, 
   Upload, 
   Download, 
-  File, 
-  Trash2, 
-  User, 
   Shield, 
   Sparkles, 
-  Eye,
-  CalendarDays,
-  Send,
-  Building2,
-  Paperclip,
-  Check,
-  X,
-  Laptop,
-  Users2,
-  Home,
-  Briefcase,
-  Layers,
-  Activity,
-  CalendarCheck2,
-  CalendarRange,
-  Search,
-  Filter,
-  ArrowRight,
-  TrendingUp,
-  MapPin,
-  Settings,
-  ChevronRight,
-  UserCheck,
-  PhoneCall,
-  DollarSign,
-  CreditCard,
-  CheckCheck
+  Send, 
+  Paperclip, 
+  Check, 
+  X, 
+  Laptop, 
+  Users2, 
+  Home, 
+  Activity, 
+  ArrowRight, 
+  MapPin, 
+  Settings, 
+  PhoneCall, 
+  DollarSign 
 } from 'lucide-react'
 import { 
   api, 
@@ -74,9 +57,7 @@ export function RH() {
   const [todosPlantoesEquipe, setTodosPlantoesEquipe] = useState<PlantaoTecnico[]>([])
 
   // Filtros & Buscas
-  const [filtroBusca, setFiltroBusca] = useState('')
-  const [filtroStatusPagamento, setFiltroStatusPagamento] = useState<string>('todos')
-  const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
+      const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
 
   // Modal Solicitar Férias
   const [isFeriasModalOpen, setIsFeriasModalOpen] = useState(false)
@@ -630,7 +611,7 @@ export function RH() {
       : (isUserTecnico ? user : (usuariosTecnicos[0] || null))
 
     setPlantaoTecnicoId(defaultTecnico?.id || '')
-    setPlantaoTecnicoNome(defaultTecnico?.nome || defaultTecnico?.login || '')
+    setPlantaoTecnicoNome(defaultTecnico?.nome || (defaultTecnico as any)?.login || '')
     setPlantaoDataInicio('')
     setPlantaoDataFim('')
     setPlantaoValor('')

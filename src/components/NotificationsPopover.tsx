@@ -8,14 +8,11 @@ import {
   Clock, 
   CheckCircle2, 
   Rocket, 
-  X,
-  RefreshCw,
-  FileText,
-  Sparkles,
-  Palmtree,
-  PhoneCall,
-  ShieldAlert,
-  Users2
+  X, 
+  RefreshCw, 
+  FileText, 
+  Palmtree, 
+  PhoneCall 
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
