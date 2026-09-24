@@ -755,120 +755,155 @@ export function RH() {
       {/* ================= NAVIGATION TABS ================= */}
       {isGestorRh ? (
         /* --- ABAS PARA GESTOR / ADMIN --- */
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 border-b border-slate-800 pb-3 flex-wrap">
           <button
             type="button"
             onClick={() => setTab('dashboard')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
               tab === 'dashboard'
                 ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
             )}
           >
             <Activity className="w-4 h-4 text-brand-400" />
-            <span>Dashboard & Indicadores</span>
+            <span>Dashboard</span>
           </button>
 
           <button
             type="button"
             onClick={() => setTab('plantoes_equipe')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
               tab === 'plantoes_equipe'
                 ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
             )}
           >
             <PhoneCall className="w-4 h-4 text-amber-400" />
-            <span>Plantões Fim de Semana ({todosPlantoesEquipe.length})</span>
+            <span>Plantões</span>
+            {todosPlantoesEquipe.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-mono">
+                {todosPlantoesEquipe.length}
+              </span>
+            )}
           </button>
 
           <button
             type="button"
             onClick={() => setTab('ferias_equipe')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
               tab === 'ferias_equipe'
                 ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
             )}
           >
             <Palmtree className="w-4 h-4 text-amber-400" />
-            <span>Férias da Equipe ({todasFeriasEquipe.length})</span>
+            <span>Férias</span>
+            {todasFeriasEquipe.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-brand-500/20 text-brand-300 font-mono">
+                {todasFeriasEquipe.length}
+              </span>
+            )}
           </button>
 
           <button
             type="button"
             onClick={() => setTab('home_office_equipe')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
               tab === 'home_office_equipe'
                 ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
             )}
           >
             <Home className="w-4 h-4 text-cyan-400" />
-            <span>Escala de Home Office ({todasEscalasEquipe.length})</span>
+            <span>Escala</span>
+            {todasEscalasEquipe.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">
+                {todasEscalasEquipe.length}
+              </span>
+            )}
           </button>
 
           <button
             type="button"
             onClick={() => setTab('faltas_equipe')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
               tab === 'faltas_equipe'
                 ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
             )}
           >
             <FileText className="w-4 h-4 text-emerald-400" />
-            <span>Faltas e Atestados ({todasFaltasEquipe.length})</span>
+            <span>Faltas</span>
+            {todasFaltasEquipe.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
+                {todasFaltasEquipe.length}
+              </span>
+            )}
           </button>
 
           <button
             type="button"
             onClick={() => setTab('equipe_dossie')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
               tab === 'equipe_dossie'
                 ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
             )}
           >
             <Users2 className="w-4 h-4 text-blue-400" />
-            <span>Dossiê da Equipe ({usuarios.length})</span>
+            <span>Dossiê</span>
+            {usuarios.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 font-mono">
+                {usuarios.length}
+              </span>
+            )}
           </button>
 
           <button
             type="button"
             onClick={() => setTab('gestao_aprovacoes')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ml-auto whitespace-nowrap",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ml-auto",
               tab === 'gestao_aprovacoes'
                 ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm"
                 : "text-purple-400/80 hover:text-purple-300 hover:bg-purple-950/30 border border-purple-500/20"
             )}
           >
             <Shield className="w-4 h-4 text-purple-400" />
-            <span>Aprovações RH {kpis.feriasPendentes.length + kpis.faltasPendentes.length > 0 && `(${kpis.feriasPendentes.length + kpis.faltasPendentes.length})`}</span>
+            <span>Aprovações</span>
+            {kpis.feriasPendentes.length + kpis.faltasPendentes.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-500/30 text-purple-200 font-mono font-bold">
+                {kpis.feriasPendentes.length + kpis.faltasPendentes.length}
+              </span>
+            )}
           </button>
         </div>
       ) : (
         /* --- ABAS PARA COLABORADOR COMUM (NÃO-ADMIN) --- */
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 flex-wrap">
           <button
             type="button"
             onClick={() => setTab('minhas_ferias')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
               tab === 'minhas_ferias'
                 ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
             )}
           >
             <Palmtree className="w-4 h-4 text-amber-400" />
-            <span>Minhas Férias ({minhasFerias.length})</span>
+            <span>Férias</span>
+            {minhasFerias.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-brand-500/20 text-brand-300 font-mono">
+                {minhasFerias.length}
+              </span>
+            )}
           </button>
 
           {/* Aba Meus Plantões (Para Técnicos ou quem tem plantões) */}
@@ -877,14 +912,19 @@ export function RH() {
               type="button"
               onClick={() => setTab('meus_plantoes')}
               className={clsx(
-                "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
                 tab === 'meus_plantoes'
                   ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
               )}
             >
               <PhoneCall className="w-4 h-4 text-amber-400" />
-              <span>Meus Plantões ({meusPlantoes.length})</span>
+              <span>Plantões</span>
+              {meusPlantoes.length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-mono">
+                  {meusPlantoes.length}
+                </span>
+              )}
             </button>
           )}
 
@@ -892,28 +932,33 @@ export function RH() {
             type="button"
             onClick={() => setTab('meu_home_office')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
               tab === 'meu_home_office'
                 ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
             )}
           >
             <Home className="w-4 h-4 text-cyan-400" />
-            <span>Meu Home Office</span>
+            <span>Escala</span>
           </button>
 
           <button
             type="button"
             onClick={() => setTab('minhas_faltas')}
             className={clsx(
-              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
               tab === 'minhas_faltas'
                 ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
                 : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
             )}
           >
             <FileText className="w-4 h-4 text-emerald-400" />
-            <span>Meus Atestados & Faltas ({minhasFaltas.length})</span>
+            <span>Faltas</span>
+            {minhasFaltas.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
+                {minhasFaltas.length}
+              </span>
+            )}
           </button>
         </div>
       )}
