@@ -1612,6 +1612,243 @@ export const api = {
 
     if (error) throw error
     return data || []
+  },
+
+  // --- RH: Férias (Quinzenas) & Atestados/Faltas ---
+  async getSolicitacoesFerias(usuarioId?: string): Promise<SolicitacaoFerias[]> {
+    try {
+      let query = supabase
+        .from('rh_ferias')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (usuarioId) {
+        query = query.eq('usuario_id', usuarioId)
+      }
+
+      const { data, error } = await query
+      if (error) {
+        // Fallback local caso tabela ainda não exista
+        const local = localStorage.getItem('@Mantran:rh_ferias')
+        const list: SolicitacaoFerias[] = local ? JSON.parse(local) : []
+        if (usuarioId) return list.filter(i => i.usuario_id === usuarioId)
+        return list
+      }
+
+      return data || []
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_ferias')
+      const list: SolicitacaoFerias[] = local ? JSON.parse(local) : []
+      if (usuarioId) return list.filter(i => i.usuario_id === usuarioId)
+      return list
+    }
+  },
+
+  async insertSolicitacaoFerias(payload: Partial<SolicitacaoFerias>): Promise<SolicitacaoFerias> {
+    const item: SolicitacaoFerias = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15),
+      usuario_id: payload.usuario_id!,
+      usuario_nome: payload.usuario_nome!,
+      ano_vigencia: payload.ano_vigencia || new Date().getFullYear(),
+      quinzena_1_inicio: payload.quinzena_1_inicio!,
+      quinzena_1_fim: payload.quinzena_1_fim!,
+      quinzena_1_dias: payload.quinzena_1_dias || 15,
+      quinzena_2_inicio: payload.quinzena_2_inicio || null,
+      quinzena_2_fim: payload.quinzena_2_fim || null,
+      quinzena_2_dias: payload.quinzena_2_dias || (payload.quinzena_2_inicio ? 15 : null),
+      status: payload.status || 'Pendente',
+      observacoes: payload.observacoes || null,
+      resposta_rh: payload.resposta_rh || null,
+      aprovado_por: payload.aprovado_por || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('rh_ferias')
+        .insert(item)
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return data
+    } catch {
+      // Fallback local storage
+      const local = localStorage.getItem('@Mantran:rh_ferias')
+      const list: SolicitacaoFerias[] = local ? JSON.parse(local) : []
+      list.unshift(item)
+      localStorage.setItem('@Mantran:rh_ferias', JSON.stringify(list))
+      return item
+    }
+  },
+
+  async updateStatusFerias(id: string, status: 'Pendente' | 'Aprovado' | 'Reprovado', respostaRh?: string, aprovadoPor?: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_ferias')
+        .update({
+          status,
+          resposta_rh: respostaRh || null,
+          aprovado_por: aprovadoPor || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      // Fallback local
+      const local = localStorage.getItem('@Mantran:rh_ferias')
+      if (local) {
+        const list: SolicitacaoFerias[] = JSON.parse(local)
+        const updated = list.map(i => i.id === id ? {
+          ...i,
+          status,
+          resposta_rh: respostaRh || null,
+          aprovado_por: aprovadoPor || null,
+          updated_at: new Date().toISOString()
+        } : i)
+        localStorage.setItem('@Mantran:rh_ferias', JSON.stringify(updated))
+      }
+      return true
+    }
+  },
+
+  async deleteSolicitacaoFerias(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_ferias')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_ferias')
+      if (local) {
+        const list: SolicitacaoFerias[] = JSON.parse(local)
+        localStorage.setItem('@Mantran:rh_ferias', JSON.stringify(list.filter(i => i.id !== id)))
+      }
+      return true
+    }
+  },
+
+  async getFaltasEAtestados(usuarioId?: string): Promise<FaltaAtestado[]> {
+    try {
+      let query = supabase
+        .from('rh_faltas_atestados')
+        .select('*')
+        .order('data_falta_inicio', { ascending: false })
+
+      if (usuarioId) {
+        query = query.eq('usuario_id', usuarioId)
+      }
+
+      const { data, error } = await query
+      if (error) {
+        const local = localStorage.getItem('@Mantran:rh_faltas')
+        const list: FaltaAtestado[] = local ? JSON.parse(local) : []
+        if (usuarioId) return list.filter(i => i.usuario_id === usuarioId)
+        return list
+      }
+
+      return data || []
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_faltas')
+      const list: FaltaAtestado[] = local ? JSON.parse(local) : []
+      if (usuarioId) return list.filter(i => i.usuario_id === usuarioId)
+      return list
+    }
+  },
+
+  async insertFaltaAtestado(payload: Partial<FaltaAtestado>): Promise<FaltaAtestado> {
+    const item: FaltaAtestado = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15),
+      usuario_id: payload.usuario_id!,
+      usuario_nome: payload.usuario_nome!,
+      data_falta_inicio: payload.data_falta_inicio!,
+      data_falta_fim: payload.data_falta_fim || payload.data_falta_inicio!,
+      dias_afastamento: payload.dias_afastamento || 1,
+      motivo: payload.motivo || 'Atestado Médico',
+      descricao: payload.descricao || null,
+      possui_atestado: payload.possui_atestado !== undefined ? payload.possui_atestado : true,
+      arquivo_atestado_nome: payload.arquivo_atestado_nome || null,
+      arquivo_atestado_url: payload.arquivo_atestado_url || null,
+      arquivo_atestado_tipo: payload.arquivo_atestado_tipo || null,
+      status: payload.status || 'Pendente',
+      observacoes_rh: payload.observacoes_rh || null,
+      aprovado_por: payload.aprovado_por || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('rh_faltas_atestados')
+        .insert(item)
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return data
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_faltas')
+      const list: FaltaAtestado[] = local ? JSON.parse(local) : []
+      list.unshift(item)
+      localStorage.setItem('@Mantran:rh_faltas', JSON.stringify(list))
+      return item
+    }
+  },
+
+  async updateStatusFalta(id: string, status: 'Pendente' | 'Abonado / Aprovado' | 'Em Análise' | 'Recusado', observacoesRh?: string, aprovadoPor?: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_faltas_atestados')
+        .update({
+          status,
+          observacoes_rh: observacoesRh || null,
+          aprovado_por: aprovadoPor || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_faltas')
+      if (local) {
+        const list: FaltaAtestado[] = JSON.parse(local)
+        const updated = list.map(i => i.id === id ? {
+          ...i,
+          status,
+          observacoes_rh: observacoesRh || null,
+          aprovado_por: aprovadoPor || null,
+          updated_at: new Date().toISOString()
+        } : i)
+        localStorage.setItem('@Mantran:rh_faltas', JSON.stringify(updated))
+      }
+      return true
+    }
+  },
+
+  async deleteFaltaAtestado(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_faltas_atestados')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_faltas')
+      if (local) {
+        const list: FaltaAtestado[] = JSON.parse(local)
+        localStorage.setItem('@Mantran:rh_faltas', JSON.stringify(list.filter(i => i.id !== id)))
+      }
+      return true
+    }
   }
 }
 
@@ -1662,6 +1899,46 @@ export interface MetaComercial {
   meta_qtd_fechamentos?: number
   created_at?: string
 }
+
+export interface SolicitacaoFerias {
+  id: string
+  usuario_id: string
+  usuario_nome: string
+  ano_vigencia: number
+  quinzena_1_inicio: string
+  quinzena_1_fim: string
+  quinzena_1_dias: number
+  quinzena_2_inicio?: string | null
+  quinzena_2_fim?: string | null
+  quinzena_2_dias?: number | null
+  status: 'Pendente' | 'Aprovado' | 'Reprovado'
+  observacoes?: string | null
+  resposta_rh?: string | null
+  aprovado_por?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface FaltaAtestado {
+  id: string
+  usuario_id: string
+  usuario_nome: string
+  data_falta_inicio: string
+  data_falta_fim: string
+  dias_afastamento: number
+  motivo: string
+  descricao?: string | null
+  possui_atestado: boolean
+  arquivo_atestado_nome?: string | null
+  arquivo_atestado_url?: string | null
+  arquivo_atestado_tipo?: string | null
+  status: 'Pendente' | 'Abonado / Aprovado' | 'Em Análise' | 'Recusado'
+  observacoes_rh?: string | null
+  aprovado_por?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 
 
 

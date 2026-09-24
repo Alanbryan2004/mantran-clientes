@@ -7,6 +7,7 @@ import { Bases } from './pages/Bases'
 import { ProjetoDetalhes } from './pages/ProjetoDetalhes'
 import { LeoMadeiras } from './pages/LeoMadeiras'
 import { Usuarios } from './pages/Usuarios'
+import { RH } from './pages/RH'
 import { Implantacoes } from './pages/Implantacoes'
 import { ImplantacaoDetalhes } from './pages/ImplantacaoDetalhes'
 import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
@@ -103,6 +104,7 @@ function App() {
           <Route path="processamento-shopee" element={<ProcessamentoShopee />} />
           <Route path="leo-madeiras" element={<LeoMadeiras />} />
           <Route path="usuarios" element={<Usuarios />} />
+          <Route path="rh" element={<RH />} />
         </Route>
       </Routes>
     </BrowserRouter>
