@@ -458,6 +458,19 @@ export function RH() {
         observacoes: feriasObs.trim() || null
       })
 
+      // Disparar Notificação para os Administradores / RH
+      await api.createNotificacao({
+        titulo: `🌴 Solicitação de Férias: ${targetUserNome}`,
+        mensagem: `${targetUserNome} solicitou período de férias para o exercício ${anoVigencia} (1ª Quinzena: ${formatDateDisplay(q1Inicio)} a ${formatDateDisplay(q1Fim)}${q2Inicio ? `, 2ª Quinzena: ${formatDateDisplay(q2Inicio)} a ${formatDateDisplay(q2Fim)}` : ''}).`,
+        tipo: 'rh_ferias',
+        dados_extras: {
+          onlyAdmin: true,
+          usuario_id: targetUserId,
+          usuario_nome: targetUserNome,
+          modulo: 'rh'
+        }
+      }).catch(err => console.warn('Erro ao disparar notificação de férias:', err))
+
       setIsFeriasModalOpen(false)
       setQ1Inicio('')
       setQ1Fim('')
@@ -514,6 +527,20 @@ export function RH() {
         arquivo_atestado_url: arquivoUrl || null,
         arquivo_atestado_tipo: arquivoTipo || null
       })
+
+      // Disparar Notificação para os Administradores / RH
+      const targetUserNome = faltaUsuarioNome || user?.nome || user?.login || 'Colaborador'
+      await api.createNotificacao({
+        titulo: `🩺 Comunicado de Falta / Atestado: ${targetUserNome}`,
+        mensagem: `${targetUserNome} comunicou ausência por "${motivoFalta}" de ${formatDateDisplay(faltaInicio)}${faltaFim && faltaFim !== faltaInicio ? ` a ${formatDateDisplay(faltaFim)}` : ''} (${dias} dia${dias > 1 ? 's' : ''})${arquivoUrl ? ' com comprovante/atestado em anexo' : ''}.`,
+        tipo: 'rh_falta',
+        dados_extras: {
+          onlyAdmin: true,
+          usuario_id: faltaUsuarioId,
+          usuario_nome: targetUserNome,
+          modulo: 'rh'
+        }
+      }).catch(err => console.warn('Erro ao disparar notificação de falta:', err))
 
       setIsFaltaModalOpen(false)
       setFaltaInicio('')
@@ -605,9 +632,10 @@ export function RH() {
 
     setSalvandoPlantao(true)
     try {
+      const tecnicoNomeFinal = plantaoTecnicoNome || user?.nome || 'Técnico'
       await api.insertPlantao({
         tecnico_id: plantaoTecnicoId || user?.id || 'temp',
-        tecnico_nome: plantaoTecnicoNome || user?.nome || 'Técnico',
+        tecnico_nome: tecnicoNomeFinal,
         data_inicio: plantaoDataInicio,
         data_fim: plantaoDataFim,
         status_pagamento: 'Pendente',
@@ -615,6 +643,19 @@ export function RH() {
         observacoes: plantaoObs.trim() || null,
         registrado_por: user?.nome || user?.login || 'Colaborador'
       })
+
+      // Disparar Notificação para os Administradores / RH
+      await api.createNotificacao({
+        titulo: `📞 Plantão de Final de Semana: ${tecnicoNomeFinal}`,
+        mensagem: `${tecnicoNomeFinal} registrou plantão no final de semana (${formatDateDisplay(plantaoDataInicio)} a ${formatDateDisplay(plantaoDataFim)}). Aguardando lançamento/pagamento do RH.`,
+        tipo: 'rh_plantao',
+        dados_extras: {
+          onlyAdmin: true,
+          usuario_id: plantaoTecnicoId,
+          usuario_nome: tecnicoNomeFinal,
+          modulo: 'rh'
+        }
+      }).catch(err => console.warn('Erro ao disparar notificação de plantão:', err))
 
       setIsPlantaoModalOpen(false)
       setPlantaoDataInicio('')

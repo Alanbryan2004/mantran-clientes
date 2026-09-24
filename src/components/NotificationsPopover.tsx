@@ -11,11 +11,15 @@ import {
   X,
   RefreshCw,
   FileText,
-  Sparkles
+  Sparkles,
+  Palmtree,
+  PhoneCall,
+  ShieldAlert,
+  Users2
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
-import { getLoggedUser, isClienteUser } from '../lib/auth'
+import { getLoggedUser, isClienteUser, isAdminUser } from '../lib/auth'
 import clsx from 'clsx'
 
 export function NotificationsPopover() {
@@ -29,6 +33,8 @@ export function NotificationsPopover() {
 
   const isCliente = isClienteUser()
   const currentUser = getLoggedUser()
+  const isAdmin = isAdminUser()
+  const isGestorRh = isAdmin || currentUser?.perfil?.trim().toLowerCase() === 'rh'
   const userKey = currentUser ? (currentUser.id || currentUser.login || 'user') : 'user'
 
   const STORAGE_KEY_READ = `@Mantran:notificacoes_lidas_${userKey}`
@@ -71,9 +77,17 @@ export function NotificationsPopover() {
       const readIds = getReadIds()
       const deletedIds = getDeletedIds()
 
-      // Filtrar apenas as não excluídas por este usuário
+      // Filtrar apenas as não excluídas por este usuário e permitidas por perfil
       const userList = (rawList || [])
-        .filter((n: any) => !deletedIds.has(n.id))
+        .filter((n: any) => {
+          if (deletedIds.has(n.id)) return false
+          const isRh = n.tipo?.startsWith('rh_') || n.dados_extras?.onlyAdmin || n.dados_extras?.modulo === 'rh'
+          // Notificações de RH são restritas exclusivamente a Administradores / Gestão RH
+          if (isRh && !isAdmin && !isGestorRh) {
+            return false
+          }
+          return true
+        })
         .map((n: any) => ({
           ...n,
           lida: readIds.has(n.id) // O status de lida é estritamente pessoal deste usuário
@@ -183,7 +197,9 @@ export function NotificationsPopover() {
     }
     setIsOpen(false)
 
-    if (item.tipo === 'nova_implantacao' && item.implantacao_id) {
+    if (item.tipo?.startsWith('rh_') || item.dados_extras?.modulo === 'rh') {
+      navigate('/rh')
+    } else if (item.tipo === 'nova_implantacao' && item.implantacao_id) {
       // Redireciona diretamente para a Implantação recém-criada
       navigate(`/implantacoes/${item.implantacao_id}`)
     } else if (item.implantacao_id) {
@@ -367,8 +383,13 @@ export function NotificationsPopover() {
             ) : (
               displayedNotificacoes.map((item) => {
                 const isNovaImplantacao = item.tipo === 'nova_implantacao'
+                const isFerias = item.tipo === 'rh_ferias'
+                const isFalta = item.tipo === 'rh_falta'
+                const isPlantao = item.tipo === 'rh_plantao'
+                const isRhNotification = isFerias || isFalta || isPlantao || item.dados_extras?.modulo === 'rh'
                 const isConcluido = item.titulo?.includes('Concluído') || item.dados_extras?.isCompleto
                 const nomeCliente = item.dados_extras?.nome_empresa || 'Cliente'
+                const colaboradorNome = item.dados_extras?.usuario_nome || 'Colaborador'
 
                 return (
                   <div
@@ -377,20 +398,38 @@ export function NotificationsPopover() {
                     className={clsx(
                       "p-3.5 transition-all duration-150 cursor-pointer group flex items-start gap-3 relative hover:bg-slate-800/60",
                       !item.lida
-                        ? "bg-brand-500/5 border-l-2 border-brand-400"
+                        ? isFerias
+                          ? "bg-amber-500/5 border-l-2 border-amber-400"
+                          : isFalta
+                          ? "bg-emerald-500/5 border-l-2 border-emerald-400"
+                          : isPlantao
+                          ? "bg-yellow-500/5 border-l-2 border-yellow-400"
+                          : "bg-brand-500/5 border-l-2 border-brand-400"
                         : "opacity-80 hover:opacity-100"
                     )}
                   >
                     {/* Status Icon */}
                     <div className={clsx(
                       "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5 shadow-sm",
-                      isNovaImplantacao
+                      isFerias
+                        ? "bg-amber-500/15 border-amber-500/30 text-amber-400 shadow-amber-500/10"
+                        : isFalta
+                        ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
+                        : isPlantao
+                        ? "bg-yellow-500/15 border-yellow-500/30 text-yellow-400 shadow-yellow-500/10"
+                        : isNovaImplantacao
                         ? "bg-purple-500/15 border-purple-500/30 text-purple-400 shadow-purple-500/10"
                         : isConcluido
                         ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
                         : "bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-blue-500/10"
                     )}>
-                      {isNovaImplantacao ? (
+                      {isFerias ? (
+                        <Palmtree className="w-4 h-4" />
+                      ) : isFalta ? (
+                        <FileText className="w-4 h-4" />
+                      ) : isPlantao ? (
+                        <PhoneCall className="w-4 h-4" />
+                      ) : isNovaImplantacao ? (
                         <Rocket className="w-4 h-4" />
                       ) : isConcluido ? (
                         <CheckCircle2 className="w-4 h-4" />
@@ -405,13 +444,19 @@ export function NotificationsPopover() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={clsx(
                             "text-[11px] font-bold px-2 py-0.5 rounded-md border",
-                            isNovaImplantacao
+                            isFerias
+                              ? "bg-amber-950/40 text-amber-300 border-amber-500/30"
+                              : isFalta
+                              ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
+                              : isPlantao
+                              ? "bg-yellow-950/40 text-yellow-300 border-yellow-500/30"
+                              : isNovaImplantacao
                               ? "bg-purple-950/40 text-purple-300 border-purple-500/30"
                               : isConcluido
                               ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
                               : "bg-blue-950/40 text-blue-300 border-blue-500/30"
                           )}>
-                            🏢 {nomeCliente}
+                            {isRhNotification ? `👤 ${colaboradorNome}` : `🏢 ${nomeCliente}`}
                           </span>
 
                           <span className="text-xs font-bold text-white truncate">
@@ -421,7 +466,16 @@ export function NotificationsPopover() {
 
                         {/* Unread indicator dot */}
                         {!item.lida && (
-                          <span className="w-2 h-2 rounded-full bg-brand-400 shrink-0 shadow-[0_0_6px_#38bdf8]" />
+                          <span className={clsx(
+                            "w-2 h-2 rounded-full shrink-0",
+                            isFerias
+                              ? "bg-amber-400 shadow-[0_0_6px_#fbbf24]"
+                              : isFalta
+                              ? "bg-emerald-400 shadow-[0_0_6px_#34d399]"
+                              : isPlantao
+                              ? "bg-yellow-400 shadow-[0_0_6px_#facc15]"
+                              : "bg-brand-400 shadow-[0_0_6px_#38bdf8]"
+                          )} />
                         )}
                       </div>
 
@@ -444,13 +498,19 @@ export function NotificationsPopover() {
                             }}
                             className={clsx(
                               "inline-flex items-center gap-1 px-2.5 py-1 rounded border text-[11px] font-semibold transition-all cursor-pointer",
-                              isNovaImplantacao
+                              isFerias
+                                ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                : isFalta
+                                ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                : isPlantao
+                                ? "bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+                                : isNovaImplantacao
                                 ? "bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border-purple-500/30"
                                 : "bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border-brand-500/30"
                             )}
                           >
                             <ExternalLink className="w-3 h-3" />
-                            {isNovaImplantacao ? 'Abrir Implantação' : 'Visualizar Formulário'}
+                            {isRhNotification ? 'Abrir RH' : isNovaImplantacao ? 'Abrir Implantação' : 'Visualizar Formulário'}
                           </button>
 
                           <button
