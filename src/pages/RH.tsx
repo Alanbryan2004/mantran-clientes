@@ -129,11 +129,18 @@ export function RH() {
         api.getEscalasHomeOffice().catch(() => [])
       ])
 
-      // Filtrar apenas funcionários internos da Mantran (Perfil Cliente e Parceiro são externos e NÃO são funcionários)
+      // Filtrar apenas funcionários internos da Mantran (Perfil Cliente, Parceiro e Usuário/Consulta NÃO são funcionários)
       const isFuncionarioMantran = (perfil?: string) => {
         if (!perfil) return false
         const p = perfil.trim().toLowerCase()
-        return p !== 'cliente' && p !== 'parceiro'
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+        
+        // Perfis que NÃO são funcionários: Cliente, Parceiro, Usuario / Consulta
+        if (p === 'cliente' || p === 'parceiro' || p === 'usuario' || p.includes('consulta')) {
+          return false
+        }
+        return true
       }
 
       const funcionariosMantran = allUsers.filter(u => isFuncionarioMantran(u.perfil) && u.ativo !== false)

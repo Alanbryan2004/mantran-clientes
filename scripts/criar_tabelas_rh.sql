@@ -3,9 +3,8 @@
 -- Copie e execute no SQL Editor do Supabase Dashboard
 -- 
 -- ⚠️ NOTA: O módulo de RH e estas tabelas são de uso EXCLUSIVO
--- para os Funcionários Internos da Mantran (ex: Administrador,
--- Tecnico, Suporte, Comercial, Usuario). 
--- Perfis "Cliente" e "Parceiro" NÃO são funcionários e não constam no RH.
+-- para os Funcionários da Mantran (Administrador, Tecnico, Suporte, Comercial, Financeiro).
+-- Perfis como "Cliente", "Parceiro" e "Usuário (Consulta)" NÃO são funcionários e não constam no RH.
 -- ============================================================
 
 -- 1.1 Tabela de Solicitações de Férias (Duas Quinzenas)

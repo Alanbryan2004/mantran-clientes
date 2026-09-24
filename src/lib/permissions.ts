@@ -29,7 +29,7 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Usuario: {
     perfil: 'Usuario',
-    rotas: ['/', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh'],
+    rotas: ['/', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras'],
     projeto_especifico_id: null,
     read_only: true
   },
