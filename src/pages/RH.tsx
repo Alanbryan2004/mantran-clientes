@@ -238,6 +238,16 @@ export function RH() {
     )
   }, [todosPlantoesEquipe, user])
 
+  // Apenas colaboradores com perfil de Técnico para o Plantão
+  const usuariosTecnicos = useMemo(() => {
+    return usuarios.filter(u => {
+      const p = (u.perfil || '').trim().toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+      return p === 'tecnico' || p === 'tecnica'
+    })
+  }, [usuarios])
+
   // Data atual
   const hoje = new Date()
   const hojeStr = hoje.toISOString().split('T')[0]
@@ -614,8 +624,13 @@ export function RH() {
   }
 
   const handleAbrirModalPlantao = (tecnicoPre?: { id: string; nome: string }) => {
-    setPlantaoTecnicoId(tecnicoPre?.id || user?.id || '')
-    setPlantaoTecnicoNome(tecnicoPre?.nome || user?.nome || user?.login || 'Técnico')
+    const isUserTecnico = (user?.perfil || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === 'tecnico'
+    const defaultTecnico = tecnicoPre?.id 
+      ? tecnicoPre 
+      : (isUserTecnico ? user : (usuariosTecnicos[0] || null))
+
+    setPlantaoTecnicoId(defaultTecnico?.id || '')
+    setPlantaoTecnicoNome(defaultTecnico?.nome || defaultTecnico?.login || '')
     setPlantaoDataInicio('')
     setPlantaoDataFim('')
     setPlantaoValor('')
@@ -2071,15 +2086,15 @@ export function RH() {
                     onChange={e => {
                       const selId = e.target.value
                       setPlantaoTecnicoId(selId)
-                      const found = usuarios.find(u => u.id === selId)
+                      const found = usuariosTecnicos.find(u => u.id === selId)
                       if (found) setPlantaoTecnicoNome(found.nome)
                     }}
                     required
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-amber-500"
                   >
                     <option value="">Selecione o técnico...</option>
-                    {usuarios.map(u => (
-                      <option key={u.id} value={u.id}>{u.nome} ({u.perfil})</option>
+                    {usuariosTecnicos.map(u => (
+                      <option key={u.id} value={u.id}>{u.nome}</option>
                     ))}
                   </select>
                 ) : (
