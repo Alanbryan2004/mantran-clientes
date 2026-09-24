@@ -129,11 +129,32 @@ export function RH() {
         api.getEscalasHomeOffice().catch(() => [])
       ])
 
-      setUsuarios(allUsers.filter(u => u.perfil !== 'Cliente'))
-      setTodasFeriasEquipe(todasFerias || [])
-      setFeriasList(todasFerias || [])
-      setFaltasList(faltas || [])
-      setHomeOfficeList(escalas || [])
+      // Filtrar apenas funcionários internos da Mantran (Perfil Cliente e Parceiro são externos e NÃO são funcionários)
+      const isFuncionarioMantran = (perfil?: string) => {
+        if (!perfil) return false
+        const p = perfil.trim().toLowerCase()
+        return p !== 'cliente' && p !== 'parceiro'
+      }
+
+      const funcionariosMantran = allUsers.filter(u => isFuncionarioMantran(u.perfil) && u.ativo !== false)
+      const funcionariosIds = new Set(funcionariosMantran.map(f => f.id))
+      const funcionariosNomes = new Set(funcionariosMantran.map(f => f.nome.toLowerCase()))
+
+      const isRecordDeFuncionario = (item: { usuario_id?: string; usuario_nome?: string }) => {
+        if (item.usuario_id && funcionariosIds.has(item.usuario_id)) return true
+        if (item.usuario_nome && funcionariosNomes.has(item.usuario_nome.toLowerCase())) return true
+        return false
+      }
+
+      const feriasFiltradas = (todasFerias || []).filter(isRecordDeFuncionario)
+      const faltasFiltradas = (faltas || []).filter(isRecordDeFuncionario)
+      const escalasFiltradas = (escalas || []).filter(isRecordDeFuncionario)
+
+      setUsuarios(funcionariosMantran)
+      setTodasFeriasEquipe(feriasFiltradas)
+      setFeriasList(feriasFiltradas)
+      setFaltasList(faltasFiltradas)
+      setHomeOfficeList(escalasFiltradas)
     } catch (err) {
       console.error('Erro ao carregar dados do portal de RH:', err)
     } finally {
