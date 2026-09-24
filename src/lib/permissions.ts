@@ -76,9 +76,19 @@ export const permissionsApi = {
       if (!error && data && data.length > 0) {
         const mapped: Record<string, PerfilPermissao> = { ...DEFAULT_PERMISSOES }
         data.forEach((row: any) => {
+          let rotas: string[] = Array.isArray(row.rotas_permitidas) ? [...row.rotas_permitidas] : []
+          
+          const p = (row.perfil || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          const isFuncionario = p !== 'cliente' && p !== 'parceiro' && p !== 'usuario' && !p.includes('consulta')
+          
+          // Garante que funcionários internos (Suporte, Tecnico, Comercial, etc.) sempre tenham acesso à rota /rh
+          if (isFuncionario && !rotas.includes('/rh')) {
+            rotas.push('/rh')
+          }
+
           mapped[row.perfil] = {
             perfil: row.perfil,
-            rotas: Array.isArray(row.rotas_permitidas) ? row.rotas_permitidas : [],
+            rotas,
             projeto_especifico_id: row.projeto_id_permitido || null,
             read_only: !!row.read_only
           }
@@ -116,12 +126,21 @@ export const permissionsApi = {
     const perfilName = user.perfil.trim()
     if (perfilName.toLowerCase() === 'administrador') return true
 
+    // Normalize path
+    const cleanPath = path.split('?')[0].split('#')[0]
+
+    // Rota /rh: permitida para todos os funcionários internos (Suporte, Tecnico, Comercial, etc.)
+    if (cleanPath.startsWith('/rh')) {
+      const p = perfilName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      if (p === 'cliente' || p === 'parceiro' || p === 'usuario' || p.includes('consulta')) {
+        return false
+      }
+      return true
+    }
+
     const perms = this.getStoredPermissions()
     const userPerm = perms[perfilName] || DEFAULT_PERMISSOES[perfilName]
     if (!userPerm) return true
-
-    // Normalize path
-    const cleanPath = path.split('?')[0].split('#')[0]
 
     // Special case for bases / project details
     if (cleanPath.startsWith('/bases')) {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { getLoggedUser } from '../../lib/auth'
+import { permissionsApi } from '../../lib/permissions'
 import { NotificationsPopover } from '../NotificationsPopover'
 import { AlterarMinhaSenhaModal } from '../AlterarMinhaSenhaModal'
 import { 
@@ -175,18 +176,20 @@ export function Header() {
                 <span>Alterar Senha</span>
               </button>
 
-              {/* Opção 2: RH & Férias */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsUserMenuOpen(false)
-                  navigate('/rh')
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-brand-500/10 hover:text-brand-300 transition-colors text-left cursor-pointer"
-              >
-                <Palmtree className="w-4 h-4 text-teal-400" />
-                <span>RH & Férias</span>
-              </button>
+              {/* Opção 2: RH & Férias (Apenas para funcionários) */}
+              {permissionsApi.canAccessRoute('/rh') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUserMenuOpen(false)
+                    navigate('/rh')
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-brand-500/10 hover:text-brand-300 transition-colors text-left cursor-pointer"
+                >
+                  <Palmtree className="w-4 h-4 text-teal-400" />
+                  <span>RH & Férias</span>
+                </button>
+              )}
 
               {/* Opção 3: Sair */}
               <div className="pt-1 border-t border-slate-800/80">
