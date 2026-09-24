@@ -75,6 +75,12 @@ export function Sidebar() {
             path: `/bases/${specificProjId}`
           }
         }
+        if (item.path === '/rh') {
+          return {
+            ...item,
+            name: isAdmin ? 'Gestão de RH' : 'RH & Férias'
+          }
+        }
         return item
       })
 

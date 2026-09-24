@@ -52,17 +52,19 @@ import clsx from 'clsx'
 export function RH() {
   const user = getLoggedUser()
   const isAdmin = isAdminUser()
+  const isGestorRh = isAdmin || user?.perfil?.trim().toLowerCase() === 'rh'
 
-  // Abas principais
-  const [tab, setTab] = useState<'dashboard' | 'ferias' | 'home_office' | 'faltas' | 'equipe' | 'gestao'>('dashboard')
+  // Abas de navegação:
+  // Se for Gestor/Admin: 'dashboard' | 'ferias_equipe' | 'home_office_equipe' | 'faltas_equipe' | 'equipe_dossie' | 'gestao_aprovacoes'
+  // Se for Colaborador: 'minhas_ferias' | 'meu_home_office' | 'minhas_faltas'
+  const [tab, setTab] = useState<string>(isGestorRh ? 'dashboard' : 'minhas_ferias')
   const [loading, setLoading] = useState(true)
 
   // Listas de dados
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([])
-  const [feriasList, setFeriasList] = useState<SolicitacaoFerias[]>([])
-  const [faltasList, setFaltasList] = useState<FaltaAtestado[]>([])
-  const [homeOfficeList, setHomeOfficeList] = useState<EscalaHomeOffice[]>([])
   const [todasFeriasEquipe, setTodasFeriasEquipe] = useState<SolicitacaoFerias[]>([])
+  const [todasFaltasEquipe, setTodasFaltasEquipe] = useState<FaltaAtestado[]>([])
+  const [todasEscalasEquipe, setTodasEscalasEquipe] = useState<EscalaHomeOffice[]>([])
 
   // Filtros & Buscas
   const [filtroBusca, setFiltroBusca] = useState('')
@@ -106,7 +108,7 @@ export function RH() {
   } | null>(null)
   const [salvandoHomeOffice, setSalvandoHomeOffice] = useState(false)
 
-  // Modal Avaliação RH (Admin / Gestor)
+  // Modal Avaliação RH (Apenas Gestor/Admin)
   const [itemAvaliacao, setItemAvaliacao] = useState<{ type: 'ferias' | 'falta'; item: any } | null>(null)
   const [statusAvaliacao, setStatusAvaliacao] = useState<string>('Aprovado')
   const [respostaRh, setRespostaRh] = useState('')
@@ -129,18 +131,13 @@ export function RH() {
         api.getEscalasHomeOffice().catch(() => [])
       ])
 
-      // Filtrar apenas funcionários internos da Mantran (Perfil Cliente, Parceiro e Usuário/Consulta NÃO são funcionários)
+      // Filtra apenas funcionários internos da Mantran (exclui Cliente, Parceiro, Usuario Consulta)
       const isFuncionarioMantran = (perfil?: string) => {
         if (!perfil) return false
         const p = perfil.trim().toLowerCase()
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '')
-        
-        // Perfis que NÃO são funcionários: Cliente, Parceiro, Usuario / Consulta
-        if (p === 'cliente' || p === 'parceiro' || p === 'usuario' || p.includes('consulta')) {
-          return false
-        }
-        return true
+        return p !== 'cliente' && p !== 'parceiro' && p !== 'usuario' && !p.includes('consulta')
       }
 
       const funcionariosMantran = allUsers.filter(u => isFuncionarioMantran(u.perfil) && u.ativo !== false)
@@ -153,15 +150,10 @@ export function RH() {
         return false
       }
 
-      const feriasFiltradas = (todasFerias || []).filter(isRecordDeFuncionario)
-      const faltasFiltradas = (faltas || []).filter(isRecordDeFuncionario)
-      const escalasFiltradas = (escalas || []).filter(isRecordDeFuncionario)
-
       setUsuarios(funcionariosMantran)
-      setTodasFeriasEquipe(feriasFiltradas)
-      setFeriasList(feriasFiltradas)
-      setFaltasList(faltasFiltradas)
-      setHomeOfficeList(escalasFiltradas)
+      setTodasFeriasEquipe((todasFerias || []).filter(isRecordDeFuncionario))
+      setTodasFaltasEquipe((faltas || []).filter(isRecordDeFuncionario))
+      setTodasEscalasEquipe((escalas || []).filter(isRecordDeFuncionario))
     } catch (err) {
       console.error('Erro ao carregar dados do portal de RH:', err)
     } finally {
@@ -169,9 +161,31 @@ export function RH() {
     }
   }
 
-  // Obter dia da semana atual (0: Domingo, 1: Seg, 2: Ter, 3: Qua, 4: Qui, 5: Sex, 6: Sab)
+  // Filtragem dos dados do próprio usuário logado (Portal do Colaborador)
+  const minhasFerias = useMemo(() => {
+    return todasFeriasEquipe.filter(f => 
+      f.usuario_id === user?.id || 
+      (user?.nome && f.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())
+    )
+  }, [todasFeriasEquipe, user])
+
+  const minhasFaltas = useMemo(() => {
+    return todasFaltasEquipe.filter(f => 
+      f.usuario_id === user?.id || 
+      (user?.nome && f.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())
+    )
+  }, [todasFaltasEquipe, user])
+
+  const meuHomeOffice = useMemo(() => {
+    return todasEscalasEquipe.find(h => 
+      h.usuario_id === user?.id || 
+      (user?.nome && h.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())
+    )
+  }, [todasEscalasEquipe, user])
+
+  // Dia da semana atual
   const hoje = new Date()
-  const diaSemanaHojeIndex = hoje.getDay() // 1 = seg, 2 = ter, etc.
+  const diaSemanaHojeIndex = hoje.getDay()
   const hojeStr = hoje.toISOString().split('T')[0]
 
   const getDiaSemanaProp = (index: number): 'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta' | 'sabado' | null => {
@@ -188,9 +202,8 @@ export function RH() {
 
   const diaAtualProp = getDiaSemanaProp(diaSemanaHojeIndex)
 
-  // Cálculos de Indicadores em Tempo Real
+  // Indicadores Executivos para Gestão/Admin
   const kpis = useMemo(() => {
-    // 1. Quem está de férias hoje
     const emFeriasHoje = todasFeriasEquipe.filter(f => {
       if (f.status === 'Reprovado') return false
       const q1Ativa = f.quinzena_1_inicio && f.quinzena_1_fim && (hojeStr >= f.quinzena_1_inicio && hojeStr <= f.quinzena_1_fim)
@@ -198,34 +211,31 @@ export function RH() {
       return q1Ativa || q2Ativa
     })
 
-    // 2. Quem está de atestado/falta hoje
-    const emAtestadoHoje = faltasList.filter(fa => {
+    const emAtestadoHoje = todasFaltasEquipe.filter(fa => {
       if (fa.status === 'Recusado') return false
       const dataFim = fa.data_falta_fim || fa.data_falta_inicio
       return hojeStr >= fa.data_falta_inicio && hojeStr <= dataFim
     })
 
-    // 3. Quem está em Home Office hoje
-    const emHomeOfficeHoje = homeOfficeList.filter(ho => {
+    const emHomeOfficeHoje = todasEscalasEquipe.filter(ho => {
       if (ho.modalidade === '100% Remoto') return true
       if (ho.modalidade === '100% Presencial') return false
       if (diaAtualProp && ho[diaAtualProp]) return true
       return false
     })
 
-    // 4. Pendências de RH
     const feriasPendentes = todasFeriasEquipe.filter(f => f.status === 'Pendente')
-    const faltasPendentes = faltasList.filter(f => f.status === 'Pendente' || f.status === 'Em Análise')
+    const faltasPendentes = todasFaltasEquipe.filter(f => f.status === 'Pendente' || f.status === 'Em Análise')
 
     return {
-      totalColaboradores: usuarios.length || homeOfficeList.length || 8,
+      totalColaboradores: usuarios.length || 8,
       emFeriasHoje,
       emAtestadoHoje,
       emHomeOfficeHoje,
       feriasPendentes,
       faltasPendentes
     }
-  }, [todasFeriasEquipe, faltasList, homeOfficeList, usuarios, hojeStr, diaAtualProp])
+  }, [todasFeriasEquipe, todasFaltasEquipe, todasEscalasEquipe, usuarios, hojeStr, diaAtualProp])
 
   // Verificação estrita de conflito de férias entre colaboradores
   const checkConflitoPeriodo = (inicio: string, fim: string, quinzenaNum: 1 | 2) => {
@@ -268,12 +278,11 @@ export function RH() {
     return null
   }
 
-  // Auto-cálculo de datas para 15 dias corridos
   const handleQ1InicioChange = (dataStr: string) => {
     setQ1Inicio(dataStr)
     if (dataStr) {
       const d = new Date(dataStr + 'T00:00:00')
-      d.setDate(d.getDate() + 14) // 15 dias
+      d.setDate(d.getDate() + 14) // 15 dias corridos
       setQ1Fim(d.toISOString().split('T')[0])
     }
   }
@@ -282,7 +291,7 @@ export function RH() {
     setQ2Inicio(dataStr)
     if (dataStr) {
       const d = new Date(dataStr + 'T00:00:00')
-      d.setDate(d.getDate() + 14) // 15 dias
+      d.setDate(d.getDate() + 14) // 15 dias corridos
       setQ2Fim(d.toISOString().split('T')[0])
     }
   }
@@ -364,7 +373,7 @@ export function RH() {
       setQ2Fim('')
       setFeriasObs('')
       await fetchData()
-      alert('Solicitação de férias enviada com sucesso!')
+      alert('Solicitação de férias enviada com sucesso para aprovação do RH!')
     } catch (err: any) {
       console.error(err)
       alert('Erro ao enviar solicitação: ' + err.message)
@@ -409,7 +418,7 @@ export function RH() {
       setArquivoUrl('')
       setArquivoTipo('')
       await fetchData()
-      alert('Falta / Atestado comunicado com sucesso!')
+      alert('Falta / Atestado comunicado com sucesso ao RH!')
     } catch (err: any) {
       console.error(err)
       alert('Erro ao enviar comunicado: ' + err.message)
@@ -421,7 +430,7 @@ export function RH() {
   const handleAbrirEdicaoHomeOffice = (colaborador?: { id: string; nome: string }) => {
     const targetId = colaborador?.id || user?.id || 'temp'
     const targetNome = colaborador?.nome || user?.nome || user?.login || 'Colaborador'
-    const escalaExistente = homeOfficeList.find(h => h.usuario_id === targetId || h.usuario_nome.toLowerCase() === targetNome.toLowerCase())
+    const escalaExistente = todasEscalasEquipe.find(h => h.usuario_id === targetId || h.usuario_nome.toLowerCase() === targetNome.toLowerCase())
 
     if (escalaExistente) {
       setEditingHomeOffice({
@@ -463,7 +472,7 @@ export function RH() {
       setIsHomeOfficeModalOpen(false)
       setEditingHomeOffice(null)
       await fetchData()
-      alert('Escala de Home Office salva com sucesso!')
+      alert('Escala de Home Office atualizada com sucesso!')
     } catch (err: any) {
       console.error(err)
       alert('Erro ao salvar escala: ' + err.message)
@@ -499,7 +508,7 @@ export function RH() {
       setItemAvaliacao(null)
       setRespostaRh('')
       await fetchData()
-      alert('Avaliação de RH salva com sucesso!')
+      alert('Avaliação de RH confirmada com sucesso!')
     } catch (err: any) {
       console.error(err)
       alert('Erro ao salvar avaliação: ' + err.message)
@@ -543,27 +552,6 @@ export function RH() {
     )
   }
 
-  // Filtragem de Home Office por dia
-  const filteredHomeOfficeList = useMemo(() => {
-    return homeOfficeList.filter(item => {
-      const matchBusca = !filtroBusca || item.usuario_nome.toLowerCase().includes(filtroBusca.toLowerCase())
-      if (!matchBusca) return false
-
-      if (filtroDiaHomeOffice === 'todos') return true
-      if (filtroDiaHomeOffice === 'hoje') {
-        if (item.modalidade === '100% Remoto') return true
-        if (item.modalidade === '100% Presencial') return false
-        return diaAtualProp ? !!item[diaAtualProp] : false
-      }
-      if (filtroDiaHomeOffice === 'segunda') return item.modalidade === '100% Remoto' || item.segunda
-      if (filtroDiaHomeOffice === 'terca') return item.modalidade === '100% Remoto' || item.terca
-      if (filtroDiaHomeOffice === 'quarta') return item.modalidade === '100% Remoto' || item.quarta
-      if (filtroDiaHomeOffice === 'quinta') return item.modalidade === '100% Remoto' || item.quinta
-      if (filtroDiaHomeOffice === 'sexta') return item.modalidade === '100% Remoto' || item.sexta
-      return true
-    })
-  }, [homeOfficeList, filtroBusca, filtroDiaHomeOffice, diaAtualProp])
-
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       
@@ -574,19 +562,26 @@ export function RH() {
         <div className="space-y-1.5 z-10">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500/20 to-teal-500/20 border border-brand-500/30 text-brand-400 flex items-center justify-center shadow-lg shadow-brand-500/10">
-              <Users2 className="w-6 h-6" />
+              {isGestorRh ? <Users2 className="w-6 h-6" /> : <Palmtree className="w-6 h-6" />}
             </div>
             <div>
               <div className="flex items-center gap-2.5">
                 <h1 className="text-2xl font-black text-white tracking-tight">
-                  Recursos Humanos & Equipe
+                  {isGestorRh ? 'Recursos Humanos & Gestão de Pessoas' : 'Portal do Colaborador - RH'}
                 </h1>
-                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-brand-500/15 text-brand-300 border border-brand-500/30">
-                  Mantran RH
+                <span className={clsx(
+                  "text-[11px] font-bold px-2.5 py-0.5 rounded-full border",
+                  isGestorRh 
+                    ? "bg-purple-500/15 text-purple-300 border-purple-500/30" 
+                    : "bg-brand-500/15 text-brand-300 border-brand-500/30"
+                )}>
+                  {isGestorRh ? 'Gestão & RH' : (user?.perfil || 'Colaborador')}
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Gestão integrada de Férias (2 Quinzenas), Faltas/Atestados, Escala de Home Office e Indicadores de Pessoas
+                {isGestorRh 
+                  ? 'Gestão integrada de Férias da equipe, Escala de Home Office, Faltas/Atestados e Indicadores'
+                  : 'Planejamento de férias em 2 quinzenas, minha escala de home office e envio de atestados'}
               </p>
             </div>
           </div>
@@ -624,84 +619,85 @@ export function RH() {
       </div>
 
       {/* ================= NAVIGATION TABS ================= */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto no-scrollbar">
-        <button
-          type="button"
-          onClick={() => setTab('dashboard')}
-          className={clsx(
-            "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
-            tab === 'dashboard'
-              ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
-              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
-          )}
-        >
-          <Activity className="w-4 h-4 text-brand-400" />
-          <span>Dashboard & Indicadores</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setTab('ferias')}
-          className={clsx(
-            "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
-            tab === 'ferias'
-              ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
-              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
-          )}
-        >
-          <Palmtree className="w-4 h-4 text-amber-400" />
-          <span>Férias & Quinzenas ({feriasList.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setTab('home_office')}
-          className={clsx(
-            "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
-            tab === 'home_office'
-              ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm"
-              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
-          )}
-        >
-          <Home className="w-4 h-4 text-cyan-400" />
-          <span>Escala de Home Office ({homeOfficeList.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setTab('faltas')}
-          className={clsx(
-            "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
-            tab === 'faltas'
-              ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
-              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
-          )}
-        >
-          <FileText className="w-4 h-4 text-emerald-400" />
-          <span>Faltas e Atestados ({faltasList.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setTab('equipe')}
-          className={clsx(
-            "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
-            tab === 'equipe'
-              ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
-              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
-          )}
-        >
-          <Users2 className="w-4 h-4 text-blue-400" />
-          <span>Dossiê da Equipe ({usuarios.length || homeOfficeList.length})</span>
-        </button>
-
-        {isAdmin && (
+      {isGestorRh ? (
+        /* --- ABAS PARA GESTOR / ADMIN --- */
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto no-scrollbar">
           <button
             type="button"
-            onClick={() => setTab('gestao')}
+            onClick={() => setTab('dashboard')}
+            className={clsx(
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              tab === 'dashboard'
+                ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <Activity className="w-4 h-4 text-brand-400" />
+            <span>Dashboard & Indicadores</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('ferias_equipe')}
+            className={clsx(
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              tab === 'ferias_equipe'
+                ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <Palmtree className="w-4 h-4 text-amber-400" />
+            <span>Férias da Equipe ({todasFeriasEquipe.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('home_office_equipe')}
+            className={clsx(
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              tab === 'home_office_equipe'
+                ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <Home className="w-4 h-4 text-cyan-400" />
+            <span>Escala de Home Office ({todasEscalasEquipe.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('faltas_equipe')}
+            className={clsx(
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              tab === 'faltas_equipe'
+                ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <FileText className="w-4 h-4 text-emerald-400" />
+            <span>Faltas e Atestados ({todasFaltasEquipe.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('equipe_dossie')}
+            className={clsx(
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap",
+              tab === 'equipe_dossie'
+                ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <Users2 className="w-4 h-4 text-blue-400" />
+            <span>Dossiê da Equipe ({usuarios.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('gestao_aprovacoes')}
             className={clsx(
               "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ml-auto whitespace-nowrap",
-              tab === 'gestao'
+              tab === 'gestao_aprovacoes'
                 ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm"
                 : "text-purple-400/80 hover:text-purple-300 hover:bg-purple-950/30 border border-purple-500/20"
             )}
@@ -709,869 +705,787 @@ export function RH() {
             <Shield className="w-4 h-4 text-purple-400" />
             <span>Aprovações RH {kpis.feriasPendentes.length + kpis.faltasPendentes.length > 0 && `(${kpis.feriasPendentes.length + kpis.faltasPendentes.length})`}</span>
           </button>
-        )}
-      </div>
+        </div>
+      ) : (
+        /* --- ABAS PARA COLABORADOR COMUM (NÃO-ADMIN) --- */
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+          <button
+            type="button"
+            onClick={() => setTab('minhas_ferias')}
+            className={clsx(
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer",
+              tab === 'minhas_ferias'
+                ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <Palmtree className="w-4 h-4 text-amber-400" />
+            <span>Minhas Férias ({minhasFerias.length})</span>
+          </button>
 
-      {/* ================= TAB 1: DASHBOARD & INDICADORES ================= */}
+          <button
+            type="button"
+            onClick={() => setTab('meu_home_office')}
+            className={clsx(
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer",
+              tab === 'meu_home_office'
+                ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <Home className="w-4 h-4 text-cyan-400" />
+            <span>Meu Home Office</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('minhas_faltas')}
+            className={clsx(
+              "px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer",
+              tab === 'minhas_faltas'
+                ? "bg-brand-500/15 text-brand-300 border border-brand-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <FileText className="w-4 h-4 text-emerald-400" />
+            <span>Meus Atestados & Faltas ({minhasFaltas.length})</span>
+          </button>
+        </div>
+      )}
+
+      {/* ================= MAIN CONTENT ================= */}
       {loading ? (
         <div className="py-24 text-center text-slate-400 text-sm animate-pulse">
-          Carregando dados executivos de RH...
+          Carregando informações de RH...
         </div>
-      ) : tab === 'dashboard' ? (
+      ) : !isGestorRh ? (
+        /* ================= VISTA DO COLABORADOR (NÃO-ADMIN) ================= */
         <div className="space-y-6">
           
-          {/* KPI CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* 1. Em Férias Hoje */}
-            <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Em Férias Hoje</span>
-                <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
-                  <Palmtree className="w-4 h-4" />
+          {tab === 'minhas_ferias' && (
+            <div className="space-y-5">
+              <div className="p-4 rounded-2xl bg-brand-500/5 border border-brand-500/20 flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-brand-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-300 space-y-1">
+                  <p className="font-bold text-white">Regra de Férias Mantran (2 Quinzenas):</p>
+                  <p className="text-slate-400">
+                    Você tem direito a <strong>2 quinzenas separadas (15 dias cada)</strong>. 
+                    Nenhum colaborador pode tirar férias no mesmo período que outro colega. 
+                    Clique em <strong>"Solicitar Férias"</strong> acima para agendar seu período.
+                  </p>
                 </div>
               </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-black text-white">{kpis.emFeriasHoje.length}</span>
-                <span className="text-xs text-slate-400">colaboradores</span>
-              </div>
-              <p className="mt-2 text-[11px] text-amber-300/80">
-                {kpis.emFeriasHoje.length > 0 
-                  ? kpis.emFeriasHoje.map(f => f.usuario_nome).join(', ')
-                  : 'Nenhum colaborador em férias hoje'}
-              </p>
-            </div>
 
-            {/* 2. Home Office Hoje */}
-            <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Home Office Hoje</span>
-                <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center">
-                  <Laptop className="w-4 h-4" />
+              {minhasFerias.length === 0 ? (
+                <div className="bg-dark-card border border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-3">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/60 mx-auto flex items-center justify-center text-slate-500">
+                    <Palmtree className="w-7 h-7 opacity-60" />
+                  </div>
+                  <h3 className="text-base font-bold text-white">Nenhuma solicitação de férias cadastrada</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Planeje suas 2 quinzenas de descanso clicando no botão "Solicitar Férias" no topo.
+                  </p>
                 </div>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-black text-white">{kpis.emHomeOfficeHoje.length}</span>
-                <span className="text-xs text-slate-400">remotos</span>
-              </div>
-              <p className="mt-2 text-[11px] text-cyan-300/80">
-                {kpis.emHomeOfficeHoje.length > 0
-                  ? `${kpis.emHomeOfficeHoje.map(h => h.usuario_nome).slice(0, 3).join(', ')}${kpis.emHomeOfficeHoje.length > 3 ? ` +${kpis.emHomeOfficeHoje.length - 3}` : ''}`
-                  : 'Toda equipe em presencial hoje'}
-              </p>
-            </div>
-
-            {/* 3. Atestados / Faltas */}
-            <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Atestados no Mês</span>
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                  <FileText className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-black text-white">{faltasList.length}</span>
-                <span className="text-xs text-slate-400">registros</span>
-              </div>
-              <p className="mt-2 text-[11px] text-slate-400">
-                {kpis.emAtestadoHoje.length > 0 
-                  ? `${kpis.emAtestadoHoje.length} em afastamento ativo hoje`
-                  : 'Nenhum afastamento ativo hoje'}
-              </p>
-            </div>
-
-            {/* 4. Total Equipe & Pendências */}
-            <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quadro Mantran</span>
-                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
-                  <Users2 className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-black text-white">{kpis.totalColaboradores}</span>
-                <span className="text-xs text-slate-400">membros</span>
-              </div>
-              <p className="mt-2 text-[11px] text-purple-300/80">
-                {kpis.feriasPendentes.length + kpis.faltasPendentes.length > 0
-                  ? `${kpis.feriasPendentes.length + kpis.faltasPendentes.length} pendência(s) de aprovação`
-                  : 'Tudo em dia com o RH'}
-              </p>
-            </div>
-          </div>
-
-          {/* PRESENÇA HOJE - QUADRO DINÂMICO */}
-          <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-4">
-              <div>
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-brand-400" />
-                  Presença & Alocação da Equipe Hoje ({new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })})
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Visão em tempo real de quem está no escritório presencial, em home office, férias ou atestado médico.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setTab('home_office')}
-                className="text-xs font-bold text-brand-400 hover:text-brand-300 flex items-center gap-1 cursor-pointer"
-              >
-                <span>Ver Escala Semanal</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {usuarios.map(u => {
-                const fAtiva = todasFeriasEquipe.find(f => {
-                  if (f.status === 'Reprovado') return false
-                  const matchUser = f.usuario_id === u.id || f.usuario_nome.toLowerCase() === u.nome.toLowerCase()
-                  if (!matchUser) return false
-                  const q1 = f.quinzena_1_inicio && f.quinzena_1_fim && (hojeStr >= f.quinzena_1_inicio && hojeStr <= f.quinzena_1_fim)
-                  const q2 = f.quinzena_2_inicio && f.quinzena_2_fim && (hojeStr >= f.quinzena_2_inicio && hojeStr <= f.quinzena_2_fim)
-                  return q1 || q2
-                })
-
-                const faAtiva = faltasList.find(fa => {
-                  if (fa.status === 'Recusado') return false
-                  const matchUser = fa.usuario_id === u.id || fa.usuario_nome.toLowerCase() === u.nome.toLowerCase()
-                  if (!matchUser) return false
-                  const fim = fa.data_falta_fim || fa.data_falta_inicio
-                  return hojeStr >= fa.data_falta_inicio && hojeStr <= fim
-                })
-
-                const hoEscala = homeOfficeList.find(h => h.usuario_id === u.id || h.usuario_nome.toLowerCase() === u.nome.toLowerCase())
-                const isHomeOfficeHoje = hoEscala?.modalidade === '100% Remoto' || (diaAtualProp && hoEscala?.[diaAtualProp])
-
-                let statusText = '🏢 Escritório Presencial'
-                let statusBg = 'bg-slate-900 border-slate-800 text-slate-300'
-                let badgeClass = 'bg-slate-800 text-slate-300 border-slate-700'
-
-                if (fAtiva) {
-                  statusText = '🌴 Em Férias'
-                  statusBg = 'bg-amber-950/20 border-amber-500/30 text-amber-200'
-                  badgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                } else if (faAtiva) {
-                  statusText = '🩺 Atestado Médico'
-                  statusBg = 'bg-red-950/20 border-red-500/30 text-red-200'
-                  badgeClass = 'bg-red-500/15 text-red-300 border-red-500/30'
-                } else if (isHomeOfficeHoje) {
-                  statusText = '🏠 Home Office Hoje'
-                  statusBg = 'bg-cyan-950/20 border-cyan-500/30 text-cyan-200'
-                  badgeClass = 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
-                }
-
-                return (
-                  <div 
-                    key={u.id}
-                    className={clsx("p-3.5 rounded-2xl border transition-all flex items-center justify-between", statusBg)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700 font-bold flex items-center justify-center text-xs text-white uppercase shrink-0">
-                        {u.nome.charAt(0)}
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {minhasFerias.map((f) => (
+                    <div 
+                      key={f.id} 
+                      className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4 hover:border-slate-700 transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                          Vigência: <strong className="text-white">{f.ano_vigencia}</strong>
+                        </span>
+                        {getStatusBadge(f.status)}
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-white truncate max-w-[150px]">{u.nome}</p>
-                        <p className="text-[10px] text-slate-400 capitalize">{u.perfil}</p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-brand-400">1ª Quinzena</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-300 font-semibold">
+                              {f.quinzena_1_dias} dias
+                            </span>
+                          </div>
+                          <p className="text-xs font-semibold text-white">
+                            {formatDateDisplay(f.quinzena_1_inicio)} até {formatDateDisplay(f.quinzena_1_fim)}
+                          </p>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-teal-400">2ª Quinzena</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-300 font-semibold">
+                              {f.quinzena_2_inicio ? `${f.quinzena_2_dias || 15} dias` : 'A definir'}
+                            </span>
+                          </div>
+                          <p className="text-xs font-semibold text-white">
+                            {f.quinzena_2_inicio ? (
+                              `${formatDateDisplay(f.quinzena_2_inicio)} até ${formatDateDisplay(f.quinzena_2_fim)}`
+                            ) : (
+                              <span className="text-slate-500 italic">Pendente de agendamento</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      {f.observacoes && (
+                        <p className="text-xs text-slate-300 bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/50">
+                          <strong className="text-slate-400 block text-[11px]">Minhas Observações:</strong>
+                          {f.observacoes}
+                        </p>
+                      )}
+
+                      {f.resposta_rh && (
+                        <p className="text-xs text-amber-200 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
+                          <strong className="text-amber-400 block text-[11px]">Retorno do RH:</strong>
+                          {f.resposta_rh}
+                        </p>
+                      )}
+
+                      <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Solicitado em {formatDateDisplay(f.created_at)}</span>
+                        {f.aprovado_por && (
+                          <span>Avaliado por: <strong className="text-slate-300">{f.aprovado_por}</strong></span>
+                        )}
                       </div>
                     </div>
-
-                    <span className={clsx("text-[10px] font-bold px-2 py-0.5 rounded-lg border", badgeClass)}>
-                      {statusText}
-                    </span>
-                  </div>
-                )
-              })}
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
-          {/* PRÓXIMAS FÉRIAS & REGRAS */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* Linha do Tempo de Férias */}
-            <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-amber-400" />
-                Próximos Períodos de Férias Agendados
-              </h3>
+          {tab === 'meu_home_office' && (
+            <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <Laptop className="w-5 h-5 text-cyan-400" />
+                    Minha Escala de Trabalho Semanal
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Veja sua escala atual e clique no botão para alterar seus dias de Home Office.
+                  </p>
+                </div>
 
-              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                {todasFeriasEquipe.filter(f => f.status !== 'Reprovado').length === 0 ? (
-                  <p className="text-xs text-slate-500 italic py-6 text-center">Nenhum período de férias agendado no momento.</p>
-                ) : (
-                  todasFeriasEquipe.filter(f => f.status !== 'Reprovado').map(f => (
-                    <div key={f.id} className="p-3 bg-slate-900/60 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="font-bold text-white block">{f.usuario_nome}</span>
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          1ª Quinzena: {formatDateDisplay(f.quinzena_1_inicio)} a {formatDateDisplay(f.quinzena_1_fim)}
-                          {f.quinzena_2_inicio && ` • 2ª Quinzena: ${formatDateDisplay(f.quinzena_2_inicio)} a ${formatDateDisplay(f.quinzena_2_fim)}`}
+                <button
+                  type="button"
+                  onClick={() => handleAbrirEdicaoHomeOffice()}
+                  className="py-2.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Ajustar Meus Dias</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Regime Atual</span>
+                  <p className="text-lg font-bold text-white">
+                    {meuHomeOffice?.modalidade || 'Híbrido / Presencial'}
+                  </p>
+                  {meuHomeOffice?.observacoes && (
+                    <p className="text-xs text-slate-400 italic">"{meuHomeOffice.observacoes}"</p>
+                  )}
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">Dias em Home Office</span>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {[
+                      { key: 'segunda', label: 'Segunda' },
+                      { key: 'terca', label: 'Terça' },
+                      { key: 'quarta', label: 'Quarta' },
+                      { key: 'quinta', label: 'Quinta' },
+                      { key: 'sexta', label: 'Sexta' },
+                      { key: 'sabado', label: 'Sábado' },
+                    ].map(d => {
+                      const isRemoto = meuHomeOffice?.modalidade === '100% Remoto' || (meuHomeOffice as any)?.[d.key]
+                      return (
+                        <span 
+                          key={d.key}
+                          className={clsx(
+                            "px-3 py-1.5 rounded-xl text-xs font-bold border",
+                            isRemoto 
+                              ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" 
+                              : "bg-slate-950 text-slate-600 border-slate-800"
+                          )}
+                        >
+                          {d.label}: {isRemoto ? '🏠 Casa' : '🏢 Escritório'}
                         </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'minhas_faltas' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between bg-dark-card border border-slate-800 p-4 rounded-2xl">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-emerald-400" />
+                    Meus Comunicados de Falta e Atestados
+                  </h3>
+                  <p className="text-xs text-slate-400">Histórico de ausências justificadas enviadas ao RH.</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsFaltaModalOpen(true)}
+                  className="btn-primary py-2 px-3.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Novo Atestado / Falta</span>
+                </button>
+              </div>
+
+              {minhasFaltas.length === 0 ? (
+                <div className="bg-dark-card border border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-3">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/60 mx-auto flex items-center justify-center text-slate-500">
+                    <FileText className="w-7 h-7 opacity-60" />
+                  </div>
+                  <h3 className="text-base font-bold text-white">Nenhum atestado ou falta registrada</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Precisa justificar um dia de ausência médica? Clique em "Novo Atestado / Falta" acima.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {minhasFaltas.map((item) => (
+                    <div 
+                      key={item.id}
+                      className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">{item.motivo}</span>
+                          {getStatusBadge(item.status)}
+                        </div>
+
+                        <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Período:</span>
+                            <span className="font-semibold text-white">
+                              {formatDateDisplay(item.data_falta_inicio)}
+                              {item.data_falta_fim && item.data_falta_fim !== item.data_falta_inicio && (
+                                ` até ${formatDateDisplay(item.data_falta_fim)}`
+                              )}
+                            </span>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold border border-brand-500/20">
+                            {item.dias_afastamento}d
+                          </span>
+                        </div>
+
+                        {item.descricao && (
+                          <p className="text-xs text-slate-300 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40">
+                            {item.descricao}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                        {item.arquivo_atestado_url ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewAtestado(item)}
+                            className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <Paperclip className="w-3.5 h-3.5" />
+                            <span className="truncate max-w-[200px]">Ver Comprovante Anexado</span>
+                          </button>
+                        ) : (
+                          <div className="text-center py-1.5 text-[11px] text-slate-500 italic">
+                            Sem documento anexado
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-500">
+                          <span>{formatDateDisplay(item.created_at)}</span>
+                          {item.aprovado_por && (
+                            <span>RH: <strong className="text-slate-300">{item.aprovado_por}</strong></span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+      ) : (
+        /* ================= VISTA DA GESTÃO DE RH / ADMIN ================= */
+        <div className="space-y-6">
+
+          {/* TAB: DASHBOARD */}
+          {tab === 'dashboard' && (
+            <div className="space-y-6">
+              
+              {/* KPI CARDS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Em Férias Hoje</span>
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+                      <Palmtree className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-white">{kpis.emFeriasHoje.length}</span>
+                    <span className="text-xs text-slate-400">colaboradores</span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-amber-300/80">
+                    {kpis.emFeriasHoje.length > 0 
+                      ? kpis.emFeriasHoje.map(f => f.usuario_nome).join(', ')
+                      : 'Nenhum colaborador em férias hoje'}
+                  </p>
+                </div>
+
+                <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Home Office Hoje</span>
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                      <Laptop className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-white">{kpis.emHomeOfficeHoje.length}</span>
+                    <span className="text-xs text-slate-400">remotos</span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-cyan-300/80">
+                    {kpis.emHomeOfficeHoje.length > 0
+                      ? `${kpis.emHomeOfficeHoje.map(h => h.usuario_nome).slice(0, 3).join(', ')}${kpis.emHomeOfficeHoje.length > 3 ? ` +${kpis.emHomeOfficeHoje.length - 3}` : ''}`
+                      : 'Toda equipe em presencial hoje'}
+                  </p>
+                </div>
+
+                <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Atestados no Mês</span>
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-white">{todasFaltasEquipe.length}</span>
+                    <span className="text-xs text-slate-400">registros</span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-slate-400">
+                    {kpis.emAtestadoHoje.length > 0 
+                      ? `${kpis.emAtestadoHoje.length} em afastamento ativo hoje`
+                      : 'Nenhum afastamento ativo hoje'}
+                  </p>
+                </div>
+
+                <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quadro Mantran</span>
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
+                      <Users2 className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-white">{kpis.totalColaboradores}</span>
+                    <span className="text-xs text-slate-400">funcionários</span>
+                  </div>
+                  <p className="mt-2 text-[11px] text-purple-300/80">
+                    {kpis.feriasPendentes.length + kpis.faltasPendentes.length > 0
+                      ? `${kpis.feriasPendentes.length + kpis.faltasPendentes.length} pendência(s) de aprovação`
+                      : 'Tudo em dia com o RH'}
+                  </p>
+                </div>
+              </div>
+
+              {/* PRESENÇA HOJE */}
+              <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-4">
+                  <div>
+                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-brand-400" />
+                      Presença & Alocação da Equipe Hoje ({new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })})
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Visão em tempo real de quem está no escritório presencial, em home office, férias ou atestado.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setTab('home_office_equipe')}
+                    className="text-xs font-bold text-brand-400 hover:text-brand-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Ver Escala Semanal</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {usuarios.map(u => {
+                    const fAtiva = todasFeriasEquipe.find(f => {
+                      if (f.status === 'Reprovado') return false
+                      const matchUser = f.usuario_id === u.id || f.usuario_nome.toLowerCase() === u.nome.toLowerCase()
+                      if (!matchUser) return false
+                      const q1 = f.quinzena_1_inicio && f.quinzena_1_fim && (hojeStr >= f.quinzena_1_inicio && hojeStr <= f.quinzena_1_fim)
+                      const q2 = f.quinzena_2_inicio && f.quinzena_2_fim && (hojeStr >= f.quinzena_2_inicio && hojeStr <= f.quinzena_2_fim)
+                      return q1 || q2
+                    })
+
+                    const faAtiva = todasFaltasEquipe.find(fa => {
+                      if (fa.status === 'Recusado') return false
+                      const matchUser = fa.usuario_id === u.id || fa.usuario_nome.toLowerCase() === u.nome.toLowerCase()
+                      if (!matchUser) return false
+                      const fim = fa.data_falta_fim || fa.data_falta_inicio
+                      return hojeStr >= fa.data_falta_inicio && hojeStr <= fim
+                    })
+
+                    const hoEscala = todasEscalasEquipe.find(h => h.usuario_id === u.id || h.usuario_nome.toLowerCase() === u.nome.toLowerCase())
+                    const isHomeOfficeHoje = hoEscala?.modalidade === '100% Remoto' || (diaAtualProp && hoEscala?.[diaAtualProp])
+
+                    let statusText = '🏢 Escritório Presencial'
+                    let statusBg = 'bg-slate-900 border-slate-800 text-slate-300'
+                    let badgeClass = 'bg-slate-800 text-slate-300 border-slate-700'
+
+                    if (fAtiva) {
+                      statusText = '🌴 Em Férias'
+                      statusBg = 'bg-amber-950/20 border-amber-500/30 text-amber-200'
+                      badgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    } else if (faAtiva) {
+                      statusText = '🩺 Atestado Médico'
+                      statusBg = 'bg-red-950/20 border-red-500/30 text-red-200'
+                      badgeClass = 'bg-red-500/15 text-red-300 border-red-500/30'
+                    } else if (isHomeOfficeHoje) {
+                      statusText = '🏠 Home Office Hoje'
+                      statusBg = 'bg-cyan-950/20 border-cyan-500/30 text-cyan-200'
+                      badgeClass = 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+                    }
+
+                    return (
+                      <div 
+                        key={u.id}
+                        className={clsx("p-3.5 rounded-2xl border transition-all flex items-center justify-between", statusBg)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700 font-bold flex items-center justify-center text-xs text-white uppercase shrink-0">
+                            {u.nome.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white truncate max-w-[150px]">{u.nome}</p>
+                            <p className="text-[10px] text-slate-400 capitalize">{u.perfil}</p>
+                          </div>
+                        </div>
+
+                        <span className={clsx("text-[10px] font-bold px-2 py-0.5 rounded-lg border", badgeClass)}>
+                          {statusText}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: FÉRIAS EQUIPE */}
+          {tab === 'ferias_equipe' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-dark-card border border-slate-800 p-4 rounded-2xl">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Palmtree className="w-4 h-4 text-amber-400" />
+                    Solicitações de Férias de Todos os Colaboradores ({todasFeriasEquipe.length})
+                  </h3>
+                  <p className="text-xs text-slate-400">Avalie e aprove períodos de descanso das 2 quinzenas.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {todasFeriasEquipe.map((f) => (
+                  <div 
+                    key={f.id} 
+                    className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4 hover:border-slate-700 transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-brand-500/20 border border-brand-500/30 text-brand-300 font-bold flex items-center justify-center text-xs">
+                          {f.usuario_nome.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-white">{f.usuario_nome}</p>
+                          <span className="text-[10px] text-slate-400">Exercício: {f.ano_vigencia}</span>
+                        </div>
                       </div>
                       {getStatusBadge(f.status)}
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
 
-            {/* Política de Férias e Diretrizes Mantran */}
-            <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-brand-400" />
-                Diretrizes de RH Mantran
-              </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+                        <span className="text-xs font-bold text-brand-400 block">1ª Quinzena</span>
+                        <p className="text-xs font-semibold text-white">
+                          {formatDateDisplay(f.quinzena_1_inicio)} a {formatDateDisplay(f.quinzena_1_fim)}
+                        </p>
+                      </div>
 
-              <div className="space-y-3 text-xs text-slate-300">
-                <div className="p-3 rounded-xl bg-brand-500/5 border border-brand-500/20 space-y-1">
-                  <p className="font-bold text-white flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-brand-400" />
-                    Regra das 2 Quinzenas
-                  </p>
-                  <p className="text-slate-400 text-[11px]">
-                    Cada colaborador usufrui de suas férias anuais divididas em 2 quinzenas separadas (15 dias corridos cada).
-                  </p>
-                </div>
-
-                <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-1">
-                  <p className="font-bold text-white flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                    Bloqueio de Férias Simultâneas
-                  </p>
-                  <p className="text-slate-400 text-[11px]">
-                    Para assegurar a continuidade do atendimento e implantações, nenhum colaborador pode retirar férias no mesmo período que outro colega.
-                  </p>
-                </div>
-
-                <div className="p-3 rounded-xl bg-cyan-500/5 border border-cyan-500/20 space-y-1">
-                  <p className="font-bold text-white flex items-center gap-1.5">
-                    <Home className="w-3.5 h-3.5 text-cyan-400" />
-                    Regime de Home Office
-                  </p>
-                  <p className="text-slate-400 text-[11px]">
-                    A escala de trabalho remoto deve ser mantida atualizada para alinhamento entre o suporte técnico, comercial e clientes.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-      ) : tab === 'ferias' ? (
-        /* ================= TAB 2: FÉRIAS & QUINZENAS ================= */
-        <div className="space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-dark-card border border-slate-800 p-4 rounded-2xl">
-            <div>
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <Palmtree className="w-4 h-4 text-amber-400" />
-                Painel de Férias da Equipe Mantran ({anoFiltro})
-              </h2>
-              <p className="text-xs text-slate-400">
-                Visualização de solicitações, períodos aprovados e bloqueio de sobreposições.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsFeriasModalOpen(true)}
-                className="btn-primary py-2 px-3.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Nova Solicitação</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {feriasList.map((f) => (
-              <div 
-                key={f.id} 
-                className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4 hover:border-slate-700 transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-brand-500/20 border border-brand-500/30 text-brand-300 font-bold flex items-center justify-center text-xs">
-                      {f.usuario_nome.charAt(0)}
+                      <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1">
+                        <span className="text-xs font-bold text-teal-400 block">2ª Quinzena</span>
+                        <p className="text-xs font-semibold text-white">
+                          {f.quinzena_2_inicio ? `${formatDateDisplay(f.quinzena_2_inicio)} a ${formatDateDisplay(f.quinzena_2_fim)}` : 'A definir'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-white">{f.usuario_nome}</p>
-                      <span className="text-[10px] text-slate-400">Exercício: {f.ano_vigencia}</span>
-                    </div>
-                  </div>
-                  {getStatusBadge(f.status)}
-                </div>
 
-                {/* Quinzenas */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-brand-400">1ª Quinzena</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-300 font-semibold">15 dias</span>
-                    </div>
-                    <p className="text-xs font-semibold text-white">
-                      {formatDateDisplay(f.quinzena_1_inicio)} até {formatDateDisplay(f.quinzena_1_fim)}
-                    </p>
-                  </div>
+                    {f.observacoes && (
+                      <p className="text-xs text-slate-300 bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/50">
+                        <strong className="text-slate-400 block text-[11px]">Obs do Colaborador:</strong>
+                        {f.observacoes}
+                      </p>
+                    )}
 
-                  <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-teal-400">2ª Quinzena</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-300 font-semibold">
-                        {f.quinzena_2_inicio ? '15 dias' : 'A definir'}
-                      </span>
-                    </div>
-                    <p className="text-xs font-semibold text-white">
-                      {f.quinzena_2_inicio ? (
-                        `${formatDateDisplay(f.quinzena_2_inicio)} até ${formatDateDisplay(f.quinzena_2_fim)}`
-                      ) : (
-                        <span className="text-slate-500 italic">Pendente</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
+                    {f.resposta_rh && (
+                      <p className="text-xs text-amber-200 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
+                        <strong className="text-amber-400 block text-[11px]">Parecer do RH:</strong>
+                        {f.resposta_rh}
+                      </p>
+                    )}
 
-                {f.observacoes && (
-                  <p className="text-xs text-slate-300 bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/50">
-                    <strong className="text-slate-400 block text-[11px]">Obs:</strong>
-                    {f.observacoes}
-                  </p>
-                )}
-
-                {f.resposta_rh && (
-                  <p className="text-xs text-amber-200 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
-                    <strong className="text-amber-400 block text-[11px]">Parecer do RH:</strong>
-                    {f.resposta_rh}
-                  </p>
-                )}
-
-                <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>Enviado em {formatDateDisplay(f.created_at)}</span>
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setItemAvaliacao({ type: 'ferias', item: f })
-                        setStatusAvaliacao(f.status || 'Aprovado')
-                        setRespostaRh(f.resposta_rh || '')
-                      }}
-                      className="text-xs font-bold text-brand-400 hover:text-brand-300 underline cursor-pointer"
-                    >
-                      Avaliar
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : tab === 'home_office' ? (
-        /* ================= TAB 3: ESCALA DE HOME OFFICE ================= */
-        <div className="space-y-5">
-          
-          <div className="bg-dark-card border border-slate-800 p-5 rounded-3xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Laptop className="w-5 h-5 text-cyan-400" />
-                Escala Semanal de Trabalho & Home Office
-              </h2>
-              <p className="text-xs text-slate-400">
-                Gerencie os dias remotos e presenciais de cada colaborador da equipe Mantran.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => handleAbrirEdicaoHomeOffice()}
-                className="py-2.5 px-4 rounded-xl bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-cyan-500/20"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Configurar Escala</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Filtros de Dia */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-2 flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5" /> Filtrar:
-            </span>
-            {[
-              { id: 'todos', label: 'Todos os Dias' },
-              { id: 'hoje', label: '⭐ Hoje' },
-              { id: 'segunda', label: 'Segunda-feira' },
-              { id: 'terca', label: 'Terça-feira' },
-              { id: 'quarta', label: 'Quarta-feira' },
-              { id: 'quinta', label: 'Quinta-feira' },
-              { id: 'sexta', label: 'Sexta-feira' },
-            ].map(f => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setFiltroDiaHomeOffice(f.id)}
-                className={clsx(
-                  "px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap",
-                  filtroDiaHomeOffice === f.id
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
-                    : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Grid / Tabela Semanal de Home Office */}
-          <div className="bg-dark-card border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-900/90 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
-                  <tr>
-                    <th className="p-4">Colaborador</th>
-                    <th className="p-4">Modalidade</th>
-                    <th className="p-4 text-center">Seg</th>
-                    <th className="p-4 text-center">Ter</th>
-                    <th className="p-4 text-center">Qua</th>
-                    <th className="p-4 text-center">Qui</th>
-                    <th className="p-4 text-center">Sex</th>
-                    <th className="p-4 text-center">Hoje</th>
-                    <th className="p-4 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {filteredHomeOfficeList.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="p-8 text-center text-slate-500">
-                        Nenhum colaborador encontrado com os filtros selecionados.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredHomeOfficeList.map((item) => {
-                      const isHojeRemoto = item.modalidade === '100% Remoto' || (diaAtualProp && item[diaAtualProp])
-                      return (
-                        <tr key={item.id} className="hover:bg-slate-850/50 transition-colors">
-                          <td className="p-4 font-bold text-white">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 font-bold flex items-center justify-center text-xs text-white">
-                                {item.usuario_nome.charAt(0)}
-                              </div>
-                              <span>{item.usuario_nome}</span>
-                            </div>
-                          </td>
-
-                          <td className="p-4">
-                            <span className={clsx(
-                              "text-[10px] font-bold px-2.5 py-1 rounded-full border",
-                              item.modalidade === '100% Remoto'
-                                ? "bg-purple-500/15 text-purple-300 border-purple-500/30"
-                                : item.modalidade === '100% Presencial'
-                                ? "bg-slate-800 text-slate-300 border-slate-700"
-                                : "bg-cyan-500/15 text-cyan-300 border-cyan-500/30"
-                            )}>
-                              {item.modalidade}
-                            </span>
-                          </td>
-
-                          {/* Seg a Sex */}
-                          {['segunda', 'terca', 'quarta', 'quinta', 'sexta'].map((diaKey) => {
-                            const isRemoto = item.modalidade === '100% Remoto' || (item as any)[diaKey]
-                            return (
-                              <td key={diaKey} className="p-4 text-center">
-                                {isRemoto ? (
-                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 font-bold text-xs border border-cyan-500/40">
-                                    🏠
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-slate-800/40 text-slate-600 font-bold text-xs">
-                                    🏢
-                                  </span>
-                                )}
-                              </td>
-                            )
-                          })}
-
-                          {/* Status Hoje */}
-                          <td className="p-4 text-center">
-                            <span className={clsx(
-                              "text-[10px] font-bold px-2 py-0.5 rounded-lg border inline-block",
-                              isHojeRemoto
-                                ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
-                                : "bg-slate-800 text-slate-400 border-slate-700"
-                            )}>
-                              {isHojeRemoto ? '🏠 Remoto' : '🏢 Presencial'}
-                            </span>
-                          </td>
-
-                          <td className="p-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleAbrirEdicaoHomeOffice({ id: item.usuario_id, nome: item.usuario_nome })}
-                              className="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold transition-all cursor-pointer"
-                            >
-                              Editar
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      ) : tab === 'faltas' ? (
-        /* ================= TAB 4: FALTAS & ATESTADOS ================= */
-        <div className="space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-dark-card border border-slate-800 p-4 rounded-2xl">
-            <div>
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <FileText className="w-4 h-4 text-emerald-400" />
-                Comunicação de Ausências & Atestados Médicos
-              </h2>
-              <p className="text-xs text-slate-400">
-                Acompanhamento de justificativas, atestados anexados e abonos do RH.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsFaltaModalOpen(true)}
-              className="btn-primary py-2 px-3.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Comunicar Falta / Atestado</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {faltasList.map((item) => (
-              <div 
-                key={item.id}
-                className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white truncate max-w-[170px]">
-                      👤 {item.usuario_nome}
-                    </span>
-                    {getStatusBadge(item.status)}
-                  </div>
-
-                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="text-slate-400 block text-[11px]">{item.motivo}</span>
-                      <span className="font-semibold text-white">
-                        {formatDateDisplay(item.data_falta_inicio)}
-                        {item.data_falta_fim && item.data_falta_fim !== item.data_falta_inicio && (
-                          ` a ${formatDateDisplay(item.data_falta_fim)}`
-                        )}
-                      </span>
-                    </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold border border-brand-500/20">
-                      {item.dias_afastamento}d
-                    </span>
-                  </div>
-
-                  {item.descricao && (
-                    <p className="text-xs text-slate-300 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40 line-clamp-2">
-                      {item.descricao}
-                    </p>
-                  )}
-                </div>
-
-                {/* Anexo de Atestado & Ações */}
-                <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                  {item.arquivo_atestado_url ? (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewAtestado(item)}
-                      className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                    >
-                      <Paperclip className="w-3.5 h-3.5" />
-                      <span className="truncate max-w-[200px]">Ver Atestado ({item.arquivo_atestado_nome || 'Arquivo'})</span>
-                    </button>
-                  ) : (
-                    <div className="text-center py-1.5 text-[11px] text-slate-500 italic">
-                      Sem anexo
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>{formatDateDisplay(item.created_at)}</span>
-                    {isAdmin && (
+                    <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>{formatDateDisplay(f.created_at)}</span>
                       <button
                         type="button"
                         onClick={() => {
-                          setItemAvaliacao({ type: 'falta', item })
-                          setStatusAvaliacao(item.status || 'Abonado / Aprovado')
-                          setRespostaRh(item.observacoes_rh || '')
+                          setItemAvaliacao({ type: 'ferias', item: f })
+                          setStatusAvaliacao(f.status || 'Aprovado')
+                          setRespostaRh(f.resposta_rh || '')
                         }}
-                        className="text-xs font-bold text-brand-400 hover:text-brand-300 underline cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-bold transition-all cursor-pointer"
                       >
                         Avaliar
                       </button>
-                    )}
+                    </div>
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: ESCALA HOME OFFICE EQUIPE */}
+          {tab === 'home_office_equipe' && (
+            <div className="space-y-4">
+              <div className="bg-dark-card border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900/90 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                      <tr>
+                        <th className="p-4">Colaborador</th>
+                        <th className="p-4">Modalidade</th>
+                        <th className="p-4 text-center">Seg</th>
+                        <th className="p-4 text-center">Ter</th>
+                        <th className="p-4 text-center">Qua</th>
+                        <th className="p-4 text-center">Qui</th>
+                        <th className="p-4 text-center">Sex</th>
+                        <th className="p-4 text-center">Hoje</th>
+                        <th className="p-4 text-right">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {todasEscalasEquipe.map((item) => {
+                        const isHojeRemoto = item.modalidade === '100% Remoto' || (diaAtualProp && item[diaAtualProp])
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-850/50 transition-colors">
+                            <td className="p-4 font-bold text-white">{item.usuario_nome}</td>
+                            <td className="p-4">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                                {item.modalidade}
+                              </span>
+                            </td>
+                            {['segunda', 'terca', 'quarta', 'quinta', 'sexta'].map((diaKey) => {
+                              const isRemoto = item.modalidade === '100% Remoto' || (item as any)[diaKey]
+                              return (
+                                <td key={diaKey} className="p-4 text-center">
+                                  {isRemoto ? '🏠' : '🏢'}
+                                </td>
+                              )
+                            })}
+                            <td className="p-4 text-center font-bold text-[11px]">
+                              {isHojeRemoto ? <span className="text-cyan-400">🏠 Remoto</span> : <span className="text-slate-400">🏢 Presencial</span>}
+                            </td>
+                            <td className="p-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleAbrirEdicaoHomeOffice({ id: item.usuario_id, nome: item.usuario_nome })}
+                                className="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold transition-all cursor-pointer"
+                              >
+                                Editar
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      ) : tab === 'equipe' ? (
-        /* ================= TAB 5: DOSSIÊ DA EQUIPE ================= */
-        <div className="space-y-5">
-          <div className="bg-dark-card border border-slate-800 p-5 rounded-3xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Users2 className="w-5 h-5 text-blue-400" />
-                Quadro Geral de Colaboradores & Dossiê Mantran
-              </h2>
-              <p className="text-xs text-slate-400">
-                Resumo unificado de cada colaborador com perfil, status de férias e escala semanal.
-              </p>
             </div>
+          )}
 
-            <div className="relative w-full md:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              <input
-                type="text"
-                value={filtroBusca}
-                onChange={e => setFiltroBusca(e.target.value)}
-                placeholder="Buscar colaborador..."
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {usuarios.filter(u => !filtroBusca || u.nome.toLowerCase().includes(filtroBusca.toLowerCase())).map(u => {
-              const fUsuario = todasFeriasEquipe.filter(f => f.usuario_id === u.id || f.usuario_nome.toLowerCase() === u.nome.toLowerCase())
-              const hoUsuario = homeOfficeList.find(h => h.usuario_id === u.id || h.usuario_nome.toLowerCase() === u.nome.toLowerCase())
-
-              return (
-                <div 
-                  key={u.id}
-                  className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4 hover:border-slate-700 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-brand-500/20 to-blue-500/20 border border-brand-500/30 text-brand-300 font-bold flex items-center justify-center text-sm">
-                      {u.nome.charAt(0)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-white truncate">{u.nome}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-semibold">
-                          {u.perfil}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-mono">@{u.login}</span>
+          {/* TAB: FALTAS & ATESTADOS EQUIPE */}
+          {tab === 'faltas_equipe' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {todasFaltasEquipe.map((item) => (
+                  <div 
+                    key={item.id}
+                    className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">👤 {item.usuario_nome}</span>
+                        {getStatusBadge(item.status)}
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Informações de Trabalho */}
-                  <div className="p-3 bg-slate-900/70 rounded-xl border border-slate-800/80 space-y-2 text-xs">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">Modalidade:</span>
-                      <span className="font-bold text-cyan-400">{hoUsuario?.modalidade || 'Presencial'}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">Home Office:</span>
-                      <span className="font-mono text-slate-300">
-                        {hoUsuario?.modalidade === '100% Remoto' 
-                          ? 'Integral (Seg-Sex)' 
-                          : hoUsuario ? (
-                              [
-                                hoUsuario.segunda && 'Seg',
-                                hoUsuario.terca && 'Ter',
-                                hoUsuario.quarta && 'Qua',
-                                hoUsuario.quinta && 'Qui',
-                                hoUsuario.sexta && 'Sex'
-                              ].filter(Boolean).join(', ') || 'Nenhum dia fixo'
-                            ) : 'Padrão Escritório'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">Férias no Ano:</span>
-                      <span className="font-bold text-amber-400">
-                        {fUsuario.length > 0 ? `${fUsuario.length} período(s)` : 'Pendente'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleAbrirEdicaoHomeOffice({ id: u.id, nome: u.nome })}
-                      className="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs transition-colors"
-                    >
-                      Ajustar Escala
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ) : (
-        /* ================= TAB 6: GESTÃO & APROVAÇÕES RH (ADMIN) ================= */
-        <div className="space-y-6">
-          <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-start gap-3">
-            <Shield className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
-            <div className="text-xs text-purple-200">
-              <p className="font-bold text-purple-300 mb-0.5">Painel de Decisão do RH</p>
-              <p className="opacity-90">
-                Aprovação e parecer sobre solicitações de férias e atestados médicos de todos os colaboradores Mantran.
-              </p>
-            </div>
-          </div>
-
-          {/* Férias da Equipe */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <Palmtree className="w-4 h-4 text-brand-400" />
-              Solicitações de Férias da Equipe ({feriasList.length})
-            </h3>
-
-            <div className="bg-dark-card border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-900/80 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
-                    <tr>
-                      <th className="p-3.5">Colaborador</th>
-                      <th className="p-3.5">Ano</th>
-                      <th className="p-3.5">1ª Quinzena</th>
-                      <th className="p-3.5">2ª Quinzena</th>
-                      <th className="p-3.5">Status</th>
-                      <th className="p-3.5 text-right">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {feriasList.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-8 text-center text-slate-500">
-                          Nenhuma solicitação de férias da equipe no momento.
-                        </td>
-                      </tr>
-                    ) : (
-                      feriasList.map((f) => (
-                        <tr key={f.id} className="hover:bg-slate-850/50 transition-colors">
-                          <td className="p-3.5 font-bold text-white">{f.usuario_nome}</td>
-                          <td className="p-3.5 text-slate-300">{f.ano_vigencia}</td>
-                          <td className="p-3.5 text-slate-300 font-mono">
-                            {formatDateDisplay(f.quinzena_1_inicio)} a {formatDateDisplay(f.quinzena_1_fim)}
-                          </td>
-                          <td className="p-3.5 text-slate-300 font-mono">
-                            {f.quinzena_2_inicio ? (
-                              `${formatDateDisplay(f.quinzena_2_inicio)} a ${formatDateDisplay(f.quinzena_2_fim)}`
-                            ) : (
-                              <span className="text-slate-500 italic">Não informada</span>
-                            )}
-                          </td>
-                          <td className="p-3.5">{getStatusBadge(f.status)}</td>
-                          <td className="p-3.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setItemAvaliacao({ type: 'ferias', item: f })
-                                setStatusAvaliacao(f.status || 'Aprovado')
-                                setRespostaRh(f.resposta_rh || '')
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-bold transition-all cursor-pointer"
-                            >
-                              Avaliar
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Faltas e Atestados */}
-          <div className="space-y-3 pt-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <FileText className="w-4 h-4 text-emerald-400" />
-              Faltas & Atestados Médicos ({faltasList.length})
-            </h3>
-
-            <div className="bg-dark-card border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-900/80 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
-                    <tr>
-                      <th className="p-3.5">Colaborador</th>
-                      <th className="p-3.5">Motivo</th>
-                      <th className="p-3.5">Período</th>
-                      <th className="p-3.5">Dias</th>
-                      <th className="p-3.5">Atestado</th>
-                      <th className="p-3.5">Status</th>
-                      <th className="p-3.5 text-right">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {faltasList.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="p-8 text-center text-slate-500">
-                          Nenhum comunicado de falta ou atestado registrado.
-                        </td>
-                      </tr>
-                    ) : (
-                      faltasList.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-850/50 transition-colors">
-                          <td className="p-3.5 font-bold text-white">{item.usuario_nome}</td>
-                          <td className="p-3.5 text-slate-300">{item.motivo}</td>
-                          <td className="p-3.5 text-slate-300 font-mono">
+                      <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="text-slate-400 block text-[11px]">{item.motivo}</span>
+                          <span className="font-semibold text-white">
                             {formatDateDisplay(item.data_falta_inicio)}
                             {item.data_falta_fim && item.data_falta_fim !== item.data_falta_inicio && (
                               ` a ${formatDateDisplay(item.data_falta_fim)}`
                             )}
-                          </td>
-                          <td className="p-3.5 font-bold text-brand-400">{item.dias_afastamento}d</td>
-                          <td className="p-3.5">
-                            {item.arquivo_atestado_url ? (
-                              <button
-                                type="button"
-                                onClick={() => setPreviewAtestado(item)}
-                                className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold underline cursor-pointer"
-                              >
-                                <Paperclip className="w-3.5 h-3.5" />
-                                <span>Ver anexo</span>
-                              </button>
-                            ) : (
-                              <span className="text-slate-500">Sem anexo</span>
-                            )}
-                          </td>
-                          <td className="p-3.5">{getStatusBadge(item.status)}</td>
-                          <td className="p-3.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setItemAvaliacao({ type: 'falta', item })
-                                setStatusAvaliacao(item.status || 'Abonado / Aprovado')
-                                setRespostaRh(item.observacoes_rh || '')
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-bold transition-all cursor-pointer"
-                            >
-                              Avaliar
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                          </span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold border border-brand-500/20">
+                          {item.dias_afastamento}d
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                      {item.arquivo_atestado_url && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewAtestado(item)}
+                          className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Paperclip className="w-3.5 h-3.5" />
+                          <span>Ver Atestado Anexado</span>
+                        </button>
+                      )}
+
+                      <div className="flex items-center justify-between text-[10px] text-slate-500">
+                        <span>{formatDateDisplay(item.created_at)}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setItemAvaliacao({ type: 'falta', item })
+                            setStatusAvaliacao(item.status || 'Abonado / Aprovado')
+                            setRespostaRh(item.observacoes_rh || '')
+                          }}
+                          className="text-xs font-bold text-brand-400 hover:text-brand-300 underline cursor-pointer"
+                        >
+                          Avaliar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
+          )}
+
+          {/* TAB: DOSSIÊ EQUIPE */}
+          {tab === 'equipe_dossie' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {usuarios.map(u => {
+                const fUsuario = todasFeriasEquipe.filter(f => f.usuario_id === u.id || f.usuario_nome.toLowerCase() === u.nome.toLowerCase())
+                const hoUsuario = todasEscalasEquipe.find(h => h.usuario_id === u.id || h.usuario_nome.toLowerCase() === u.nome.toLowerCase())
+
+                return (
+                  <div key={u.id} className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-slate-800 font-bold flex items-center justify-center text-xs text-white">
+                        {u.nome.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white">{u.nome}</p>
+                        <span className="text-[10px] text-slate-400 capitalize">{u.perfil}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-xs space-y-1.5">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-400">Regime:</span>
+                        <span className="font-bold text-cyan-400">{hoUsuario?.modalidade || 'Presencial'}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-slate-400">Férias no Ano:</span>
+                        <span className="font-bold text-amber-400">{fUsuario.length} período(s)</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* TAB: APROVAÇÕES RH */}
+          {tab === 'gestao_aprovacoes' && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                Fila de Pendências de RH ({kpis.feriasPendentes.length + kpis.faltasPendentes.length})
+              </h3>
+              
+              <div className="space-y-3">
+                {kpis.feriasPendentes.map(f => (
+                  <div key={f.id} className="p-4 bg-dark-card border border-amber-500/30 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-white block">🌴 Férias: {f.usuario_nome} ({f.ano_vigencia})</span>
+                      <span className="text-xs text-slate-400">
+                        1ª Quinzena: {formatDateDisplay(f.quinzena_1_inicio)} a {formatDateDisplay(f.quinzena_1_fim)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setItemAvaliacao({ type: 'ferias', item: f })
+                        setStatusAvaliacao('Aprovado')
+                      }}
+                      className="btn-primary py-1.5 px-3 text-xs font-bold"
+                    >
+                      Avaliar
+                    </button>
+                  </div>
+                ))}
+
+                {kpis.faltasPendentes.map(item => (
+                  <div key={item.id} className="p-4 bg-dark-card border border-emerald-500/30 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-white block">📄 Atestado: {item.usuario_nome} ({item.motivo})</span>
+                      <span className="text-xs text-slate-400">
+                        Período: {formatDateDisplay(item.data_falta_inicio)} ({item.dias_afastamento} dias)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setItemAvaliacao({ type: 'falta', item })
+                        setStatusAvaliacao('Abonado / Aprovado')
+                      }}
+                      className="btn-primary py-1.5 px-3 text-xs font-bold"
+                    >
+                      Avaliar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
       )}
 
@@ -1604,12 +1518,6 @@ export function RH() {
               const temConflito = !!conflitoQ1 || !!conflitoQ2
               const conflitoAtivo = conflitoQ1 || conflitoQ2
 
-              const outrasFeriasEquipe = todasFeriasEquipe.filter(f => 
-                f.status !== 'Reprovado' && 
-                f.usuario_id !== user?.id && 
-                (!user?.nome || f.usuario_nome?.toLowerCase() !== user?.nome?.toLowerCase())
-              )
-
               return (
                 <form onSubmit={handleSalvarFerias} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                   {/* Banner de Bloqueio em caso de conflito de datas */}
@@ -1633,7 +1541,6 @@ export function RH() {
                     </div>
                   )}
 
-                  {/* Ano de Vigência */}
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                       Ano de Exercício / Vigência
@@ -1652,16 +1559,14 @@ export function RH() {
                   {/* 1ª Quinzena */}
                   <div className={clsx(
                     "p-4 rounded-xl bg-slate-900/60 border transition-all space-y-3",
-                    conflitoQ1 
-                      ? "border-red-500/60 bg-red-950/20" 
-                      : "border-brand-500/30"
+                    conflitoQ1 ? "border-red-500/60 bg-red-950/20" : "border-brand-500/30"
                   )}>
                     <div className="flex items-center justify-between">
                       <span className={clsx(
                         "text-xs font-bold uppercase tracking-wider flex items-center gap-1.5",
                         conflitoQ1 ? "text-red-400" : "text-brand-400"
                       )}>
-                        <Calendar className="w-4 h-4" /> 1ª Quinzena (Obrigatória - 15 dias)
+                        <Calendar className="w-4 h-4" /> 1ª Quinzena (15 dias corridos)
                       </span>
                       <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold">15 Dias</span>
                     </div>
@@ -1676,9 +1581,7 @@ export function RH() {
                           required
                           className={clsx(
                             "w-full px-3 py-2 rounded-lg bg-slate-900 border text-white text-xs font-medium focus:outline-none",
-                            conflitoQ1 
-                              ? "border-red-500 focus:border-red-400" 
-                              : "border-slate-700 focus:border-brand-500"
+                            conflitoQ1 ? "border-red-500 focus:border-red-400" : "border-slate-700 focus:border-brand-500"
                           )}
                         />
                       </div>
@@ -1691,9 +1594,7 @@ export function RH() {
                           required
                           className={clsx(
                             "w-full px-3 py-2 rounded-lg bg-slate-900 border text-white text-xs font-medium focus:outline-none",
-                            conflitoQ1 
-                              ? "border-red-500 focus:border-red-400" 
-                              : "border-slate-700 focus:border-brand-500"
+                            conflitoQ1 ? "border-red-500 focus:border-red-400" : "border-slate-700 focus:border-brand-500"
                           )}
                         />
                       </div>
@@ -1703,16 +1604,14 @@ export function RH() {
                   {/* 2ª Quinzena (Opcional) */}
                   <div className={clsx(
                     "p-4 rounded-xl bg-slate-900/60 border transition-all space-y-3",
-                    conflitoQ2 
-                      ? "border-red-500/60 bg-red-950/20" 
-                      : "border-teal-500/30"
+                    conflitoQ2 ? "border-red-500/60 bg-red-950/20" : "border-teal-500/30"
                   )}>
                     <div className="flex items-center justify-between">
                       <span className={clsx(
                         "text-xs font-bold uppercase tracking-wider flex items-center gap-1.5",
                         conflitoQ2 ? "text-red-400" : "text-teal-400"
                       )}>
-                        <Calendar className="w-4 h-4" /> 2ª Quinzena (Opcional / Agendamento)
+                        <Calendar className="w-4 h-4" /> 2ª Quinzena (Opcional)
                       </span>
                       <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 font-bold">15 Dias</span>
                     </div>
@@ -1726,9 +1625,7 @@ export function RH() {
                           onChange={e => handleQ2InicioChange(e.target.value)}
                           className={clsx(
                             "w-full px-3 py-2 rounded-lg bg-slate-900 border text-white text-xs font-medium focus:outline-none",
-                            conflitoQ2 
-                              ? "border-red-500 focus:border-red-400" 
-                              : "border-slate-700 focus:border-teal-500"
+                            conflitoQ2 ? "border-red-500 focus:border-red-400" : "border-slate-700 focus:border-teal-500"
                           )}
                         />
                       </div>
@@ -1740,16 +1637,13 @@ export function RH() {
                           onChange={e => setQ2Fim(e.target.value)}
                           className={clsx(
                             "w-full px-3 py-2 rounded-lg bg-slate-900 border text-white text-xs font-medium focus:outline-none",
-                            conflitoQ2 
-                              ? "border-red-500 focus:border-red-400" 
-                              : "border-slate-700 focus:border-teal-500"
+                            conflitoQ2 ? "border-red-500 focus:border-red-400" : "border-slate-700 focus:border-teal-500"
                           )}
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Observações */}
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                       Observações / Justificativa
@@ -1762,29 +1656,6 @@ export function RH() {
                       className="w-full px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-xs focus:border-brand-500"
                     />
                   </div>
-
-                  {/* Períodos já agendados por outros colaboradores */}
-                  {outrasFeriasEquipe.length > 0 && (
-                    <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-                        Períodos de Férias Ocupados pela Equipe ({anoVigencia}):
-                      </span>
-                      <div className="space-y-1.5 max-h-28 overflow-y-auto">
-                        {outrasFeriasEquipe.map(of => (
-                          <div key={of.id} className="text-[11px] bg-slate-950/60 p-2 rounded-lg border border-slate-800/80 flex items-center justify-between">
-                            <span className="font-bold text-slate-200">
-                              👤 {of.usuario_nome}
-                            </span>
-                            <span className="font-mono text-slate-400">
-                              {formatDateDisplay(of.quinzena_1_inicio)} a {formatDateDisplay(of.quinzena_1_fim)}
-                              {of.quinzena_2_inicio && ` • ${formatDateDisplay(of.quinzena_2_inicio)} a ${formatDateDisplay(of.quinzena_2_fim)}`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   <div className="pt-2 flex gap-2.5">
                     <button
@@ -1806,11 +1677,7 @@ export function RH() {
                     >
                       <Send className="w-4 h-4" />
                       <span>
-                        {salvandoFerias 
-                          ? 'Enviando...' 
-                          : temConflito 
-                          ? 'Período Indisponível' 
-                          : 'Enviar Solicitação'}
+                        {salvandoFerias ? 'Enviando...' : temConflito ? 'Período Bloqueado' : 'Enviar Solicitação'}
                       </span>
                     </button>
                   </div>
@@ -1821,7 +1688,7 @@ export function RH() {
         </div>
       )}
 
-      {/* ================= MODAL EDITAR ESCALA DE HOME OFFICE ================= */}
+      {/* ================= MODAL EDITAR ESCALA HOME OFFICE ================= */}
       {isHomeOfficeModalOpen && editingHomeOffice && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
           <div className="bg-dark-card border border-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
@@ -1845,7 +1712,6 @@ export function RH() {
             </div>
 
             <form onSubmit={handleSalvarHomeOffice} className="p-6 space-y-4">
-              {/* Modalidade */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   Regime / Modalidade de Trabalho
@@ -1861,16 +1727,11 @@ export function RH() {
                 </select>
               </div>
 
-              {/* Seleção de Dias de Home Office (se Híbrido) */}
               {editingHomeOffice.modalidade === 'Híbrido' && (
                 <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
                   <label className="block text-xs font-bold text-cyan-400 uppercase tracking-wider">
                     Dias da Semana em Home Office
                   </label>
-                  <p className="text-[11px] text-slate-400">
-                    Marque abaixo quais dias da semana este colaborador trabalhará de casa:
-                  </p>
-
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
                     {[
                       { key: 'segunda', label: 'Segunda-feira' },
@@ -1902,7 +1763,6 @@ export function RH() {
                 </div>
               )}
 
-              {/* Observações */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   Observações / Detalhes de Alocação
@@ -1910,7 +1770,7 @@ export function RH() {
                 <textarea
                   value={editingHomeOffice.observacoes}
                   onChange={e => setEditingHomeOffice({ ...editingHomeOffice, observacoes: e.target.value })}
-                  placeholder="Ex: Escala de plantão de suporte ou flexibilidade acordada..."
+                  placeholder="Ex: Escala de plantão ou flexibilidade acordada..."
                   rows={2}
                   className="w-full px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-xs focus:border-cyan-500"
                 />
@@ -1962,7 +1822,6 @@ export function RH() {
             </div>
 
             <form onSubmit={handleSalvarFalta} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              {/* Motivo */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   Motivo da Ausência
@@ -1980,7 +1839,6 @@ export function RH() {
                 </select>
               </div>
 
-              {/* Período */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -2008,7 +1866,6 @@ export function RH() {
                 </div>
               </div>
 
-              {/* Upload de Atestado */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   Anexar Atestado / Comprovante (PDF ou Imagem)
@@ -2038,7 +1895,6 @@ export function RH() {
                 </div>
               </div>
 
-              {/* Descrição */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   Detalhes / Justificativa
@@ -2046,7 +1902,7 @@ export function RH() {
                 <textarea
                   value={descricaoFalta}
                   onChange={e => setDescricaoFalta(e.target.value)}
-                  placeholder="Informações adicionais para o departamento de RH..."
+                  placeholder="Informações adicionais para o RH..."
                   rows={2}
                   className="w-full px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-xs focus:border-brand-500"
                 />
@@ -2075,7 +1931,7 @@ export function RH() {
       )}
 
       {/* ================= MODAL AVALIAÇÃO RH (ADMIN) ================= */}
-      {itemAvaliacao && (
+      {itemAvaliacao && isGestorRh && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
           <div className="bg-dark-card border border-slate-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
             
