@@ -24,7 +24,9 @@ import {
   MapPin, 
   Settings, 
   PhoneCall, 
-  DollarSign 
+  DollarSign,
+  Edit3,
+  Trash2 
 } from 'lucide-react'
 import { 
   api, 
@@ -59,8 +61,9 @@ export function RH() {
   // Filtros & Buscas
       const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
 
-  // Modal Solicitar Férias
+  // Modal Solicitar / Editar Férias
   const [isFeriasModalOpen, setIsFeriasModalOpen] = useState(false)
+  const [editingFeriasId, setEditingFeriasId] = useState<string | null>(null)
   const [feriasUsuarioId, setFeriasUsuarioId] = useState('')
   const [feriasUsuarioNome, setFeriasUsuarioNome] = useState('')
   const [q1Inicio, setQ1Inicio] = useState('')
@@ -306,6 +309,7 @@ export function RH() {
 
     for (const f of todasFeriasEquipe) {
       if (f.status === 'Reprovado') continue
+      if (editingFeriasId && f.id === editingFeriasId) continue
       if (f.usuario_id === targetId || (targetNome && f.usuario_nome?.toLowerCase() === targetNome)) continue
 
       if (f.quinzena_1_inicio && f.quinzena_1_fim) {
@@ -394,14 +398,27 @@ export function RH() {
     reader.readAsDataURL(file)
   }
 
-  const handleAbrirModalFerias = (colaboradorPre?: { id: string; nome: string }) => {
-    setFeriasUsuarioId(colaboradorPre?.id || user?.id || (usuarios[0]?.id || ''))
-    setFeriasUsuarioNome(colaboradorPre?.nome || user?.nome || user?.login || (usuarios[0]?.nome || 'Colaborador'))
-    setQ1Inicio('')
-    setQ1Fim('')
-    setQ2Inicio('')
-    setQ2Fim('')
-    setFeriasObs('')
+  const handleAbrirModalFerias = (colaboradorPre?: { id: string; nome: string }, feriasExistente?: SolicitacaoFerias) => {
+    if (feriasExistente) {
+      setEditingFeriasId(feriasExistente.id)
+      setFeriasUsuarioId(feriasExistente.usuario_id)
+      setFeriasUsuarioNome(feriasExistente.usuario_nome)
+      setAnoVigencia(feriasExistente.ano_vigencia || new Date().getFullYear())
+      setQ1Inicio(feriasExistente.quinzena_1_inicio || '')
+      setQ1Fim(feriasExistente.quinzena_1_fim || '')
+      setQ2Inicio(feriasExistente.quinzena_2_inicio || '')
+      setQ2Fim(feriasExistente.quinzena_2_fim || '')
+      setFeriasObs(feriasExistente.observacoes || '')
+    } else {
+      setEditingFeriasId(null)
+      setFeriasUsuarioId(colaboradorPre?.id || user?.id || (usuarios[0]?.id || ''))
+      setFeriasUsuarioNome(colaboradorPre?.nome || user?.nome || user?.login || (usuarios[0]?.nome || 'Colaborador'))
+      setQ1Inicio('')
+      setQ1Fim('')
+      setQ2Inicio('')
+      setQ2Fim('')
+      setFeriasObs('')
+    }
     setIsFeriasModalOpen(true)
   }
 
@@ -436,45 +453,76 @@ export function RH() {
 
     setSalvandoFerias(true)
     try {
-      await api.insertSolicitacaoFerias({
-        usuario_id: targetUserId,
-        usuario_nome: targetUserNome,
-        ano_vigencia: anoVigencia,
-        quinzena_1_inicio: q1Inicio,
-        quinzena_1_fim: q1Fim,
-        quinzena_1_dias: 15,
-        quinzena_2_inicio: q2Inicio || null,
-        quinzena_2_fim: q2Fim || null,
-        quinzena_2_dias: q2Inicio ? 15 : null,
-        observacoes: feriasObs.trim() || null
-      })
-
-      // Disparar Notificação para os Administradores / RH
-      await api.createNotificacao({
-        titulo: `🌴 Solicitação de Férias: ${targetUserNome}`,
-        mensagem: `${targetUserNome} solicitou período de férias para o exercício ${anoVigencia} (1ª Quinzena: ${formatDateDisplay(q1Inicio)} a ${formatDateDisplay(q1Fim)}${q2Inicio ? `, 2ª Quinzena: ${formatDateDisplay(q2Inicio)} a ${formatDateDisplay(q2Fim)}` : ''}).`,
-        tipo: 'rh_ferias',
-        dados_extras: {
-          onlyAdmin: true,
+      if (editingFeriasId) {
+        await api.updateSolicitacaoFerias(editingFeriasId, {
           usuario_id: targetUserId,
           usuario_nome: targetUserNome,
-          modulo: 'rh'
-        }
-      }).catch(err => console.warn('Erro ao disparar notificação de férias:', err))
+          ano_vigencia: anoVigencia,
+          quinzena_1_inicio: q1Inicio,
+          quinzena_1_fim: q1Fim,
+          quinzena_1_dias: 15,
+          quinzena_2_inicio: q2Inicio || null,
+          quinzena_2_fim: q2Fim || null,
+          quinzena_2_dias: q2Inicio ? 15 : null,
+          observacoes: feriasObs.trim() || null
+        })
+        alert('Datas de férias atualizadas com sucesso!')
+      } else {
+        await api.insertSolicitacaoFerias({
+          usuario_id: targetUserId,
+          usuario_nome: targetUserNome,
+          ano_vigencia: anoVigencia,
+          quinzena_1_inicio: q1Inicio,
+          quinzena_1_fim: q1Fim,
+          quinzena_1_dias: 15,
+          quinzena_2_inicio: q2Inicio || null,
+          quinzena_2_fim: q2Fim || null,
+          quinzena_2_dias: q2Inicio ? 15 : null,
+          observacoes: feriasObs.trim() || null
+        })
+
+        // Disparar Notificação para os Administradores / RH
+        await api.createNotificacao({
+          titulo: `🌴 Solicitação de Férias: ${targetUserNome}`,
+          mensagem: `${targetUserNome} solicitou período de férias para o exercício ${anoVigencia} (1ª Quinzena: ${formatDateDisplay(q1Inicio)} a ${formatDateDisplay(q1Fim)}${q2Inicio ? `, 2ª Quinzena: ${formatDateDisplay(q2Inicio)} a ${formatDateDisplay(q2Fim)}` : ''}).`,
+          tipo: 'rh_ferias',
+          dados_extras: {
+            onlyAdmin: true,
+            usuario_id: targetUserId,
+            usuario_nome: targetUserNome,
+            modulo: 'rh'
+          }
+        }).catch(err => console.warn('Erro ao disparar notificação de férias:', err))
+
+        alert('Solicitação de férias registrada com sucesso!')
+      }
 
       setIsFeriasModalOpen(false)
+      setEditingFeriasId(null)
       setQ1Inicio('')
       setQ1Fim('')
       setQ2Inicio('')
       setQ2Fim('')
       setFeriasObs('')
       await fetchData()
-      alert('Solicitação de férias registrada com sucesso!')
     } catch (err: any) {
       console.error(err)
-      alert('Erro ao enviar solicitação: ' + err.message)
+      alert('Erro ao salvar férias: ' + err.message)
     } finally {
       setSalvandoFerias(false)
+    }
+  }
+
+  const handleExcluirFerias = async (id: string, nomeColaborador: string) => {
+    if (!window.confirm(`Deseja realmente remover o registro de férias de "${nomeColaborador}"?`)) {
+      return
+    }
+    try {
+      await api.deleteSolicitacaoFerias(id)
+      await fetchData()
+      alert('Registro de férias removido com sucesso!')
+    } catch (err: any) {
+      alert('Erro ao excluir férias: ' + err.message)
     }
   }
 
@@ -1146,9 +1194,20 @@ export function RH() {
 
                       <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
                         <span>Solicitado em {formatDateDisplay(f.created_at)}</span>
-                        {f.aprovado_por && (
-                          <span>Avaliado por: <strong className="text-slate-300">{f.aprovado_por}</strong></span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirModalFerias(undefined, f)}
+                            title="Editar / Corrigir Datas"
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-brand-400" />
+                            Editar
+                          </button>
+                          {f.aprovado_por && (
+                            <span>Avaliado por: <strong className="text-slate-300">{f.aprovado_por}</strong></span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1792,17 +1851,36 @@ export function RH() {
 
                     <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
                       <span>{formatDateDisplay(f.created_at)}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setItemAvaliacao({ type: 'ferias', item: f })
-                          setStatusAvaliacao(f.status || 'Aprovado')
-                          setRespostaRh(f.resposta_rh || '')
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-bold transition-all cursor-pointer"
-                      >
-                        Avaliar
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleAbrirModalFerias(undefined, f)}
+                          title="Editar / Corrigir Datas"
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-brand-400" />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setItemAvaliacao({ type: 'ferias', item: f })
+                            setStatusAvaliacao(f.status || 'Aprovado')
+                            setRespostaRh(f.resposta_rh || '')
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Avaliar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExcluirFerias(f.id, f.usuario_nome)}
+                          title="Excluir Registro de Férias"
+                          className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -2273,13 +2351,22 @@ export function RH() {
                   <Palmtree className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-white">Solicitar Período de Férias</h2>
-                  <p className="text-xs text-slate-400">Direito a 2 Quinzenas separadas (15 dias cada)</p>
+                  <h2 className="text-base font-bold text-white">
+                    {editingFeriasId ? '✏️ Editar / Corrigir Período de Férias' : 'Solicitar Período de Férias'}
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    {editingFeriasId 
+                      ? 'Corrija as datas das quinzenas ou observações do colaborador.' 
+                      : 'Direito a 2 Quinzenas separadas (15 dias cada)'}
+                  </p>
                 </div>
               </div>
               <button 
-                onClick={() => setIsFeriasModalOpen(false)} 
-                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+                onClick={() => {
+                  setIsFeriasModalOpen(false)
+                  setEditingFeriasId(null)
+                }} 
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2465,7 +2552,10 @@ export function RH() {
                   <div className="pt-2 flex gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setIsFeriasModalOpen(false)}
+                      onClick={() => {
+                        setIsFeriasModalOpen(false)
+                        setEditingFeriasId(null)
+                      }}
                       className="btn-secondary flex-1 py-2.5"
                     >
                       Cancelar
@@ -2480,9 +2570,13 @@ export function RH() {
                           : "btn-primary"
                       )}
                     >
-                      <Send className="w-4 h-4" />
+                      {editingFeriasId ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
                       <span>
-                        {salvandoFerias ? 'Enviando...' : temConflito ? 'Período Bloqueado' : 'Enviar Solicitação'}
+                        {salvandoFerias 
+                          ? (editingFeriasId ? 'Salvando...' : 'Enviando...') 
+                          : temConflito 
+                          ? 'Período Bloqueado' 
+                          : (editingFeriasId ? 'Salvar Alterações' : 'Enviar Solicitação')}
                       </span>
                     </button>
                   </div>
@@ -2819,6 +2913,29 @@ export function RH() {
             </div>
 
             <form onSubmit={handleSalvarAvaliacao} className="p-6 space-y-4">
+              {itemAvaliacao.type === 'ferias' && (
+                <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Período Selecionado:</span>
+                    <strong className="text-white">
+                      1ª Q: {formatDateDisplay(itemAvaliacao.item.quinzena_1_inicio)} a {formatDateDisplay(itemAvaliacao.item.quinzena_1_fim)}
+                    </strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const itemToEdit = itemAvaliacao.item
+                      setItemAvaliacao(null)
+                      handleAbrirModalFerias(undefined, itemToEdit)
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-brand-500/15 text-brand-300 hover:bg-brand-500/25 border border-brand-500/30 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Corrigir Datas
+                  </button>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   Decisão do RH

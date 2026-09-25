@@ -60,3 +60,24 @@ export function isClienteUser(): boolean {
   return user.perfil.trim().toLowerCase() === 'cliente'
 }
 
+/**
+ * Retorna true se o usuário logado possui perfil 'Técnico' / 'Tecnico'.
+ */
+export function isTecnicoUser(): boolean {
+  const user = getLoggedUser()
+  if (!user || !user.perfil) return false
+  if (isAdminUser()) return false
+  const p = user.perfil.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return p === 'tecnico' || p === 'tecnica'
+}
+
+/**
+ * Retorna true se o usuário logado é um funcionário da Mantran (não é cliente, parceiro, ou consulta/usuário externo).
+ */
+export function isFuncionarioUser(): boolean {
+  const user = getLoggedUser()
+  if (!user || !user.perfil) return false
+  const p = user.perfil.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return p !== 'cliente' && p !== 'parceiro' && p !== 'usuario' && !p.includes('consulta')
+}
+

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
-import { getLoggedUser, isClienteUser, isAdminUser } from '../lib/auth'
+import { getLoggedUser, isClienteUser, isAdminUser, isTecnicoUser, isFuncionarioUser } from '../lib/auth'
 import clsx from 'clsx'
 
 export function NotificationsPopover() {
@@ -31,6 +31,8 @@ export function NotificationsPopover() {
   const isCliente = isClienteUser()
   const currentUser = getLoggedUser()
   const isAdmin = isAdminUser()
+  const isTecnico = !isAdmin && (isTecnicoUser() || (currentUser as any)?.e_tecnico === true)
+  const isFuncionario = isFuncionarioUser()
   const isGestorRh = isAdmin || currentUser?.perfil?.trim().toLowerCase() === 'rh'
   const userKey = currentUser ? (currentUser.id || currentUser.login || 'user') : 'user'
 
@@ -78,11 +80,29 @@ export function NotificationsPopover() {
       const userList = (rawList || [])
         .filter((n: any) => {
           if (deletedIds.has(n.id)) return false
+          
+          // 1. Notificações de RH são restritas exclusivamente a Administradores / Gestão RH
           const isRh = n.tipo?.startsWith('rh_') || n.dados_extras?.onlyAdmin || n.dados_extras?.modulo === 'rh'
-          // Notificações de RH são restritas exclusivamente a Administradores / Gestão RH
           if (isRh && !isAdmin && !isGestorRh) {
             return false
           }
+
+          // 2. Notificações de Checkpoint de Implantações:
+          // Não exibir para Perfil Técnico e nem para usuários que não são Funcionários
+          const isCheckpoint = n.tipo === 'checkpoint' || 
+            (typeof n.tipo === 'string' && n.tipo.toLowerCase().includes('checkpoint')) ||
+            (typeof n.titulo === 'string' && (
+              n.titulo.toLowerCase().includes('checkpoint') || 
+              n.titulo.toLowerCase().includes('formulário') || 
+              n.titulo.toLowerCase().includes('formulario')
+            ))
+
+          if (isCheckpoint) {
+            if (isTecnico || !isFuncionario) {
+              return false
+            }
+          }
+
           return true
         })
         .map((n: any) => ({
@@ -294,7 +314,9 @@ export function NotificationsPopover() {
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-400">Atualizações de Implantações e Checkpoints</p>
+                <p className="text-[11px] text-slate-400">
+                  {isTecnico || !isFuncionario ? 'Atualizações do Sistema' : 'Atualizações de Implantações e Checkpoints'}
+                </p>
               </div>
             </div>
 
@@ -374,7 +396,9 @@ export function NotificationsPopover() {
                   {filter === 'unread' ? 'Nenhuma notificação não lida' : 'Nenhuma notificação recente'}
                 </p>
                 <p className="text-xs text-slate-500 max-w-xs">
-                  Quando novas implantações forem criadas ou os clientes preencherem o Checkpoint, você será avisado aqui em tempo real.
+                  {isTecnico || !isFuncionario
+                    ? 'Quando novas atualizações ou avisos forem registrados, você será informado aqui em tempo real.'
+                    : 'Quando novas implantações forem criadas ou os clientes preencherem o Checkpoint, você será avisado aqui em tempo real.'}
                 </p>
               </div>
             ) : (

@@ -1715,6 +1715,33 @@ export const api = {
     }
   },
 
+  async updateSolicitacaoFerias(id: string, payload: Partial<SolicitacaoFerias>): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_ferias')
+        .update({
+          ...payload,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_ferias')
+      if (local) {
+        const list: SolicitacaoFerias[] = JSON.parse(local)
+        const updated = list.map(i => i.id === id ? {
+          ...i,
+          ...payload,
+          updated_at: new Date().toISOString()
+        } : i)
+        localStorage.setItem('@Mantran:rh_ferias', JSON.stringify(updated))
+      }
+      return true
+    }
+  },
+
   async deleteSolicitacaoFerias(id: string): Promise<boolean> {
     try {
       const { error } = await supabase
