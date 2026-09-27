@@ -118,7 +118,7 @@ export function Header() {
             title="Menu do Usuário"
           >
             <div className={clsx(
-              "w-8 h-8 rounded-xl font-bold flex items-center justify-center text-xs uppercase shrink-0 border shadow-sm transition-transform group-hover:scale-105",
+              "w-8 h-8 rounded-xl font-bold flex items-center justify-center text-xs uppercase shrink-0 border shadow-sm transition-transform group-hover:scale-105 overflow-hidden",
               isParceiro
                 ? "bg-orange-500/15 border-orange-500/30 text-orange-400"
                 : isComercial
@@ -129,7 +129,11 @@ export function Header() {
                 ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
                 : "bg-brand-500/20 border-brand-500/30 text-brand-400"
             )}>
-              {(user?.nome || user?.login || 'U').charAt(0)}
+              {user?.foto_url ? (
+                <img src={user.foto_url} alt={user?.nome || 'Foto'} className="w-full h-full object-cover" />
+              ) : (
+                (user?.nome || user?.login || 'U').charAt(0)
+              )}
             </div>
             
             <div className="hidden md:flex flex-col text-left">

@@ -182,6 +182,17 @@ export function RH() {
         return false
       }
 
+      // Sincroniza foto do usuário atual se encontrada no banco
+      const currentUserInDb = allUsers.find(u => 
+        (user?.id && u.id === user.id) || 
+        (user?.login && u.login?.toLowerCase() === user.login.toLowerCase()) ||
+        (user?.nome && u.nome?.toLowerCase() === user.nome.toLowerCase())
+      )
+      if (currentUserInDb?.foto_url) {
+        setMinhaFoto(currentUserInDb.foto_url)
+        updateLoggedUserFoto(currentUserInDb.foto_url)
+      }
+
       setUsuarios(funcionariosMantran)
       setTodasFeriasEquipe((todasFerias || []).filter(isRecordDeFuncionario))
       setTodasFaltasEquipe((faltas || []).filter(isRecordDeFuncionario))
@@ -861,18 +872,20 @@ export function RH() {
     const mapa = new Map<string, {
       usuario_id: string
       usuario_nome: string
+      foto_url?: string | null
       registros: Partial<Record<TipoPonto, RegistroPonto>>
     }>()
 
     // Inicializa com a lista de funcionários conhecidos
     usuarios.forEach(u => {
-      mapa.set(u.id, { usuario_id: u.id, usuario_nome: u.nome, registros: {} })
+      mapa.set(u.id, { usuario_id: u.id, usuario_nome: u.nome, foto_url: u.foto_url, registros: {} })
     })
 
     doDia.forEach(reg => {
       let entry = mapa.get(reg.usuario_id)
       if (!entry) {
-        entry = { usuario_id: reg.usuario_id, usuario_nome: reg.usuario_nome, registros: {} }
+        const uInfo = usuarios.find(u => u.id === reg.usuario_id || u.nome.toLowerCase() === reg.usuario_nome.toLowerCase())
+        entry = { usuario_id: reg.usuario_id, usuario_nome: reg.usuario_nome, foto_url: uInfo?.foto_url, registros: {} }
         mapa.set(reg.usuario_id, entry)
       }
       entry.registros[reg.tipo] = reg
@@ -1842,8 +1855,12 @@ export function RH() {
                         className={clsx("p-3.5 rounded-2xl border transition-all flex items-center justify-between", statusBg)}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700 font-bold flex items-center justify-center text-xs text-white uppercase shrink-0">
-                            {u.nome.charAt(0)}
+                          <div className="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700 font-bold flex items-center justify-center text-xs text-white uppercase shrink-0 overflow-hidden">
+                            {u.foto_url ? (
+                              <img src={u.foto_url} alt={u.nome} className="w-full h-full object-cover" />
+                            ) : (
+                              u.nome.charAt(0)
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-white truncate max-w-[150px]">{u.nome}</p>
@@ -2260,8 +2277,12 @@ export function RH() {
                     {/* Cabeçalho do card */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-slate-800 font-bold flex items-center justify-center text-xs text-white uppercase">
-                          {col.usuario_nome.charAt(0)}
+                        <div className="w-9 h-9 rounded-xl bg-slate-800 font-bold flex items-center justify-center text-xs text-white uppercase overflow-hidden shrink-0">
+                          {col.foto_url ? (
+                            <img src={col.foto_url} alt={col.usuario_nome} className="w-full h-full object-cover" />
+                          ) : (
+                            col.usuario_nome.charAt(0)
+                          )}
                         </div>
                         <span className="text-xs font-bold text-white">{col.usuario_nome}</span>
                       </div>
