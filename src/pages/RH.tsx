@@ -965,68 +965,50 @@ export function RH() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+    <div className="max-w-7xl mx-auto w-full min-w-0 space-y-4 sm:space-y-6">
       
       {/* ================= TOP HEADER BANNER ================= */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-900/90 to-brand-950/50 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-5 relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-full bg-gradient-to-l from-brand-500/5 to-transparent pointer-events-none" />
 
-        <div className="space-y-1.5 z-10">
+        <div className="space-y-1.5 z-10 min-w-0">
           <div className="flex items-center gap-3">
-            {isGestorRh ? (
-              <>
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-brand-500/20 to-teal-500/20 border border-brand-500/30 text-brand-400 flex items-center justify-center shadow-lg shadow-brand-500/10 shrink-0">
-                  <Users2 className="w-5 h-5 sm:w-6 sm:h-6" />
+            {/* Avatar com upload de foto (mesmo cabeçalho para todos os perfis) */}
+            <label
+              title="Alterar minha foto"
+              className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden shrink-0 cursor-pointer group border border-brand-500/30 shadow-lg shadow-brand-500/10"
+            >
+              {minhaFoto ? (
+                <img src={minhaFoto} alt={user?.nome || 'Foto'} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-brand-500/20 to-teal-500/20 text-brand-300 flex items-center justify-center text-xl sm:text-2xl font-black uppercase">
+                  {(user?.nome || user?.login || 'U').charAt(0)}
                 </div>
-                <div className="min-w-0">
-                  <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-tight">
-                    Recursos Humanos & Gestão de Pessoas
-                  </h1>
-                  <p className="text-[11px] sm:text-xs text-slate-400">
-                    Gestão de Férias, Plantões de Fim de Semana (Técnicos), Escala de Home Office, Faltas/Atestados e Folha
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Avatar com upload de foto */}
-                <label
-                  title="Alterar minha foto"
-                  className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden shrink-0 cursor-pointer group border border-brand-500/30 shadow-lg shadow-brand-500/10"
-                >
-                  {minhaFoto ? (
-                    <img src={minhaFoto} alt={user?.nome || 'Foto'} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-brand-500/20 to-teal-500/20 text-brand-300 flex items-center justify-center text-xl sm:text-2xl font-black uppercase">
-                      {(user?.nome || user?.login || 'U').charAt(0)}
-                    </div>
-                  )}
-                  {/* Overlay de edição */}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    {salvandoFoto ? (
-                      <Loader2 className="w-5 h-5 text-white animate-spin" />
-                    ) : (
-                      <Camera className="w-5 h-5 text-white" />
-                    )}
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleUploadFoto}
-                    disabled={salvandoFoto}
-                    className="hidden"
-                  />
-                </label>
-                <div className="min-w-0">
-                  <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-tight truncate">
-                    {user?.nome || user?.login || 'Colaborador'}
-                  </h1>
-                  <p className="text-[11px] sm:text-xs text-slate-400">
-                    {user?.perfil || 'Colaborador'} • Toque na foto para alterar
-                  </p>
-                </div>
-              </>
-            )}
+              )}
+              {/* Overlay de edição */}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                {salvandoFoto ? (
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                ) : (
+                  <Camera className="w-5 h-5 text-white" />
+                )}
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleUploadFoto}
+                disabled={salvandoFoto}
+                className="hidden"
+              />
+            </label>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-tight truncate">
+                {user?.nome || user?.login || 'Colaborador'}
+              </h1>
+              <p className="text-[11px] sm:text-xs text-slate-400">
+                {user?.perfil || 'Colaborador'} • Toque na foto para alterar
+              </p>
+            </div>
           </div>
         </div>
 
@@ -1221,7 +1203,7 @@ export function RH() {
             type="button"
             onClick={() => setTab('gestao_aprovacoes')}
             className={clsx(
-              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ml-auto",
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer sm:ml-auto",
               tab === 'gestao_aprovacoes'
                 ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm"
                 : "text-purple-400/80 hover:text-purple-300 hover:bg-purple-950/30 border border-purple-500/20"
@@ -1698,7 +1680,7 @@ export function RH() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 {/* 1. Plantonista do Fim de Semana */}
-                <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+                <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plantão Fim de Semana</span>
                     <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
@@ -1733,7 +1715,7 @@ export function RH() {
                 </div>
 
                 {/* 2. Em Férias Hoje */}
-                <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+                <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Em Férias Hoje</span>
                     <div className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center">
@@ -1752,7 +1734,7 @@ export function RH() {
                 </div>
 
                 {/* 3. Home Office Hoje */}
-                <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+                <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Home Office Hoje</span>
                     <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center">
@@ -1771,7 +1753,7 @@ export function RH() {
                 </div>
 
                 {/* 4. Quadro Mantran */}
-                <div className="bg-dark-card border border-slate-800 p-5 rounded-2xl shadow-lg relative overflow-hidden">
+                <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quadro Mantran</span>
                     <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
@@ -1792,12 +1774,12 @@ export function RH() {
               </div>
 
               {/* PRESENÇA HOJE */}
-              <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="bg-dark-card border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-4">
-                  <div>
-                    <h2 className="text-base font-bold text-white flex items-center gap-2">
-                      <MapPin className="w-5 h-5 text-brand-400" />
-                      Presença & Alocação da Equipe Hoje ({new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })})
+                  <div className="min-w-0">
+                    <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2 leading-tight">
+                      <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-brand-400 shrink-0" />
+                      <span>Presença & Alocação da Equipe Hoje ({new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })})</span>
                     </h2>
                     <p className="text-xs text-slate-400">
                       Visão em tempo real de quem está no escritório presencial, em home office, férias ou atestado.
