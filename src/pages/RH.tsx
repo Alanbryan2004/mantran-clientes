@@ -26,7 +26,10 @@ import {
   PhoneCall, 
   DollarSign,
   Edit3,
-  Trash2 
+  Trash2,
+  Timer,
+  Camera,
+  Loader2 
 } from 'lucide-react'
 import { 
   api, 
@@ -34,9 +37,12 @@ import {
   type FaltaAtestado, 
   type EscalaHomeOffice,
   type PlantaoTecnico,
-  type UsuarioSistema 
+  type UsuarioSistema,
+  type RegistroPonto,
+  type TipoPonto
 } from '../lib/api'
-import { getLoggedUser, isAdminUser } from '../lib/auth'
+import { getLoggedUser, isAdminUser, updateLoggedUserFoto } from '../lib/auth'
+import { ControlePontoModal } from '../components/ControlePontoModal'
 import clsx from 'clsx'
 
 export function RH() {
@@ -57,6 +63,10 @@ export function RH() {
   const [todasFaltasEquipe, setTodasFaltasEquipe] = useState<FaltaAtestado[]>([])
   const [todasEscalasEquipe, setTodasEscalasEquipe] = useState<EscalaHomeOffice[]>([])
   const [todosPlantoesEquipe, setTodosPlantoesEquipe] = useState<PlantaoTecnico[]>([])
+  const [todosPontosEquipe, setTodosPontosEquipe] = useState<RegistroPonto[]>([])
+
+  // Data selecionada na aba de Ponto (padrão: hoje)
+  const [pontoDataSelecionada, setPontoDataSelecionada] = useState(() => new Date().toISOString().slice(0, 10))
 
   // Filtros & Buscas
       const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
@@ -128,6 +138,13 @@ export function RH() {
   // Visualizador de Atestado
   const [previewAtestado, setPreviewAtestado] = useState<FaltaAtestado | null>(null)
 
+  // Foto (avatar) do usuário logado
+  const [minhaFoto, setMinhaFoto] = useState<string | null>(user?.foto_url || null)
+  const [salvandoFoto, setSalvandoFoto] = useState(false)
+
+  // Modal de Controle de Ponto
+  const [isPontoModalOpen, setIsPontoModalOpen] = useState(false)
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -135,12 +152,13 @@ export function RH() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [allUsers, todasFerias, faltas, escalas, plantoes] = await Promise.all([
+      const [allUsers, todasFerias, faltas, escalas, plantoes, pontos] = await Promise.all([
         api.getUsuariosSistema().catch(() => []),
         api.getSolicitacoesFerias().catch(() => []),
         api.getFaltasEAtestados().catch(() => []),
         api.getEscalasHomeOffice().catch(() => []),
-        api.getPlantoes().catch(() => [])
+        api.getPlantoes().catch(() => []),
+        api.getRegistrosPonto().catch(() => [])
       ])
 
       // Filtra apenas funcionários da Mantran
@@ -169,6 +187,7 @@ export function RH() {
       setTodasFaltasEquipe((faltas || []).filter(isRecordDeFuncionario))
       setTodasEscalasEquipe((escalas || []).filter(isRecordDeFuncionario))
       setTodosPlantoesEquipe(plantoes || [])
+      setTodosPontosEquipe((pontos || []).filter(isRecordDeFuncionario))
     } catch (err) {
       console.error('Erro ao carregar dados do portal de RH:', err)
     } finally {
@@ -775,6 +794,137 @@ export function RH() {
     }
   }
 
+  // ===== Foto / Avatar do usuário =====
+  const handleUploadFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // permite reenviar o mesmo arquivo
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      alert('Selecione um arquivo de imagem (JPG, PNG, etc).')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('A imagem é muito grande. Tamanho máximo: 2MB.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target?.result as string
+      setSalvandoFoto(true)
+      try {
+        if (user?.id) {
+          await api.updateFotoUsuario(user.id, dataUrl)
+          updateLoggedUserFoto(dataUrl)
+        }
+        setMinhaFoto(dataUrl)
+      } catch (err: any) {
+        console.error('Erro ao salvar foto:', err)
+        alert('Não foi possível salvar a foto. Tente novamente.')
+      } finally {
+        setSalvandoFoto(false)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // ===== Controle de Ponto (Gestão RH) =====
+  const PONTO_LABELS: Record<TipoPonto, string> = {
+    inicio_expediente: 'Entrada',
+    pausa_almoco: 'Saída Almoço',
+    retorno_almoco: 'Retorno Almoço',
+    fim_expediente: 'Saída'
+  }
+
+  const formatHoraPonto = (iso?: string | null) => {
+    if (!iso) return '--:--'
+    try {
+      return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    } catch {
+      return '--:--'
+    }
+  }
+
+  const formatDuracaoPonto = (ms: number) => {
+    const totalMin = Math.floor(ms / 60000)
+    const h = Math.floor(totalMin / 60)
+    const m = totalMin % 60
+    return `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}`
+  }
+
+  // Registros de ponto do dia selecionado, agrupados por colaborador
+  const pontosPorColaborador = useMemo(() => {
+    const doDia = todosPontosEquipe.filter(p => p.data === pontoDataSelecionada)
+
+    // Base: todos os funcionários (mesmo sem registro) para dar visibilidade das ausências
+    const mapa = new Map<string, {
+      usuario_id: string
+      usuario_nome: string
+      registros: Partial<Record<TipoPonto, RegistroPonto>>
+    }>()
+
+    // Inicializa com a lista de funcionários conhecidos
+    usuarios.forEach(u => {
+      mapa.set(u.id, { usuario_id: u.id, usuario_nome: u.nome, registros: {} })
+    })
+
+    doDia.forEach(reg => {
+      let entry = mapa.get(reg.usuario_id)
+      if (!entry) {
+        entry = { usuario_id: reg.usuario_id, usuario_nome: reg.usuario_nome, registros: {} }
+        mapa.set(reg.usuario_id, entry)
+      }
+      entry.registros[reg.tipo] = reg
+    })
+
+    const nowMs = Date.now()
+    const hojeStrLocal = new Date().toISOString().slice(0, 10)
+    const ehHoje = pontoDataSelecionada === hojeStrLocal
+
+    return Array.from(mapa.values())
+      .map(entry => {
+        const r = entry.registros
+        const inicio = r.inicio_expediente?.data_hora
+        const fim = r.fim_expediente?.data_hora
+        const pausa = r.pausa_almoco?.data_hora
+        const retorno = r.retorno_almoco?.data_hora
+
+        let trabalhadoMs = 0
+        if (inicio) {
+          const tInicio = new Date(inicio).getTime()
+          const tFim = fim ? new Date(fim).getTime() : (ehHoje ? nowMs : tInicio)
+          trabalhadoMs = tFim - tInicio
+          if (pausa) {
+            const tPausa = new Date(pausa).getTime()
+            const tRetorno = retorno ? new Date(retorno).getTime() : (ehHoje ? nowMs : tPausa)
+            trabalhadoMs -= Math.max(0, tRetorno - tPausa)
+          }
+          trabalhadoMs = Math.max(0, trabalhadoMs)
+        }
+
+        const temRegistro = !!(inicio || pausa || retorno || fim)
+        const emAndamento = !!inicio && !fim
+
+        return {
+          ...entry,
+          trabalhadoMs,
+          temRegistro,
+          emAndamento
+        }
+      })
+      // Colaboradores com registro primeiro; depois por nome
+      .sort((a, b) => {
+        if (a.temRegistro !== b.temRegistro) return a.temRegistro ? -1 : 1
+        return a.usuario_nome.localeCompare(b.usuario_nome)
+      })
+  }, [todosPontosEquipe, pontoDataSelecionada, usuarios])
+
+  const totalPresentesNoDia = useMemo(
+    () => pontosPorColaborador.filter(p => p.temRegistro).length,
+    [pontosPorColaborador]
+  )
+
   const formatDateDisplay = (dateStr?: string | null) => {
     if (!dateStr) return '-'
     try {
@@ -815,38 +965,79 @@ export function RH() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
       
       {/* ================= TOP HEADER BANNER ================= */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900/90 to-brand-950/50 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-900/90 to-brand-950/50 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-5 relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-full bg-gradient-to-l from-brand-500/5 to-transparent pointer-events-none" />
 
         <div className="space-y-1.5 z-10">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500/20 to-teal-500/20 border border-brand-500/30 text-brand-400 flex items-center justify-center shadow-lg shadow-brand-500/10">
-              {isGestorRh ? <Users2 className="w-6 h-6" /> : <Palmtree className="w-6 h-6" />}
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-white tracking-tight">
-                {isGestorRh ? 'Recursos Humanos & Gestão de Pessoas' : 'Portal do Colaborador - RH'}
-              </h1>
-              <p className="text-xs text-slate-400">
-                {isGestorRh 
-                  ? 'Gestão de Férias, Plantões de Fim de Semana (Técnicos), Escala de Home Office, Faltas/Atestados e Folha'
-                  : 'Minhas férias em 2 quinzenas, informar plantão de final de semana, home office e atestados'}
-              </p>
-            </div>
+            {isGestorRh ? (
+              <>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-brand-500/20 to-teal-500/20 border border-brand-500/30 text-brand-400 flex items-center justify-center shadow-lg shadow-brand-500/10 shrink-0">
+                  <Users2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-tight">
+                    Recursos Humanos & Gestão de Pessoas
+                  </h1>
+                  <p className="text-[11px] sm:text-xs text-slate-400">
+                    Gestão de Férias, Plantões de Fim de Semana (Técnicos), Escala de Home Office, Faltas/Atestados e Folha
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Avatar com upload de foto */}
+                <label
+                  title="Alterar minha foto"
+                  className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden shrink-0 cursor-pointer group border border-brand-500/30 shadow-lg shadow-brand-500/10"
+                >
+                  {minhaFoto ? (
+                    <img src={minhaFoto} alt={user?.nome || 'Foto'} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-brand-500/20 to-teal-500/20 text-brand-300 flex items-center justify-center text-xl sm:text-2xl font-black uppercase">
+                      {(user?.nome || user?.login || 'U').charAt(0)}
+                    </div>
+                  )}
+                  {/* Overlay de edição */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    {salvandoFoto ? (
+                      <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    ) : (
+                      <Camera className="w-5 h-5 text-white" />
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleUploadFoto}
+                    disabled={salvandoFoto}
+                    className="hidden"
+                  />
+                </label>
+                <div className="min-w-0">
+                  <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-tight truncate">
+                    {user?.nome || user?.login || 'Colaborador'}
+                  </h1>
+                  <p className="text-[11px] sm:text-xs text-slate-400">
+                    {user?.perfil || 'Colaborador'} • Toque na foto para alterar
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 z-10">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2 sm:gap-2.5 z-10">
           <button
             type="button"
             onClick={() => handleAbrirModalFerias()}
-            className="btn-primary py-2.5 px-4 flex items-center gap-2 text-xs font-bold shadow-lg shadow-brand-500/20 cursor-pointer"
+            className="btn-primary py-2 px-2.5 sm:py-2.5 sm:px-4 flex items-center justify-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-bold shadow-lg shadow-brand-500/20 cursor-pointer"
           >
-            <Palmtree className="w-4 h-4" />
+            <Palmtree className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span>Solicitar Férias</span>
           </button>
 
@@ -855,9 +1046,9 @@ export function RH() {
             <button
               type="button"
               onClick={() => handleAbrirModalPlantao()}
-              className="py-2.5 px-4 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 border border-amber-500/40 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md"
+              className="py-2 px-2.5 sm:py-2.5 sm:px-4 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 border border-amber-500/40 font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-md"
             >
-              <PhoneCall className="w-4 h-4 text-amber-400" />
+              <PhoneCall className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
               <span>Informar Plantão</span>
             </button>
           )}
@@ -865,25 +1056,34 @@ export function RH() {
           <button
             type="button"
             onClick={() => handleAbrirEdicaoHomeOffice()}
-            className="py-2.5 px-4 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md"
+            className="py-2 px-2.5 sm:py-2.5 sm:px-4 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-md"
           >
-            <Home className="w-4 h-4 text-cyan-400" />
+            <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-400 shrink-0" />
             <span>{isGestorRh ? 'Escala Home Office' : 'Meu Home Office'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleAbrirModalFalta()}
-            className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md"
+            className="py-2 px-2.5 sm:py-2.5 sm:px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-md"
           >
-            <FileText className="w-4 h-4 text-emerald-400" />
+            <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
             <span>Atestado / Falta</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPontoModalOpen(true)}
+            className="py-2 px-2.5 sm:py-2.5 sm:px-4 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-md"
+          >
+            <Timer className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
+            <span>Controle de Ponto</span>
           </button>
 
           {/* Botão / Badge Gestão & RH posicionado depois do Atestado / Falta */}
           {isGestorRh && (
-            <div className="py-2.5 px-3.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-bold flex items-center gap-1.5 shadow-sm select-none">
-              <Shield className="w-4 h-4 text-purple-400" />
+            <div className="py-2.5 px-3.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm select-none">
+              <Shield className="w-4 h-4 text-purple-400 shrink-0" />
               <span>Gestão & RH</span>
             </div>
           )}
@@ -893,7 +1093,7 @@ export function RH() {
       {/* ================= NAVIGATION TABS ================= */}
       {isGestorRh ? (
         /* --- ABAS PARA GESTOR / ADMIN --- */
-        <div className="flex items-center gap-1.5 border-b border-slate-800 pb-3 flex-wrap">
+        <div className="flex items-center gap-1.5 border-b border-slate-800 pb-3 overflow-x-auto sm:flex-wrap [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button]:px-2 [&>button]:py-1.5 [&>button]:text-[11px] sm:[&>button]:px-3.5 sm:[&>button]:py-2 sm:[&>button]:text-xs">
           <button
             type="button"
             onClick={() => setTab('dashboard')}
@@ -986,6 +1186,20 @@ export function RH() {
 
           <button
             type="button"
+            onClick={() => setTab('ponto_equipe')}
+            className={clsx(
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              tab === 'ponto_equipe'
+                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <Timer className="w-4 h-4 text-emerald-400" />
+            <span>Ponto</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setTab('equipe_dossie')}
             className={clsx(
               "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
@@ -1024,7 +1238,7 @@ export function RH() {
         </div>
       ) : (
         /* --- ABAS PARA COLABORADOR COMUM (NÃO-ADMIN) --- */
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 flex-wrap">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto sm:flex-wrap [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button]:px-2 [&>button]:py-1.5 [&>button]:text-[11px] sm:[&>button]:px-3.5 sm:[&>button]:py-2 sm:[&>button]:text-xs">
           <button
             type="button"
             onClick={() => setTab('minhas_ferias')}
@@ -1112,9 +1326,9 @@ export function RH() {
           
           {tab === 'minhas_ferias' && (
             <div className="space-y-5">
-              <div className="p-4 rounded-2xl bg-brand-500/5 border border-brand-500/20 flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-brand-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-slate-300 space-y-1">
+              <div className="p-3 sm:p-4 rounded-2xl bg-brand-500/5 border border-brand-500/20 flex items-start gap-2.5 sm:gap-3">
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-brand-400 shrink-0 mt-0.5" />
+                <div className="text-[11px] sm:text-xs text-slate-300 space-y-1">
                   <p className="font-bold text-white">Regra de Férias Mantran (2 Quinzenas):</p>
                   <p className="text-slate-400">
                     Você tem direito a <strong>2 quinzenas separadas (15 dias cada)</strong>. 
@@ -1125,11 +1339,11 @@ export function RH() {
               </div>
 
               {minhasFerias.length === 0 ? (
-                <div className="bg-dark-card border border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/60 mx-auto flex items-center justify-center text-slate-500">
-                    <Palmtree className="w-7 h-7 opacity-60" />
+                <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 sm:p-12 text-center text-slate-400 space-y-3">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-800/60 border border-slate-700/60 mx-auto flex items-center justify-center text-slate-500">
+                    <Palmtree className="w-6 h-6 sm:w-7 sm:h-7 opacity-60" />
                   </div>
-                  <h3 className="text-base font-bold text-white">Nenhuma solicitação de férias cadastrada</h3>
+                  <h3 className="text-sm sm:text-base font-bold text-white">Nenhuma solicitação de férias cadastrada</h3>
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
                     Planeje suas 2 quinzenas de descanso clicando no botão "Solicitar Férias" no topo.
                   </p>
@@ -1139,7 +1353,7 @@ export function RH() {
                   {minhasFeriasOrdenadas.map((f) => (
                     <div 
                       key={f.id} 
-                      className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4 hover:border-slate-700 transition-all"
+                      className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4 hover:border-slate-700 transition-all"
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -1241,11 +1455,11 @@ export function RH() {
               </div>
 
               {meusPlantoes.length === 0 ? (
-                <div className="bg-dark-card border border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 mx-auto flex items-center justify-center text-amber-400">
-                    <PhoneCall className="w-7 h-7" />
+                <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 sm:p-12 text-center text-slate-400 space-y-3">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 mx-auto flex items-center justify-center text-amber-400">
+                    <PhoneCall className="w-6 h-6 sm:w-7 sm:h-7" />
                   </div>
-                  <h3 className="text-base font-bold text-white">Nenhum plantão registrado ainda</h3>
+                  <h3 className="text-sm sm:text-base font-bold text-white">Nenhum plantão registrado ainda</h3>
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
                     Esteve de plantão no final de semana? Clique em "Informar Plantão" acima para registrar as datas e garantir o pagamento pelo RH.
                   </p>
@@ -1255,7 +1469,7 @@ export function RH() {
                   {meusPlantoes.map((item) => (
                     <div 
                       key={item.id}
-                      className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3 hover:border-slate-700 transition-all"
+                      className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3 hover:border-slate-700 transition-all"
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -1299,7 +1513,7 @@ export function RH() {
           )}
 
           {tab === 'meu_home_office' && (
-            <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+            <div className="bg-dark-card border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1334,31 +1548,42 @@ export function RH() {
 
                 <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
                   <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">Dias em Home Office</span>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {[
+                  {(() => {
+                    const isRemotoTotal = meuHomeOffice?.modalidade === '100% Remoto'
+                    const diasSemana = [
                       { key: 'segunda', label: 'Segunda' },
                       { key: 'terca', label: 'Terça' },
                       { key: 'quarta', label: 'Quarta' },
                       { key: 'quinta', label: 'Quinta' },
                       { key: 'sexta', label: 'Sexta' },
                       { key: 'sabado', label: 'Sábado' },
-                    ].map(d => {
-                      const isRemoto = meuHomeOffice?.modalidade === '100% Remoto' || (meuHomeOffice as any)?.[d.key]
+                    ]
+                    // Se for 100% Remoto, todos os dias úteis são home office
+                    const diasHomeOffice = isRemotoTotal
+                      ? diasSemana
+                      : diasSemana.filter(d => (meuHomeOffice as any)?.[d.key])
+
+                    if (diasHomeOffice.length === 0) {
                       return (
-                        <span 
-                          key={d.key}
-                          className={clsx(
-                            "px-3 py-1.5 rounded-xl text-xs font-bold border",
-                            isRemoto 
-                              ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" 
-                              : "bg-slate-950 text-slate-600 border-slate-800"
-                          )}
-                        >
-                          {d.label}: {isRemoto ? '🏠 Casa' : '🏢 Escritório'}
-                        </span>
+                        <p className="text-xs text-slate-400 pt-1">
+                          🏢 Você não possui dias de Home Office. Atuação 100% presencial.
+                        </p>
                       )
-                    })}
-                  </div>
+                    }
+
+                    return (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {diasHomeOffice.map(d => (
+                          <span
+                            key={d.key}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold border bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                          >
+                            🏠 {d.label}
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
@@ -1386,11 +1611,11 @@ export function RH() {
               </div>
 
               {minhasFaltas.length === 0 ? (
-                <div className="bg-dark-card border border-slate-800 rounded-3xl p-12 text-center text-slate-400 space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/60 mx-auto flex items-center justify-center text-slate-500">
-                    <FileText className="w-7 h-7 opacity-60" />
+                <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 sm:p-12 text-center text-slate-400 space-y-3">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-800/60 border border-slate-700/60 mx-auto flex items-center justify-center text-slate-500">
+                    <FileText className="w-6 h-6 sm:w-7 sm:h-7 opacity-60" />
                   </div>
-                  <h3 className="text-base font-bold text-white">Nenhum atestado ou falta registrada</h3>
+                  <h3 className="text-sm sm:text-base font-bold text-white">Nenhum atestado ou falta registrada</h3>
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
                     Precisa justificar um dia de ausência médica? Clique em "Novo Atestado / Falta" acima.
                   </p>
@@ -1400,7 +1625,7 @@ export function RH() {
                   {minhasFaltas.map((item) => (
                     <div 
                       key={item.id}
-                      className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
+                      className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -1955,7 +2180,7 @@ export function RH() {
                 {todasFaltasEquipe.map((item) => (
                   <div 
                     key={item.id}
-                    className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
+                    className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
                   >
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
@@ -2009,6 +2234,118 @@ export function RH() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* TAB: CONTROLE DE PONTO EQUIPE */}
+          {tab === 'ponto_equipe' && (
+            <div className="space-y-5">
+              {/* Cabeçalho com seletor de data */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-dark-card border border-slate-800 p-4 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <Timer className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Registros de Ponto</h3>
+                    <p className="text-xs text-slate-400">
+                      {totalPresentesNoDia} colaborador(es) com registro em {formatDateDisplay(pontoDataSelecionada)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Data</label>
+                  <input
+                    type="date"
+                    value={pontoDataSelecionada}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={e => setPontoDataSelecionada(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-medium focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Grid de colaboradores */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pontosPorColaborador.map(col => (
+                  <div
+                    key={col.usuario_id}
+                    className={clsx(
+                      'bg-dark-card border rounded-2xl p-5 shadow-lg space-y-3.5 transition-all',
+                      col.temRegistro ? 'border-slate-800 hover:border-slate-700' : 'border-slate-800/50 opacity-60'
+                    )}
+                  >
+                    {/* Cabeçalho do card */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-slate-800 font-bold flex items-center justify-center text-xs text-white uppercase">
+                          {col.usuario_nome.charAt(0)}
+                        </div>
+                        <span className="text-xs font-bold text-white">{col.usuario_nome}</span>
+                      </div>
+                      {col.temRegistro ? (
+                        col.emAndamento ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/30 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            Em andamento
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700/40 text-slate-300 font-bold border border-slate-600/40">
+                            Encerrado
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800/60 text-slate-500 font-bold border border-slate-700/40">
+                          Sem registro
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Marcos do dia */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['inicio_expediente', 'pausa_almoco', 'retorno_almoco', 'fim_expediente'] as TipoPonto[]).map(tipo => {
+                        const reg = col.registros[tipo]
+                        return (
+                          <div
+                            key={tipo}
+                            className={clsx(
+                              'p-2.5 rounded-lg border text-center',
+                              reg ? 'bg-slate-900/80 border-slate-800' : 'bg-transparent border-slate-800/50'
+                            )}
+                          >
+                            <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+                              {PONTO_LABELS[tipo]}
+                            </p>
+                            <p className={clsx('text-sm font-bold tabular-nums mt-0.5', reg ? 'text-white' : 'text-slate-600')}>
+                              {formatHoraPonto(reg?.data_hora)}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Total trabalhado */}
+                    {col.temRegistro && (
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 text-xs">
+                        <span className="text-slate-400 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          Horas trabalhadas
+                        </span>
+                        <span className="font-bold text-emerald-400 tabular-nums">
+                          {col.registros.inicio_expediente ? formatDuracaoPonto(col.trabalhadoMs) : '--'}
+                          {col.emAndamento && <span className="text-[10px] text-slate-500 ml-1">(parcial)</span>}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {pontosPorColaborador.length === 0 && (
+                <div className="text-center py-12 text-slate-500 text-sm">
+                  Nenhum colaborador encontrado.
+                </div>
+              )}
             </div>
           )}
 
@@ -3055,6 +3392,12 @@ export function RH() {
           </div>
         </div>
       )}
+
+      {/* ================= MODAL CONTROLE DE PONTO ================= */}
+      <ControlePontoModal
+        isOpen={isPontoModalOpen}
+        onClose={() => setIsPontoModalOpen(false)}
+      />
 
     </div>
   )

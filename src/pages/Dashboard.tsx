@@ -195,17 +195,17 @@ export function Dashboard() {
       ) : (
         <>
           {/* Top Row: 4 Metric Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             
             {/* Card 1: Bases Disponíveis */}
-            <div className={clsx("card flex items-center p-6 border-l-4 relative overflow-hidden", getBasesCapacityBorderColor(stats.basesDisponiveis))}>
+            <div className={clsx("card flex items-center p-3 sm:p-6 border-l-4 relative overflow-hidden", getBasesCapacityBorderColor(stats.basesDisponiveis))}>
               <div className={clsx(
-                "p-4 rounded-lg mr-4 shrink-0 relative",
+                "p-2.5 sm:p-4 rounded-lg mr-2.5 sm:mr-4 shrink-0 relative",
                 stats.basesDisponiveis <= 3 ? "bg-red-500/10 text-red-400" :
                 stats.basesDisponiveis <= 6 ? "bg-amber-500/10 text-amber-400" :
                 "bg-emerald-500/10 text-emerald-500"
               )}>
-                <Database className="w-8 h-8" />
+                <Database className="w-6 h-6 sm:w-8 sm:h-8" />
                 {stats.basesDisponiveis <= 3 && (
                   <span className="absolute -top-1 -right-1 flex h-3 w-3">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -214,10 +214,10 @@ export function Dashboard() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">Bases Disponíveis</p>
+                <p className="text-[10px] sm:text-sm font-medium text-slate-400 uppercase tracking-wide sm:tracking-wider leading-tight break-words">Bases Disponíveis</p>
                 <div className="flex flex-wrap items-baseline gap-2 mt-1">
                   <p className={clsx(
-                    "text-3xl font-bold",
+                    "text-2xl sm:text-3xl font-bold",
                     getBasesCapacityTextColor(stats.basesDisponiveis)
                   )}>{stats.basesDisponiveis}</p>
                   {stats.basesDisponiveis <= 3 && (
@@ -236,31 +236,31 @@ export function Dashboard() {
             </div>
 
             {/* Card 2: Bases em Uso */}
-            <div className="card flex items-center p-6 border-l-4 border-amber-500">
-              <div className="p-4 bg-amber-500/10 rounded-lg text-amber-500 mr-4 shrink-0">
-                <Server className="w-8 h-8" />
+            <div className="card flex items-center p-3 sm:p-6 border-l-4 border-amber-500">
+              <div className="p-2.5 sm:p-4 bg-amber-500/10 rounded-lg text-amber-500 mr-2.5 sm:mr-4 shrink-0">
+                <Server className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
-              <div>
-                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">Bases em Uso</p>
-                <p className="text-3xl font-bold text-white mt-1">{stats.basesEmUso}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm font-medium text-slate-400 uppercase tracking-wide sm:tracking-wider leading-tight break-words">Bases em Uso</p>
+                <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{stats.basesEmUso}</p>
               </div>
             </div>
 
             {/* Card 3: Total Clientes */}
-            <div className="card flex items-center p-6 border-l-4 border-brand-500">
-              <div className="p-4 bg-brand-500/10 rounded-lg text-brand-500 mr-4 shrink-0">
-                <Users className="w-8 h-8" />
+            <div className="card flex items-center p-3 sm:p-6 border-l-4 border-brand-500">
+              <div className="p-2.5 sm:p-4 bg-brand-500/10 rounded-lg text-brand-500 mr-2.5 sm:mr-4 shrink-0">
+                <Users className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
-              <div>
-                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">Total Clientes</p>
-                <p className="text-3xl font-bold text-white mt-1">{stats.clientesShopee + stats.clientesNormal}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm font-medium text-slate-400 uppercase tracking-wide sm:tracking-wider leading-tight break-words">Total Clientes</p>
+                <p className="text-2xl sm:text-3xl font-bold text-white mt-1">{stats.clientesShopee + stats.clientesNormal}</p>
               </div>
             </div>
 
             {/* Card 4: Uso da Nuvem */}
-            <div className={clsx("card flex flex-col justify-center p-6 border-l-4 relative overflow-hidden", getBasesCapacityBorderColor(stats.basesDisponiveis))}>
+            <div className={clsx("card flex flex-col justify-center p-3 sm:p-6 border-l-4 relative overflow-hidden", getBasesCapacityBorderColor(stats.basesDisponiveis))}>
               <div className="flex justify-between items-center mb-2">
-                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">Uso da Nuvem</p>
+                <p className="text-[10px] sm:text-sm font-medium text-slate-400 uppercase tracking-wide sm:tracking-wider leading-tight break-words">Uso da Nuvem</p>
                 {stats.basesDisponiveis <= 3 && (
                   <span className="flex items-center gap-1 text-[10px] font-extrabold text-red-400 bg-red-500/15 border border-red-500/30 px-2 py-0.5 rounded-full animate-pulse">
                     <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />
@@ -268,9 +268,9 @@ export function Dashboard() {
                   </span>
                 )}
               </div>
-              <div className="flex justify-between items-end mb-2">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-2 gap-0.5">
                 <span className={`text-2xl font-bold ${getBasesCapacityTextColor(stats.basesDisponiveis)}`}>{usoPercent}%</span>
-                <span className="text-xs text-slate-400">{stats.totalBases} bases totais</span>
+                <span className="text-[10px] sm:text-xs text-slate-400 leading-tight">{stats.totalBases} bases totais</span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
                 <div 

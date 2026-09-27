@@ -1343,6 +1343,7 @@ export const api = {
     ativo?: boolean
     e_tecnico?: boolean
     meta_semanal?: number
+    foto_url?: string | null
   }): Promise<UsuarioSistema> {
     const updateData: any = {}
     if (payload.nome !== undefined) updateData.nome = payload.nome.trim()
@@ -1376,6 +1377,9 @@ export const api = {
     if (payload.meta_semanal !== undefined) {
       updateData.meta_semanal = Number(payload.meta_semanal) || 0
     }
+    if (payload.foto_url !== undefined) {
+      updateData.foto_url = payload.foto_url
+    }
 
     const { data, error } = await supabase
       .from('usuario')
@@ -1386,6 +1390,19 @@ export const api = {
 
     if (error) throw error
     return data
+  },
+
+  // Atualiza somente a foto do usuário (avatar). Retorna a URL salva.
+  async updateFotoUsuario(id: string, fotoUrl: string | null): Promise<string | null> {
+    const { data, error } = await supabase
+      .from('usuario')
+      .update({ foto_url: fotoUrl })
+      .eq('id', id)
+      .select('foto_url')
+      .single()
+
+    if (error) throw error
+    return data?.foto_url ?? null
   },
 
   async toggleUsuarioAtivo(id: string, ativo: boolean): Promise<boolean> {
@@ -2069,6 +2086,86 @@ export const api = {
       }
       return true
     }
+  },
+
+  // --- RH: Controle de Ponto (Registro de Expediente) ---
+  async getRegistrosPonto(usuarioId?: string, data?: string): Promise<RegistroPonto[]> {
+    try {
+      let query = supabase
+        .from('rh_ponto')
+        .select('*')
+        .order('data_hora', { ascending: true })
+
+      if (usuarioId) query = query.eq('usuario_id', usuarioId)
+      if (data) query = query.eq('data', data)
+
+      const { data: rows, error } = await query
+      if (error) throw error
+      return rows || []
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_ponto')
+      let list: RegistroPonto[] = local ? JSON.parse(local) : []
+      if (usuarioId) list = list.filter(i => i.usuario_id === usuarioId)
+      if (data) list = list.filter(i => i.data === data)
+      return list.sort((a, b) => (a.data_hora || '').localeCompare(b.data_hora || ''))
+    }
+  },
+
+  // Retorna os registros de ponto do dia atual para um usuário
+  async getRegistrosPontoDoDia(usuarioId: string): Promise<RegistroPonto[]> {
+    const hoje = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    return this.getRegistrosPonto(usuarioId, hoje)
+  },
+
+  async insertRegistroPonto(payload: Partial<RegistroPonto>): Promise<RegistroPonto> {
+    const agora = new Date()
+    const item: RegistroPonto = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15),
+      usuario_id: payload.usuario_id!,
+      usuario_nome: payload.usuario_nome!,
+      tipo: payload.tipo!,
+      data_hora: payload.data_hora || agora.toISOString(),
+      data: payload.data || agora.toISOString().slice(0, 10),
+      observacoes: payload.observacoes || null,
+      created_at: agora.toISOString(),
+      updated_at: agora.toISOString()
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('rh_ponto')
+        .insert(item)
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return data
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_ponto')
+      const list: RegistroPonto[] = local ? JSON.parse(local) : []
+      list.push(item)
+      localStorage.setItem('@Mantran:rh_ponto', JSON.stringify(list))
+      return item
+    }
+  },
+
+  async deleteRegistroPonto(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_ponto')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_ponto')
+      if (local) {
+        const list: RegistroPonto[] = JSON.parse(local)
+        localStorage.setItem('@Mantran:rh_ponto', JSON.stringify(list.filter(i => i.id !== id)))
+      }
+      return true
+    }
   }
 }
 
@@ -2081,7 +2178,26 @@ export interface UsuarioSistema {
   ativo: boolean
   e_tecnico?: boolean
   meta_semanal?: number
+  foto_url?: string | null
   created_at?: string
+}
+
+export type TipoPonto =
+  | 'inicio_expediente'
+  | 'pausa_almoco'
+  | 'retorno_almoco'
+  | 'fim_expediente'
+
+export interface RegistroPonto {
+  id: string
+  usuario_id: string
+  usuario_nome: string
+  tipo: TipoPonto
+  data_hora: string // ISO timestamp do momento do registro
+  data: string // YYYY-MM-DD (facilita filtro por dia)
+  observacoes?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 export interface OportunidadeComercial {

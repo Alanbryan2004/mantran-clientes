@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { 
   Bell, 
@@ -27,6 +28,7 @@ export function NotificationsPopover() {
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const popoverRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const isCliente = isClienteUser()
   const currentUser = getLoggedUser()
@@ -152,7 +154,10 @@ export function NotificationsPopover() {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      const dentroDoBotao = popoverRef.current?.contains(target)
+      const dentroDoPainel = panelRef.current?.contains(target)
+      if (!dentroDoBotao && !dentroDoPainel) {
         setIsOpen(false)
       }
     }
@@ -295,9 +300,12 @@ export function NotificationsPopover() {
         )}
       </button>
 
-      {/* Popover / Dropdown Menu */}
-      {isOpen && (
-        <div className="absolute right-0 mt-3 w-96 sm:w-[450px] max-w-[calc(100vw-2rem)] bg-[#131622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
+      {/* Popover / Dropdown Menu (renderizado via portal para ficar acima do sidebar) */}
+      {isOpen && createPortal(
+        <div
+          ref={panelRef}
+          className="fixed top-[70px] right-3 sm:right-6 w-96 sm:w-[450px] max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-90px)] bg-[#131622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl z-[9999] overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col"
+        >
           
           {/* Header */}
           <div className="p-4 border-b border-slate-800/80 bg-slate-900/60 flex items-center justify-between">
@@ -565,7 +573,8 @@ export function NotificationsPopover() {
             </div>
           )}
 
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

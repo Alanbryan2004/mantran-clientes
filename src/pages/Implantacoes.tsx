@@ -270,19 +270,19 @@ export function Implantacoes() {
   }
 
   return (
-    <div className="space-y-6" onClick={() => setOpenMenuId(null)}>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-100">Implantações</h2>
-          <p className="text-slate-400 mt-1">Acompanhe o processo de onboarding de novos clientes</p>
+    <div className="space-y-4 sm:space-y-6" onClick={() => setOpenMenuId(null)}>
+      <div className="flex justify-between items-start sm:items-center gap-3 mb-4 sm:mb-6">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-3xl font-bold text-slate-100">Implantações</h2>
+          <p className="text-xs sm:text-base text-slate-400 mt-1">Acompanhe o processo de onboarding de novos clientes</p>
         </div>
         {!isReadOnlyUser() && (
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="btn-primary flex items-center space-x-2 shadow-lg shadow-brand-500/20"
+            className="btn-primary flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-brand-500/20 shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm"
           >
-            <Plus className="w-5 h-5" />
-            <span>Nova Implantação</span>
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+            <span className="whitespace-nowrap">Nova<span className="hidden sm:inline"> Implantação</span></span>
           </button>
         )}
       </div>
@@ -294,13 +294,13 @@ export function Implantacoes() {
           <button
             onClick={() => setActiveTab('EM_ANDAMENTO')}
             className={clsx(
-              "flex items-center gap-2.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer border",
+              "flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
               activeTab === 'EM_ANDAMENTO'
                 ? "bg-brand-500/15 text-brand-400 border-brand-500/30 shadow-lg shadow-brand-500/10"
                 : "bg-slate-900/40 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700"
             )}
           >
-            <Clock className="w-4 h-4 text-brand-400" />
+            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-400 shrink-0" />
             <span>Em Andamento</span>
             <span className={clsx(
               "text-xs px-2 py-0.5 rounded-full font-mono font-bold transition-colors",
@@ -313,13 +313,13 @@ export function Implantacoes() {
           <button
             onClick={() => setActiveTab('CONCLUIDOS')}
             className={clsx(
-              "flex items-center gap-2.5 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 cursor-pointer border",
+              "flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
               activeTab === 'CONCLUIDOS'
                 ? "bg-green-500/15 text-green-400 border-green-500/30 shadow-lg shadow-green-500/10"
                 : "bg-slate-900/40 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700"
             )}
           >
-            <CheckCircle2 className="w-4 h-4 text-green-400" />
+            <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-400 shrink-0" />
             <span>Concluídos</span>
             <span className={clsx(
               "text-xs px-2 py-0.5 rounded-full font-mono font-bold transition-colors",
@@ -331,9 +331,9 @@ export function Implantacoes() {
         </div>
 
         {/* Barra de Filtros */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-2.5">
           {/* Busca por cliente */}
-          <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+          <div className="relative w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-initial">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -354,7 +354,7 @@ export function Implantacoes() {
           </div>
 
           {/* Filtro por Etapa */}
-          <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+          <div className="relative w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-initial">
             <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
               value={selectedEtapa}
@@ -372,7 +372,7 @@ export function Implantacoes() {
           </div>
 
           {/* Filtro por Analista */}
-          <div className="relative min-w-[190px] flex-1 sm:flex-initial">
+          <div className="relative w-full sm:w-auto sm:min-w-[190px] flex-1 sm:flex-initial">
             <UserCheck className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
               value={selectedAnalista}
@@ -408,9 +408,9 @@ export function Implantacoes() {
           Carregando implantações...
         </div>
       ) : implantacoes.length === 0 ? (
-        <div className="card text-center p-16">
-          <Rocket className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-white mb-2">Nenhuma Implantação</h3>
+        <div className="card text-center p-8 sm:p-16">
+          <Rocket className="w-10 h-10 sm:w-12 sm:h-12 text-slate-600 mx-auto mb-4" />
+          <h3 className="text-base sm:text-lg font-bold text-white mb-2">Nenhuma Implantação</h3>
           <p className="text-slate-400 max-w-md mx-auto mb-6">
             Crie sua primeira implantação para acompanhar o onboarding de um novo cliente Mantran.
           </p>

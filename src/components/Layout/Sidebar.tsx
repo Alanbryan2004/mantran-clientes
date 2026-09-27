@@ -22,7 +22,7 @@ const allNavItems = [
 ]
 
 export function Sidebar() {
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [isPermissoesModalOpen, setIsPermissoesModalOpen] = useState(false)
   const [allowedNavItems, setAllowedNavItems] = useState(allNavItems)
 
@@ -104,7 +104,7 @@ export function Sidebar() {
 
   return (
     <div className={clsx(
-      "flex flex-col bg-dark-card border-r border-slate-800 text-white transition-all duration-300 relative h-full", 
+      "flex flex-col bg-dark-card border-r border-slate-800 text-white transition-all duration-300 relative h-full z-20", 
       isExpanded ? "w-72" : "w-20"
     )}>
       

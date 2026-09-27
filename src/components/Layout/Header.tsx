@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { getLoggedUser } from '../../lib/auth'
+import { getLoggedUser, isFuncionarioUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
 import { NotificationsPopover } from '../NotificationsPopover'
 import { AlterarMinhaSenhaModal } from '../AlterarMinhaSenhaModal'
+import { ControlePontoModal } from '../ControlePontoModal'
 import { 
   Sparkles, 
   Rocket, 
@@ -16,7 +17,8 @@ import {
   KeyRound, 
   LogOut, 
   ChevronDown,
-  UserCheck
+  UserCheck,
+  Clock
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -27,6 +29,7 @@ export function Header() {
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isAlterarSenhaModalOpen, setIsAlterarSenhaModalOpen] = useState(false)
+  const [isPontoModalOpen, setIsPontoModalOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
   // Fechar dropdown ao clicar fora
@@ -86,20 +89,12 @@ export function Header() {
   const isComercial = user?.perfil?.toLowerCase() === 'comercial'
 
   return (
-    <header className="h-16 border-b border-slate-800/80 bg-[#0f111a]/80 backdrop-blur-md px-6 flex items-center justify-between z-30 shrink-0 select-none">
+    <header className="h-16 border-b border-slate-800/80 bg-[#0f111a]/80 backdrop-blur-md px-6 flex items-center justify-between relative z-40 shrink-0 select-none">
       
-      {/* Page Title & Context */}
+      {/* Page Context Icon (título fica na própria página) */}
       <div className="flex items-center gap-3">
         <div className="w-9 h-9 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 shrink-0">
           <PageIcon className="w-5 h-5" />
-        </div>
-        <div>
-          <h1 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
-            {pageInfo.title}
-          </h1>
-          <p className="text-[11px] text-slate-400 hidden sm:block">
-            {pageInfo.subtitle}
-          </p>
         </div>
       </div>
 
@@ -176,7 +171,22 @@ export function Header() {
                 <span>Alterar Senha</span>
               </button>
 
-              {/* Opção 2: RH & Férias (Apenas para funcionários) */}
+              {/* Opção 2: Controle de Ponto (Apenas para funcionários) */}
+              {isFuncionarioUser() && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUserMenuOpen(false)
+                    setIsPontoModalOpen(true)
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left cursor-pointer"
+                >
+                  <Clock className="w-4 h-4 text-emerald-400" />
+                  <span>Controle de Ponto</span>
+                </button>
+              )}
+
+              {/* Opção 3: RH & Férias (Apenas para funcionários) */}
               {permissionsApi.canAccessRoute('/rh') && (
                 <button
                   type="button"
@@ -191,7 +201,7 @@ export function Header() {
                 </button>
               )}
 
-              {/* Opção 3: Sair */}
+              {/* Opção 4: Sair */}
               <div className="pt-1 border-t border-slate-800/80">
                 <button
                   type="button"
@@ -215,6 +225,12 @@ export function Header() {
       <AlterarMinhaSenhaModal
         isOpen={isAlterarSenhaModalOpen}
         onClose={() => setIsAlterarSenhaModalOpen(false)}
+      />
+
+      {/* Modal de Controle de Ponto */}
+      <ControlePontoModal
+        isOpen={isPontoModalOpen}
+        onClose={() => setIsPontoModalOpen(false)}
       />
     </header>
   )

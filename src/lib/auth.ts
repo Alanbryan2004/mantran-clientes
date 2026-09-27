@@ -6,6 +6,21 @@ export interface LoggedUser {
   ativo: boolean
   meta_semanal?: number
   implantacao_id?: string
+  foto_url?: string | null
+}
+
+/**
+ * Atualiza a foto (avatar) do usuário logado no localStorage.
+ * Mantém a sessão sincronizada após o upload no banco.
+ */
+export function updateLoggedUserFoto(fotoUrl: string | null): void {
+  try {
+    const stored = localStorage.getItem('@Mantran:user')
+    if (!stored) return
+    const user = JSON.parse(stored)
+    user.foto_url = fotoUrl
+    localStorage.setItem('@Mantran:user', JSON.stringify(user))
+  } catch (_) {}
 }
 
 export function getLoggedUser(): LoggedUser | null {
