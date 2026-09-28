@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
 import { AlterarAnalistaModal } from '../components/AlterarAnalistaModal'
+import { AlterarBaseModal } from '../components/AlterarBaseModal'
 import { AcessoClienteModal } from '../components/AcessoClienteModal'
 import { ClienteFormularioModal } from '../components/ClienteFormularioModal'
 import { VisualizarCheckpointModal } from '../components/VisualizarCheckpointModal'
@@ -76,6 +77,7 @@ export function ImplantacaoDetalhes() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isAnalistaModalOpen, setIsAnalistaModalOpen] = useState(false)
   const [isAcessoModalOpen, setIsAcessoModalOpen] = useState(false)
+  const [isAlterarBaseModalOpen, setIsAlterarBaseModalOpen] = useState(false)
   const [checkpointData, setCheckpointData] = useState<any | null>(null)
   const [isFormularioModalOpen, setIsFormularioModalOpen] = useState(false)
   const [isVisualizarCheckpointModalOpen, setIsVisualizarCheckpointModalOpen] = useState(false)
@@ -420,9 +422,21 @@ export function ImplantacaoDetalhes() {
               )
             )}
           </div>
-          <p className="text-xl font-black font-mono text-white mt-1">
-            {implantacao.bases?.nome_base || '—'}
-          </p>
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <p className="text-xl font-black font-mono text-white">
+              {implantacao.bases?.nome_base || '—'}
+            </p>
+            {!isReadOnlyUser() && (
+              <button
+                type="button"
+                onClick={() => setIsAlterarBaseModalOpen(true)}
+                title="Alterar / migrar base"
+                className="text-[11px] font-semibold text-brand-400 hover:text-brand-300 underline cursor-pointer shrink-0"
+              >
+                Editar
+              </button>
+            )}
+          </div>
           <span className="text-xs text-slate-500 truncate">
             {clienteUser ? `Login: ${clienteUser.login}` : 'Base do sistema'}
           </span>
@@ -897,6 +911,20 @@ export function ImplantacaoDetalhes() {
             analista_responsavel_id: newId,
             analista_responsavel: newName
           }))
+          fetchHistorico()
+        }}
+      />
+
+      {/* Modal de Alteração / Migração de Base */}
+      <AlterarBaseModal
+        isOpen={isAlterarBaseModalOpen}
+        onClose={() => setIsAlterarBaseModalOpen(false)}
+        implantacaoId={implantacao.id}
+        clienteId={implantacao.cliente_id}
+        currentBaseId={implantacao.bases?.id || implantacao.base_id}
+        currentBaseNome={implantacao.bases?.nome_base}
+        onSuccess={() => {
+          fetchImplantacao()
           fetchHistorico()
         }}
       />

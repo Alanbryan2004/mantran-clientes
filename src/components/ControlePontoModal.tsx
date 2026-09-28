@@ -32,9 +32,10 @@ import {
   CalendarOff
 } from 'lucide-react'
 import clsx from 'clsx'
-import { api, type RegistroPonto, type TipoPonto } from '../lib/api'
+import { api, type RegistroPonto, type TipoPonto, type JornadaTrabalho } from '../lib/api'
 import { getLoggedUser } from '../lib/auth'
 import { getMotivoNaoUtil } from '../lib/feriados'
+import { calcularBancoHoras, formatSaldo } from '../lib/bancoHoras'
 
 interface ControlePontoModalProps {
   isOpen: boolean
@@ -178,6 +179,69 @@ function formatDuracao(ms: number): string {
   return `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}`
 }
 
+// Mapeia cada marco ao horário previsto correspondente na jornada
+function horarioPrevistoDoMarco(tipo: TipoPonto, jornada: JornadaTrabalho | null): string | null {
+  if (!jornada) return null
+  const norm = (h?: string | null) => (h ? h.slice(0, 5) : null) // 'HH:MM:SS' -> 'HH:MM'
+  switch (tipo) {
+    case 'inicio_expediente': return norm(jornada.hora_entrada)
+    case 'pausa_almoco': return norm(jornada.almoco_inicio)
+    case 'retorno_almoco': return norm(jornada.almoco_fim)
+    case 'fim_expediente': return norm(jornada.hora_saida)
+    default: return null
+  }
+}
+
+// Minutos que a batida (ISO) ficou em relação ao previsto ('HH:MM').
+// Positivo = depois do previsto; negativo = antes.
+function diffMinutos(dataHoraIso: string, previstoHHMM: string): number {
+  const d = new Date(dataHoraIso)
+  const [ph, pm] = previstoHHMM.split(':').map(Number)
+  const minutosReais = d.getHours() * 60 + d.getMinutes()
+  const minutosPrevistos = ph * 60 + pm
+  return minutosReais - minutosPrevistos
+}
+
+// Tolerância (min) para considerar "no horário" nos badges de pontualidade
+const TOLERANCIA_MIN = 5
+
+// Tolerância (min) para poder iniciar o expediente antes do horário de entrada
+const TOLERANCIA_INICIO_MIN = 5
+
+// Tolerância (min) na saída que NÃO é contabilizada como banco de horas
+const TOLERANCIA_SAIDA_MIN = 15
+
+interface AvaliacaoMarco {
+  cor: string
+  texto: string
+}
+
+// Avalia a pontualidade de um marco, respeitando as tolerâncias que NÃO
+// contam como banco de horas: 15 min na saída, 5 min nos demais marcos.
+// Para entrada/retorno, atraso = ruim; para saída, depois do previsto = hora extra.
+function avaliarMarco(tipo: TipoPonto, diff: number): AvaliacaoMarco | null {
+  const tolerancia = tipo === 'fim_expediente' ? TOLERANCIA_SAIDA_MIN : TOLERANCIA_MIN
+
+  if (Math.abs(diff) <= tolerancia) {
+    return { cor: 'text-emerald-400', texto: 'No horário' }
+  }
+  const absMin = Math.abs(diff)
+  const label = absMin >= 60
+    ? `${Math.floor(absMin / 60)}h${String(absMin % 60).padStart(2, '0')}`
+    : `${absMin} min`
+
+  if (tipo === 'fim_expediente') {
+    // Saída: além da tolerância -> depois = hora extra; antes = saída antecipada (débito)
+    return diff > 0
+      ? { cor: 'text-sky-400', texto: `+${label} extra` }
+      : { cor: 'text-amber-400', texto: `-${label}` }
+  }
+  // Entrada / retorno do almoço / pausa: depois = atraso; antes = adiantado
+  return diff > 0
+    ? { cor: 'text-rose-400', texto: `${label} atrasado` }
+    : { cor: 'text-sky-400', texto: `${label} adiantado` }
+}
+
 export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePontoModalProps) {
   const user = getLoggedUser()
   const isMobile = useIsMobile()
@@ -187,6 +251,8 @@ export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePonto
   const userNome = user?.nome || user?.login
 
   const [registros, setRegistros] = useState<RegistroPonto[]>([])
+  const [todosMeusRegistros, setTodosMeusRegistros] = useState<RegistroPonto[]>([])
+  const [jornada, setJornada] = useState<JornadaTrabalho | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState<TipoPonto | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -197,8 +263,14 @@ export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePonto
     setLoading(true)
     setError(null)
     try {
-      const data = await api.getRegistrosPontoDoDia(userId)
+      const [data, todos, jornadaData] = await Promise.all([
+        api.getRegistrosPontoDoDia(userId),
+        api.getRegistrosPonto(userId).catch(() => [] as RegistroPonto[]),
+        api.getJornadaPorUsuario(userId).catch(() => null)
+      ])
       setRegistros(data)
+      setTodosMeusRegistros(todos)
+      setJornada(jornadaData)
     } catch (err: any) {
       console.error('Erro ao carregar registros de ponto:', err)
       setError('Não foi possível carregar os registros de hoje.')
@@ -231,14 +303,32 @@ export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePonto
 
   const tempoTrabalhado = calcularTempoTrabalhado(registros, now)
 
-  // Bloqueio: não é permitido INICIAR o expediente em fim de semana ou feriado.
+  // Banco de horas acumulado (dias completos + jornada)
+  const bancoHoras = calcularBancoHoras(todosMeusRegistros, jornada)
+
+  // Bloqueio 1: não é permitido INICIAR o expediente em fim de semana ou feriado.
   const { motivo: motivoNaoUtil, feriado } = getMotivoNaoUtil(now)
-  const bloqueadoParaInicio = motivoNaoUtil !== null && proximoTipo === 'inicio_expediente'
+  const bloqueadoPorDiaNaoUtil = motivoNaoUtil !== null && proximoTipo === 'inicio_expediente'
   const motivoTexto =
     motivoNaoUtil === 'sabado' ? 'sábado'
     : motivoNaoUtil === 'domingo' ? 'domingo'
     : motivoNaoUtil === 'feriado' ? `feriado (${feriado?.nome})`
     : ''
+
+  // Bloqueio 2: não é permitido INICIAR antes do horário de entrada da jornada.
+  // Há uma tolerância: pode bater até TOLERANCIA_INICIO_MIN minutos antes do previsto.
+  // (finalizar depois é permitido — sem restrição de horário para os demais marcos)
+  const horaEntradaPrevista = jornada?.hora_entrada ? jornada.hora_entrada.slice(0, 5) : null
+  const antesDoHorario = (() => {
+    if (!horaEntradaPrevista) return false
+    const [ph, pm] = horaEntradaPrevista.split(':').map(Number)
+    const minutosAgora = now.getHours() * 60 + now.getMinutes()
+    const minutosLiberacao = ph * 60 + pm - TOLERANCIA_INICIO_MIN
+    return minutosAgora < minutosLiberacao
+  })()
+  const bloqueadoPorHorario = antesDoHorario && proximoTipo === 'inicio_expediente'
+
+  const bloqueadoParaInicio = bloqueadoPorDiaNaoUtil || bloqueadoPorHorario
 
   const handleRegistrar = async (tipo: TipoPonto) => {
     if (!userId) {
@@ -249,6 +339,16 @@ export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePonto
     if (tipo === 'inicio_expediente' && getMotivoNaoUtil(new Date()).motivo !== null) {
       setError('Não é permitido iniciar o expediente em fins de semana ou feriados.')
       return
+    }
+    // Reforço da regra: bloqueia iniciar antes do horário de entrada da jornada (com tolerância)
+    if (tipo === 'inicio_expediente' && horaEntradaPrevista) {
+      const [ph, pm] = horaEntradaPrevista.split(':').map(Number)
+      const agoraDate = new Date()
+      const minutosAgora = agoraDate.getHours() * 60 + agoraDate.getMinutes()
+      if (minutosAgora < ph * 60 + pm - TOLERANCIA_INICIO_MIN) {
+        setError(`Só é possível iniciar o expediente a partir das ${horaEntradaPrevista} (seu horário de entrada).`)
+        return
+      }
     }
     setSaving(tipo)
     setError(null)
@@ -355,7 +455,42 @@ export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePonto
                 <span className="font-bold text-white tabular-nums">{formatDuracao(tempoTrabalhado)}</span>
               </div>
             )}
+
+            {/* Banco de horas acumulado */}
+            {jornada && bancoHoras.diasComputados > 0 && (
+              <div className="mt-2 flex items-center justify-center gap-2 text-sm">
+                <span className="text-slate-400">Banco de horas:</span>
+                <span className={clsx(
+                  'font-bold tabular-nums',
+                  bancoHoras.saldoAcumuladoMin > 0 ? 'text-emerald-400'
+                  : bancoHoras.saldoAcumuladoMin < 0 ? 'text-rose-400'
+                  : 'text-slate-300'
+                )}>
+                  {formatSaldo(bancoHoras.saldoAcumuladoMin)}
+                </span>
+              </div>
+            )}
           </div>
+
+          {/* Jornada prevista (se cadastrada) */}
+          {jornada && (
+            <div className="rounded-xl bg-indigo-500/5 border border-indigo-500/20 p-3 flex items-center justify-center gap-4 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400">Expediente:</span>
+                <span className="font-bold text-indigo-300 tabular-nums">
+                  {(jornada.hora_entrada || '').slice(0, 5)}–{(jornada.hora_saida || '').slice(0, 5)}
+                </span>
+              </div>
+              {jornada.almoco_inicio && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400">Almoço:</span>
+                  <span className="font-bold text-indigo-300 tabular-nums">
+                    {(jornada.almoco_inicio || '').slice(0, 5)}–{(jornada.almoco_fim || '').slice(0, 5)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {error && (
             <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2.5 text-xs text-red-300">
@@ -401,24 +536,46 @@ export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePonto
                       <StepIcon className="w-4 h-4" />
                     </div>
                     {/* Texto do marco */}
-                    <div className="flex-1 flex items-center justify-between pb-5">
-                      <span
-                        className={clsx(
-                          'text-sm font-medium',
-                          feito ? 'text-white' : ehProximo ? 'text-brand-300' : 'text-slate-500'
-                        )}
-                      >
-                        {LABELS[tipo]}
-                      </span>
-                      <span
-                        className={clsx(
-                          'text-sm tabular-nums font-bold',
-                          feito ? 'text-white' : 'text-slate-600'
-                        )}
-                      >
-                        {registro ? formatHora(registro.data_hora) : '--:--'}
-                      </span>
-                    </div>
+                    {(() => {
+                      const previsto = horarioPrevistoDoMarco(tipo, jornada)
+                      const avaliacao = (feito && registro && previsto)
+                        ? avaliarMarco(tipo, diffMinutos(registro.data_hora, previsto))
+                        : null
+                      return (
+                        <div className="flex-1 flex items-start justify-between pb-5 gap-2">
+                          <div className="min-w-0">
+                            <span
+                              className={clsx(
+                                'text-sm font-medium block',
+                                feito ? 'text-white' : ehProximo ? 'text-brand-300' : 'text-slate-500'
+                              )}
+                            >
+                              {LABELS[tipo]}
+                            </span>
+                            {previsto && (
+                              <span className="text-[10px] text-slate-500">
+                                Previsto: {previsto}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span
+                              className={clsx(
+                                'text-sm tabular-nums font-bold block',
+                                feito ? 'text-white' : 'text-slate-600'
+                              )}
+                            >
+                              {registro ? formatHora(registro.data_hora) : '--:--'}
+                            </span>
+                            {avaliacao && (
+                              <span className={clsx('text-[10px] font-bold', avaliacao.cor)}>
+                                {avaliacao.texto}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}
@@ -434,11 +591,15 @@ export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePonto
           ) : bloqueadoParaInicio ? (
             <div className="rounded-2xl bg-slate-800/40 border border-slate-700/60 p-5 flex flex-col items-center text-center gap-2">
               <div className="w-11 h-11 rounded-full bg-slate-700/40 border border-slate-600/60 text-slate-300 flex items-center justify-center">
-                <CalendarOff className="w-6 h-6" />
+                {bloqueadoPorDiaNaoUtil ? <CalendarOff className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
               </div>
-              <h3 className="text-sm font-bold text-white">Registro indisponível</h3>
+              <h3 className="text-sm font-bold text-white">
+                {bloqueadoPorDiaNaoUtil ? 'Registro indisponível' : 'Ainda não é seu horário'}
+              </h3>
               <p className="text-xs text-slate-400">
-                Não é possível iniciar o expediente em {motivoTexto}. O controle de ponto está disponível apenas em dias úteis.
+                {bloqueadoPorDiaNaoUtil
+                  ? `Não é possível iniciar o expediente em ${motivoTexto}. O controle de ponto está disponível apenas em dias úteis.`
+                  : `Você só pode iniciar o expediente a partir das ${horaEntradaPrevista} (seu horário de entrada).`}
               </p>
             </div>
           ) : expedienteConcluido ? (

@@ -18,13 +18,13 @@ import {
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { getLoggedUser, isClienteUser, isAdminUser, isTecnicoUser, isFuncionarioUser } from '../lib/auth'
+import { avaliarLembretesPonto } from '../lib/lembretesPonto'
 import clsx from 'clsx'
 
 export function NotificationsPopover() {
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
   const [notificacoes, setNotificacoes] = useState<any[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -40,6 +40,9 @@ export function NotificationsPopover() {
 
   const STORAGE_KEY_READ = `@Mantran:notificacoes_lidas_${userKey}`
   const STORAGE_KEY_DELETED = `@Mantran:notificacoes_excluidas_${userKey}`
+
+  // Lembretes de ponto (locais, pessoais deste usuário)
+  const [lembretesPonto, setLembretesPonto] = useState<any[]>([])
 
   // Obter IDs lidos pelo usuário atual
   const getReadIds = (): Set<string> => {
@@ -113,8 +116,6 @@ export function NotificationsPopover() {
         }))
 
       setNotificacoes(userList)
-      const unread = userList.filter((n: any) => !n.lida).length
-      setUnreadCount(unread)
     } catch (err) {
       console.warn('Erro ao carregar notificações:', err)
     } finally {
@@ -151,6 +152,53 @@ export function NotificationsPopover() {
     }
   }, [isCliente, userKey])
 
+  // Lembretes de ponto: avalia periodicamente a jornada x registros do dia do usuário logado.
+  // São notificações locais/pessoais (não persistem no banco global).
+  useEffect(() => {
+    if (isCliente || !isFuncionario) return
+    const uid = currentUser?.id
+    if (!uid) return
+
+    let ativo = true
+
+    const avaliar = async () => {
+      try {
+        const [registrosDia, jornada] = await Promise.all([
+          api.getRegistrosPontoDoDia(uid).catch(() => []),
+          api.getJornadaPorUsuario(uid).catch(() => null)
+        ])
+        if (!ativo) return
+
+        const lembretes = avaliarLembretesPonto(uid, registrosDia, jornada)
+        const dispensados = getDeletedIds()
+
+        const itens = lembretes
+          .filter(l => !dispensados.has(l.id))
+          .map(l => ({
+            id: l.id,
+            titulo: l.titulo,
+            mensagem: l.mensagem,
+            tipo: 'ponto_lembrete',
+            lida: getReadIds().has(l.id),
+            created_at: new Date().toISOString(),
+            dados_extras: { usuario_id: uid, modulo: 'ponto', local: true }
+          }))
+
+        setLembretesPonto(itens)
+      } catch (_) {
+        // silencioso
+      }
+    }
+
+    avaliar()
+    const interval = setInterval(avaliar, 60000) // a cada 1 min
+    return () => {
+      ativo = false
+      clearInterval(interval)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCliente, isFuncionario, userKey])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -177,16 +225,17 @@ export function NotificationsPopover() {
     saveReadIds(readIds)
 
     setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
-    setUnreadCount(prev => Math.max(0, prev - 1))
+    setLembretesPonto(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
   }
 
   const handleMarkAllAsRead = () => {
     const readIds = getReadIds()
     notificacoes.forEach(n => readIds.add(n.id))
+    lembretesPonto.forEach(n => readIds.add(n.id))
     saveReadIds(readIds)
 
     setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })))
-    setUnreadCount(0)
+    setLembretesPonto(prev => prev.map(n => ({ ...n, lida: true })))
   }
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
@@ -195,21 +244,19 @@ export function NotificationsPopover() {
     deletedIds.add(id)
     saveDeletedIds(deletedIds)
 
-    const target = notificacoes.find(n => n.id === id)
     setNotificacoes(prev => prev.filter(n => n.id !== id))
-    if (target && !target.lida) {
-      setUnreadCount(prev => Math.max(0, prev - 1))
-    }
+    setLembretesPonto(prev => prev.filter(n => n.id !== id))
   }
 
   const handleClearAll = () => {
     if (window.confirm('Deseja limpar suas notificações deste painel? (Não afetará os outros usuários da equipe)')) {
       const deletedIds = getDeletedIds()
       notificacoes.forEach(n => deletedIds.add(n.id))
+      lembretesPonto.forEach(n => deletedIds.add(n.id))
       saveDeletedIds(deletedIds)
 
       setNotificacoes([])
-      setUnreadCount(0)
+      setLembretesPonto([])
     }
   }
 
@@ -219,7 +266,11 @@ export function NotificationsPopover() {
     }
     setIsOpen(false)
 
-    if (item.tipo?.startsWith('rh_') || item.dados_extras?.modulo === 'rh') {
+    if (item.tipo === 'ponto_lembrete') {
+      // Lembrete de ponto: abre o modal de Controle de Ponto (montado no Header)
+      window.dispatchEvent(new CustomEvent('mantran:abrir-controle-ponto'))
+      return
+    } else if (item.tipo?.startsWith('rh_') || item.dados_extras?.modulo === 'rh') {
       navigate('/rh')
     } else if (item.tipo === 'nova_implantacao' && item.implantacao_id) {
       // Redireciona diretamente para a Implantação recém-criada
@@ -256,10 +307,16 @@ export function NotificationsPopover() {
   }
 
   // Filtered notifications
-  const displayedNotificacoes = notificacoes.filter(n => {
+  // Combina lembretes de ponto (locais, no topo) com as notificações do banco
+  const todasNotificacoes = [...lembretesPonto, ...notificacoes]
+
+  const displayedNotificacoes = todasNotificacoes.filter(n => {
     if (filter === 'unread') return !n.lida
     return true
   })
+
+  // Total de não lidas considerando também os lembretes de ponto
+  const totalNaoLidas = todasNotificacoes.filter(n => !n.lida).length
 
   // Do not render if client user
   if (isCliente) return null
@@ -278,23 +335,23 @@ export function NotificationsPopover() {
           "relative p-2.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center group focus:outline-none",
           isOpen
             ? "bg-brand-500/20 text-brand-400 border border-brand-500/30 shadow-[0_0_15px_rgba(14,165,233,0.25)]"
-            : unreadCount > 0
+            : totalNaoLidas > 0
             ? "bg-slate-800/80 hover:bg-slate-800 text-brand-400 border border-slate-700/80 hover:border-brand-500/40"
             : "bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700/50"
         )}
-        title={unreadCount > 0 ? `${unreadCount} nova(s) notificação(ões)` : 'Notificações'}
+        title={totalNaoLidas > 0 ? `${totalNaoLidas} nova(s) notificação(ões)` : 'Notificações'}
       >
         <Bell className={clsx(
           "w-5 h-5 transition-transform duration-200 group-hover:scale-110",
-          unreadCount > 0 && "animate-[wiggle_1s_ease-in-out_infinite]"
+          totalNaoLidas > 0 && "animate-[wiggle_1s_ease-in-out_infinite]"
         )} />
 
         {/* Pulsing Badge for unread count */}
-        {unreadCount > 0 && (
+        {totalNaoLidas > 0 && (
           <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center px-1">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
             <span className="relative inline-flex items-center justify-center rounded-full h-5 min-w-5 px-1 bg-gradient-to-r from-red-500 to-rose-600 text-[10px] font-black text-white shadow-md border border-dark-card">
-              {unreadCount > 99 ? '99+' : unreadCount}
+              {totalNaoLidas > 99 ? '99+' : totalNaoLidas}
             </span>
           </span>
         )}
@@ -316,9 +373,9 @@ export function NotificationsPopover() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-white tracking-wide">Notificações</h3>
-                  {unreadCount > 0 && (
+                  {totalNaoLidas > 0 && (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-500/20 text-red-300 border border-red-500/30">
-                      {unreadCount} nova{unreadCount > 1 ? 's' : ''}
+                      {totalNaoLidas} nova{totalNaoLidas > 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
@@ -372,11 +429,11 @@ export function NotificationsPopover() {
                     : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
                 )}
               >
-                Não Lidas ({unreadCount})
+                Não Lidas ({totalNaoLidas})
               </button>
             </div>
 
-            {unreadCount > 0 && (
+            {totalNaoLidas > 0 && (
               <button
                 type="button"
                 onClick={handleMarkAllAsRead}
@@ -415,6 +472,7 @@ export function NotificationsPopover() {
                 const isFerias = item.tipo === 'rh_ferias'
                 const isFalta = item.tipo === 'rh_falta'
                 const isPlantao = item.tipo === 'rh_plantao'
+                const isPontoLembrete = item.tipo === 'ponto_lembrete'
                 const isRhNotification = isFerias || isFalta || isPlantao || item.dados_extras?.modulo === 'rh'
                 const isConcluido = item.titulo?.includes('Concluído') || item.dados_extras?.isCompleto
                 const nomeCliente = item.dados_extras?.nome_empresa || 'Cliente'
@@ -427,7 +485,9 @@ export function NotificationsPopover() {
                     className={clsx(
                       "p-3.5 transition-all duration-150 cursor-pointer group flex items-start gap-3 relative hover:bg-slate-800/60",
                       !item.lida
-                        ? isFerias
+                        ? isPontoLembrete
+                          ? "bg-indigo-500/5 border-l-2 border-indigo-400"
+                          : isFerias
                           ? "bg-amber-500/5 border-l-2 border-amber-400"
                           : isFalta
                           ? "bg-emerald-500/5 border-l-2 border-emerald-400"
@@ -440,7 +500,9 @@ export function NotificationsPopover() {
                     {/* Status Icon */}
                     <div className={clsx(
                       "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5 shadow-sm",
-                      isFerias
+                      isPontoLembrete
+                        ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-400 shadow-indigo-500/10"
+                        : isFerias
                         ? "bg-amber-500/15 border-amber-500/30 text-amber-400 shadow-amber-500/10"
                         : isFalta
                         ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
@@ -452,7 +514,9 @@ export function NotificationsPopover() {
                         ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
                         : "bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-blue-500/10"
                     )}>
-                      {isFerias ? (
+                      {isPontoLembrete ? (
+                        <Clock className="w-4 h-4" />
+                      ) : isFerias ? (
                         <Palmtree className="w-4 h-4" />
                       ) : isFalta ? (
                         <FileText className="w-4 h-4" />
@@ -473,7 +537,9 @@ export function NotificationsPopover() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={clsx(
                             "text-[11px] font-bold px-2 py-0.5 rounded-md border",
-                            isFerias
+                            isPontoLembrete
+                              ? "bg-indigo-950/40 text-indigo-300 border-indigo-500/30"
+                              : isFerias
                               ? "bg-amber-950/40 text-amber-300 border-amber-500/30"
                               : isFalta
                               ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
@@ -485,7 +551,7 @@ export function NotificationsPopover() {
                               ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
                               : "bg-blue-950/40 text-blue-300 border-blue-500/30"
                           )}>
-                            {isRhNotification ? `👤 ${colaboradorNome}` : `🏢 ${nomeCliente}`}
+                            {isPontoLembrete ? '⏰ Ponto' : isRhNotification ? `👤 ${colaboradorNome}` : `🏢 ${nomeCliente}`}
                           </span>
 
                           <span className="text-xs font-bold text-white truncate">
@@ -527,7 +593,9 @@ export function NotificationsPopover() {
                             }}
                             className={clsx(
                               "inline-flex items-center gap-1 px-2.5 py-1 rounded border text-[11px] font-semibold transition-all cursor-pointer",
-                              isFerias
+                              isPontoLembrete
+                                ? "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+                                : isFerias
                                 ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30"
                                 : isFalta
                                 ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
@@ -539,7 +607,7 @@ export function NotificationsPopover() {
                             )}
                           >
                             <ExternalLink className="w-3 h-3" />
-                            {isRhNotification ? 'Abrir RH' : isNovaImplantacao ? 'Abrir Implantação' : 'Visualizar Formulário'}
+                            {isPontoLembrete ? 'Visualizar Ponto' : isRhNotification ? 'Abrir RH' : isNovaImplantacao ? 'Abrir Implantação' : 'Visualizar Formulário'}
                           </button>
 
                           <button
@@ -562,7 +630,7 @@ export function NotificationsPopover() {
           {/* Footer */}
           {displayedNotificacoes.length > 0 && (
             <div className="p-3 bg-slate-900/80 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-              <span>Total: {notificacoes.length} notificações</span>
+              <span>Total: {todasNotificacoes.length} notificações</span>
               <button
                 type="button"
                 onClick={handleClearAll}

@@ -305,23 +305,23 @@ export function ProcessamentoShopee() {
   }
 
   return (
-    <div className="space-y-6 max-w-full overflow-hidden flex flex-col">
+    <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden flex flex-col">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
-              <ShoppingBag className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
+              <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight flex flex-wrap items-center gap-1.5 sm:gap-2 leading-tight">
                 <span>Processamento Shopee</span>
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                <span className="text-[10px] sm:text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">
                   4PL / Hubs
                 </span>
               </h1>
-              <p className="text-xs text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-400 leading-tight">
                 Acompanhe em tempo real o status de fechamento de Last Mile, First Mile e Line Haul por quinzena
               </p>
             </div>
@@ -329,7 +329,7 @@ export function ProcessamentoShopee() {
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
           <div className="flex items-center bg-slate-900/90 border border-slate-800 rounded-xl p-1 shadow-sm">
             <button
               onClick={exportToExcel}
@@ -365,25 +365,25 @@ export function ProcessamentoShopee() {
       </div>
 
       {/* Metric Cards Banner */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
         {/* Total de Processos */}
         <div 
           onClick={() => setStatusFiltro('TODOS')}
           className={clsx(
-            "bg-dark-card border rounded-xl p-4 flex items-center gap-3.5 shadow-lg relative overflow-hidden cursor-pointer transition-all",
+            "bg-dark-card border rounded-xl p-3 sm:p-4 flex items-center gap-2.5 sm:gap-3.5 shadow-lg relative overflow-hidden cursor-pointer transition-all",
             statusFiltro === 'TODOS' 
               ? "border-blue-500/50 bg-blue-500/5 shadow-[0_0_12px_rgba(59,130,246,0.1)]" 
               : "border-slate-800 hover:border-slate-700"
           )}
         >
-          <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-            <Layers className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+            <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total de Processos</span>
-            <div className="text-xl font-black text-white mt-0.5">{totalCount}</div>
-            <span className="text-[10px] text-slate-500">
+          <div className="min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wide sm:tracking-wider leading-tight block">Total de Processos</span>
+            <div className="text-lg sm:text-xl font-black text-white mt-0.5">{totalCount}</div>
+            <span className="text-[10px] text-slate-500 leading-tight block truncate">
               {quinzena}ª Quinzena • {MESES.find(m => m.valor === mes)?.nome}/{ano}
             </span>
           </div>
@@ -393,19 +393,19 @@ export function ProcessamentoShopee() {
         <div 
           onClick={() => setStatusFiltro(statusFiltro === 'NAO_INICIADO' ? 'TODOS' : 'NAO_INICIADO')}
           className={clsx(
-            "bg-dark-card border rounded-xl p-4 flex items-center gap-3.5 shadow-lg cursor-pointer transition-all",
+            "bg-dark-card border rounded-xl p-3 sm:p-4 flex items-center gap-2.5 sm:gap-3.5 shadow-lg cursor-pointer transition-all",
             statusFiltro === 'NAO_INICIADO' 
               ? "border-red-500/50 bg-red-500/5 shadow-[0_0_12px_rgba(239,68,68,0.1)]" 
               : "border-slate-800 hover:border-slate-700"
           )}
         >
-          <div className="w-11 h-11 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
-            <AlertCircle className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider">Não Iniciado</span>
-            <div className="text-xl font-black text-red-300 mt-0.5">{naoIniciadosCount}</div>
-            <span className="text-[10px] text-red-400/80">Aguardando disparo</span>
+          <div className="min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-bold text-red-400 uppercase tracking-wide sm:tracking-wider leading-tight block">Não Iniciado</span>
+            <div className="text-lg sm:text-xl font-black text-red-300 mt-0.5">{naoIniciadosCount}</div>
+            <span className="text-[10px] text-red-400/80 leading-tight block truncate">Aguardando disparo</span>
           </div>
         </div>
 
@@ -413,19 +413,19 @@ export function ProcessamentoShopee() {
         <div 
           onClick={() => setStatusFiltro(statusFiltro === 'PROCESSANDO' ? 'TODOS' : 'PROCESSANDO')}
           className={clsx(
-            "bg-dark-card border rounded-xl p-4 flex items-center gap-3.5 shadow-lg cursor-pointer transition-all",
+            "bg-dark-card border rounded-xl p-3 sm:p-4 flex items-center gap-2.5 sm:gap-3.5 shadow-lg cursor-pointer transition-all",
             statusFiltro === 'PROCESSANDO' 
               ? "border-orange-500/50 bg-orange-500/5 shadow-[0_0_12px_rgba(249,115,22,0.1)]" 
               : "border-slate-800 hover:border-slate-700"
           )}
         >
-          <div className="w-11 h-11 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
-            <Loader2 className="w-5 h-5 animate-spin text-orange-400" />
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
+            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-orange-400" />
           </div>
-          <div>
-            <span className="text-[11px] font-bold text-orange-400 uppercase tracking-wider">Processando</span>
-            <div className="text-xl font-black text-orange-300 mt-0.5">{processandoCount}</div>
-            <span className="text-[10px] text-orange-400/80">Em execução no momento</span>
+          <div className="min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-bold text-orange-400 uppercase tracking-wide sm:tracking-wider leading-tight block">Processando</span>
+            <div className="text-lg sm:text-xl font-black text-orange-300 mt-0.5">{processandoCount}</div>
+            <span className="text-[10px] text-orange-400/80 leading-tight block truncate">Em execução no momento</span>
           </div>
         </div>
 
@@ -433,21 +433,21 @@ export function ProcessamentoShopee() {
         <div 
           onClick={() => setStatusFiltro(statusFiltro === 'FINALIZADO' ? 'TODOS' : 'FINALIZADO')}
           className={clsx(
-            "bg-dark-card border rounded-xl p-4 flex items-center gap-3.5 shadow-lg cursor-pointer transition-all",
+            "bg-dark-card border rounded-xl p-3 sm:p-4 flex items-center gap-2.5 sm:gap-3.5 shadow-lg cursor-pointer transition-all",
             statusFiltro === 'FINALIZADO' 
               ? "border-green-500/50 bg-green-500/5 shadow-[0_0_12px_rgba(34,197,94,0.1)]" 
               : "border-slate-800 hover:border-slate-700"
           )}
         >
-          <div className="w-11 h-11 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-green-400 uppercase tracking-wider">Finalizado</span>
-              <span className="text-[10px] font-bold text-green-400/80">{percentFinalizado}%</span>
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] sm:text-[11px] font-bold text-green-400 uppercase tracking-wide sm:tracking-wider leading-tight truncate">Finalizado</span>
+              <span className="text-[10px] font-bold text-green-400/80 shrink-0">{percentFinalizado}%</span>
             </div>
-            <div className="text-xl font-black text-green-300 mt-0.5">{finalizadosCount}</div>
+            <div className="text-lg sm:text-xl font-black text-green-300 mt-0.5">{finalizadosCount}</div>
             <div className="w-full bg-slate-800 rounded-full h-1 mt-1.5 overflow-hidden">
               <div className="bg-green-500 h-full rounded-full transition-all duration-500" style={{ width: `${percentFinalizado}%` }}></div>
             </div>

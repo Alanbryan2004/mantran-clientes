@@ -39,10 +39,12 @@ import {
   type PlantaoTecnico,
   type UsuarioSistema,
   type RegistroPonto,
-  type TipoPonto
+  type TipoPonto,
+  type JornadaTrabalho
 } from '../lib/api'
 import { getLoggedUser, isAdminUser, updateLoggedUserFoto } from '../lib/auth'
 import { ControlePontoModal } from '../components/ControlePontoModal'
+import { calcularBancoHoras, formatSaldo } from '../lib/bancoHoras'
 import clsx from 'clsx'
 
 export function RH() {
@@ -64,6 +66,7 @@ export function RH() {
   const [todasEscalasEquipe, setTodasEscalasEquipe] = useState<EscalaHomeOffice[]>([])
   const [todosPlantoesEquipe, setTodosPlantoesEquipe] = useState<PlantaoTecnico[]>([])
   const [todosPontosEquipe, setTodosPontosEquipe] = useState<RegistroPonto[]>([])
+  const [todasJornadasEquipe, setTodasJornadasEquipe] = useState<JornadaTrabalho[]>([])
 
   // Data selecionada na aba de Ponto (padrão: hoje)
   const [pontoDataSelecionada, setPontoDataSelecionada] = useState(() => new Date().toISOString().slice(0, 10))
@@ -85,6 +88,7 @@ export function RH() {
 
   // Modal Comunicar Falta / Enviar Atestado
   const [isFaltaModalOpen, setIsFaltaModalOpen] = useState(false)
+  const [editingFaltaId, setEditingFaltaId] = useState<string | null>(null)
   const [faltaUsuarioId, setFaltaUsuarioId] = useState('')
   const [faltaUsuarioNome, setFaltaUsuarioNome] = useState('')
   const [faltaInicio, setFaltaInicio] = useState('')
@@ -145,6 +149,29 @@ export function RH() {
   // Modal de Controle de Ponto
   const [isPontoModalOpen, setIsPontoModalOpen] = useState(false)
 
+  // Modal de Funcionários (lista) e resumo de um funcionário
+  const [isFuncionariosModalOpen, setIsFuncionariosModalOpen] = useState(false)
+  const [funcionarioResumo, setFuncionarioResumo] = useState<UsuarioSistema | null>(null)
+
+  // Modal de Jornada de Trabalho (edição pelo RH)
+  const [editingJornada, setEditingJornada] = useState<{
+    usuario_id: string
+    usuario_nome: string
+    segunda: boolean
+    terca: boolean
+    quarta: boolean
+    quinta: boolean
+    sexta: boolean
+    sabado: boolean
+    domingo: boolean
+    hora_entrada: string
+    hora_saida: string
+    almoco_inicio: string
+    almoco_fim: string
+    observacoes: string
+  } | null>(null)
+  const [salvandoJornada, setSalvandoJornada] = useState(false)
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -152,13 +179,14 @@ export function RH() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [allUsers, todasFerias, faltas, escalas, plantoes, pontos] = await Promise.all([
+      const [allUsers, todasFerias, faltas, escalas, plantoes, pontos, jornadas] = await Promise.all([
         api.getUsuariosSistema().catch(() => []),
         api.getSolicitacoesFerias().catch(() => []),
         api.getFaltasEAtestados().catch(() => []),
         api.getEscalasHomeOffice().catch(() => []),
         api.getPlantoes().catch(() => []),
-        api.getRegistrosPonto().catch(() => [])
+        api.getRegistrosPonto().catch(() => []),
+        api.getJornadas().catch(() => [])
       ])
 
       // Filtra apenas funcionários da Mantran
@@ -199,6 +227,7 @@ export function RH() {
       setTodasEscalasEquipe((escalas || []).filter(isRecordDeFuncionario))
       setTodosPlantoesEquipe(plantoes || [])
       setTodosPontosEquipe((pontos || []).filter(isRecordDeFuncionario))
+      setTodasJornadasEquipe((jornadas || []).filter(isRecordDeFuncionario))
     } catch (err) {
       console.error('Erro ao carregar dados do portal de RH:', err)
     } finally {
@@ -244,6 +273,22 @@ export function RH() {
       (user?.nome && h.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())
     )
   }, [todasEscalasEquipe, user])
+
+  const minhaJornada = useMemo(() => {
+    return todasJornadasEquipe.find(j =>
+      j.usuario_id === user?.id ||
+      (user?.nome && j.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())
+    )
+  }, [todasJornadasEquipe, user])
+
+  // Banco de horas acumulado do próprio colaborador
+  const meuBancoHoras = useMemo(() => {
+    const meusPontos = todosPontosEquipe.filter(p =>
+      p.usuario_id === user?.id ||
+      (user?.nome && p.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())
+    )
+    return calcularBancoHoras(meusPontos, minhaJornada || null)
+  }, [todosPontosEquipe, minhaJornada, user])
 
   const meusPlantoes = useMemo(() => {
     return todosPlantoesEquipe.filter(p => 
@@ -317,12 +362,27 @@ export function RH() {
     const feriasPendentes = todasFeriasEquipe.filter(f => f.status === 'Pendente')
     const faltasPendentes = todasFaltasEquipe.filter(f => f.status === 'Pendente' || f.status === 'Em Análise')
 
+    // Próxima férias a começar (data de início futura mais próxima)
+    const candidatasFerias: { nome: string; inicio: string }[] = []
+    todasFeriasEquipe.forEach(f => {
+      if (f.status === 'Reprovado') return
+      if (f.quinzena_1_inicio && f.quinzena_1_inicio > hojeStr) {
+        candidatasFerias.push({ nome: f.usuario_nome, inicio: f.quinzena_1_inicio })
+      }
+      if (f.quinzena_2_inicio && f.quinzena_2_inicio > hojeStr) {
+        candidatasFerias.push({ nome: f.usuario_nome, inicio: f.quinzena_2_inicio })
+      }
+    })
+    candidatasFerias.sort((a, b) => a.inicio.localeCompare(b.inicio))
+    const proximaFeria = candidatasFerias[0] || null
+
     return {
       totalColaboradores: usuarios.length || 8,
       emFeriasHoje,
       emAtestadoHoje,
       emHomeOfficeHoje,
       proximoPlantao,
+      proximaFeria,
       plantoesPendentesPagamento,
       totalValorPendente,
       feriasPendentes,
@@ -557,6 +617,7 @@ export function RH() {
   }
 
   const handleAbrirModalFalta = (colaboradorPre?: { id: string; nome: string }) => {
+    setEditingFaltaId(null)
     setFaltaUsuarioId(colaboradorPre?.id || user?.id || (usuarios[0]?.id || ''))
     setFaltaUsuarioNome(colaboradorPre?.nome || user?.nome || user?.login || (usuarios[0]?.nome || 'Colaborador'))
     setFaltaInicio('')
@@ -566,6 +627,20 @@ export function RH() {
     setArquivoNome('')
     setArquivoUrl('')
     setArquivoTipo('')
+    setIsFaltaModalOpen(true)
+  }
+
+  const handleAbrirEdicaoFalta = (item: FaltaAtestado) => {
+    setEditingFaltaId(item.id)
+    setFaltaUsuarioId(item.usuario_id)
+    setFaltaUsuarioNome(item.usuario_nome)
+    setFaltaInicio(item.data_falta_inicio || '')
+    setFaltaFim(item.data_falta_fim || item.data_falta_inicio || '')
+    setMotivoFalta(item.motivo || 'Doença / Atestado Médico')
+    setDescricaoFalta(item.descricao || '')
+    setArquivoNome(item.arquivo_atestado_nome || '')
+    setArquivoUrl(item.arquivo_atestado_url || '')
+    setArquivoTipo(item.arquivo_atestado_tipo || '')
     setIsFaltaModalOpen(true)
   }
 
@@ -583,6 +658,27 @@ export function RH() {
 
     setSalvandoFalta(true)
     try {
+      if (editingFaltaId) {
+        // Edição de falta existente (ex: correção de datas)
+        await api.updateFaltaAtestado(editingFaltaId, {
+          data_falta_inicio: faltaInicio,
+          data_falta_fim: faltaFim || faltaInicio,
+          dias_afastamento: dias,
+          motivo: motivoFalta,
+          descricao: descricaoFalta.trim() || null,
+          possui_atestado: !!arquivoUrl,
+          arquivo_atestado_nome: arquivoNome || null,
+          arquivo_atestado_url: arquivoUrl || null,
+          arquivo_atestado_tipo: arquivoTipo || null
+        })
+
+        setIsFaltaModalOpen(false)
+        setEditingFaltaId(null)
+        await fetchData()
+        alert('Falta / Atestado atualizado com sucesso!')
+        return
+      }
+
       await api.insertFaltaAtestado({
         usuario_id: faltaUsuarioId || user?.id || 'temp',
         usuario_nome: faltaUsuarioNome || user?.nome || user?.login || 'Colaborador',
@@ -840,6 +936,84 @@ export function RH() {
     reader.readAsDataURL(file)
   }
 
+  // ===== Jornada de Trabalho (Gestão RH) =====
+  const handleAbrirEdicaoJornada = (colaborador: { id: string; nome: string }) => {
+    const existente = todasJornadasEquipe.find(j => j.usuario_id === colaborador.id)
+    if (existente) {
+      setEditingJornada({
+        usuario_id: colaborador.id,
+        usuario_nome: colaborador.nome,
+        segunda: existente.segunda,
+        terca: existente.terca,
+        quarta: existente.quarta,
+        quinta: existente.quinta,
+        sexta: existente.sexta,
+        sabado: existente.sabado,
+        domingo: existente.domingo,
+        hora_entrada: (existente.hora_entrada || '08:00').slice(0, 5),
+        hora_saida: (existente.hora_saida || '17:00').slice(0, 5),
+        almoco_inicio: (existente.almoco_inicio || '12:00').slice(0, 5),
+        almoco_fim: (existente.almoco_fim || '13:00').slice(0, 5),
+        observacoes: existente.observacoes || ''
+      })
+    } else {
+      setEditingJornada({
+        usuario_id: colaborador.id,
+        usuario_nome: colaborador.nome,
+        segunda: true,
+        terca: true,
+        quarta: true,
+        quinta: true,
+        sexta: true,
+        sabado: false,
+        domingo: false,
+        hora_entrada: '08:00',
+        hora_saida: '17:00',
+        almoco_inicio: '12:00',
+        almoco_fim: '13:00',
+        observacoes: ''
+      })
+    }
+  }
+
+  const handleSalvarJornada = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingJornada) return
+
+    if (editingJornada.hora_saida <= editingJornada.hora_entrada) {
+      alert('O horário de saída deve ser maior que o horário de entrada.')
+      return
+    }
+
+    setSalvandoJornada(true)
+    try {
+      await api.upsertJornada({
+        usuario_id: editingJornada.usuario_id,
+        usuario_nome: editingJornada.usuario_nome,
+        segunda: editingJornada.segunda,
+        terca: editingJornada.terca,
+        quarta: editingJornada.quarta,
+        quinta: editingJornada.quinta,
+        sexta: editingJornada.sexta,
+        sabado: editingJornada.sabado,
+        domingo: editingJornada.domingo,
+        hora_entrada: editingJornada.hora_entrada,
+        hora_saida: editingJornada.hora_saida,
+        almoco_inicio: editingJornada.almoco_inicio || null,
+        almoco_fim: editingJornada.almoco_fim || null,
+        observacoes: editingJornada.observacoes.trim() || null
+      })
+      setEditingJornada(null)
+      await fetchData()
+      alert('Jornada de trabalho salva com sucesso!')
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao salvar jornada: ' + err.message)
+    } finally {
+      setSalvandoJornada(false)
+    }
+  }
+
   // ===== Controle de Ponto (Gestão RH) =====
   const PONTO_LABELS: Record<TipoPonto, string> = {
     inicio_expediente: 'Entrada',
@@ -937,6 +1111,18 @@ export function RH() {
     () => pontosPorColaborador.filter(p => p.temRegistro).length,
     [pontosPorColaborador]
   )
+
+  // Banco de horas acumulado por colaborador (usuario_id -> saldo em minutos)
+  const bancoHorasPorColaborador = useMemo(() => {
+    const mapa = new Map<string, number>()
+    usuarios.forEach(u => {
+      const jornadaU = todasJornadasEquipe.find(j => j.usuario_id === u.id) || null
+      const pontosU = todosPontosEquipe.filter(p => p.usuario_id === u.id)
+      const resumo = calcularBancoHoras(pontosU, jornadaU)
+      mapa.set(u.id, resumo.saldoAcumuladoMin)
+    })
+    return mapa
+  }, [usuarios, todasJornadasEquipe, todosPontosEquipe])
 
   const formatDateDisplay = (dateStr?: string | null) => {
     if (!dateStr) return '-'
@@ -1075,12 +1261,16 @@ export function RH() {
             <span>Controle de Ponto</span>
           </button>
 
-          {/* Botão / Badge Gestão & RH posicionado depois do Atestado / Falta */}
+          {/* Botão Funcionários (abre lista com resumo por colaborador) */}
           {isGestorRh && (
-            <div className="py-2.5 px-3.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm select-none">
-              <Shield className="w-4 h-4 text-purple-400 shrink-0" />
-              <span>Gestão & RH</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setIsFuncionariosModalOpen(true)}
+              className="py-2 px-2.5 sm:py-2.5 sm:px-4 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 hover:text-purple-200 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm transition-all cursor-pointer"
+            >
+              <Users2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 shrink-0" />
+              <span>Funcionários</span>
+            </button>
           )}
         </div>
       </div>
@@ -1191,6 +1381,20 @@ export function RH() {
           >
             <Timer className="w-4 h-4 text-emerald-400" />
             <span>Ponto</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('jornada_equipe')}
+            className={clsx(
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              tab === 'jornada_equipe'
+                ? "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <Clock className="w-4 h-4 text-indigo-400" />
+            <span>Jornada</span>
           </button>
 
           <button
@@ -1508,6 +1712,90 @@ export function RH() {
           )}
 
           {tab === 'meu_home_office' && (
+            <div className="space-y-5">
+            {/* Card: Minha Jornada de Trabalho (somente leitura) */}
+            <div className="bg-dark-card border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
+              <div className="flex items-center gap-2.5 border-b border-slate-800 pb-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Minha Jornada de Trabalho</h3>
+                  <p className="text-xs text-slate-400">Horário definido pelo RH.</p>
+                </div>
+              </div>
+
+              {minhaJornada ? (
+                <div className="space-y-3">
+                  {/* Dias */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {([
+                      { key: 'segunda', label: 'Seg' },
+                      { key: 'terca', label: 'Ter' },
+                      { key: 'quarta', label: 'Qua' },
+                      { key: 'quinta', label: 'Qui' },
+                      { key: 'sexta', label: 'Sex' },
+                      { key: 'sabado', label: 'Sáb' },
+                      { key: 'domingo', label: 'Dom' },
+                    ] as { key: keyof JornadaTrabalho; label: string }[]).map(d => (
+                      <span
+                        key={d.key}
+                        className={clsx(
+                          'px-2.5 py-1 rounded-lg text-[11px] font-bold border',
+                          minhaJornada[d.key]
+                            ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                            : 'bg-slate-900 text-slate-600 border-slate-800'
+                        )}
+                      >
+                        {d.label}
+                      </span>
+                    ))}
+                  </div>
+                  {/* Horários */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Expediente</span>
+                      <p className="text-lg font-bold text-white tabular-nums mt-0.5">
+                        {(minhaJornada.hora_entrada || '').slice(0, 5)} às {(minhaJornada.hora_saida || '').slice(0, 5)}
+                      </p>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Almoço</span>
+                      <p className="text-lg font-bold text-white tabular-nums mt-0.5">
+                        {minhaJornada.almoco_inicio
+                          ? `${(minhaJornada.almoco_inicio || '').slice(0, 5)} às ${(minhaJornada.almoco_fim || '').slice(0, 5)}`
+                          : 'Sem intervalo'}
+                      </p>
+                    </div>
+                  </div>
+                  {minhaJornada.observacoes && (
+                    <p className="text-xs text-slate-400 italic">"{minhaJornada.observacoes}"</p>
+                  )}
+
+                  {/* Banco de horas acumulado */}
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                      Banco de Horas
+                    </span>
+                    <span className={clsx(
+                      'text-lg font-black tabular-nums',
+                      meuBancoHoras.saldoAcumuladoMin > 0 ? 'text-emerald-400'
+                      : meuBancoHoras.saldoAcumuladoMin < 0 ? 'text-rose-400'
+                      : 'text-slate-300'
+                    )}>
+                      {meuBancoHoras.diasComputados > 0 ? formatSaldo(meuBancoHoras.saldoAcumuladoMin) : '0h00'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 italic py-2">
+                  Sua jornada de trabalho ainda não foi definida pelo RH.
+                </p>
+              )}
+            </div>
+
+            {/* Card: Home Office */}
             <div className="bg-dark-card border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
                 <div>
@@ -1581,6 +1869,7 @@ export function RH() {
                   })()}
                 </div>
               </div>
+            </div>
             </div>
           )}
 
@@ -1739,11 +2028,19 @@ export function RH() {
                     <span className="text-3xl font-black text-white">{kpis.emFeriasHoje.length}</span>
                     <span className="text-xs text-slate-400">colaboradores</span>
                   </div>
-                  <p className="mt-2 text-[11px] text-teal-300/80 truncate">
-                    {kpis.emFeriasHoje.length > 0 
-                      ? kpis.emFeriasHoje.map(f => f.usuario_nome).join(', ')
-                      : 'Nenhum colaborador em férias hoje'}
-                  </p>
+                  {kpis.emFeriasHoje.length > 0 ? (
+                    <p className="mt-2 text-[11px] text-teal-300/80 truncate">
+                      {kpis.emFeriasHoje.map(f => f.usuario_nome).join(', ')}
+                    </p>
+                  ) : kpis.proximaFeria ? (
+                    <p className="mt-2 text-[11px] text-teal-300/80 truncate">
+                      Próximo: <strong className="text-teal-200">{kpis.proximaFeria.nome}</strong> em {formatDateDisplay(kpis.proximaFeria.inicio)}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-[11px] text-teal-300/80 truncate">
+                      Nenhuma férias agendada
+                    </p>
+                  )}
                 </div>
 
                 {/* 3. Home Office Hoje */}
@@ -2127,7 +2424,7 @@ export function RH() {
                         <th className="p-4 text-center">Qua</th>
                         <th className="p-4 text-center">Qui</th>
                         <th className="p-4 text-center">Sex</th>
-                        <th className="p-4 text-center">Hoje</th>
+                        <th className="p-4 text-center font-black text-red-500">Hoje</th>
                         <th className="p-4 text-right">Ação</th>
                       </tr>
                     </thead>
@@ -2217,17 +2514,29 @@ export function RH() {
 
                       <div className="flex items-center justify-between text-[10px] text-slate-500">
                         <span>{formatDateDisplay(item.created_at)}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setItemAvaliacao({ type: 'falta', item })
-                            setStatusAvaliacao(item.status || 'Abonado / Aprovado')
-                            setRespostaRh(item.observacoes_rh || '')
-                          }}
-                          className="text-xs font-bold text-brand-400 hover:text-brand-300 underline cursor-pointer"
-                        >
-                          Avaliar
-                        </button>
+                        <div className="flex items-center gap-3">
+                          {isGestorRh && (
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirEdicaoFalta(item)}
+                              className="text-xs font-bold text-slate-300 hover:text-white underline cursor-pointer flex items-center gap-1"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-brand-400" />
+                              Corrigir
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setItemAvaliacao({ type: 'falta', item })
+                              setStatusAvaliacao(item.status || 'Abonado / Aprovado')
+                              setRespostaRh(item.observacoes_rh || '')
+                            }}
+                            className="text-xs font-bold text-brand-400 hover:text-brand-300 underline cursor-pointer"
+                          >
+                            Avaliar
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2340,6 +2649,25 @@ export function RH() {
                         </span>
                       </div>
                     )}
+
+                    {/* Banco de horas acumulado */}
+                    {(() => {
+                      const saldo = bancoHorasPorColaborador.get(col.usuario_id) ?? 0
+                      return (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 flex items-center gap-1.5">
+                            <Timer className="w-3.5 h-3.5" />
+                            Banco de horas
+                          </span>
+                          <span className={clsx(
+                            'font-bold tabular-nums',
+                            saldo > 0 ? 'text-emerald-400' : saldo < 0 ? 'text-rose-400' : 'text-slate-400'
+                          )}>
+                            {formatSaldo(saldo)}
+                          </span>
+                        </div>
+                      )
+                    })()}
                   </div>
                 ))}
               </div>
@@ -2349,6 +2677,103 @@ export function RH() {
                   Nenhum colaborador encontrado.
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB: JORNADA DE TRABALHO EQUIPE */}
+          {tab === 'jornada_equipe' && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 bg-dark-card border border-slate-800 p-4 rounded-2xl">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Jornada de Trabalho</h3>
+                  <p className="text-xs text-slate-400">Defina o horário e os dias de trabalho de cada colaborador.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {usuarios.map(u => {
+                  const j = todasJornadasEquipe.find(x => x.usuario_id === u.id)
+                  const diasLabels: { key: keyof JornadaTrabalho; label: string }[] = [
+                    { key: 'segunda', label: 'Seg' },
+                    { key: 'terca', label: 'Ter' },
+                    { key: 'quarta', label: 'Qua' },
+                    { key: 'quinta', label: 'Qui' },
+                    { key: 'sexta', label: 'Sex' },
+                    { key: 'sabado', label: 'Sáb' },
+                    { key: 'domingo', label: 'Dom' },
+                  ]
+                  return (
+                    <div key={u.id} className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-slate-800 font-bold flex items-center justify-center text-xs text-white uppercase shrink-0">
+                            {u.nome.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white truncate">{u.nome}</p>
+                            <span className="text-[10px] text-slate-400 capitalize">{u.perfil}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAbrirEdicaoJornada({ id: u.id, nome: u.nome })}
+                          title="Editar jornada"
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>{j ? 'Editar' : 'Definir'}</span>
+                        </button>
+                      </div>
+
+                      {j ? (
+                        <>
+                          {/* Dias da semana */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {diasLabels.map(d => (
+                              <span
+                                key={d.key}
+                                className={clsx(
+                                  'px-2 py-1 rounded-lg text-[10px] font-bold border',
+                                  j[d.key]
+                                    ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
+                                    : 'bg-slate-900 text-slate-600 border-slate-800'
+                                )}
+                              >
+                                {d.label}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Horários */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Expediente</p>
+                              <p className="text-sm font-bold text-white tabular-nums mt-0.5">
+                                {(j.hora_entrada || '').slice(0, 5)} às {(j.hora_saida || '').slice(0, 5)}
+                              </p>
+                            </div>
+                            <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Almoço</p>
+                              <p className="text-sm font-bold text-white tabular-nums mt-0.5">
+                                {j.almoco_inicio
+                                  ? `${(j.almoco_inicio || '').slice(0, 5)} às ${(j.almoco_fim || '').slice(0, 5)}`
+                                  : 'Sem intervalo'}
+                              </p>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-xs text-slate-500 italic py-2">
+                          Jornada ainda não definida. Clique em "Definir" para cadastrar.
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 
@@ -3079,12 +3504,12 @@ export function RH() {
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-white">Comunicar Falta / Enviar Atestado</h2>
-                  <p className="text-xs text-slate-400">Envio de justificativa e comprovante médico</p>
+                  <h2 className="text-base font-bold text-white">{editingFaltaId ? 'Corrigir Falta / Atestado' : 'Comunicar Falta / Enviar Atestado'}</h2>
+                  <p className="text-xs text-slate-400">{editingFaltaId ? 'Ajuste as datas e informações do registro' : 'Envio de justificativa e comprovante médico'}</p>
                 </div>
               </div>
               <button 
-                onClick={() => setIsFaltaModalOpen(false)} 
+                onClick={() => { setIsFaltaModalOpen(false); setEditingFaltaId(null) }} 
                 className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -3212,7 +3637,7 @@ export function RH() {
               <div className="pt-2 flex gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setIsFaltaModalOpen(false)}
+                  onClick={() => { setIsFaltaModalOpen(false); setEditingFaltaId(null) }}
                   className="btn-secondary flex-1 py-2.5"
                 >
                   Cancelar
@@ -3223,7 +3648,7 @@ export function RH() {
                   className="btn-primary flex-1 py-2.5 flex items-center justify-center gap-2 font-bold cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{salvandoFalta ? 'Enviando...' : 'Registrar Falta'}</span>
+                  <span>{salvandoFalta ? 'Salvando...' : editingFaltaId ? 'Salvar Correção' : 'Registrar Falta'}</span>
                 </button>
               </div>
             </form>
@@ -3401,6 +3826,307 @@ export function RH() {
         isOpen={isPontoModalOpen}
         onClose={() => setIsPontoModalOpen(false)}
       />
+
+      {/* ================= MODAL LISTA DE FUNCIONÁRIOS ================= */}
+      {isFuncionariosModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-dark-card border border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-lg flex flex-col animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60 rounded-t-2xl sm:rounded-t-3xl shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                  <Users2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">Funcionários</h2>
+                  <p className="text-xs text-slate-400">{usuarios.length} colaboradores • clique para ver o resumo</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsFuncionariosModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-2 overflow-y-auto">
+              {[...usuarios].sort((a, b) => a.nome.localeCompare(b.nome)).map(u => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => { setFuncionarioResumo(u); setIsFuncionariosModalOpen(false) }}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 transition-all text-left cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-slate-700">
+                    {u.foto_url ? (
+                      <img src={u.foto_url} alt={u.nome} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-slate-800 text-slate-300 flex items-center justify-center text-sm font-bold uppercase">
+                        {u.nome.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-white truncate">{u.nome}</p>
+                    <span className="text-[11px] text-slate-400 capitalize">{u.perfil}</span>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-slate-500 shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL RESUMO DO FUNCIONÁRIO ================= */}
+      {funcionarioResumo && (() => {
+        const u = funcionarioResumo
+        const jornadaU = todasJornadasEquipe.find(j => j.usuario_id === u.id)
+        const feriasU = todasFeriasEquipe.filter(f => f.usuario_id === u.id || f.usuario_nome.toLowerCase() === u.nome.toLowerCase())
+        const faltasU = todasFaltasEquipe.filter(f => f.usuario_id === u.id || f.usuario_nome.toLowerCase() === u.nome.toLowerCase())
+        const hoU = todasEscalasEquipe.find(h => h.usuario_id === u.id || h.usuario_nome.toLowerCase() === u.nome.toLowerCase())
+        const plantoesU = todosPlantoesEquipe.filter(p => p.tecnico_id === u.id || p.tecnico_nome.toLowerCase() === u.nome.toLowerCase())
+        const saldoBanco = bancoHorasPorColaborador.get(u.id) ?? 0
+
+        return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+            <div className="bg-dark-card border border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-md flex flex-col animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]">
+              {/* Header com foto */}
+              <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60 rounded-t-2xl sm:rounded-t-3xl shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-brand-500/30">
+                    {u.foto_url ? (
+                      <img src={u.foto_url} alt={u.nome} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-brand-500/20 to-teal-500/20 text-brand-300 flex items-center justify-center text-xl font-black uppercase">
+                        {u.nome.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-bold text-white truncate">{u.nome}</h2>
+                    <p className="text-xs text-slate-400 capitalize">{u.perfil} • {u.login}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setFuncionarioResumo(null)}
+                  className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3 overflow-y-auto">
+                {/* Jornada */}
+                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Jornada</p>
+                  {jornadaU ? (
+                    <p className="text-sm font-bold text-white tabular-nums">
+                      {(jornadaU.hora_entrada || '').slice(0, 5)} às {(jornadaU.hora_saida || '').slice(0, 5)}
+                      {jornadaU.almoco_inicio && (
+                        <span className="text-xs text-slate-400 font-normal"> • almoço {(jornadaU.almoco_inicio || '').slice(0, 5)}–{(jornadaU.almoco_fim || '').slice(0, 5)}</span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">Não definida</p>
+                  )}
+                </div>
+
+                {/* Grid de indicadores */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Banco de Horas</p>
+                    <p className={clsx(
+                      'text-lg font-black tabular-nums mt-0.5',
+                      saldoBanco > 0 ? 'text-emerald-400' : saldoBanco < 0 ? 'text-rose-400' : 'text-slate-300'
+                    )}>
+                      {formatSaldo(saldoBanco)}
+                    </p>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Regime</p>
+                    <p className="text-sm font-bold text-cyan-400 mt-0.5">{hoU?.modalidade || 'Presencial'}</p>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Férias no Ano</p>
+                    <p className="text-sm font-bold text-teal-400 mt-0.5">{feriasU.length} período(s)</p>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Faltas / Atestados</p>
+                    <p className="text-sm font-bold text-amber-400 mt-0.5">{faltasU.length} registro(s)</p>
+                  </div>
+                </div>
+
+                {plantoesU.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+                    <span className="text-xs text-slate-400">Plantões realizados</span>
+                    <span className="text-sm font-bold text-amber-400">{plantoesU.length} fim(ns) de semana</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 border-t border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setFuncionarioResumo(null)}
+                  className="btn-secondary w-full py-2.5"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ================= MODAL JORNADA DE TRABALHO ================= */}
+      {editingJornada && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-dark-card border border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-lg flex flex-col animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]">
+
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60 rounded-t-2xl sm:rounded-t-3xl shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">Jornada de Trabalho</h2>
+                  <p className="text-xs text-slate-400 truncate max-w-[240px]">{editingJornada.usuario_nome}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingJornada(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarJornada} className="p-6 space-y-5 overflow-y-auto">
+              {/* Dias da semana */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Dias de Trabalho
+                </label>
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                  {([
+                    { key: 'segunda', label: 'Seg' },
+                    { key: 'terca', label: 'Ter' },
+                    { key: 'quarta', label: 'Qua' },
+                    { key: 'quinta', label: 'Qui' },
+                    { key: 'sexta', label: 'Sex' },
+                    { key: 'sabado', label: 'Sáb' },
+                    { key: 'domingo', label: 'Dom' },
+                  ] as { key: keyof typeof editingJornada; label: string }[]).map(d => {
+                    const ativo = editingJornada[d.key] as boolean
+                    return (
+                      <button
+                        key={d.key}
+                        type="button"
+                        onClick={() => setEditingJornada({ ...editingJornada, [d.key]: !ativo })}
+                        className={clsx(
+                          'py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer',
+                          ativo
+                            ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                            : 'bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-700'
+                        )}
+                      >
+                        {d.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Horário de expediente */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Entrada
+                  </label>
+                  <input
+                    type="time"
+                    value={editingJornada.hora_entrada}
+                    onChange={e => setEditingJornada({ ...editingJornada, hora_entrada: e.target.value })}
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-bold focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Saída
+                  </label>
+                  <input
+                    type="time"
+                    value={editingJornada.hora_saida}
+                    onChange={e => setEditingJornada({ ...editingJornada, hora_saida: e.target.value })}
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-bold focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Horário de almoço */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Almoço - Início
+                  </label>
+                  <input
+                    type="time"
+                    value={editingJornada.almoco_inicio}
+                    onChange={e => setEditingJornada({ ...editingJornada, almoco_inicio: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-bold focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Almoço - Fim
+                  </label>
+                  <input
+                    type="time"
+                    value={editingJornada.almoco_fim}
+                    onChange={e => setEditingJornada({ ...editingJornada, almoco_fim: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-bold focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Observações
+                </label>
+                <textarea
+                  value={editingJornada.observacoes}
+                  onChange={e => setEditingJornada({ ...editingJornada, observacoes: e.target.value })}
+                  placeholder="Ex: Escala especial, banco de horas, etc."
+                  rows={2}
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-xs focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="pt-1 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setEditingJornada(null)}
+                  className="btn-secondary flex-1 py-2.5"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoJornada}
+                  className="py-2.5 px-4 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-black text-xs flex-1 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-500/20"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{salvandoJornada ? 'Salvando...' : 'Salvar Jornada'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   )

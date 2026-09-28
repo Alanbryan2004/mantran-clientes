@@ -1876,6 +1876,38 @@ export const api = {
     }
   },
 
+  // Edita os dados de uma falta/atestado já cadastrada (datas, motivo, descrição, dias)
+  async updateFaltaAtestado(id: string, payload: Partial<FaltaAtestado>): Promise<boolean> {
+    const updateData: any = { updated_at: new Date().toISOString() }
+    if (payload.data_falta_inicio !== undefined) updateData.data_falta_inicio = payload.data_falta_inicio
+    if (payload.data_falta_fim !== undefined) updateData.data_falta_fim = payload.data_falta_fim
+    if (payload.dias_afastamento !== undefined) updateData.dias_afastamento = payload.dias_afastamento
+    if (payload.motivo !== undefined) updateData.motivo = payload.motivo
+    if (payload.descricao !== undefined) updateData.descricao = payload.descricao
+    if (payload.arquivo_atestado_nome !== undefined) updateData.arquivo_atestado_nome = payload.arquivo_atestado_nome
+    if (payload.arquivo_atestado_url !== undefined) updateData.arquivo_atestado_url = payload.arquivo_atestado_url
+    if (payload.arquivo_atestado_tipo !== undefined) updateData.arquivo_atestado_tipo = payload.arquivo_atestado_tipo
+    if (payload.possui_atestado !== undefined) updateData.possui_atestado = payload.possui_atestado
+
+    try {
+      const { error } = await supabase
+        .from('rh_faltas_atestados')
+        .update(updateData)
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_faltas')
+      if (local) {
+        const list: FaltaAtestado[] = JSON.parse(local)
+        const updated = list.map(i => i.id === id ? { ...i, ...updateData } : i)
+        localStorage.setItem('@Mantran:rh_faltas', JSON.stringify(updated))
+      }
+      return true
+    }
+  },
+
   async deleteFaltaAtestado(id: string): Promise<boolean> {
     try {
       const { error } = await supabase
@@ -2166,6 +2198,83 @@ export const api = {
       }
       return true
     }
+  },
+
+  // --- RH: Jornada de Trabalho (Horário do Funcionário) ---
+  async getJornadas(): Promise<JornadaTrabalho[]> {
+    try {
+      const { data, error } = await supabase
+        .from('rh_jornada')
+        .select('*')
+        .order('usuario_nome', { ascending: true })
+
+      if (error) throw error
+      return data || []
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_jornada')
+      return local ? JSON.parse(local) : []
+    }
+  },
+
+  async getJornadaPorUsuario(usuarioId: string): Promise<JornadaTrabalho | null> {
+    try {
+      const { data, error } = await supabase
+        .from('rh_jornada')
+        .select('*')
+        .eq('usuario_id', usuarioId)
+        .maybeSingle()
+
+      if (error) throw error
+      return data || null
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_jornada')
+      const list: JornadaTrabalho[] = local ? JSON.parse(local) : []
+      return list.find(i => i.usuario_id === usuarioId) || null
+    }
+  },
+
+  async upsertJornada(payload: Partial<JornadaTrabalho>): Promise<JornadaTrabalho> {
+    const item: JornadaTrabalho = {
+      id: payload.id || (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15)),
+      usuario_id: payload.usuario_id!,
+      usuario_nome: payload.usuario_nome!,
+      segunda: payload.segunda ?? true,
+      terca: payload.terca ?? true,
+      quarta: payload.quarta ?? true,
+      quinta: payload.quinta ?? true,
+      sexta: payload.sexta ?? true,
+      sabado: payload.sabado ?? false,
+      domingo: payload.domingo ?? false,
+      hora_entrada: payload.hora_entrada || '08:00',
+      hora_saida: payload.hora_saida || '17:00',
+      almoco_inicio: payload.almoco_inicio ?? '12:00',
+      almoco_fim: payload.almoco_fim ?? '13:00',
+      observacoes: payload.observacoes || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('rh_jornada')
+        .upsert(item, { onConflict: 'usuario_id' })
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return data
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_jornada')
+      let list: JornadaTrabalho[] = local ? JSON.parse(local) : []
+      const index = list.findIndex(i => i.usuario_id === item.usuario_id)
+      if (index >= 0) {
+        list[index] = { ...list[index], ...item }
+      } else {
+        list.push(item)
+      }
+      localStorage.setItem('@Mantran:rh_jornada', JSON.stringify(list))
+      return item
+    }
   }
 }
 
@@ -2195,6 +2304,26 @@ export interface RegistroPonto {
   tipo: TipoPonto
   data_hora: string // ISO timestamp do momento do registro
   data: string // YYYY-MM-DD (facilita filtro por dia)
+  observacoes?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface JornadaTrabalho {
+  id: string
+  usuario_id: string
+  usuario_nome: string
+  segunda: boolean
+  terca: boolean
+  quarta: boolean
+  quinta: boolean
+  sexta: boolean
+  sabado: boolean
+  domingo: boolean
+  hora_entrada: string // 'HH:MM'
+  hora_saida: string // 'HH:MM'
+  almoco_inicio?: string | null // 'HH:MM'
+  almoco_fim?: string | null // 'HH:MM'
   observacoes?: string | null
   created_at?: string
   updated_at?: string

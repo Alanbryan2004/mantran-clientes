@@ -48,6 +48,14 @@ export function Header() {
     }
   }, [isUserMenuOpen])
 
+  // Abrir o modal de Controle de Ponto quando disparado por outro componente
+  // (ex: ao clicar em "Visualizar Ponto" numa notificação de lembrete)
+  useEffect(() => {
+    const abrirPonto = () => setIsPontoModalOpen(true)
+    window.addEventListener('mantran:abrir-controle-ponto', abrirPonto)
+    return () => window.removeEventListener('mantran:abrir-controle-ponto', abrirPonto)
+  }, [])
+
   const getPageInfo = () => {
     const path = location.pathname
     if (path === '/') {
