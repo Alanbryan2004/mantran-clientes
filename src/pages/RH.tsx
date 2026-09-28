@@ -1205,7 +1205,7 @@ export function RH() {
                 {user?.nome || user?.login || 'Colaborador'}
               </h1>
               <p className="text-[11px] sm:text-xs text-slate-400">
-                {user?.perfil || 'Colaborador'} • Toque na foto para alterar
+                {user?.perfil || 'Colaborador'}
               </p>
             </div>
           </div>
