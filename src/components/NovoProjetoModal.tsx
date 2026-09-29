@@ -233,6 +233,7 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
                     <option value="NORMAL">Normal</option>
                     <option value="COMMERSYS">Commersys</option>
                     <option value="SHOPEE">Shopee</option>
+                    <option value="LEO">Leo</option>
                   </select>
                 </div>
 

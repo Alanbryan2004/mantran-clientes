@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { 
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
-  Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Users2 
+  Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Users2, Ticket 
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
@@ -12,6 +12,7 @@ import clsx from 'clsx'
 
 const allNavItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { name: 'Tickets', path: '/tickets', icon: Ticket },
   { name: 'Comercial', path: '/comercial', icon: TrendingUp },
   { name: 'Clientes', path: '/clientes', icon: Users },
   { name: 'Implantações', path: '/implantacoes', icon: Rocket },
@@ -63,7 +64,11 @@ export function Sidebar() {
       }
 
       // Filter accessible navigation items
-      const filtered = allNavItems.filter(item => permissionsApi.canAccessRoute(item.path))
+      const filtered = allNavItems.filter(item => {
+        // Tickets: por enquanto exclusivo do Administrador
+        if (item.path === '/tickets') return isAdmin
+        return permissionsApi.canAccessRoute(item.path)
+      })
       
       // If user has a specific restricted project (e.g. Parceiro), link directly to that project
       const specificProjId = permissionsApi.getAllowedProjectForUser()

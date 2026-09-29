@@ -1295,6 +1295,18 @@ export const api = {
     return data || []
   },
 
+  // E-mails corporativos dos funcionários da Mantran (para classificar contatos como "Mantran")
+  async getEmailsFuncionarios(): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('email_corporativo')
+      .not('email_corporativo', 'is', null)
+    if (error) throw error
+    return (data || [])
+      .map(u => (u.email_corporativo || '').trim().toLowerCase())
+      .filter(Boolean)
+  },
+
   async createUsuarioSistema(payload: {
     nome: string
     login: string
@@ -1303,6 +1315,9 @@ export const api = {
     ativo?: boolean
     e_tecnico?: boolean
     meta_semanal?: number
+    data_nascimento?: string | null
+    email_corporativo?: string | null
+    email_pessoal?: string | null
   }): Promise<UsuarioSistema> {
     const cleanLogin = (payload.login || '').trim()
 
@@ -1326,7 +1341,10 @@ export const api = {
         perfil: payload.perfil || 'Usuario',
         ativo: payload.ativo !== undefined ? payload.ativo : true,
         e_tecnico: payload.e_tecnico !== undefined ? payload.e_tecnico : payload.perfil === 'Tecnico',
-        meta_semanal: Number(payload.meta_semanal) || 0
+        meta_semanal: Number(payload.meta_semanal) || 0,
+        data_nascimento: payload.data_nascimento || null,
+        email_corporativo: payload.email_corporativo?.trim() || null,
+        email_pessoal: payload.email_pessoal?.trim() || null
       })
       .select('*')
       .single()
@@ -1344,6 +1362,9 @@ export const api = {
     e_tecnico?: boolean
     meta_semanal?: number
     foto_url?: string | null
+    data_nascimento?: string | null
+    email_corporativo?: string | null
+    email_pessoal?: string | null
   }): Promise<UsuarioSistema> {
     const updateData: any = {}
     if (payload.nome !== undefined) updateData.nome = payload.nome.trim()
@@ -1379,6 +1400,15 @@ export const api = {
     }
     if (payload.foto_url !== undefined) {
       updateData.foto_url = payload.foto_url
+    }
+    if (payload.data_nascimento !== undefined) {
+      updateData.data_nascimento = payload.data_nascimento
+    }
+    if (payload.email_corporativo !== undefined) {
+      updateData.email_corporativo = payload.email_corporativo ? payload.email_corporativo.trim() : null
+    }
+    if (payload.email_pessoal !== undefined) {
+      updateData.email_pessoal = payload.email_pessoal ? payload.email_pessoal.trim() : null
     }
 
     const { data, error } = await supabase
@@ -1773,6 +1803,146 @@ export const api = {
       if (local) {
         const list: SolicitacaoFerias[] = JSON.parse(local)
         localStorage.setItem('@Mantran:rh_ferias', JSON.stringify(list.filter(i => i.id !== id)))
+      }
+      return true
+    }
+  },
+
+  // --- RH: Day Off (Folga de Aniversário) ---
+  async getDayOff(usuarioId?: string): Promise<SolicitacaoDayOff[]> {
+    try {
+      let query = supabase
+        .from('rh_dayoff')
+        .select('*')
+        .order('data_solicitada', { ascending: false })
+
+      if (usuarioId) {
+        query = query.eq('usuario_id', usuarioId)
+      }
+
+      const { data, error } = await query
+      if (error) {
+        const local = localStorage.getItem('@Mantran:rh_dayoff')
+        const list: SolicitacaoDayOff[] = local ? JSON.parse(local) : []
+        if (usuarioId) return list.filter(i => i.usuario_id === usuarioId)
+        return list
+      }
+
+      return data || []
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_dayoff')
+      const list: SolicitacaoDayOff[] = local ? JSON.parse(local) : []
+      if (usuarioId) return list.filter(i => i.usuario_id === usuarioId)
+      return list
+    }
+  },
+
+  async insertDayOff(payload: Partial<SolicitacaoDayOff>): Promise<SolicitacaoDayOff> {
+    const item: SolicitacaoDayOff = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15),
+      usuario_id: payload.usuario_id!,
+      usuario_nome: payload.usuario_nome!,
+      ano_vigencia: payload.ano_vigencia || new Date().getFullYear(),
+      data_nascimento: payload.data_nascimento!,
+      data_solicitada: payload.data_solicitada!,
+      status: payload.status || 'Pendente',
+      observacoes: payload.observacoes || null,
+      resposta_rh: payload.resposta_rh || null,
+      aprovado_por: payload.aprovado_por || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('rh_dayoff')
+        .insert(item)
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return data
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_dayoff')
+      const list: SolicitacaoDayOff[] = local ? JSON.parse(local) : []
+      list.unshift(item)
+      localStorage.setItem('@Mantran:rh_dayoff', JSON.stringify(list))
+      return item
+    }
+  },
+
+  async updateStatusDayOff(id: string, status: 'Pendente' | 'Aprovado' | 'Reprovado', respostaRh?: string, aprovadoPor?: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_dayoff')
+        .update({
+          status,
+          resposta_rh: respostaRh || null,
+          aprovado_por: aprovadoPor || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_dayoff')
+      if (local) {
+        const list: SolicitacaoDayOff[] = JSON.parse(local)
+        const updated = list.map(i => i.id === id ? {
+          ...i,
+          status,
+          resposta_rh: respostaRh || null,
+          aprovado_por: aprovadoPor || null,
+          updated_at: new Date().toISOString()
+        } : i)
+        localStorage.setItem('@Mantran:rh_dayoff', JSON.stringify(updated))
+      }
+      return true
+    }
+  },
+
+  async updateDayOff(id: string, payload: Partial<SolicitacaoDayOff>): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_dayoff')
+        .update({
+          ...payload,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_dayoff')
+      if (local) {
+        const list: SolicitacaoDayOff[] = JSON.parse(local)
+        const updated = list.map(i => i.id === id ? {
+          ...i,
+          ...payload,
+          updated_at: new Date().toISOString()
+        } : i)
+        localStorage.setItem('@Mantran:rh_dayoff', JSON.stringify(updated))
+      }
+      return true
+    }
+  },
+
+  async deleteDayOff(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('rh_dayoff')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      return true
+    } catch {
+      const local = localStorage.getItem('@Mantran:rh_dayoff')
+      if (local) {
+        const list: SolicitacaoDayOff[] = JSON.parse(local)
+        localStorage.setItem('@Mantran:rh_dayoff', JSON.stringify(list.filter(i => i.id !== id)))
       }
       return true
     }
@@ -2275,7 +2445,390 @@ export const api = {
       localStorage.setItem('@Mantran:rh_jornada', JSON.stringify(list))
       return item
     }
+  },
+
+  // --- Tickets: Cadastros auxiliares (tipos, classificações, grupos, departamentos) ---
+  async getTicketCadastros(): Promise<{
+    tipos: TicketCadastro[]
+    classificacoes: TicketCadastro[]
+    grupos: TicketCadastro[]
+    departamentos: TicketCadastro[]
+  }> {
+    const carregar = async (tabela: string): Promise<TicketCadastro[]> => {
+      try {
+        const { data } = await supabase.from(tabela).select('*').order('nome')
+        return data || []
+      } catch {
+        return []
+      }
+    }
+    const [tipos, classificacoes, grupos, departamentos] = await Promise.all([
+      carregar('ticket_tipos'),
+      carregar('ticket_classificacoes'),
+      carregar('ticket_grupos'),
+      carregar('ticket_departamentos')
+    ])
+    return { tipos, classificacoes, grupos, departamentos }
+  },
+
+  async createTicketCadastro(tabela: 'ticket_tipos' | 'ticket_classificacoes' | 'ticket_grupos' | 'ticket_departamentos', nome: string): Promise<TicketCadastro> {
+    const { data, error } = await supabase.from(tabela).insert({ nome: nome.trim() }).select('*').single()
+    if (error) throw error
+    return data
+  },
+
+  async deleteTicketCadastro(tabela: 'ticket_tipos' | 'ticket_classificacoes' | 'ticket_grupos' | 'ticket_departamentos', id: string): Promise<boolean> {
+    const { error } = await supabase.from(tabela).delete().eq('id', id)
+    if (error) throw error
+    return true
+  },
+
+  // Técnicos (perfil Técnico) para "Responsável Técnico"
+  async getUsuariosTecnicos() {
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('id, nome, login, perfil, ativo')
+      .eq('perfil', 'Tecnico')
+      .eq('ativo', true)
+      .order('nome', { ascending: true })
+    if (error) throw error
+    return data || []
+  },
+
+  // Agentes = perfil Suporte OU Administrador
+  async getUsuariosAgentes() {
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('id, nome, login, perfil, ativo')
+      .in('perfil', ['Suporte', 'Administrador'])
+      .eq('ativo', true)
+      .order('nome', { ascending: true })
+    if (error) throw error
+    return data || []
+  },
+
+  // --- Tickets (Chamados de Suporte) ---
+  async getTickets(): Promise<Ticket[]> {
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data || []
+  },
+
+  async getTicketById(id: string): Promise<Ticket & { mensagens: TicketMensagem[]; anexos: TicketAnexo[] }> {
+    const [{ data: ticket, error: e1 }, { data: mensagens, error: e2 }, { data: anexos, error: e3 }] = await Promise.all([
+      supabase.from('tickets').select('*').eq('id', id).single(),
+      supabase.from('ticket_mensagens').select('*').eq('ticket_id', id).order('created_at', { ascending: true }),
+      supabase.from('ticket_anexos').select('*').eq('ticket_id', id).order('created_at', { ascending: true })
+    ])
+    if (e1) throw e1
+    if (e2) throw e2
+    if (e3) throw e3
+    return { ...(ticket as Ticket), mensagens: mensagens || [], anexos: anexos || [] }
+  },
+
+  async createTicket(payload: Partial<Ticket>): Promise<Ticket> {
+    const { data, error } = await supabase
+      .from('tickets')
+      .insert({
+        titulo: payload.titulo,
+        descricao: payload.descricao || null,
+        cliente_id: payload.cliente_id || null,
+        cliente_nome: payload.cliente_nome || null,
+        cliente_email: payload.cliente_email || null,
+        cliente_telefone: payload.cliente_telefone || null,
+        prioridade: payload.prioridade || 'Média',
+        tipo: payload.tipo || null,
+        origem: payload.origem || 'manual',
+        status: payload.status || 'Novo',
+        tipo_id: payload.tipo_id || null,
+        classificacao_id: payload.classificacao_id || null,
+        grupo_id: payload.grupo_id || null,
+        departamento_id: payload.departamento_id || null,
+        agente_id: payload.agente_id || null,
+        agente_nome: payload.agente_nome || null,
+        tecnico_id: payload.tecnico_id || null,
+        tecnico_nome: payload.tecnico_nome || null,
+        tags: payload.tags || null,
+        lido: false
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async updateTicket(id: string, updates: Partial<Ticket>): Promise<boolean> {
+    const { error } = await supabase
+      .from('tickets')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) throw error
+    return true
+  },
+
+  // Marca o ticket como lido (deixa de aparecer como "Novo")
+  async marcarTicketLido(id: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('tickets')
+      .update({ lido: true })
+      .eq('id', id)
+    if (error) throw error
+    return true
+  },
+
+  async deleteTicket(id: string): Promise<boolean> {
+    const { error } = await supabase.from('tickets').delete().eq('id', id)
+    if (error) throw error
+    return true
+  },
+
+  // Adiciona uma mensagem à thread (resposta ao cliente ou anotação interna)
+  async addTicketMensagem(payload: {
+    ticket_id: string
+    tipo: 'resposta' | 'anotacao' | 'cliente'
+    conteudo: string
+    autor_id?: string | null
+    autor_nome?: string | null
+    autor_tipo?: 'agente' | 'cliente'
+    novo_status?: string | null
+  }): Promise<TicketMensagem> {
+    const { data, error } = await supabase
+      .from('ticket_mensagens')
+      .insert({
+        ticket_id: payload.ticket_id,
+        tipo: payload.tipo,
+        conteudo: payload.conteudo,
+        autor_id: payload.autor_id || null,
+        autor_nome: payload.autor_nome || null,
+        autor_tipo: payload.autor_tipo || 'agente'
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+
+    // Atualiza o ticket: marca como lido e, se informado, muda o status
+    const ticketUpdate: any = { lido: true, updated_at: new Date().toISOString() }
+    if (payload.novo_status) ticketUpdate.status = payload.novo_status
+    // Marca primeira resposta ao cliente
+    if (payload.tipo === 'resposta') ticketUpdate.primeira_resposta_at = new Date().toISOString()
+    await supabase.from('tickets').update(ticketUpdate).eq('id', payload.ticket_id)
+
+    return data
+  },
+
+  async addTicketAnexo(payload: {
+    ticket_id: string
+    mensagem_id?: string | null
+    arquivo_nome: string
+    arquivo_tipo?: string | null
+    arquivo_url: string
+    tamanho_bytes?: number | null
+  }): Promise<TicketAnexo> {
+    const { data, error } = await supabase
+      .from('ticket_anexos')
+      .insert({
+        ticket_id: payload.ticket_id,
+        mensagem_id: payload.mensagem_id || null,
+        arquivo_nome: payload.arquivo_nome,
+        arquivo_tipo: payload.arquivo_tipo || null,
+        arquivo_url: payload.arquivo_url,
+        tamanho_bytes: payload.tamanho_bytes || null
+      })
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  // --- Tickets: Contatos (solicitantes) ---
+  async getContatos(): Promise<TicketContato[]> {
+    const { data, error } = await supabase
+      .from('ticket_contatos')
+      .select('*')
+      .order('nome', { ascending: true })
+    if (error) throw error
+    return data || []
+  },
+
+  async getContatoById(id: string): Promise<TicketContato | null> {
+    const { data, error } = await supabase
+      .from('ticket_contatos')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw error
+    return data || null
+  },
+
+  // Busca um contato pelo e-mail; se não existir, cria um novo
+  async getOrCreateContatoByEmail(email: string, nome: string): Promise<TicketContato> {
+    const cleanEmail = (email || '').trim().toLowerCase()
+    if (cleanEmail) {
+      const { data: existente } = await supabase
+        .from('ticket_contatos')
+        .select('*')
+        .ilike('email', cleanEmail)
+        .maybeSingle()
+      if (existente) return existente
+    }
+    const { data, error } = await supabase
+      .from('ticket_contatos')
+      .insert({ nome: nome.trim() || cleanEmail || 'Contato', email: cleanEmail || null })
+      .select('*')
+      .single()
+    if (error) throw error
+    return data
+  },
+
+  async createContato(payload: Partial<TicketContato>): Promise<TicketContato> {
+    const { data, error } = await supabase
+      .from('ticket_contatos')
+      .insert({
+        nome: payload.nome,
+        email: payload.email || null,
+        email_secundario: payload.email_secundario || null,
+        telefone_comercial: payload.telefone_comercial || null,
+        celular: payload.celular || null,
+        cargo: payload.cargo || null,
+        empresa_id: payload.empresa_id || null,
+        empresa_nome: payload.empresa_nome || null,
+        grupo_id: payload.grupo_id || null,
+        ve_todos_empresa: payload.ve_todos_empresa || false
+      })
+      .select('*')
+      .single()
+    if (error) throw error
+    return data
+  },
+
+  async updateContato(id: string, updates: Partial<TicketContato>): Promise<boolean> {
+    const { error } = await supabase
+      .from('ticket_contatos')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) throw error
+    return true
+  },
+
+  async deleteContato(id: string): Promise<boolean> {
+    // Desvincula os tickets antes de remover o contato
+    await supabase.from('tickets').update({ contato_id: null }).eq('contato_id', id)
+    const { error } = await supabase.from('ticket_contatos').delete().eq('id', id)
+    if (error) throw error
+    return true
+  },
+
+  // Propaga nome/e-mail do contato para os tickets vinculados a ele
+  async propagarContatoNosTickets(contatoId: string, updates: { cliente_nome?: string | null; cliente_email?: string | null }): Promise<boolean> {
+    const { error } = await supabase
+      .from('tickets')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('contato_id', contatoId)
+    if (error) throw error
+    return true
+  },
+
+  // Tickets de um contato (por contato_id OU pelo e-mail/nome, para dados legados)
+  async getTicketsPorContato(contato: TicketContato): Promise<Ticket[]> {
+    const filtros: string[] = [`contato_id.eq.${contato.id}`]
+    if (contato.email) filtros.push(`cliente_email.ilike.${contato.email}`)
+    if (contato.nome) filtros.push(`cliente_nome.eq.${contato.nome}`)
+
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('*')
+      .or(filtros.join(','))
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
   }
+}
+
+export interface TicketContato {
+  id: string
+  nome: string
+  email?: string | null
+  email_secundario?: string | null
+  telefone_comercial?: string | null
+  celular?: string | null
+  cargo?: string | null
+  empresa_id?: string | null
+  empresa_nome?: string | null
+  grupo_id?: string | null
+  ve_todos_empresa: boolean
+  foto_url?: string | null
+  ativo?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Ticket {
+  id: string
+  numero: number
+  titulo: string
+  descricao?: string | null
+  cliente_id?: string | null
+  cliente_nome?: string | null
+  cliente_email?: string | null
+  cliente_telefone?: string | null
+  agente_id?: string | null
+  agente_nome?: string | null
+  status: string
+  prioridade: string
+  tipo?: string | null
+  origem: string
+  lido: boolean
+  // Cadastros auxiliares
+  tipo_id?: string | null
+  classificacao_id?: string | null
+  grupo_id?: string | null
+  departamento_id?: string | null
+  tecnico_id?: string | null
+  tecnico_nome?: string | null
+  tags?: string | null
+  contato_id?: string | null
+  created_at?: string
+  updated_at?: string
+  primeira_resposta_at?: string | null
+  resolvido_at?: string | null
+  fechado_at?: string | null
+}
+
+export interface TicketCadastro {
+  id: string
+  nome: string
+  ativo?: boolean
+  created_at?: string
+}
+
+export interface TicketMensagem {
+  id: string
+  ticket_id: string
+  tipo: 'resposta' | 'anotacao' | 'cliente'
+  conteudo: string
+  autor_id?: string | null
+  autor_nome?: string | null
+  autor_tipo: 'agente' | 'cliente'
+  created_at?: string
+}
+
+export interface TicketAnexo {
+  id: string
+  ticket_id: string
+  mensagem_id?: string | null
+  arquivo_nome: string
+  arquivo_tipo?: string | null
+  arquivo_url: string
+  tamanho_bytes?: number | null
+  created_at?: string
 }
 
 export interface UsuarioSistema {
@@ -2288,7 +2841,25 @@ export interface UsuarioSistema {
   e_tecnico?: boolean
   meta_semanal?: number
   foto_url?: string | null
+  data_nascimento?: string | null
+  email_corporativo?: string | null
+  email_pessoal?: string | null
   created_at?: string
+}
+
+export interface SolicitacaoDayOff {
+  id: string
+  usuario_id: string
+  usuario_nome: string
+  ano_vigencia: number
+  data_nascimento: string // YYYY-MM-DD
+  data_solicitada: string // YYYY-MM-DD
+  status: 'Pendente' | 'Aprovado' | 'Reprovado'
+  observacoes?: string | null
+  resposta_rh?: string | null
+  aprovado_por?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 export type TipoPonto =

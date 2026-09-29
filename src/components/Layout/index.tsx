@@ -31,12 +31,15 @@ export function Layout() {
     checkAccess()
   }, [location.pathname, navigate])
 
+  // A tela de Tickets usa tema claro (estilo Freshdesk): fundo claro cobrindo toda a área rolável
+  const isTicketsRoute = location.pathname.startsWith('/tickets')
+
   return (
     <div className="flex h-screen bg-dark-bg text-dark-text overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-dark-bg p-3 sm:p-8 flex flex-col min-w-0">
+        <main className={`flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-8 flex flex-col min-w-0 ${isTicketsRoute ? 'bg-slate-100' : 'bg-dark-bg'}`}>
           <Outlet />
         </main>
       </div>

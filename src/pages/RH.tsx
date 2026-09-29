@@ -29,7 +29,13 @@ import {
   Trash2,
   Timer,
   Camera,
-  Loader2 
+  Loader2,
+  Gift,
+  Cake,
+  PartyPopper,
+  Mail,
+  Building2,
+  UserCheck
 } from 'lucide-react'
 import { 
   api, 
@@ -40,9 +46,10 @@ import {
   type UsuarioSistema,
   type RegistroPonto,
   type TipoPonto,
-  type JornadaTrabalho
+  type JornadaTrabalho,
+  type SolicitacaoDayOff
 } from '../lib/api'
-import { getLoggedUser, isAdminUser, updateLoggedUserFoto } from '../lib/auth'
+import { getLoggedUser, isAdminUser, updateLoggedUserFoto, updateLoggedUserDataNascimento, updateLoggedUserEmails } from '../lib/auth'
 import { ControlePontoModal } from '../components/ControlePontoModal'
 import { calcularBancoHoras, formatSaldo } from '../lib/bancoHoras'
 import clsx from 'clsx'
@@ -54,14 +61,15 @@ export function RH() {
   const isTecnico = user?.perfil?.trim().toLowerCase() === 'tecnico' || user?.perfil?.trim().toLowerCase() === 'administrador'
 
   // Abas de navegação:
-  // Se for Gestor/Admin: 'dashboard' | 'ferias_equipe' | 'plantoes_equipe' | 'home_office_equipe' | 'faltas_equipe' | 'equipe_dossie' | 'gestao_aprovacoes'
-  // Se for Colaborador: 'minhas_ferias' | 'meus_plantoes' | 'meu_home_office' | 'minhas_faltas'
+  // Se for Gestor/Admin: 'dashboard' | 'plantoes_equipe' | 'ferias_equipe' | 'dayoff_equipe' | 'home_office_equipe' | 'faltas_equipe' | 'ponto_equipe' | 'jornada_equipe' | 'equipe_dossie' | 'gestao_aprovacoes'
+  // Se for Colaborador: 'minhas_ferias' | 'meu_day_off' | 'meus_plantoes' | 'meu_home_office' | 'minhas_faltas'
   const [tab, setTab] = useState<string>(isGestorRh ? 'dashboard' : 'minhas_ferias')
   const [loading, setLoading] = useState(true)
 
   // Listas de dados
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([])
   const [todasFeriasEquipe, setTodasFeriasEquipe] = useState<SolicitacaoFerias[]>([])
+  const [todasDayOffEquipe, setTodasDayOffEquipe] = useState<SolicitacaoDayOff[]>([])
   const [todasFaltasEquipe, setTodasFaltasEquipe] = useState<FaltaAtestado[]>([])
   const [todasEscalasEquipe, setTodasEscalasEquipe] = useState<EscalaHomeOffice[]>([])
   const [todosPlantoesEquipe, setTodosPlantoesEquipe] = useState<PlantaoTecnico[]>([])
@@ -72,7 +80,7 @@ export function RH() {
   const [pontoDataSelecionada, setPontoDataSelecionada] = useState(() => new Date().toISOString().slice(0, 10))
 
   // Filtros & Buscas
-      const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
+  const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
 
   // Modal Solicitar / Editar Férias
   const [isFeriasModalOpen, setIsFeriasModalOpen] = useState(false)
@@ -85,6 +93,17 @@ export function RH() {
   const [q2Fim, setQ2Fim] = useState('')
   const [feriasObs, setFeriasObs] = useState('')
   const [salvandoFerias, setSalvandoFerias] = useState(false)
+
+  // Modal Solicitar / Editar Day Off (Folga de Aniversário)
+  const [isDayOffModalOpen, setIsDayOffModalOpen] = useState(false)
+  const [editingDayOffId, setEditingDayOffId] = useState<string | null>(null)
+  const [dayOffUsuarioId, setDayOffUsuarioId] = useState('')
+  const [dayOffUsuarioNome, setDayOffUsuarioNome] = useState('')
+  const [dayOffDataNascimento, setDayOffDataNascimento] = useState('')
+  const [dayOffDataSolicitada, setDayOffDataSolicitada] = useState('')
+  const [dayOffObs, setDayOffObs] = useState('')
+  const [salvandoDayOff, setSalvandoDayOff] = useState(false)
+  const [salvandoDataNascModal, setSalvandoDataNascModal] = useState(false)
 
   // Modal Comunicar Falta / Enviar Atestado
   const [isFaltaModalOpen, setIsFaltaModalOpen] = useState(false)
@@ -133,8 +152,8 @@ export function RH() {
   const [pagamentoObs, setPagamentoObs] = useState('')
   const [salvandoPagamentoPlantao, setSalvandoPagamentoPlantao] = useState(false)
 
-  // Modal Avaliação Férias/Faltas RH (Admin)
-  const [itemAvaliacao, setItemAvaliacao] = useState<{ type: 'ferias' | 'falta'; item: any } | null>(null)
+  // Modal Avaliação Férias/Day Off/Faltas RH (Admin)
+  const [itemAvaliacao, setItemAvaliacao] = useState<{ type: 'ferias' | 'falta' | 'dayoff'; item: any } | null>(null)
   const [statusAvaliacao, setStatusAvaliacao] = useState<string>('Aprovado')
   const [respostaRh, setRespostaRh] = useState('')
   const [salvandoAvaliacao, setSalvandoAvaliacao] = useState(false)
@@ -152,6 +171,11 @@ export function RH() {
   // Modal de Funcionários (lista) e resumo de um funcionário
   const [isFuncionariosModalOpen, setIsFuncionariosModalOpen] = useState(false)
   const [funcionarioResumo, setFuncionarioResumo] = useState<UsuarioSistema | null>(null)
+  const [isEditandoFuncionario, setIsEditandoFuncionario] = useState(false)
+  const [editFuncDataNasc, setEditFuncDataNasc] = useState('')
+  const [editFuncEmailCorp, setEditFuncEmailCorp] = useState('')
+  const [editFuncEmailPessoal, setEditFuncEmailPessoal] = useState('')
+  const [salvandoFuncionarioDados, setSalvandoFuncionarioDados] = useState(false)
 
   // Modal de Jornada de Trabalho (edição pelo RH)
   const [editingJornada, setEditingJornada] = useState<{
@@ -179,14 +203,15 @@ export function RH() {
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [allUsers, todasFerias, faltas, escalas, plantoes, pontos, jornadas] = await Promise.all([
+      const [allUsers, todasFerias, faltas, escalas, plantoes, pontos, jornadas, dayOffs] = await Promise.all([
         api.getUsuariosSistema().catch(() => []),
         api.getSolicitacoesFerias().catch(() => []),
         api.getFaltasEAtestados().catch(() => []),
         api.getEscalasHomeOffice().catch(() => []),
         api.getPlantoes().catch(() => []),
         api.getRegistrosPonto().catch(() => []),
-        api.getJornadas().catch(() => [])
+        api.getJornadas().catch(() => []),
+        api.getDayOff().catch(() => [])
       ])
 
       // Filtra apenas funcionários da Mantran
@@ -210,7 +235,7 @@ export function RH() {
         return false
       }
 
-      // Sincroniza foto do usuário atual se encontrada no banco
+      // Sincroniza foto e data de nascimento do usuário atual se encontrada no banco
       const currentUserInDb = allUsers.find(u => 
         (user?.id && u.id === user.id) || 
         (user?.login && u.login?.toLowerCase() === user.login.toLowerCase()) ||
@@ -220,9 +245,13 @@ export function RH() {
         setMinhaFoto(currentUserInDb.foto_url)
         updateLoggedUserFoto(currentUserInDb.foto_url)
       }
+      if (currentUserInDb?.data_nascimento) {
+        updateLoggedUserDataNascimento(currentUserInDb.data_nascimento)
+      }
 
       setUsuarios(funcionariosMantran)
       setTodasFeriasEquipe((todasFerias || []).filter(isRecordDeFuncionario))
+      setTodasDayOffEquipe((dayOffs || []).filter(isRecordDeFuncionario))
       setTodasFaltasEquipe((faltas || []).filter(isRecordDeFuncionario))
       setTodasEscalasEquipe((escalas || []).filter(isRecordDeFuncionario))
       setTodosPlantoesEquipe(plantoes || [])
@@ -235,7 +264,98 @@ export function RH() {
     }
   }
 
+  // Helper de cálculo do Day Off (Janela de 30 dias dentro do prazo do mês de aniversário)
+  const getCalculoDayOff = (dataNascStr?: string | null, anoVig: number = new Date().getFullYear()) => {
+    if (!dataNascStr) return null
+    const partes = dataNascStr.split('-')
+    if (partes.length < 3) return null
+
+    const mesNasc = parseInt(partes[1], 10) // 1 a 12
+    const diaNasc = parseInt(partes[2], 10) // 1 a 31
+    if (isNaN(mesNasc) || isNaN(diaNasc) || mesNasc < 1 || mesNasc > 12) return null
+
+    const anoStr = String(anoVig)
+    const mesStr = String(mesNasc).padStart(2, '0')
+    const diaStr = String(diaNasc).padStart(2, '0')
+    const dataAniversarioAno = `${anoStr}-${mesStr}-${diaStr}`
+
+    // Início da janela: 1º dia do mês de aniversário
+    const janelaInicio = `${anoStr}-${mesStr}-01`
+
+    // Fim da janela: 30 dias a contar do aniversário (ou final do mês estendido)
+    const dtAniv = new Date(`${anoStr}-${mesStr}-${diaStr}T00:00:00`)
+    const dtJanelaFim = new Date(dtAniv.getTime() + 30 * 24 * 60 * 60 * 1000)
+    const janelaFim = dtJanelaFim.toISOString().split('T')[0]
+
+    const nomesMeses = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ]
+    const mesNome = nomesMeses[mesNasc - 1]
+
+    return {
+      dataNascimentoOriginal: dataNascStr,
+      diaNasc,
+      mesNasc,
+      mesNome,
+      dataAniversarioAno,
+      janelaInicio,
+      janelaFim,
+      anoVigencia: anoVig
+    }
+  }
+
   // Filtragem dos dados do próprio usuário logado
+  const meuUsuarioDb = useMemo(() => {
+    return usuarios.find(u => 
+      u.id === user?.id || 
+      (user?.login && u.login?.toLowerCase() === user.login.toLowerCase()) ||
+      (user?.nome && u.nome?.toLowerCase() === user.nome.toLowerCase())
+    )
+  }, [usuarios, user])
+
+  const minhaDataNascimento = meuUsuarioDb?.data_nascimento || user?.data_nascimento || null
+
+  const meusDayOff = useMemo(() => {
+    return todasDayOffEquipe.filter(d =>
+      d.usuario_id === user?.id ||
+      (user?.nome && d.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())
+    )
+  }, [todasDayOffEquipe, user])
+
+  const meuDayOffAnoAtual = useMemo(() => {
+    return meusDayOff.find(d => d.ano_vigencia === anoVigencia)
+  }, [meusDayOff, anoVigencia])
+
+  const meuCalculoDayOff = useMemo(() => {
+    return getCalculoDayOff(minhaDataNascimento, anoVigencia)
+  }, [minhaDataNascimento, anoVigencia])
+
+  // Lista de aniversariantes da equipe
+  const aniversariantesEquipe = useMemo(() => {
+    const mesAtual = new Date().getMonth() + 1
+    return usuarios
+      .filter(u => u.data_nascimento)
+      .map(u => {
+        const calc = getCalculoDayOff(u.data_nascimento, new Date().getFullYear())
+        const dayOff = todasDayOffEquipe.find(d => 
+          (d.usuario_id === u.id || d.usuario_nome.toLowerCase() === u.nome.toLowerCase()) && 
+          d.ano_vigencia === new Date().getFullYear()
+        )
+        return {
+          usuario: u,
+          calc,
+          dayOff,
+          isMesAtual: calc?.mesNasc === mesAtual
+        }
+      })
+      .filter(item => item.calc !== null)
+      .sort((a, b) => {
+        if (a.calc!.mesNasc !== b.calc!.mesNasc) return a.calc!.mesNasc - b.calc!.mesNasc
+        return a.calc!.diaNasc - b.calc!.diaNasc
+      })
+  }, [usuarios, todasDayOffEquipe])
+
   const minhasFerias = useMemo(() => {
     return todasFeriasEquipe.filter(f => 
       f.usuario_id === user?.id || 
@@ -343,6 +463,11 @@ export function RH() {
       return q1Ativa || q2Ativa
     })
 
+    const emDayOffHoje = todasDayOffEquipe.filter(d => {
+      if (d.status !== 'Aprovado') return false
+      return d.data_solicitada === hojeStr
+    })
+
     const emAtestadoHoje = todasFaltasEquipe.filter(fa => {
       if (fa.status === 'Recusado') return false
       const dataFim = fa.data_falta_fim || fa.data_falta_inicio
@@ -360,6 +485,7 @@ export function RH() {
     const totalValorPendente = plantoesPendentesPagamento.reduce((acc, p) => acc + (Number(p.valor_plantao) || 0), 0)
 
     const feriasPendentes = todasFeriasEquipe.filter(f => f.status === 'Pendente')
+    const dayOffPendentes = todasDayOffEquipe.filter(d => d.status === 'Pendente')
     const faltasPendentes = todasFaltasEquipe.filter(f => f.status === 'Pendente' || f.status === 'Em Análise')
 
     // Próxima férias a começar (data de início futura mais próxima)
@@ -379,6 +505,7 @@ export function RH() {
     return {
       totalColaboradores: usuarios.length || 8,
       emFeriasHoje,
+      emDayOffHoje,
       emAtestadoHoje,
       emHomeOfficeHoje,
       proximoPlantao,
@@ -386,9 +513,10 @@ export function RH() {
       plantoesPendentesPagamento,
       totalValorPendente,
       feriasPendentes,
+      dayOffPendentes,
       faltasPendentes
     }
-  }, [todasFeriasEquipe, todasFaltasEquipe, todasEscalasEquipe, todosPlantoesEquipe, usuarios, hojeStr, diaAtualProp, proximoPlantao])
+  }, [todasFeriasEquipe, todasDayOffEquipe, todasFaltasEquipe, todasEscalasEquipe, todosPlantoesEquipe, usuarios, hojeStr, diaAtualProp, proximoPlantao])
 
   // Verificação estrita de conflito de férias entre colaboradores
   const checkConflitoPeriodo = (inicio: string, fim: string, quinzenaNum: 1 | 2, currentUserId?: string, currentUserName?: string) => {
@@ -613,6 +741,145 @@ export function RH() {
       alert('Registro de férias removido com sucesso!')
     } catch (err: any) {
       alert('Erro ao excluir férias: ' + err.message)
+    }
+  }
+
+  // ===== Handlers de Day Off (Folga de Aniversário) =====
+  const handleAbrirModalDayOff = (colaboradorPre?: { id: string; nome: string; data_nascimento?: string | null }, dayOffExistente?: SolicitacaoDayOff) => {
+    if (dayOffExistente) {
+      setEditingDayOffId(dayOffExistente.id)
+      setDayOffUsuarioId(dayOffExistente.usuario_id)
+      setDayOffUsuarioNome(dayOffExistente.usuario_nome)
+      setAnoVigencia(dayOffExistente.ano_vigencia || new Date().getFullYear())
+      setDayOffDataNascimento(dayOffExistente.data_nascimento || '')
+      setDayOffDataSolicitada(dayOffExistente.data_solicitada || '')
+      setDayOffObs(dayOffExistente.observacoes || '')
+    } else {
+      const targetId = colaboradorPre?.id || user?.id || (usuarios[0]?.id || '')
+      const targetNome = colaboradorPre?.nome || user?.nome || user?.login || (usuarios[0]?.nome || 'Colaborador')
+      const targetUser = usuarios.find(u => u.id === targetId || u.nome.toLowerCase() === targetNome.toLowerCase())
+      const dataNasc = colaboradorPre?.data_nascimento || targetUser?.data_nascimento || (targetId === user?.id ? (minhaDataNascimento || '') : '') || ''
+
+      setEditingDayOffId(null)
+      setDayOffUsuarioId(targetId)
+      setDayOffUsuarioNome(targetNome)
+      setDayOffDataNascimento(dataNasc)
+      setDayOffDataSolicitada('')
+      setDayOffObs('')
+    }
+    setIsDayOffModalOpen(true)
+  }
+
+  const handleSalvarDataNascimentoUsuario = async (userId: string, dataNasc: string) => {
+    if (!dataNasc) {
+      alert('Por favor, informe a Data de Nascimento.')
+      return
+    }
+    setSalvandoDataNascModal(true)
+    try {
+      await api.updateUsuarioSistema(userId, { data_nascimento: dataNasc })
+      if (userId === user?.id) {
+        updateLoggedUserDataNascimento(dataNasc)
+      }
+      setDayOffDataNascimento(dataNasc)
+      await fetchData()
+      alert('Data de nascimento salva com sucesso! Agora você já pode selecionar o dia do seu Day Off.')
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao salvar data de nascimento: ' + err.message)
+    } finally {
+      setSalvandoDataNascModal(false)
+    }
+  }
+
+  const handleSalvarDayOff = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!dayOffDataNascimento) {
+      alert('Por favor, informe e salve a sua Data de Nascimento primeiro.')
+      return
+    }
+    if (!dayOffDataSolicitada) {
+      alert('Por favor, selecione a data em que deseja usufruir do seu Day Off.')
+      return
+    }
+
+    const calc = getCalculoDayOff(dayOffDataNascimento, anoVigencia)
+    if (!calc) {
+      alert('Data de nascimento inválida.')
+      return
+    }
+
+    // Alerta caso a data esteja fora da janela de 30 dias do aniversário
+    if (dayOffDataSolicitada < calc.janelaInicio || dayOffDataSolicitada > calc.janelaFim) {
+      const resp = window.confirm(
+        `Atenção: A data solicitada (${formatDateDisplay(dayOffDataSolicitada)}) está fora da janela recomendada de 30 dias do seu aniversário (${formatDateDisplay(calc.janelaInicio)} a ${formatDateDisplay(calc.janelaFim)}).\n\nDeseja enviar a solicitação mesmo assim para avaliação excepcional do RH?`
+      )
+      if (!resp) return
+    }
+
+    setSalvandoDayOff(true)
+    try {
+      const targetUserId = dayOffUsuarioId || user?.id || 'temp'
+      const targetUserNome = dayOffUsuarioNome || user?.nome || user?.login || 'Colaborador'
+
+      if (editingDayOffId) {
+        await api.updateDayOff(editingDayOffId, {
+          data_nascimento: dayOffDataNascimento,
+          data_solicitada: dayOffDataSolicitada,
+          ano_vigencia: anoVigencia,
+          observacoes: dayOffObs.trim() || null
+        })
+        alert('Solicitação de Day Off atualizada com sucesso!')
+      } else {
+        await api.insertDayOff({
+          usuario_id: targetUserId,
+          usuario_nome: targetUserNome,
+          ano_vigencia: anoVigencia,
+          data_nascimento: dayOffDataNascimento,
+          data_solicitada: dayOffDataSolicitada,
+          status: 'Pendente',
+          observacoes: dayOffObs.trim() || null
+        })
+
+        // Disparar Notificação para os Administradores / RH
+        await api.createNotificacao({
+          titulo: `🎂 Solicitação de Day Off: ${targetUserNome}`,
+          mensagem: `${targetUserNome} solicitou Day Off (folga de aniversário) para o dia ${formatDateDisplay(dayOffDataSolicitada)} (Aniversário: ${formatDateDisplay(calc.dataAniversarioAno)}).`,
+          tipo: 'rh_ferias',
+          dados_extras: {
+            onlyAdmin: true,
+            usuario_id: targetUserId,
+            usuario_nome: targetUserNome,
+            modulo: 'rh'
+          }
+        }).catch(err => console.warn('Erro ao disparar notificação de Day Off:', err))
+
+        alert('Solicitação de Day Off enviada com sucesso ao RH!')
+      }
+
+      setIsDayOffModalOpen(false)
+      setEditingDayOffId(null)
+      setDayOffDataSolicitada('')
+      setDayOffObs('')
+      await fetchData()
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao salvar Day Off: ' + err.message)
+    } finally {
+      setSalvandoDayOff(false)
+    }
+  }
+
+  const handleExcluirDayOff = async (id: string, nomeColaborador: string) => {
+    if (!window.confirm(`Deseja realmente remover/cancelar a solicitação de Day Off de "${nomeColaborador}"?`)) {
+      return
+    }
+    try {
+      await api.deleteDayOff(id)
+      await fetchData()
+      alert('Solicitação de Day Off removida com sucesso!')
+    } catch (err: any) {
+      alert('Erro ao excluir Day Off: ' + err.message)
     }
   }
 
@@ -873,7 +1140,14 @@ export function RH() {
     try {
       const aprovador = user?.nome || user?.login || 'Gestor RH'
 
-      if (itemAvaliacao.type === 'ferias') {
+      if (itemAvaliacao.type === 'dayoff') {
+        await api.updateStatusDayOff(
+          itemAvaliacao.item.id,
+          statusAvaliacao as any,
+          respostaRh.trim(),
+          aprovador
+        )
+      } else if (itemAvaliacao.type === 'ferias') {
         await api.updateStatusFerias(
           itemAvaliacao.item.id,
           statusAvaliacao as any,
@@ -1014,6 +1288,44 @@ export function RH() {
     }
   }
 
+  const handleIniciarEdicaoFuncionario = () => {
+    if (!funcionarioResumo) return
+    setEditFuncDataNasc(funcionarioResumo.data_nascimento || '')
+    setEditFuncEmailCorp(funcionarioResumo.email_corporativo || '')
+    setEditFuncEmailPessoal(funcionarioResumo.email_pessoal || '')
+    setIsEditandoFuncionario(true)
+  }
+
+  const handleSalvarDadosFuncionario = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!funcionarioResumo) return
+
+    setSalvandoFuncionarioDados(true)
+    try {
+      const updated = await api.updateUsuarioSistema(funcionarioResumo.id, {
+        data_nascimento: editFuncDataNasc || null,
+        email_corporativo: editFuncEmailCorp.trim() || null,
+        email_pessoal: editFuncEmailPessoal.trim() || null
+      })
+
+      // Se for o próprio usuário logado, atualiza o storage da sessão
+      if (user && user.id === funcionarioResumo.id) {
+        updateLoggedUserDataNascimento(editFuncDataNasc || null)
+        updateLoggedUserEmails(editFuncEmailCorp.trim() || null, editFuncEmailPessoal.trim() || null)
+      }
+
+      setUsuarios(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated } : u))
+      setFuncionarioResumo(prev => prev ? { ...prev, ...updated } : updated)
+      setIsEditandoFuncionario(false)
+      alert('Dados cadastrais do funcionário atualizados com sucesso!')
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao salvar dados do funcionário: ' + err.message)
+    } finally {
+      setSalvandoFuncionarioDados(false)
+    }
+  }
+
   // ===== Controle de Ponto (Gestão RH) =====
   const PONTO_LABELS: Record<TipoPonto, string> = {
     inicio_expediente: 'Entrada',
@@ -1141,6 +1453,24 @@ export function RH() {
     }
   }
 
+  const calcularIdade = (dateStr?: string | null): number | null => {
+    if (!dateStr) return null
+    try {
+      const parts = dateStr.split('-').map(Number)
+      if (parts.length < 3) return null
+      const [ano, mes, dia] = parts
+      const hoje = new Date()
+      let idade = hoje.getFullYear() - ano
+      const m = (hoje.getMonth() + 1) - mes
+      if (m < 0 || (m === 0 && hoje.getDate() < dia)) {
+        idade--
+      }
+      return idade >= 0 ? idade : null
+    } catch {
+      return null
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     if (status === 'Aprovado' || status === 'Abonado / Aprovado' || status === 'Pago') {
       return (
@@ -1220,6 +1550,15 @@ export function RH() {
           >
             <Palmtree className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span>Solicitar Férias</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleAbrirModalDayOff()}
+            className="py-2 px-2.5 sm:py-2.5 sm:px-4 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 text-pink-300 hover:text-pink-200 border border-pink-500/40 font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer shadow-md"
+          >
+            <Gift className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-pink-400 shrink-0" />
+            <span>Solicitar Day Off</span>
           </button>
 
           {/* Botão de Plantão para Técnicos e RH */}
@@ -1333,6 +1672,25 @@ export function RH() {
 
           <button
             type="button"
+            onClick={() => setTab('dayoff_equipe')}
+            className={clsx(
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              tab === 'dayoff_equipe'
+                ? "bg-pink-500/20 text-pink-300 border border-pink-500/40 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <Gift className="w-4 h-4 text-pink-400" />
+            <span>Day Off</span>
+            {todasDayOffEquipe.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-pink-500/20 text-pink-300 font-mono">
+                {todasDayOffEquipe.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
             onClick={() => setTab('home_office_equipe')}
             className={clsx(
               "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
@@ -1428,9 +1786,9 @@ export function RH() {
           >
             <Shield className="w-4 h-4 text-purple-400" />
             <span>Aprovações</span>
-            {kpis.feriasPendentes.length + kpis.faltasPendentes.length > 0 && (
+            {kpis.feriasPendentes.length + kpis.faltasPendentes.length + kpis.dayOffPendentes.length > 0 && (
               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-500/30 text-purple-200 font-mono font-bold">
-                {kpis.feriasPendentes.length + kpis.faltasPendentes.length}
+                {kpis.feriasPendentes.length + kpis.faltasPendentes.length + kpis.dayOffPendentes.length}
               </span>
             )}
           </button>
@@ -1453,6 +1811,25 @@ export function RH() {
             {minhasFerias.length > 0 && (
               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-brand-500/20 text-brand-300 font-mono">
                 {minhasFerias.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('meu_day_off')}
+            className={clsx(
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              tab === 'meu_day_off'
+                ? "bg-pink-500/20 text-pink-300 border border-pink-500/40 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <Gift className="w-4 h-4 text-pink-400" />
+            <span>Day Off</span>
+            {meuDayOffAnoAtual && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-pink-500/20 text-pink-300 font-mono">
+                {meuDayOffAnoAtual.status === 'Aprovado' ? '✓' : meuDayOffAnoAtual.status === 'Pendente' ? '⏳' : '!'}
               </span>
             )}
           </button>
@@ -1624,6 +2001,198 @@ export function RH() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: MEU DAY OFF (COLABORADOR) */}
+          {tab === 'meu_day_off' && (
+            <div className="space-y-5">
+              {/* Banner Informativo / Regra do Day Off */}
+              <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-pink-950/40 via-purple-950/30 to-slate-900 border border-pink-500/30 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-pink-500/20 border border-pink-500/40 flex items-center justify-center text-pink-400 shrink-0 shadow-lg shadow-pink-500/10">
+                    <Cake className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>Day Off de Aniversário</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 font-extrabold uppercase border border-pink-500/30">
+                        Benefício Mantran
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                      Você tem direito a <strong>1 dia de folga comemorativa</strong> no mês do seu aniversário (utilizável em até <strong>30 dias</strong> dentro do período de aniversário). O agendamento é sujeito à aprovação prévia do RH.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleAbrirModalDayOff()}
+                    className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-pink-500/25"
+                  >
+                    <PartyPopper className="w-4 h-4" />
+                    <span>{meuDayOffAnoAtual ? 'Alterar / Novo Pedido' : 'Solicitar Meu Day Off'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Se o usuário ainda não cadastrou a Data de Nascimento */}
+              {!minhaDataNascimento ? (
+                <div className="bg-dark-card border-2 border-dashed border-pink-500/40 rounded-3xl p-6 sm:p-10 text-center space-y-4 shadow-xl">
+                  <div className="w-14 h-14 rounded-2xl bg-pink-500/15 border border-pink-500/30 mx-auto flex items-center justify-center text-pink-400">
+                    <Gift className="w-7 h-7 animate-bounce" />
+                  </div>
+                  <div className="max-w-md mx-auto space-y-2">
+                    <h4 className="text-base font-bold text-white">Informe sua Data de Nascimento</h4>
+                    <p className="text-xs text-slate-400">
+                      Para calcular a janela de 30 dias liberada para o seu Day Off, precisamos que você confirme a sua data de nascimento.
+                    </p>
+                  </div>
+
+                  <div className="max-w-xs mx-auto flex flex-col sm:flex-row gap-2.5 pt-2">
+                    <input
+                      type="date"
+                      value={dayOffDataNascimento}
+                      onChange={e => setDayOffDataNascimento(e.target.value)}
+                      className="px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-semibold focus:border-pink-500 flex-1"
+                    />
+                    <button
+                      type="button"
+                      disabled={salvandoDataNascModal || !dayOffDataNascimento}
+                      onClick={() => handleSalvarDataNascimentoUsuario(user?.id || '', dayOffDataNascimento)}
+                      className="py-2.5 px-4 rounded-xl bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>{salvandoDataNascModal ? 'Salvando...' : 'Salvar'}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Detalhes do Day Off do Colaborador com Data de Nascimento cadastrada */
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Card: Meu Período de Aniversário & Janela de Validade */}
+                  <div className="p-5 rounded-3xl bg-dark-card border border-slate-800 shadow-xl space-y-4 md:col-span-1">
+                    <div className="flex items-center gap-2.5 text-pink-400 text-xs font-bold uppercase tracking-wider">
+                      <Cake className="w-4 h-4" />
+                      <span>Meus Dados de Aniversário</span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-1">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Data de Nascimento</span>
+                        <p className="text-base font-black text-white flex items-center justify-between">
+                          <span>{formatDateDisplay(minhaDataNascimento)}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-md bg-pink-500/15 text-pink-300 font-bold">
+                            {meuCalculoDayOff?.mesNome}
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-1">
+                        <span className="text-[11px] font-bold text-pink-400 uppercase tracking-wider">Janela de 30 Dias ({anoVigencia})</span>
+                        <p className="text-xs font-bold text-slate-200">
+                          {formatDateDisplay(meuCalculoDayOff?.janelaInicio)} até {formatDateDisplay(meuCalculoDayOff?.janelaFim)}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          Prazo máximo para usufruir da folga no exercício {anoVigencia}.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAbrirModalDayOff()}
+                        className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-pink-400" />
+                        <span>Atualizar Data de Nascimento</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Card: Status do Day Off no Ano Vigente */}
+                  <div className="p-5 rounded-3xl bg-dark-card border border-slate-800 shadow-xl space-y-4 md:col-span-2 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                          Vigência: <strong className="text-white font-mono">{anoVigencia}</strong>
+                        </span>
+                        {meuDayOffAnoAtual ? getStatusBadge(meuDayOffAnoAtual.status) : (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                            Disponível para Solicitar
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-4">
+                        {meuDayOffAnoAtual ? (
+                          <div className="space-y-4">
+                            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+                              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Data Escolhida para o Day Off</span>
+                              <p className="text-xl sm:text-2xl font-black text-pink-300 font-mono flex items-center gap-2">
+                                <Calendar className="w-5 h-5 text-pink-400" />
+                                {formatDateDisplay(meuDayOffAnoAtual.data_solicitada)}
+                              </p>
+                            </div>
+
+                            {meuDayOffAnoAtual.observacoes && (
+                              <p className="text-xs text-slate-300 bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+                                <strong className="text-slate-400 block text-[11px]">Minhas Observações:</strong>
+                                {meuDayOffAnoAtual.observacoes}
+                              </p>
+                            )}
+
+                            {meuDayOffAnoAtual.resposta_rh && (
+                              <p className="text-xs text-amber-200 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+                                <strong className="text-amber-400 block text-[11px]">Retorno da Gestão de RH:</strong>
+                                {meuDayOffAnoAtual.resposta_rh}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 space-y-3">
+                            <div className="w-12 h-12 rounded-2xl bg-pink-500/10 text-pink-400 mx-auto flex items-center justify-center">
+                              <PartyPopper className="w-6 h-6" />
+                            </div>
+                            <h4 className="text-sm font-bold text-white">Você ainda não solicitou seu Day Off de {anoVigencia}</h4>
+                            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                              Aproveite seu benefício e escolha o dia ideal dentro da janela de aniversário para descansar e comemorar.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirModalDayOff()}
+                              className="btn-primary py-2 px-5 text-xs font-bold inline-flex items-center gap-2 cursor-pointer"
+                            >
+                              <Gift className="w-4 h-4" />
+                              <span>Escolher Data da Folga</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {meuDayOffAnoAtual && (
+                      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Solicitado em {formatDateDisplay(meuDayOffAnoAtual.created_at)}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirModalDayOff(undefined, meuDayOffAnoAtual)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-pink-400" />
+                            Editar
+                          </button>
+                          {meuDayOffAnoAtual.aprovado_por && (
+                            <span>Avaliado por: <strong className="text-slate-300">{meuDayOffAnoAtual.aprovado_por}</strong></span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -2409,6 +2978,209 @@ export function RH() {
             </div>
           )}
 
+          {/* TAB: DAY OFF EQUIPE (GESTOR / ADMIN) */}
+          {tab === 'dayoff_equipe' && (
+            <div className="space-y-5">
+              {/* Header do Day Off da Equipe */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-3xl">
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                    <Gift className="w-5 h-5 text-pink-400" />
+                    Gestão de Day Off & Aniversariantes ({todasDayOffEquipe.length})
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Acompanhe os aniversariantes, janela de 30 dias liberada e aprove os pedidos de folga comemorativa.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleAbrirModalDayOff()}
+                    className="py-2.5 px-4 rounded-xl bg-pink-500 hover:bg-pink-600 text-slate-950 font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-pink-500/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Cadastrar Day Off</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Painel: Aniversariantes do Mês e Próximos */}
+              <div className="p-4 sm:p-5 rounded-3xl bg-slate-900/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-pink-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Cake className="w-4 h-4" /> Aniversariantes da Equipe
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {aniversariantesEquipe.length} colaboradores com aniversário cadastrado
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {aniversariantesEquipe.length === 0 ? (
+                    <div className="col-span-full py-4 text-center text-slate-500 text-xs italic">
+                      Nenhum colaborador com data de nascimento cadastrada ainda. Ao abrir o Day Off ou editar o colaborador, informe a data.
+                    </div>
+                  ) : (
+                    aniversariantesEquipe.map(item => (
+                      <div
+                        key={item.usuario.id}
+                        className={clsx(
+                          "p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-2.5",
+                          item.isMesAtual
+                            ? "bg-pink-950/20 border-pink-500/40 shadow-sm shadow-pink-500/10"
+                            : "bg-slate-900/80 border-slate-800"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-pink-500/20 text-pink-300 font-bold flex items-center justify-center text-xs shrink-0">
+                            {item.usuario.nome.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white truncate flex items-center gap-1">
+                              <span>{item.usuario.nome}</span>
+                              {item.isMesAtual && <span title="Aniversariante deste mês!">🎂</span>}
+                            </p>
+                            <span className="text-[10px] text-slate-400 block font-mono">
+                              {item.calc?.diaNasc}/{item.calc?.mesNasc} ({item.calc?.mesNome})
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0">
+                          {item.dayOff ? (
+                            getStatusBadge(item.dayOff.status)
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleAbrirModalDayOff(item.usuario)}
+                              className="text-[10px] px-2 py-1 rounded-lg bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 border border-pink-500/30 font-bold transition-all cursor-pointer"
+                            >
+                              Lançar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Tabela de Solicitações de Day Off */}
+              <div className="bg-dark-card border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900/90 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
+                      <tr>
+                        <th className="p-4">Colaborador</th>
+                        <th className="p-4">Nascimento / Aniversário</th>
+                        <th className="p-4">Data Solicitada (Folga)</th>
+                        <th className="p-4">Janela Permitida (30 Dias)</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4">Observações</th>
+                        <th className="p-4 text-right">Ações do RH</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {todasDayOffEquipe.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-slate-500">
+                            Nenhuma solicitação de Day Off registrada até o momento.
+                          </td>
+                        </tr>
+                      ) : (
+                        todasDayOffEquipe.map(d => {
+                          const calc = getCalculoDayOff(d.data_nascimento, d.ano_vigencia)
+                          return (
+                            <tr key={d.id} className="hover:bg-slate-850/50 transition-colors">
+                              <td className="p-4 font-bold text-white">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-8 h-8 rounded-full bg-pink-500/20 border border-pink-500/30 text-pink-300 font-bold flex items-center justify-center text-xs">
+                                    {d.usuario_nome.charAt(0)}
+                                  </div>
+                                  <div>
+                                    <span>{d.usuario_nome}</span>
+                                    <span className="text-[10px] text-slate-500 block">Exercício: {d.ano_vigencia}</span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="p-4 text-slate-300">
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono font-semibold">{formatDateDisplay(d.data_nascimento)}</span>
+                                    {calcularIdade(d.data_nascimento) !== null && (
+                                      <span className="px-1.5 py-0.2 text-[10px] rounded bg-pink-500/15 text-pink-300 border border-pink-500/30 font-bold">
+                                        {calcularIdade(d.data_nascimento)}a
+                                      </span>
+                                    )}
+                                  </div>
+                                  {calc && (
+                                    <span className="text-[10px] text-pink-400 block">
+                                      {calc.mesNome}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="p-4 font-mono font-bold text-pink-300 text-sm">
+                                {formatDateDisplay(d.data_solicitada)}
+                              </td>
+
+                              <td className="p-4 text-slate-400 text-[11px] font-mono">
+                                {calc ? `${formatDateDisplay(calc.janelaInicio)} a ${formatDateDisplay(calc.janelaFim)}` : '-'}
+                              </td>
+
+                              <td className="p-4">
+                                {getStatusBadge(d.status)}
+                              </td>
+
+                              <td className="p-4 text-slate-400 max-w-xs truncate">
+                                {d.observacoes || d.resposta_rh || '-'}
+                              </td>
+
+                              <td className="p-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAbrirModalDayOff(undefined, d)}
+                                    title="Editar Dados"
+                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs transition-all cursor-pointer"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5 text-pink-400" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setItemAvaliacao({ type: 'dayoff', item: d })
+                                      setStatusAvaliacao(d.status || 'Aprovado')
+                                      setRespostaRh(d.resposta_rh || '')
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-lg bg-pink-500/15 hover:bg-pink-500/25 text-pink-300 border border-pink-500/30 text-xs font-bold transition-all cursor-pointer"
+                                  >
+                                    Avaliar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleExcluirDayOff(d.id, d.usuario_nome)}
+                                    title="Excluir Solicitação"
+                                    className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs transition-all cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB: ESCALA HOME OFFICE EQUIPE */}
           {tab === 'home_office_equipe' && (
             <div className="space-y-4">
@@ -2823,10 +3595,36 @@ export function RH() {
           {tab === 'gestao_aprovacoes' && (
             <div className="space-y-4">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                Fila de Pendências de RH ({kpis.feriasPendentes.length + kpis.faltasPendentes.length})
+                Fila de Pendências de RH ({kpis.feriasPendentes.length + kpis.faltasPendentes.length + kpis.dayOffPendentes.length})
               </h3>
               
               <div className="space-y-3">
+                {/* Day Off Pendentes */}
+                {kpis.dayOffPendentes.map(d => (
+                  <div key={d.id} className="p-4 bg-dark-card border border-pink-500/30 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Gift className="w-3.5 h-3.5 text-pink-400" />
+                        🎂 Day Off (Aniversário): {d.usuario_nome} ({d.ano_vigencia})
+                      </span>
+                      <span className="text-xs text-slate-400 block mt-0.5">
+                        Folga Solicitada: <strong className="text-pink-300 font-mono">{formatDateDisplay(d.data_solicitada)}</strong> | Nascimento: {formatDateDisplay(d.data_nascimento)} {calcularIdade(d.data_nascimento) !== null ? `(${calcularIdade(d.data_nascimento)} anos)` : ''}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setItemAvaliacao({ type: 'dayoff', item: d })
+                        setStatusAvaliacao('Aprovado')
+                        setRespostaRh('')
+                      }}
+                      className="py-1.5 px-3 rounded-xl bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/40 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                    >
+                      Avaliar
+                    </button>
+                  </div>
+                ))}
+
                 {kpis.feriasPendentes.map(f => (
                   <div key={f.id} className="p-4 bg-dark-card border border-amber-500/30 rounded-2xl flex items-center justify-between">
                     <div>
@@ -2840,6 +3638,7 @@ export function RH() {
                       onClick={() => {
                         setItemAvaliacao({ type: 'ferias', item: f })
                         setStatusAvaliacao('Aprovado')
+                        setRespostaRh('')
                       }}
                       className="btn-primary py-1.5 px-3 text-xs font-bold"
                     >
@@ -2861,6 +3660,7 @@ export function RH() {
                       onClick={() => {
                         setItemAvaliacao({ type: 'falta', item })
                         setStatusAvaliacao('Abonado / Aprovado')
+                        setRespostaRh('')
                       }}
                       className="btn-primary py-1.5 px-3 text-xs font-bold"
                     >
@@ -3352,6 +4152,240 @@ export function RH() {
         </div>
       )}
 
+      {/* ================= MODAL SOLICITAR / EDITAR DAY OFF ================= */}
+      {isDayOffModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-dark-card border border-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400">
+                  <Gift className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">
+                    {editingDayOffId ? '✏️ Editar Day Off' : '🎉 Solicitar Day Off (Folga de Aniversário)'}
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Direito a 1 dia de folga no prazo de 30 dias do seu aniversário
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsDayOffModalOpen(false)
+                  setEditingDayOffId(null)
+                }} 
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {(() => {
+              const targetUserId = dayOffUsuarioId || user?.id || 'temp'
+              const calc = getCalculoDayOff(dayOffDataNascimento, anoVigencia)
+              const foraDaJanela = calc && dayOffDataSolicitada && (dayOffDataSolicitada < calc.janelaInicio || dayOffDataSolicitada > calc.janelaFim)
+
+              return (
+                <form onSubmit={handleSalvarDayOff} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                  {/* Seleção do Colaborador (se Gestor/Admin) */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                      Colaborador
+                    </label>
+                    {isGestorRh ? (
+                      <select
+                        value={dayOffUsuarioId}
+                        onChange={e => {
+                          const selId = e.target.value
+                          setDayOffUsuarioId(selId)
+                          const found = usuarios.find(u => u.id === selId)
+                          if (found) {
+                            setDayOffUsuarioNome(found.nome)
+                            setDayOffDataNascimento(found.data_nascimento || '')
+                          }
+                        }}
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-pink-500"
+                      >
+                        {usuarios.map(u => (
+                          <option key={u.id} value={u.id}>{u.nome} ({u.perfil})</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        disabled
+                        value={user?.nome || user?.login || 'Colaborador'}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-300 text-xs font-bold"
+                      />
+                    )}
+                  </div>
+
+                  {/* ETAPA 1: Se ainda não tiver Data de Nascimento cadastrada ou quiser alterar */}
+                  <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+                    <label className="block text-xs font-bold text-pink-400 uppercase tracking-wider flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Cake className="w-3.5 h-3.5" /> Data de Nascimento
+                      </span>
+                      {calc && (
+                        <div className="flex items-center gap-1.5">
+                          {calcularIdade(dayOffDataNascimento) !== null && (
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30 font-bold">
+                              {calcularIdade(dayOffDataNascimento)} anos
+                            </span>
+                          )}
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 font-bold">
+                            Mês: {calc.mesNome}
+                          </span>
+                        </div>
+                      )}
+                    </label>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="date"
+                        value={dayOffDataNascimento}
+                        onChange={e => setDayOffDataNascimento(e.target.value)}
+                        required
+                        className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs font-medium focus:border-pink-500"
+                      />
+                      <button
+                        type="button"
+                        disabled={salvandoDataNascModal || !dayOffDataNascimento}
+                        onClick={() => handleSalvarDataNascimentoUsuario(targetUserId, dayOffDataNascimento)}
+                        className="py-2 px-3 rounded-xl bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                        title="Salvar no perfil do colaborador"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{salvandoDataNascModal ? '...' : 'Salvar no Perfil'}</span>
+                      </button>
+                    </div>
+
+                    {!calc && (
+                      <p className="text-[11px] text-amber-400 flex items-center gap-1 pt-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        Informe e salve a data de nascimento para desbloquear a seleção de data do Day Off.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* ETAPA 2: Painel de Janela e Seleção da Data do Day Off */}
+                  {calc && (
+                    <div className="space-y-4">
+                      {/* Box informativo da janela permitida */}
+                      <div className="p-3.5 rounded-2xl bg-pink-950/20 border border-pink-500/30 text-xs text-pink-200 space-y-1">
+                        <div className="flex items-center justify-between font-bold text-pink-300">
+                          <span className="flex items-center gap-1.5">
+                            <Calendar className="w-4 h-4" /> Janela Liberada para Folga:
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-pink-500/30 text-white font-mono">
+                            30 Dias
+                          </span>
+                        </div>
+                        <p className="font-mono text-white text-xs pt-0.5">
+                          <strong>{formatDateDisplay(calc.janelaInicio)}</strong> até <strong>{formatDateDisplay(calc.janelaFim)}</strong>
+                        </p>
+                        <p className="text-[11px] text-pink-300/80">
+                          Você pode escolher qualquer dia útil dentro desta janela de comemoração de aniversário no ano de {anoVigencia}.
+                        </p>
+                      </div>
+
+                      {/* Seleção do Ano e da Data Desejada */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                            Ano de Exercício
+                          </label>
+                          <input
+                            type="number"
+                            min={2024}
+                            max={2030}
+                            value={anoVigencia}
+                            onChange={e => setAnoVigencia(Number(e.target.value))}
+                            required
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-semibold focus:border-pink-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                            Data Desejada para Folga
+                          </label>
+                          <input
+                            type="date"
+                            value={dayOffDataSolicitada}
+                            min={calc.janelaInicio}
+                            max={calc.janelaFim}
+                            onChange={e => setDayOffDataSolicitada(e.target.value)}
+                            required
+                            className={clsx(
+                              "w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border text-white text-xs font-bold focus:outline-none",
+                              foraDaJanela ? "border-amber-500 text-amber-300 focus:border-amber-400" : "border-slate-700 focus:border-pink-500"
+                            )}
+                          />
+                        </div>
+                      </div>
+
+                      {foraDaJanela && (
+                        <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-xs text-amber-200 flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold text-amber-300">Aviso sobre o Prazo</p>
+                            <p className="text-[11px] text-amber-200/90">
+                              A data selecionada não está dentro da janela de 30 dias do mês de aniversário ({formatDateDisplay(calc.janelaInicio)} a {formatDateDisplay(calc.janelaFim)}). O pedido passará por aprovação especial do RH.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                          Observações (Opcional)
+                        </label>
+                        <textarea
+                          value={dayOffObs}
+                          onChange={e => setDayOffObs(e.target.value)}
+                          placeholder="Ex: Gostaria de folgar na sexta-feira seguinte ao meu aniversário..."
+                          rows={2}
+                          className="w-full px-3.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white text-xs focus:border-pink-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDayOffModalOpen(false)
+                        setEditingDayOffId(null)
+                      }}
+                      className="btn-secondary flex-1 py-2.5"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={salvandoDayOff || !calc}
+                      className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 text-white font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-pink-500/20"
+                    >
+                      {editingDayOffId ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                      <span>
+                        {salvandoDayOff 
+                          ? (editingDayOffId ? 'Salvando...' : 'Enviando...') 
+                          : (editingDayOffId ? 'Salvar Alterações' : 'Enviar Solicitação')}
+                      </span>
+                    </button>
+                  </div>
+                </form>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL EDITAR ESCALA HOME OFFICE ================= */}
       {isHomeOfficeModalOpen && editingHomeOffice && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
@@ -3701,6 +4735,34 @@ export function RH() {
                 </div>
               )}
 
+              {itemAvaliacao.type === 'dayoff' && (
+                <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Data Solicitada (Day Off):</span>
+                    <strong className="text-pink-400 text-sm">
+                      🎂 {formatDateDisplay(itemAvaliacao.item.data_solicitada)}
+                    </strong>
+                    {itemAvaliacao.item.data_nascimento && (
+                      <span className="text-[11px] text-slate-400 block mt-0.5">
+                        Nascimento: {formatDateDisplay(itemAvaliacao.item.data_nascimento)} {calcularIdade(itemAvaliacao.item.data_nascimento) !== null ? `(${calcularIdade(itemAvaliacao.item.data_nascimento)} anos)` : ''}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const itemToEdit = itemAvaliacao.item
+                      setItemAvaliacao(null)
+                      handleAbrirModalDayOff(undefined, itemToEdit)
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-pink-500/15 text-pink-300 hover:bg-pink-500/25 border border-pink-500/30 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Alterar Data
+                  </button>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   Decisão do RH
@@ -3710,7 +4772,7 @@ export function RH() {
                   onChange={e => setStatusAvaliacao(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-brand-500"
                 >
-                  {itemAvaliacao.type === 'ferias' ? (
+                  {itemAvaliacao.type === 'ferias' || itemAvaliacao.type === 'dayoff' ? (
                     <>
                       <option value="Aprovado">Aprovado</option>
                       <option value="Pendente">Pendente</option>
@@ -3889,39 +4951,196 @@ export function RH() {
         const saldoBanco = bancoHorasPorColaborador.get(u.id) ?? 0
 
         return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-            <div className="bg-dark-card border border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-md flex flex-col animate-in fade-in zoom-in-95 duration-200 max-h-[90vh]">
-              {/* Header com foto */}
-              <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60 rounded-t-2xl sm:rounded-t-3xl shrink-0">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-brand-500/30">
-                    {u.foto_url ? (
-                      <img src={u.foto_url} alt={u.nome} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-brand-500/20 to-teal-500/20 text-brand-300 flex items-center justify-center text-xl font-black uppercase">
-                        {u.nome.charAt(0)}
-                      </div>
-                    )}
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+            <div className="bg-dark-card border border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-xl sm:max-w-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] overflow-hidden">
+              
+              {/* Seção Superior: Foto em Destaque (Esquerda) + Perfil & Contatos (Direita) */}
+              <div className="p-5 sm:p-6 border-b border-slate-800 bg-gradient-to-b from-slate-900/90 via-slate-900/60 to-slate-950/90 relative overflow-hidden shrink-0">
+                {/* Glow decorativo de fundo */}
+                <div className="absolute -top-12 -left-12 w-48 h-48 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -top-12 -right-12 w-48 h-48 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="flex flex-col sm:flex-row gap-5 items-start relative z-10">
+                  {/* Foto Grande em Destaque (Esquerda) */}
+                  <div className="relative shrink-0 mx-auto sm:mx-0">
+                    <div className="w-36 h-44 sm:w-44 sm:h-52 rounded-3xl overflow-hidden border-2 border-rose-500/40 ring-4 ring-rose-500/20 shadow-2xl shadow-rose-950/40 bg-slate-950 flex items-center justify-center group transition-transform hover:scale-[1.02]">
+                      {u.foto_url ? (
+                        <img src={u.foto_url} alt={u.nome} className="w-full h-full object-cover object-top" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-rose-900/60 via-purple-900/60 to-slate-950 text-rose-200 flex flex-col items-center justify-center text-4xl font-black uppercase shadow-inner">
+                          <span>{u.nome.charAt(0)}</span>
+                          <span className="text-[10px] tracking-widest text-slate-400 font-semibold mt-1">SEM FOTO</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h2 className="text-base font-bold text-white truncate">{u.nome}</h2>
-                    <p className="text-xs text-slate-400 capitalize">{u.perfil} • {u.login}</p>
+
+                  {/* Lado Direito: Nome + Perfil + Botões + Dados Cadastrais */}
+                  <div className="flex-1 min-w-0 w-full flex flex-col gap-3">
+                    {/* Linha de Nome e Ações */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate">{u.nome}</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold capitalize">
+                            {u.perfil}
+                          </span>
+                          <span className="text-xs text-slate-400 font-mono">
+                            @{u.login}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Botão Editar & Fechar */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {!isEditandoFuncionario && (
+                          <button
+                            type="button"
+                            onClick={handleIniciarEdicaoFuncionario}
+                            className="px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/40 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                            title="Editar e-mails e data de nascimento"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Editar</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setFuncionarioResumo(null); setIsEditandoFuncionario(false) }}
+                          className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition-colors"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card: Dados Cadastrais & Contatos */}
+                    <div className="p-3.5 rounded-2xl bg-slate-900/85 border border-slate-800 space-y-2.5 shadow-sm">
+                      <p className="text-[10px] uppercase tracking-wider text-purple-400 font-bold flex items-center gap-1.5">
+                        <UserCheck className="w-3.5 h-3.5 text-purple-400" />
+                        Dados Cadastrais & Contatos
+                      </p>
+
+                      {isEditandoFuncionario ? (
+                        <form onSubmit={handleSalvarDadosFuncionario} className="space-y-2.5 pt-1">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-300 mb-0.5 flex items-center gap-1">
+                              <Cake className="w-3 h-3 text-pink-400" />
+                              Data de Nascimento
+                            </label>
+                            <input
+                              type="date"
+                              value={editFuncDataNasc}
+                              onChange={e => setEditFuncDataNasc(e.target.value)}
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs font-bold focus:border-purple-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-300 mb-0.5 flex items-center gap-1">
+                              <Building2 className="w-3 h-3 text-cyan-400" />
+                              E-mail Empresa
+                            </label>
+                            <input
+                              type="email"
+                              placeholder="ex: nome@mantran.com.br"
+                              value={editFuncEmailCorp}
+                              onChange={e => setEditFuncEmailCorp(e.target.value)}
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs focus:border-cyan-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-300 mb-0.5 flex items-center gap-1">
+                              <Mail className="w-3 h-3 text-amber-400" />
+                              E-mail Particular
+                            </label>
+                            <input
+                              type="email"
+                              placeholder="ex: particular@gmail.com"
+                              value={editFuncEmailPessoal}
+                              onChange={e => setEditFuncEmailPessoal(e.target.value)}
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs focus:border-amber-500"
+                            />
+                          </div>
+
+                          <div className="pt-1 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditandoFuncionario(false)}
+                              className="btn-secondary flex-1 py-1 text-xs"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={salvandoFuncionarioDados}
+                              className="btn-primary flex-1 py-1 text-xs font-bold flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <Check className="w-3 h-3" />
+                              <span>{salvandoFuncionarioDados ? 'Salvando...' : 'Salvar'}</span>
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between py-0.5 border-b border-slate-800/60">
+                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                              <Cake className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+                              Data de Nascimento
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={clsx("font-bold text-xs", u.data_nascimento ? "text-pink-400" : "text-slate-500 italic")}>
+                                {u.data_nascimento ? formatDateDisplay(u.data_nascimento) : 'Não informada'}
+                              </span>
+                              {u.data_nascimento && calcularIdade(u.data_nascimento) !== null && (
+                                <span className="px-2 py-0.5 rounded-md bg-pink-500/15 text-pink-300 border border-pink-500/30 text-[10px] font-bold">
+                                  {calcularIdade(u.data_nascimento)} anos
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between py-0.5 border-b border-slate-800/60">
+                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                              <Building2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                              E-mail Empresa
+                            </span>
+                            <span className={clsx("font-medium truncate max-w-[180px] text-[11px]", u.email_corporativo ? "text-cyan-300 font-mono" : "text-slate-500 italic")} title={u.email_corporativo || ''}>
+                              {u.email_corporativo ? (
+                                <a href={`mailto:${u.email_corporativo}`} className="hover:underline">
+                                  {u.email_corporativo}
+                                </a>
+                              ) : 'Não informado'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between py-0.5">
+                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                              <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              E-mail Particular
+                            </span>
+                            <span className={clsx("font-medium truncate max-w-[180px] text-[11px]", u.email_pessoal ? "text-amber-300 font-mono" : "text-slate-500 italic")} title={u.email_pessoal || ''}>
+                              {u.email_pessoal ? (
+                                <a href={`mailto:${u.email_pessoal}`} className="hover:underline">
+                                  {u.email_pessoal}
+                                </a>
+                              ) : 'Não informado'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => setFuncionarioResumo(null)}
-                  className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors shrink-0"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
 
-              <div className="p-5 space-y-3 overflow-y-auto">
+              {/* Seção Inferior: Indicadores e Jornada */}
+              <div className="p-5 sm:p-6 space-y-3.5 overflow-y-auto">
                 {/* Jornada */}
-                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
                   <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Jornada</p>
                   {jornadaU ? (
-                    <p className="text-sm font-bold text-white tabular-nums">
+                    <p className="text-sm sm:text-base font-bold text-white tabular-nums">
                       {(jornadaU.hora_entrada || '').slice(0, 5)} às {(jornadaU.hora_saida || '').slice(0, 5)}
                       {jornadaU.almoco_inicio && (
                         <span className="text-xs text-slate-400 font-normal"> • almoço {(jornadaU.almoco_inicio || '').slice(0, 5)}–{(jornadaU.almoco_fim || '').slice(0, 5)}</span>
@@ -3933,43 +5152,44 @@ export function RH() {
                 </div>
 
                 {/* Grid de indicadores */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
+                  <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
                     <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Banco de Horas</p>
                     <p className={clsx(
-                      'text-lg font-black tabular-nums mt-0.5',
+                      'text-xl font-black tabular-nums mt-1',
                       saldoBanco > 0 ? 'text-emerald-400' : saldoBanco < 0 ? 'text-rose-400' : 'text-slate-300'
                     )}>
                       {formatSaldo(saldoBanco)}
                     </p>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                  <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
                     <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Regime</p>
-                    <p className="text-sm font-bold text-cyan-400 mt-0.5">{hoU?.modalidade || 'Presencial'}</p>
+                    <p className="text-base font-bold text-cyan-400 mt-1">{hoU?.modalidade || 'Presencial'}</p>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                  <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
                     <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Férias no Ano</p>
-                    <p className="text-sm font-bold text-teal-400 mt-0.5">{feriasU.length} período(s)</p>
+                    <p className="text-base font-bold text-teal-400 mt-1">{feriasU.length} período(s)</p>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                  <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
                     <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Faltas / Atestados</p>
-                    <p className="text-sm font-bold text-amber-400 mt-0.5">{faltasU.length} registro(s)</p>
+                    <p className="text-base font-bold text-amber-400 mt-1">{faltasU.length} registro(s)</p>
                   </div>
                 </div>
 
                 {plantoesU.length > 0 && (
-                  <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+                  <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
                     <span className="text-xs text-slate-400">Plantões realizados</span>
                     <span className="text-sm font-bold text-amber-400">{plantoesU.length} fim(ns) de semana</span>
                   </div>
                 )}
               </div>
 
-              <div className="p-4 border-t border-slate-800 shrink-0">
+              {/* Botão Fechar no rodapé */}
+              <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-900/40 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setFuncionarioResumo(null)}
-                  className="btn-secondary w-full py-2.5"
+                  onClick={() => { setFuncionarioResumo(null); setIsEditandoFuncionario(false) }}
+                  className="btn-secondary w-full py-2.5 font-bold"
                 >
                   Fechar
                 </button>

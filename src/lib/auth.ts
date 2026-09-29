@@ -7,6 +7,9 @@ export interface LoggedUser {
   meta_semanal?: number
   implantacao_id?: string
   foto_url?: string | null
+  data_nascimento?: string | null
+  email_corporativo?: string | null
+  email_pessoal?: string | null
 }
 
 /**
@@ -19,6 +22,33 @@ export function updateLoggedUserFoto(fotoUrl: string | null): void {
     if (!stored) return
     const user = JSON.parse(stored)
     user.foto_url = fotoUrl
+    localStorage.setItem('@Mantran:user', JSON.stringify(user))
+  } catch (_) {}
+}
+
+/**
+ * Atualiza a data de nascimento do usuário logado no localStorage.
+ */
+export function updateLoggedUserDataNascimento(dataNascimento: string | null): void {
+  try {
+    const stored = localStorage.getItem('@Mantran:user')
+    if (!stored) return
+    const user = JSON.parse(stored)
+    user.data_nascimento = dataNascimento
+    localStorage.setItem('@Mantran:user', JSON.stringify(user))
+  } catch (_) {}
+}
+
+/**
+ * Atualiza os e-mails (corporativo e pessoal) do usuário logado no localStorage.
+ */
+export function updateLoggedUserEmails(emailCorporativo?: string | null, emailPessoal?: string | null): void {
+  try {
+    const stored = localStorage.getItem('@Mantran:user')
+    if (!stored) return
+    const user = JSON.parse(stored)
+    if (emailCorporativo !== undefined) user.email_corporativo = emailCorporativo
+    if (emailPessoal !== undefined) user.email_pessoal = emailPessoal
     localStorage.setItem('@Mantran:user', JSON.stringify(user))
   } catch (_) {}
 }

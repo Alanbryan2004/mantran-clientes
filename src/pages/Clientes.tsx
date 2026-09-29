@@ -7,7 +7,7 @@ import { EditarClienteModal } from '../components/EditarClienteModal'
 import { UsuariosModal } from '../components/UsuariosModal'
 import { ModulosModal } from '../components/ModulosModal'
 import { NovaBaseModal } from '../components/NovaBaseModal'
-import { Plus, Search, Database, ShoppingBag, Briefcase, Layers } from 'lucide-react'
+import { Plus, Search, Database, ShoppingBag, Briefcase, Layers, Package } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
 import clsx from 'clsx'
@@ -31,12 +31,12 @@ export function Clientes() {
 
   const [tipoFilter, setTipoFilter] = useState<string>(() => {
     const param = searchParams.get('tipo')?.toUpperCase()
-    return param === 'SHOPEE' || param === 'NORMAL' || param === 'COMMERSYS' ? param : 'TODOS'
+    return param === 'SHOPEE' || param === 'NORMAL' || param === 'COMMERSYS' || param === 'LEO' ? param : 'TODOS'
   })
 
   useEffect(() => {
     const param = searchParams.get('tipo')?.toUpperCase()
-    if (param === 'SHOPEE' || param === 'NORMAL' || param === 'COMMERSYS') {
+    if (param === 'SHOPEE' || param === 'NORMAL' || param === 'COMMERSYS' || param === 'LEO') {
       setTipoFilter(param)
     } else if (!param) {
       setTipoFilter('TODOS')
@@ -349,6 +349,18 @@ export function Clientes() {
             >
               <Layers className="w-3.5 h-3.5" />
               Commersys
+            </button>
+            <button
+              onClick={() => handleSetFilter('LEO')}
+              className={clsx(
+                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                tipoFilter === 'LEO'
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                  : "text-slate-400 hover:text-slate-200"
+              )}
+            >
+              <Package className="w-3.5 h-3.5" />
+              Leo
             </button>
           </div>
 

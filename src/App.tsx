@@ -10,6 +10,7 @@ import { Usuarios } from './pages/Usuarios'
 import { RH } from './pages/RH'
 import { Implantacoes } from './pages/Implantacoes'
 import { ImplantacaoDetalhes } from './pages/ImplantacaoDetalhes'
+import { Tickets } from './pages/Tickets'
 import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
 import { Login } from './pages/Login'
 
@@ -95,6 +96,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<RootRoute />} />
+          <Route path="tickets" element={<Tickets />} />
           <Route path="comercial" element={<Comercial />} />
           <Route path="clientes" element={<Clientes />} />
           <Route path="implantacoes" element={<ImplantacoesRoute />} />

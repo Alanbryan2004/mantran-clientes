@@ -21,6 +21,7 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
       if (value === 'SHOPEE') return 'bg-green-900/30 text-green-400 border border-green-800/50'
       if (value === 'NORMAL') return 'bg-blue-900/30 text-blue-400 border border-blue-800/50'
       if (value === 'COMMERSYS') return 'bg-purple-900/30 text-purple-400 border border-purple-800/50'
+      if (value === 'LEO') return 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
       if (value === 'TESTE') return 'bg-amber-900/30 text-amber-400 border border-amber-800/50'
     }
     

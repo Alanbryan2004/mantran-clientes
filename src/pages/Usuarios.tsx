@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { 
   Users, UserPlus, Search, Edit3, Trash2, CheckCircle2, XCircle, 
   Shield, UserCheck, Key, RefreshCw, Eye, EyeOff, AlertTriangle, 
-  Briefcase, Wrench, Headphones, Building2, Handshake, Lock, Check
+  Briefcase, Wrench, Headphones, Building2, Handshake, Lock, Check, Cake
 } from 'lucide-react'
 import { api, type UsuarioSistema } from '../lib/api'
 import { isAdminUser } from '../lib/auth'
@@ -95,6 +95,9 @@ export function Usuarios() {
   const [ativo, setAtivo] = useState(true)
   const [eTecnico, setETecnico] = useState(false)
   const [metaSemanal, setMetaSemanal] = useState<number>(0)
+  const [dataNascimento, setDataNascimento] = useState('')
+  const [emailCorporativo, setEmailCorporativo] = useState('')
+  const [emailPessoal, setEmailPessoal] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
   // Delete State
@@ -122,6 +125,37 @@ export function Usuarios() {
     }
   }
 
+  const formatDateDisplay = (dateStr?: string | null) => {
+    if (!dateStr) return '-'
+    try {
+      const parts = dateStr.split('-')
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`
+      }
+      return new Date(dateStr).toLocaleDateString('pt-BR')
+    } catch {
+      return dateStr
+    }
+  }
+
+  const calcularIdade = (dateStr?: string | null): number | null => {
+    if (!dateStr) return null
+    try {
+      const parts = dateStr.split('-').map(Number)
+      if (parts.length < 3) return null
+      const [ano, mes, dia] = parts
+      const hoje = new Date()
+      let idade = hoje.getFullYear() - ano
+      const m = (hoje.getMonth() + 1) - mes
+      if (m < 0 || (m === 0 && hoje.getDate() < dia)) {
+        idade--
+      }
+      return idade >= 0 ? idade : null
+    } catch {
+      return null
+    }
+  }
+
   useEffect(() => {
     loadUsuarios()
   }, [])
@@ -136,6 +170,9 @@ export function Usuarios() {
     setAtivo(true)
     setETecnico(false)
     setMetaSemanal(0)
+    setDataNascimento('')
+    setEmailCorporativo('')
+    setEmailPessoal('')
     setShowPassword(false)
     setModalError(null)
     setIsModalOpen(true)
@@ -151,6 +188,9 @@ export function Usuarios() {
     setAtivo(user.ativo ?? true)
     setETecnico(user.e_tecnico ?? false)
     setMetaSemanal(user.meta_semanal || 0)
+    setDataNascimento(user.data_nascimento || '')
+    setEmailCorporativo(user.email_corporativo || '')
+    setEmailPessoal(user.email_pessoal || '')
     setShowPassword(false)
     setModalError(null)
     setIsModalOpen(true)
@@ -188,7 +228,10 @@ export function Usuarios() {
           perfil,
           ativo,
           e_tecnico: eTecnico,
-          meta_semanal: metaSemanal
+          meta_semanal: metaSemanal,
+          data_nascimento: dataNascimento || null,
+          email_corporativo: emailCorporativo.trim() || null,
+          email_pessoal: emailPessoal.trim() || null
         })
 
         setUsuarios(prev => prev.map(u => (u.id === updated.id ? updated : u)))
@@ -202,7 +245,10 @@ export function Usuarios() {
           perfil,
           ativo,
           e_tecnico: eTecnico,
-          meta_semanal: metaSemanal
+          meta_semanal: metaSemanal,
+          data_nascimento: dataNascimento || null,
+          email_corporativo: emailCorporativo.trim() || null,
+          email_pessoal: emailPessoal.trim() || null
         })
 
         setUsuarios(prev => [created, ...prev])
@@ -759,9 +805,15 @@ export function Usuarios() {
                         </button>
                       </td>
 
-                      {/* Detalhes (Meta / Técnico) */}
+                      {/* Detalhes (Meta / Técnico / Idade) */}
                       <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1.5 text-[11px]">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                          {u.data_nascimento && (
+                            <span className="px-2 py-0.5 rounded bg-pink-500/10 text-pink-300 border border-pink-500/20 flex items-center gap-1" title={`Nascimento: ${formatDateDisplay(u.data_nascimento)}`}>
+                              <Cake className="w-3 h-3 text-pink-400" />
+                              {calcularIdade(u.data_nascimento) !== null ? `${calcularIdade(u.data_nascimento)} anos` : formatDateDisplay(u.data_nascimento)}
+                            </span>
+                          )}
                           {u.e_tecnico && (
                             <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">
                               Técnico
@@ -772,7 +824,7 @@ export function Usuarios() {
                               Meta: {u.meta_semanal}h
                             </span>
                           ) : null}
-                          {!u.e_tecnico && !u.meta_semanal && (
+                          {!u.data_nascimento && !u.e_tecnico && !u.meta_semanal && (
                             <span className="text-slate-500 text-xs">—</span>
                           )}
                         </div>
@@ -906,6 +958,54 @@ export function Usuarios() {
                     Preencha este campo apenas se desejar redefinir a senha deste usuário.
                   </p>
                 )}
+              </div>
+
+              {/* Data de Nascimento, E-mail Empresa e E-mail Particular */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-950/60 border border-slate-800 rounded-xl">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-300">
+                      🎂 Nascimento
+                    </label>
+                    {dataNascimento && calcularIdade(dataNascimento) !== null && (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-pink-500/15 text-pink-300 border border-pink-500/30 font-bold">
+                        {calcularIdade(dataNascimento)} anos
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="date"
+                    value={dataNascimento}
+                    onChange={e => setDataNascimento(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    🏢 E-mail da Empresa
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="nome@mantran.com.br"
+                    value={emailCorporativo}
+                    onChange={e => setEmailCorporativo(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    ✉️ E-mail Particular
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="particular@gmail.com"
+                    value={emailPessoal}
+                    onChange={e => setEmailPessoal(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500 transition-colors"
+                  />
+                </div>
               </div>
 
               {/* Perfil Selector */}

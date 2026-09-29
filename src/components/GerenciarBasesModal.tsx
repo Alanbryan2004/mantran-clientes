@@ -236,6 +236,7 @@ export function GerenciarBasesModal({ isOpen, onClose, projetoId, projetoNome, b
                 <option value="NORMAL">Normal</option>
                 <option value="COMMERSYS">Commersys</option>
                 <option value="SHOPEE">Shopee</option>
+                <option value="LEO">Leo</option>
               </select>
             </div>
 
