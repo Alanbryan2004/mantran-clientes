@@ -200,6 +200,23 @@ export function RH() {
     fetchData()
   }, [])
 
+  // Pedido externo (via notificação de aniversário) para abrir o modal de Day Off
+  const [pedidoAbrirDayOff, setPedidoAbrirDayOff] = useState(false)
+  useEffect(() => {
+    const abrir = () => setPedidoAbrirDayOff(true)
+    window.addEventListener('mantran:abrir-dayoff', abrir)
+    return () => window.removeEventListener('mantran:abrir-dayoff', abrir)
+  }, [])
+
+  // Quando solicitado e os dados já carregaram, abre o modal de Day Off do usuário logado
+  useEffect(() => {
+    if (pedidoAbrirDayOff && !loading && usuarios.length > 0) {
+      handleAbrirModalDayOff()
+      setPedidoAbrirDayOff(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pedidoAbrirDayOff, loading, usuarios])
+
   const fetchData = async () => {
     setLoading(true)
     try {
@@ -4186,6 +4203,10 @@ export function RH() {
               const targetUserId = dayOffUsuarioId || user?.id || 'temp'
               const calc = getCalculoDayOff(dayOffDataNascimento, anoVigencia)
               const foraDaJanela = calc && dayOffDataSolicitada && (dayOffDataSolicitada < calc.janelaInicio || dayOffDataSolicitada > calc.janelaFim)
+              // Data de nascimento já salva no perfil do colaborador alvo
+              const dataNascSalva = (usuarios.find(u => u.id === targetUserId)?.data_nascimento) || (targetUserId === user?.id ? minhaDataNascimento : null) || ''
+              // Só mostra "Salvar no Perfil" se ainda não há data salva ou se o valor foi alterado
+              const precisaSalvarDataNasc = !!dayOffDataNascimento && dayOffDataNascimento !== dataNascSalva
 
               return (
                 <form onSubmit={handleSalvarDayOff} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
@@ -4251,16 +4272,23 @@ export function RH() {
                         required
                         className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs font-medium focus:border-pink-500"
                       />
-                      <button
-                        type="button"
-                        disabled={salvandoDataNascModal || !dayOffDataNascimento}
-                        onClick={() => handleSalvarDataNascimentoUsuario(targetUserId, dayOffDataNascimento)}
-                        className="py-2 px-3 rounded-xl bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shrink-0"
-                        title="Salvar no perfil do colaborador"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>{salvandoDataNascModal ? '...' : 'Salvar no Perfil'}</span>
-                      </button>
+                      {precisaSalvarDataNasc ? (
+                        <button
+                          type="button"
+                          disabled={salvandoDataNascModal || !dayOffDataNascimento}
+                          onClick={() => handleSalvarDataNascimentoUsuario(targetUserId, dayOffDataNascimento)}
+                          className="py-2 px-3 rounded-xl bg-pink-500 hover:bg-pink-600 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                          title="Salvar no perfil do colaborador"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{salvandoDataNascModal ? '...' : 'Salvar no Perfil'}</span>
+                        </button>
+                      ) : (
+                        <span className="py-2 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center gap-1 shrink-0" title="Data de nascimento já salva no perfil">
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Salva</span>
+                        </span>
+                      )}
                     </div>
 
                     {!calc && (

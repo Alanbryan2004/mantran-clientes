@@ -13,12 +13,14 @@ import {
   RefreshCw, 
   FileText, 
   Palmtree, 
-  PhoneCall 
+  PhoneCall,
+  Gift 
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { getLoggedUser, isClienteUser, isAdminUser, isTecnicoUser, isFuncionarioUser } from '../lib/auth'
 import { avaliarLembretesPonto } from '../lib/lembretesPonto'
+import { avaliarAniversarios } from '../lib/aniversarios'
 import clsx from 'clsx'
 
 export function NotificationsPopover() {
@@ -33,7 +35,8 @@ export function NotificationsPopover() {
   const isCliente = isClienteUser()
   const currentUser = getLoggedUser()
   const isAdmin = isAdminUser()
-  const isTecnico = !isAdmin && (isTecnicoUser() || (currentUser as any)?.e_tecnico === true)
+  // Técnico = perfil "Tecnico" na tabela usuario (não usa a flag e_tecnico)
+  const isTecnico = isTecnicoUser()
   const isFuncionario = isFuncionarioUser()
   const isGestorRh = isAdmin || currentUser?.perfil?.trim().toLowerCase() === 'rh'
   const userKey = currentUser ? (currentUser.id || currentUser.login || 'user') : 'user'
@@ -43,6 +46,8 @@ export function NotificationsPopover() {
 
   // Lembretes de ponto (locais, pessoais deste usuário)
   const [lembretesPonto, setLembretesPonto] = useState<any[]>([])
+  // Notificações de aniversário (locais: felicitação ao aniversariante + avisos dos colegas)
+  const [aniversarios, setAniversarios] = useState<any[]>([])
 
   // Obter IDs lidos pelo usuário atual
   const getReadIds = (): Set<string> => {
@@ -74,9 +79,38 @@ export function NotificationsPopover() {
     } catch (_) {}
   }
 
+  // Sincroniza o status persistido no banco (por usuário) com o cache local.
+  // Assim, ao deslogar/logar ou trocar de dispositivo, as marcações de lido/excluído
+  // são recuperadas do banco e não "voltam".
+  const syncStatusDoBanco = async () => {
+    const uid = currentUser?.id
+    if (!uid) return
+    try {
+      const { lidas, excluidas } = await api.getNotificacaoStatus(uid)
+      if (lidas.length) {
+        const readIds = getReadIds()
+        lidas.forEach(id => readIds.add(id))
+        saveReadIds(readIds)
+      }
+      if (excluidas.length) {
+        const deletedIds = getDeletedIds()
+        excluidas.forEach(id => deletedIds.add(id))
+        saveDeletedIds(deletedIds)
+      }
+    } catch (_) {}
+  }
+
   const fetchNotificacoes = async (showLoading = false) => {
     if (showLoading) setLoading(true)
     try {
+      // Regra geral: apenas FUNCIONÁRIOS recebem notificações, EXCETO o perfil Técnico.
+      // Não-funcionário (Cliente, Parceiro, Usuário, Consulta) e Técnico não recebem nada.
+      if (!isFuncionario || isTecnico) {
+        setNotificacoes([])
+        return
+      }
+
+      await syncStatusDoBanco()
       const rawList = await api.getNotificacoes(50)
       const readIds = getReadIds()
       const deletedIds = getDeletedIds()
@@ -90,22 +124,6 @@ export function NotificationsPopover() {
           const isRh = n.tipo?.startsWith('rh_') || n.dados_extras?.onlyAdmin || n.dados_extras?.modulo === 'rh'
           if (isRh && !isAdmin && !isGestorRh) {
             return false
-          }
-
-          // 2. Notificações de Checkpoint de Implantações:
-          // Não exibir para Perfil Técnico e nem para usuários que não são Funcionários
-          const isCheckpoint = n.tipo === 'checkpoint' || 
-            (typeof n.tipo === 'string' && n.tipo.toLowerCase().includes('checkpoint')) ||
-            (typeof n.titulo === 'string' && (
-              n.titulo.toLowerCase().includes('checkpoint') || 
-              n.titulo.toLowerCase().includes('formulário') || 
-              n.titulo.toLowerCase().includes('formulario')
-            ))
-
-          if (isCheckpoint) {
-            if (isTecnico || !isFuncionario) {
-              return false
-            }
           }
 
           return true
@@ -199,6 +217,61 @@ export function NotificationsPopover() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCliente, isFuncionario, userKey])
 
+  // Aniversários: felicita o próprio aniversariante (e oferece marcar Day Off) e
+  // avisa os demais funcionários. Segue a regra: só funcionários (exceto Técnico) recebem.
+  useEffect(() => {
+    if (isCliente || !isFuncionario || isTecnico) return
+    const uid = currentUser?.id
+    if (!uid) return
+
+    let ativo = true
+
+    const avaliar = async () => {
+      try {
+        const [usuarios, meusDayOff] = await Promise.all([
+          api.getUsuariosSistema().catch(() => []),
+          api.getDayOff(uid).catch(() => [])
+        ])
+        if (!ativo) return
+
+        const anoAtual = new Date().getFullYear()
+        const jaMarcou = (meusDayOff || []).some((d: any) => d.ano_vigencia === anoAtual)
+
+        const itens = avaliarAniversarios(
+          { id: uid, nome: currentUser?.nome || '', data_nascimento: currentUser?.data_nascimento },
+          (usuarios || []).filter((u: any) => u.ativo !== false),
+          jaMarcou
+        )
+
+        const dispensados = getDeletedIds()
+        const readIds = getReadIds()
+        const mapeados = itens
+          .filter(i => !dispensados.has(i.id))
+          .map(i => ({
+            id: i.id,
+            titulo: i.titulo,
+            mensagem: i.mensagem,
+            tipo: i.tipo,
+            lida: readIds.has(i.id),
+            created_at: new Date().toISOString(),
+            dados_extras: { modulo: 'aniversario', local: true, aniversariante_id: i.aniversarianteId }
+          }))
+
+        setAniversarios(mapeados)
+      } catch (_) {
+        // silencioso
+      }
+    }
+
+    avaliar()
+    const interval = setInterval(avaliar, 3600000) // revalida a cada 1h (vira o dia)
+    return () => {
+      ativo = false
+      clearInterval(interval)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCliente, isFuncionario, isTecnico, userKey])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -226,16 +299,23 @@ export function NotificationsPopover() {
 
     setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
     setLembretesPonto(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
+    setAniversarios(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
+
+    // Persiste no banco (por usuário) para não reaparecer após deslogar/atualizar
+    if (currentUser?.id) api.markNotificacaoAsLida(id, currentUser.id).catch(() => {})
   }
 
   const handleMarkAllAsRead = () => {
     const readIds = getReadIds()
-    notificacoes.forEach(n => readIds.add(n.id))
-    lembretesPonto.forEach(n => readIds.add(n.id))
+    const ids = [...notificacoes, ...lembretesPonto, ...aniversarios].map(n => n.id)
+    ids.forEach(id => readIds.add(id))
     saveReadIds(readIds)
 
     setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })))
     setLembretesPonto(prev => prev.map(n => ({ ...n, lida: true })))
+    setAniversarios(prev => prev.map(n => ({ ...n, lida: true })))
+
+    if (currentUser?.id && ids.length) api.markAllNotificacoesAsLidas(ids, currentUser.id).catch(() => {})
   }
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
@@ -246,17 +326,23 @@ export function NotificationsPopover() {
 
     setNotificacoes(prev => prev.filter(n => n.id !== id))
     setLembretesPonto(prev => prev.filter(n => n.id !== id))
+    setAniversarios(prev => prev.filter(n => n.id !== id))
+
+    if (currentUser?.id) api.deleteNotificacao(id, currentUser.id).catch(() => {})
   }
 
   const handleClearAll = () => {
     if (window.confirm('Deseja limpar suas notificações deste painel? (Não afetará os outros usuários da equipe)')) {
       const deletedIds = getDeletedIds()
-      notificacoes.forEach(n => deletedIds.add(n.id))
-      lembretesPonto.forEach(n => deletedIds.add(n.id))
+      const ids = [...notificacoes, ...lembretesPonto, ...aniversarios].map(n => n.id)
+      ids.forEach(id => deletedIds.add(id))
       saveDeletedIds(deletedIds)
 
       setNotificacoes([])
       setLembretesPonto([])
+      setAniversarios([])
+
+      if (currentUser?.id && ids.length) api.clearAllNotificacoes(ids, currentUser.id).catch(() => {})
     }
   }
 
@@ -269,6 +355,15 @@ export function NotificationsPopover() {
     if (item.tipo === 'ponto_lembrete') {
       // Lembrete de ponto: abre o modal de Controle de Ponto (montado no Header)
       window.dispatchEvent(new CustomEvent('mantran:abrir-controle-ponto'))
+      return
+    } else if (item.tipo === 'aniversario_dayoff') {
+      // Aniversariante sem Day Off marcado: leva ao RH e abre o modal de Day Off
+      navigate('/rh')
+      setTimeout(() => window.dispatchEvent(new CustomEvent('mantran:abrir-dayoff')), 400)
+      return
+    } else if (item.tipo === 'aniversario_felicitacao' || item.tipo === 'aniversario_aviso') {
+      // Apenas felicitação/aviso: leva ao RH (aba de aniversariantes)
+      navigate('/rh')
       return
     } else if (item.tipo?.startsWith('rh_') || item.dados_extras?.modulo === 'rh') {
       navigate('/rh')
@@ -307,8 +402,8 @@ export function NotificationsPopover() {
   }
 
   // Filtered notifications
-  // Combina lembretes de ponto (locais, no topo) com as notificações do banco
-  const todasNotificacoes = [...lembretesPonto, ...notificacoes]
+  // Combina aniversários e lembretes de ponto (locais, no topo) com as notificações do banco
+  const todasNotificacoes = [...aniversarios, ...lembretesPonto, ...notificacoes]
 
   const displayedNotificacoes = todasNotificacoes.filter(n => {
     if (filter === 'unread') return !n.lida
@@ -473,6 +568,7 @@ export function NotificationsPopover() {
                 const isFalta = item.tipo === 'rh_falta'
                 const isPlantao = item.tipo === 'rh_plantao'
                 const isPontoLembrete = item.tipo === 'ponto_lembrete'
+                const isAniversario = item.tipo === 'aniversario_dayoff' || item.tipo === 'aniversario_felicitacao' || item.tipo === 'aniversario_aviso'
                 const isRhNotification = isFerias || isFalta || isPlantao || item.dados_extras?.modulo === 'rh'
                 const isConcluido = item.titulo?.includes('Concluído') || item.dados_extras?.isCompleto
                 const nomeCliente = item.dados_extras?.nome_empresa || 'Cliente'
@@ -485,7 +581,9 @@ export function NotificationsPopover() {
                     className={clsx(
                       "p-3.5 transition-all duration-150 cursor-pointer group flex items-start gap-3 relative hover:bg-slate-800/60",
                       !item.lida
-                        ? isPontoLembrete
+                        ? isAniversario
+                          ? "bg-pink-500/5 border-l-2 border-pink-400"
+                          : isPontoLembrete
                           ? "bg-indigo-500/5 border-l-2 border-indigo-400"
                           : isFerias
                           ? "bg-amber-500/5 border-l-2 border-amber-400"
@@ -500,7 +598,9 @@ export function NotificationsPopover() {
                     {/* Status Icon */}
                     <div className={clsx(
                       "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5 shadow-sm",
-                      isPontoLembrete
+                      isAniversario
+                        ? "bg-pink-500/15 border-pink-500/30 text-pink-400 shadow-pink-500/10"
+                        : isPontoLembrete
                         ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-400 shadow-indigo-500/10"
                         : isFerias
                         ? "bg-amber-500/15 border-amber-500/30 text-amber-400 shadow-amber-500/10"
@@ -514,7 +614,9 @@ export function NotificationsPopover() {
                         ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
                         : "bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-blue-500/10"
                     )}>
-                      {isPontoLembrete ? (
+                      {isAniversario ? (
+                        <Gift className="w-4 h-4" />
+                      ) : isPontoLembrete ? (
                         <Clock className="w-4 h-4" />
                       ) : isFerias ? (
                         <Palmtree className="w-4 h-4" />
@@ -537,7 +639,9 @@ export function NotificationsPopover() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={clsx(
                             "text-[11px] font-bold px-2 py-0.5 rounded-md border",
-                            isPontoLembrete
+                            isAniversario
+                              ? "bg-pink-950/40 text-pink-300 border-pink-500/30"
+                              : isPontoLembrete
                               ? "bg-indigo-950/40 text-indigo-300 border-indigo-500/30"
                               : isFerias
                               ? "bg-amber-950/40 text-amber-300 border-amber-500/30"
@@ -551,7 +655,7 @@ export function NotificationsPopover() {
                               ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
                               : "bg-blue-950/40 text-blue-300 border-blue-500/30"
                           )}>
-                            {isPontoLembrete ? '⏰ Ponto' : isRhNotification ? `👤 ${colaboradorNome}` : `🏢 ${nomeCliente}`}
+                            {isAniversario ? '🎂 Aniversário' : isPontoLembrete ? '⏰ Ponto' : isRhNotification ? `👤 ${colaboradorNome}` : `🏢 ${nomeCliente}`}
                           </span>
 
                           <span className="text-xs font-bold text-white truncate">

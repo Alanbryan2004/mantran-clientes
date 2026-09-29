@@ -1264,24 +1264,75 @@ export const api = {
     }
   },
 
-  async markNotificacaoAsLida(_id: string) {
-    // Gestão de leitura individualizada por usuário no frontend (NotificationsPopover)
-    return true
+  // Estado por-usuário (lida/excluída) persistido em notificacao_status.
+  // Cada usuário tem seu próprio status; não afeta os demais.
+  async getNotificacaoStatus(usuarioId: string): Promise<{ lidas: string[]; excluidas: string[] }> {
+    if (!usuarioId) return { lidas: [], excluidas: [] }
+    try {
+      const { data, error } = await supabase
+        .from('notificacao_status')
+        .select('notificacao_id, lida, excluida')
+        .eq('usuario_id', usuarioId)
+      if (error) {
+        console.warn('Aviso ao buscar status de notificações:', error.message)
+        return { lidas: [], excluidas: [] }
+      }
+      const lidas: string[] = []
+      const excluidas: string[] = []
+      for (const r of data || []) {
+        if (r.excluida) excluidas.push(r.notificacao_id)
+        else if (r.lida) lidas.push(r.notificacao_id)
+      }
+      return { lidas, excluidas }
+    } catch (err) {
+      console.warn('Erro ao buscar status de notificações:', err)
+      return { lidas: [], excluidas: [] }
+    }
   },
 
-  async markAllNotificacoesAsLidas() {
-    // Gestão de leitura individualizada por usuário no frontend (NotificationsPopover)
-    return true
+  async markNotificacaoAsLida(id: string, usuarioId: string) {
+    return this._upsertNotificacaoStatus(usuarioId, [id], { lida: true })
   },
 
-  async deleteNotificacao(_id: string) {
-    // Gestão de exclusão individualizada por usuário (não apaga do banco para não sumir dos outros usuários)
-    return true
+  async markAllNotificacoesAsLidas(ids: string[], usuarioId: string) {
+    return this._upsertNotificacaoStatus(usuarioId, ids, { lida: true })
   },
 
-  async clearAllNotificacoes() {
-    // Gestão de exclusão individualizada por usuário (não apaga do banco para não sumir dos outros usuários)
-    return true
+  async deleteNotificacao(id: string, usuarioId: string) {
+    return this._upsertNotificacaoStatus(usuarioId, [id], { lida: true, excluida: true })
+  },
+
+  async clearAllNotificacoes(ids: string[], usuarioId: string) {
+    return this._upsertNotificacaoStatus(usuarioId, ids, { lida: true, excluida: true })
+  },
+
+  async _upsertNotificacaoStatus(
+    usuarioId: string,
+    ids: string[],
+    flags: { lida?: boolean; excluida?: boolean }
+  ) {
+    if (!usuarioId || !ids || ids.length === 0) return true
+    try {
+      const nowIso = new Date().toISOString()
+      const rows = ids.map(nid => ({
+        usuario_id: usuarioId,
+        notificacao_id: nid,
+        lida: flags.lida ?? false,
+        excluida: flags.excluida ?? false,
+        updated_at: nowIso
+      }))
+      const { error } = await supabase
+        .from('notificacao_status')
+        .upsert(rows, { onConflict: 'usuario_id,notificacao_id' })
+      if (error) {
+        console.warn('Aviso ao salvar status de notificações:', error.message)
+        return false
+      }
+      return true
+    } catch (err) {
+      console.warn('Erro ao salvar status de notificações:', err)
+      return false
+    }
   },
 
   // --- Usuários do Sistema ---
