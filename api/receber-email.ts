@@ -53,11 +53,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = (req.body || {}) as Record<string, any>
+    const envelope = (body.envelope || {}) as Record<string, any>
+    const headers = (body.headers || {}) as Record<string, any>
 
-    const remetente = extrairEmail(body.remetente || body.from || body.sender || body.From)
-    const nome = (body.nome || body.from_name || body.sender_name || '').toString().trim() || remetente
-    const assunto = (body.assunto || body.subject || body.Subject || '(sem assunto)').toString().trim()
-    const corpo = (body.corpo || body.text || body.body || body.html || body['body-plain'] || body['stripped-text'] || '').toString().trim()
+    // CloudMailin (JSON normalizado): remetente em envelope.from ou headers.from;
+    // assunto em headers.subject; corpo em plain/html. Mantém fallback para outros formatos.
+    const remetente = extrairEmail(
+      envelope.from || headers.from || body.remetente || body.from || body.sender || body.From
+    )
+    const nomeBruto = (headers.from || body.nome || body.from_name || body.sender_name || '').toString()
+    // Extrai o nome amigável de '"Fulano" <fulano@x.com>' se houver
+    const nomeMatch = nomeBruto.match(/^\s*"?([^"<]+?)"?\s*</)
+    const nome = (nomeMatch ? nomeMatch[1].trim() : '') || remetente
+    const assunto = (headers.subject || body.assunto || body.subject || body.Subject || '(sem assunto)').toString().trim()
+    const corpo = (
+      body.plain || body.reply_plain || body.text || body.corpo || body.body ||
+      body.html || body['body-plain'] || body['stripped-text'] || ''
+    ).toString().trim()
 
     if (!remetente) {
       res.status(400).json({ ok: false, erro: 'Remetente não identificado.' })
