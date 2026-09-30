@@ -60,7 +60,10 @@ export function avaliarLembretesPonto(
   if (!isDiaUtil(agora)) return []
   if (!jornadaTrabalhaNoDia(jornada, agora.getDay())) return []
 
-  const dataISO = agora.toISOString().slice(0, 10)
+  const ano = agora.getFullYear()
+  const mes = String(agora.getMonth() + 1).padStart(2, '0')
+  const dia = String(agora.getDate()).padStart(2, '0')
+  const dataISO = `${ano}-${mes}-${dia}`
   const minutosAgora = agora.getHours() * 60 + agora.getMinutes()
 
   const tem = (t: TipoPonto) => registrosDoDia.some(r => r.tipo === t)

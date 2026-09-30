@@ -2364,21 +2364,30 @@ export const api = {
     }
   },
 
-  // Retorna os registros de ponto do dia atual para um usuário
+  // Retorna os registros de ponto do dia atual para um usuário (no fuso local YYYY-MM-DD)
   async getRegistrosPontoDoDia(usuarioId: string): Promise<RegistroPonto[]> {
-    const hoje = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    const agora = new Date()
+    const ano = agora.getFullYear()
+    const mes = String(agora.getMonth() + 1).padStart(2, '0')
+    const dia = String(agora.getDate()).padStart(2, '0')
+    const hoje = `${ano}-${mes}-${dia}`
     return this.getRegistrosPonto(usuarioId, hoje)
   },
 
   async insertRegistroPonto(payload: Partial<RegistroPonto>): Promise<RegistroPonto> {
     const agora = new Date()
+    const ano = agora.getFullYear()
+    const mes = String(agora.getMonth() + 1).padStart(2, '0')
+    const dia = String(agora.getDate()).padStart(2, '0')
+    const dataLocal = `${ano}-${mes}-${dia}`
+
     const item: RegistroPonto = {
       id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15),
       usuario_id: payload.usuario_id!,
       usuario_nome: payload.usuario_nome!,
       tipo: payload.tipo!,
       data_hora: payload.data_hora || agora.toISOString(),
-      data: payload.data || agora.toISOString().slice(0, 10),
+      data: payload.data || dataLocal,
       observacoes: payload.observacoes || null,
       created_at: agora.toISOString(),
       updated_at: agora.toISOString()

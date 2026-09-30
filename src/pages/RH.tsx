@@ -76,8 +76,11 @@ export function RH() {
   const [todosPontosEquipe, setTodosPontosEquipe] = useState<RegistroPonto[]>([])
   const [todasJornadasEquipe, setTodasJornadasEquipe] = useState<JornadaTrabalho[]>([])
 
-  // Data selecionada na aba de Ponto (padrão: hoje)
-  const [pontoDataSelecionada, setPontoDataSelecionada] = useState(() => new Date().toISOString().slice(0, 10))
+  // Data selecionada na aba de Ponto (padrão: hoje no fuso local)
+  const [pontoDataSelecionada, setPontoDataSelecionada] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
 
   // Filtros & Buscas
   const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
@@ -1395,7 +1398,8 @@ export function RH() {
     })
 
     const nowMs = Date.now()
-    const hojeStrLocal = new Date().toISOString().slice(0, 10)
+    const nowD = new Date()
+    const hojeStrLocal = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`
     const ehHoje = pontoDataSelecionada === hojeStrLocal
 
     return Array.from(mapa.values())
@@ -3355,7 +3359,10 @@ export function RH() {
                   <input
                     type="date"
                     value={pontoDataSelecionada}
-                    max={new Date().toISOString().slice(0, 10)}
+                    max={(() => {
+                      const d = new Date()
+                      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                    })()}
                     onChange={e => setPontoDataSelecionada(e.target.value)}
                     className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-medium focus:border-emerald-500"
                   />
