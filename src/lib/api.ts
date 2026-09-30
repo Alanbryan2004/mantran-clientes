@@ -5,6 +5,18 @@ import { supabase } from './supabase'
 // All methods maintain the same interface as before
 // ----------------------------------------------------
 
+// Retorna o dia civil (YYYY-MM-DD) no fuso de Brasília, independente do fuso do ambiente/servidor.
+// Evita que um ponto batido à noite (ex.: 22:19) seja gravado no dia seguinte por causa do UTC.
+export function dataBrasilia(d: Date = new Date()): string {
+  // en-CA formata como YYYY-MM-DD
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(d)
+}
+
 export function checkCheckpointCompleto(dados: any, isShopee: boolean = true) {
   const pendencias: string[] = []
 
@@ -2364,22 +2376,15 @@ export const api = {
     }
   },
 
-  // Retorna os registros de ponto do dia atual para um usuário (no fuso local YYYY-MM-DD)
+  // Retorna os registros de ponto do dia atual para um usuário (no fuso de Brasília YYYY-MM-DD)
   async getRegistrosPontoDoDia(usuarioId: string): Promise<RegistroPonto[]> {
-    const agora = new Date()
-    const ano = agora.getFullYear()
-    const mes = String(agora.getMonth() + 1).padStart(2, '0')
-    const dia = String(agora.getDate()).padStart(2, '0')
-    const hoje = `${ano}-${mes}-${dia}`
-    return this.getRegistrosPonto(usuarioId, hoje)
+    return this.getRegistrosPonto(usuarioId, dataBrasilia())
   },
 
   async insertRegistroPonto(payload: Partial<RegistroPonto>): Promise<RegistroPonto> {
     const agora = new Date()
-    const ano = agora.getFullYear()
-    const mes = String(agora.getMonth() + 1).padStart(2, '0')
-    const dia = String(agora.getDate()).padStart(2, '0')
-    const dataLocal = `${ano}-${mes}-${dia}`
+    // O "dia do ponto" é sempre o dia civil no fuso de Brasília, independente do fuso do ambiente.
+    const dataLocal = dataBrasilia(agora)
 
     const item: RegistroPonto = {
       id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15),
@@ -2409,6 +2414,59 @@ export const api = {
       localStorage.setItem('@Mantran:rh_ponto', JSON.stringify(list))
       return item
     }
+  },
+
+  // Correção (Admin/RH): define o horário de um marco de ponto de um colaborador em um dia.
+  // - Se já existe registro do tipo naquele dia, atualiza o horário.
+  // - Se não existe e horaHHMM foi informado, cria.
+  // - Se horaHHMM for vazio e existe registro, remove.
+  async corrigirRegistroPonto(params: {
+    usuarioId: string
+    usuarioNome: string
+    tipo: TipoPonto
+    data: string        // YYYY-MM-DD
+    horaHHMM: string     // 'HH:MM' (vazio = remover o marco)
+  }): Promise<boolean> {
+    const { usuarioId, usuarioNome, tipo, data, horaHHMM } = params
+
+    // Registros do colaborador naquele dia
+    const doDia = await this.getRegistrosPonto(usuarioId, data)
+    const existente = doDia.find(r => r.tipo === tipo)
+
+    // Vazio => remover o marco existente
+    if (!horaHHMM) {
+      if (existente) await this.deleteRegistroPonto(existente.id)
+      return true
+    }
+
+    // Monta o timestamp no fuso de Brasília (UTC-3) a partir de data + hora
+    const [hh, mm] = horaHHMM.split(':')
+    const dataHoraIso = `${data}T${(hh || '00').padStart(2, '0')}:${(mm || '00').padStart(2, '0')}:00-03:00`
+    const isoUtc = new Date(dataHoraIso).toISOString()
+
+    if (existente) {
+      try {
+        const { error } = await supabase
+          .from('rh_ponto')
+          .update({ data_hora: isoUtc, updated_at: new Date().toISOString() })
+          .eq('id', existente.id)
+        if (error) throw error
+        return true
+      } catch {
+        const local = localStorage.getItem('@Mantran:rh_ponto')
+        if (local) {
+          const list: RegistroPonto[] = JSON.parse(local)
+          localStorage.setItem('@Mantran:rh_ponto', JSON.stringify(
+            list.map(i => i.id === existente.id ? { ...i, data_hora: isoUtc, updated_at: new Date().toISOString() } : i)
+          ))
+        }
+        return true
+      }
+    }
+
+    // Não existe => cria o marco
+    await this.insertRegistroPonto({ usuario_id: usuarioId, usuario_nome: usuarioNome, tipo, data, data_hora: isoUtc })
+    return true
   },
 
   async deleteRegistroPonto(id: string): Promise<boolean> {

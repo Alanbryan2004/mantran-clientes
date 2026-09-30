@@ -171,6 +171,16 @@ export function RH() {
   // Modal de Controle de Ponto
   const [isPontoModalOpen, setIsPontoModalOpen] = useState(false)
 
+  // Correção de ponto (Admin/RH): ajustar o horário de um marco de um colaborador
+  const [correcaoPonto, setCorrecaoPonto] = useState<{
+    usuarioId: string
+    usuarioNome: string
+    tipo: TipoPonto
+    data: string
+    hora: string
+  } | null>(null)
+  const [salvandoCorrecaoPonto, setSalvandoCorrecaoPonto] = useState(false)
+
   // Modal de Funcionários (lista) e resumo de um funcionário
   const [isFuncionariosModalOpen, setIsFuncionariosModalOpen] = useState(false)
   const [funcionarioResumo, setFuncionarioResumo] = useState<UsuarioSistema | null>(null)
@@ -1439,6 +1449,39 @@ export function RH() {
         return a.usuario_nome.localeCompare(b.usuario_nome)
       })
   }, [todosPontosEquipe, pontoDataSelecionada, usuarios])
+
+  // Abre o editor de correção de um marco (Admin/RH)
+  const abrirCorrecaoPonto = (usuarioId: string, usuarioNome: string, tipo: TipoPonto, dataHora?: string) => {
+    let hora = ''
+    if (dataHora) {
+      // Extrai HH:MM no fuso de Brasília
+      hora = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false
+      }).format(new Date(dataHora))
+    }
+    setCorrecaoPonto({ usuarioId, usuarioNome, tipo, data: pontoDataSelecionada, hora })
+  }
+
+  const salvarCorrecaoPonto = async () => {
+    if (!correcaoPonto) return
+    setSalvandoCorrecaoPonto(true)
+    try {
+      await api.corrigirRegistroPonto({
+        usuarioId: correcaoPonto.usuarioId,
+        usuarioNome: correcaoPonto.usuarioNome,
+        tipo: correcaoPonto.tipo,
+        data: correcaoPonto.data,
+        horaHHMM: correcaoPonto.hora.trim()
+      })
+      setCorrecaoPonto(null)
+      await fetchData()
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao corrigir o ponto: ' + (err.message || 'desconhecido'))
+    } finally {
+      setSalvandoCorrecaoPonto(false)
+    }
+  }
 
   const totalPresentesNoDia = useMemo(
     () => pontosPorColaborador.filter(p => p.temRegistro).length,
@@ -3413,12 +3456,16 @@ export function RH() {
                     <div className="grid grid-cols-2 gap-2">
                       {(['inicio_expediente', 'pausa_almoco', 'retorno_almoco', 'fim_expediente'] as TipoPonto[]).map(tipo => {
                         const reg = col.registros[tipo]
+                        const podeCorrigir = isGestorRh
                         return (
                           <div
                             key={tipo}
+                            onClick={podeCorrigir ? () => abrirCorrecaoPonto(col.usuario_id, col.usuario_nome, tipo, reg?.data_hora) : undefined}
+                            title={podeCorrigir ? 'Clique para corrigir o horário' : undefined}
                             className={clsx(
-                              'p-2.5 rounded-lg border text-center',
-                              reg ? 'bg-slate-900/80 border-slate-800' : 'bg-transparent border-slate-800/50'
+                              'p-2.5 rounded-lg border text-center relative group/marco',
+                              reg ? 'bg-slate-900/80 border-slate-800' : 'bg-transparent border-slate-800/50',
+                              podeCorrigir && 'cursor-pointer hover:border-brand-500/50 hover:bg-slate-800/60 transition-colors'
                             )}
                           >
                             <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
@@ -3427,6 +3474,9 @@ export function RH() {
                             <p className={clsx('text-sm font-bold tabular-nums mt-0.5', reg ? 'text-white' : 'text-slate-600')}>
                               {formatHoraPonto(reg?.data_hora)}
                             </p>
+                            {podeCorrigir && (
+                              <Edit3 className="w-3 h-3 text-brand-400 absolute top-1.5 right-1.5 opacity-0 group-hover/marco:opacity-100 transition-opacity" />
+                            )}
                           </div>
                         )
                       })}
@@ -4923,6 +4973,64 @@ export function RH() {
         isOpen={isPontoModalOpen}
         onClose={() => setIsPontoModalOpen(false)}
       />
+
+      {/* ================= MODAL CORREÇÃO DE PONTO (Admin/RH) ================= */}
+      {correcaoPonto && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onClick={() => setCorrecaoPonto(null)}>
+          <div className="bg-dark-card border border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60 rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-400">
+                  <Timer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white">Corrigir Ponto</h2>
+                  <p className="text-xs text-slate-400">{correcaoPonto.usuarioNome} · {PONTO_LABELS[correcaoPonto.tipo]}</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setCorrecaoPonto(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Data</span>
+                <span className="font-bold text-white">{formatDateDisplay(correcaoPonto.data)}</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Horário ({PONTO_LABELS[correcaoPonto.tipo]})</label>
+                <input
+                  type="time"
+                  value={correcaoPonto.hora}
+                  onChange={e => setCorrecaoPonto(prev => prev ? { ...prev, hora: e.target.value } : prev)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-semibold focus:border-brand-500 focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-500 mt-1.5">Deixe em branco e salve para remover este marco.</p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setCorrecaoPonto(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={salvarCorrecaoPonto}
+                  disabled={salvandoCorrecaoPonto}
+                  className="flex-1 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {salvandoCorrecaoPonto ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= MODAL LISTA DE FUNCIONÁRIOS ================= */}
       {isFuncionariosModalOpen && (
