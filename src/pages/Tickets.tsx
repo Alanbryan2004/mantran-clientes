@@ -2097,6 +2097,29 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
           tamanho_bytes: a.tamanho
         })
       }
+      // Se for RESPOSTA (não anotação interna) e houver e-mail do cliente, envia por e-mail.
+      // O assunto leva [#numero] para amarrar futuras respostas do cliente ao chamado.
+      if (modo === 'resposta' && ticket?.cliente_email && texto.trim()) {
+        const assunto = `[#${ticket.numero}] ${ticket.titulo || 'Seu chamado'}`
+        const corpoHtml = `
+          <div style="font-family:Arial,sans-serif;font-size:14px;color:#334155;line-height:1.6">
+            ${texto.trim().replace(/\n/g, '<br>')}
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
+            <p style="font-size:12px;color:#94a3b8">
+              Este é um retorno referente ao seu chamado #${ticket.numero}. Responda a este e-mail mantendo o assunto para dar continuidade ao atendimento.
+            </p>
+          </div>`
+        const r = await api.enviarEmail({
+          para: ticket.cliente_email,
+          assunto,
+          html: corpoHtml,
+          texto: texto.trim()
+        })
+        if (!r.ok) {
+          alert('A resposta foi salva no chamado, mas o e-mail ao cliente falhou:\n\n' + (r.erro || 'erro desconhecido'))
+        }
+      }
+
       setTexto('')
       setAnexosPend([])
       await carregar()
