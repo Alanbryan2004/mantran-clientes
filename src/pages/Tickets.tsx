@@ -2097,26 +2097,35 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
           tamanho_bytes: a.tamanho
         })
       }
-      // Se for RESPOSTA (não anotação interna) e houver e-mail do cliente, envia por e-mail.
-      // O assunto leva [#numero] para amarrar futuras respostas do cliente ao chamado.
-      if (modo === 'resposta' && ticket?.cliente_email && texto.trim()) {
-        const assunto = `[#${ticket.numero}] ${ticket.titulo || 'Seu chamado'}`
-        const corpoHtml = `
-          <div style="font-family:Arial,sans-serif;font-size:14px;color:#334155;line-height:1.6">
-            ${texto.trim().replace(/\n/g, '<br>')}
-            <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
-            <p style="font-size:12px;color:#94a3b8">
-              Este é um retorno referente ao seu chamado #${ticket.numero}. Responda a este e-mail mantendo o assunto para dar continuidade ao atendimento.
-            </p>
-          </div>`
-        const r = await api.enviarEmail({
-          para: ticket.cliente_email,
-          assunto,
-          html: corpoHtml,
-          texto: texto.trim()
-        })
-        if (!r.ok) {
-          alert('A resposta foi salva no chamado, mas o e-mail ao cliente falhou:\n\n' + (r.erro || 'erro desconhecido'))
+      // Se for RESPOSTA (não anotação interna), envia por e-mail ao cliente.
+      // Destino: cliente_email; se vazio, usa cliente_nome quando for um e-mail válido.
+      if (modo === 'resposta' && texto.trim()) {
+        const ehEmail = (s?: string | null) => !!s && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim())
+        const destino = ehEmail(ticket?.cliente_email) ? ticket!.cliente_email!.trim()
+          : ehEmail(ticket?.cliente_nome) ? ticket!.cliente_nome!.trim()
+          : ''
+
+        if (!destino) {
+          alert('A resposta foi salva no chamado, mas não há um e-mail de cliente válido para enviar. Cadastre o e-mail do contato no chamado.')
+        } else {
+          const assunto = `[#${ticket!.numero}] ${ticket!.titulo || 'Seu chamado'}`
+          const corpoHtml = `
+            <div style="font-family:Arial,sans-serif;font-size:14px;color:#334155;line-height:1.6">
+              ${texto.trim().replace(/\n/g, '<br>')}
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
+              <p style="font-size:12px;color:#94a3b8">
+                Este é um retorno referente ao seu chamado #${ticket!.numero}. Responda a este e-mail mantendo o assunto para dar continuidade ao atendimento.
+              </p>
+            </div>`
+          const r = await api.enviarEmail({
+            para: destino,
+            assunto,
+            html: corpoHtml,
+            texto: texto.trim()
+          })
+          if (!r.ok) {
+            alert('A resposta foi salva no chamado, mas o e-mail ao cliente falhou:\n\n' + (r.erro || 'erro desconhecido'))
+          }
         }
       }
 
