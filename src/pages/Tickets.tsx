@@ -36,7 +36,7 @@ import {
   type ConfigEmail,
   type UsuarioSistema
 } from '../lib/api'
-import { getLoggedUser } from '../lib/auth'
+import { getLoggedUser, isClienteUser } from '../lib/auth'
 import { ContatoModal } from '../components/ContatoModal'
 import { RichTextEditor } from '../components/RichTextEditor'
 
@@ -114,6 +114,15 @@ function tempoRelativo(iso?: string | null): string {
 }
 
 export function Tickets() {
+  // Portal do cliente: se logou com o próprio e-mail, mostra só os chamados dele
+  const usuarioLogado = getLoggedUser()
+  if (isClienteUser() && usuarioLogado?.cliente_email) {
+    return <ClientePortalTickets email={usuarioLogado.cliente_email} nome={usuarioLogado.nome || usuarioLogado.login} />
+  }
+  return <TicketsAgente />
+}
+
+function TicketsAgente() {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null)
@@ -822,6 +831,376 @@ export function Tickets() {
       </div>
       )}
 
+    </div>
+  )
+}
+
+// ============================================================
+// Portal do Cliente: vê e responde apenas os próprios chamados
+// ============================================================
+function ClientePortalTickets({ email, nome }: { email: string; nome: string }) {
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busca, setBusca] = useState('')
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(null)
+  const [novoAberto, setNovoAberto] = useState(false)
+  // Formulário de novo chamado
+  const [novoAssunto, setNovoAssunto] = useState('')
+  const [novoDescricao, setNovoDescricao] = useState('')
+  const [salvandoNovo, setSalvandoNovo] = useState(false)
+
+  const carregar = async () => {
+    setLoading(true)
+    try {
+      const data = await api.getTicketsDoCliente(email)
+      setTickets(data)
+    } catch (err) {
+      console.error('Erro ao carregar meus chamados:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { carregar() }, [email])
+
+  const criarChamado = async () => {
+    if (!novoAssunto.trim()) { alert('Informe o assunto do chamado.'); return }
+    if (!novoDescricao.trim()) { alert('Descreva o seu chamado.'); return }
+    setSalvandoNovo(true)
+    try {
+      await api.createTicket({
+        titulo: novoAssunto.trim(),
+        descricao: novoDescricao.trim(),
+        cliente_nome: nome || email,
+        cliente_email: email,
+        origem: 'portal_cliente',
+        status: 'Novo',
+        prioridade: 'Média'
+      })
+      // Notifica os agentes do sistema
+      await api.createNotificacao({
+        titulo: `🎫 Novo chamado de ${nome || email}`,
+        mensagem: `${nome || email} abriu um chamado pelo portal: "${novoAssunto.trim()}".`,
+        tipo: 'ticket'
+      }).catch(() => {})
+      setNovoAssunto('')
+      setNovoDescricao('')
+      setNovoAberto(false)
+      await carregar()
+      alert('Chamado aberto com sucesso! Nossa equipe irá atendê-lo em breve.')
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao abrir o chamado: ' + (err.message || 'Desconhecido'))
+    } finally {
+      setSalvandoNovo(false)
+    }
+  }
+
+  const filtrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+    if (!termo) return tickets
+    return tickets.filter(t =>
+      (t.titulo || '').toLowerCase().includes(termo) ||
+      String(t.numero).includes(termo)
+    )
+  }, [tickets, busca])
+
+  if (selecionadoId) {
+    return (
+      <ClientePortalDetalhe
+        ticketId={selecionadoId}
+        clienteNome={nome}
+        clienteEmail={email}
+        onVoltar={() => { setSelecionadoId(null); carregar() }}
+      />
+    )
+  }
+
+  return (
+    <div className="text-slate-800 h-full flex flex-col min-h-0">
+      <div className="max-w-4xl mx-auto w-full min-w-0 flex flex-col flex-1 min-h-0">
+        {/* Topo */}
+        <div className="shrink-0 space-y-4 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-600 shrink-0">
+                <TicketIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">Meus Chamados</h1>
+                <p className="text-[11px] sm:text-xs text-slate-500">{tickets.length} chamado(s) · {email}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNovoAberto(true)}
+              className="py-2 px-4 flex items-center justify-center gap-2 text-sm font-bold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm transition-colors cursor-pointer self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>Abrir Chamado</span>
+            </button>
+          </div>
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Pesquisar por título ou número..."
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              className="w-full pl-9 pr-3 py-2.5 text-sm bg-white border border-slate-300 rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 shadow-sm"
+            />
+          </div>
+        </div>
+
+        {/* Modal Novo Chamado */}
+        {novoAberto && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={() => setNovoAberto(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-5 border-b border-slate-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-600">
+                    <TicketIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-slate-800">Abrir novo chamado</h2>
+                    <p className="text-[11px] text-slate-500">Descreva sua solicitação e nossa equipe irá atendê-lo</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setNovoAberto(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Assunto <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={novoAssunto}
+                    onChange={e => setNovoAssunto(e.target.value)}
+                    placeholder="Ex: Erro ao emitir nota fiscal"
+                    className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm focus:outline-none focus:border-brand-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Descrição <span className="text-red-500">*</span></label>
+                  <textarea
+                    value={novoDescricao}
+                    onChange={e => setNovoDescricao(e.target.value)}
+                    placeholder="Descreva o que está acontecendo com o máximo de detalhes..."
+                    rows={6}
+                    className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm focus:outline-none focus:border-brand-500 resize-y"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setNovoAberto(false)} className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold transition-colors cursor-pointer">
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={criarChamado} disabled={salvandoNovo} className="flex-1 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-bold transition-colors cursor-pointer">
+                    {salvandoNovo ? 'Abrindo...' : 'Abrir chamado'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Lista */}
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-clean">
+          {loading ? (
+            <div className="py-16 text-center text-slate-400 text-sm animate-pulse">Carregando seus chamados...</div>
+          ) : filtrados.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-500 space-y-2 shadow-sm">
+              <TicketIcon className="w-10 h-10 text-slate-300 mx-auto" />
+              <h3 className="text-sm font-bold text-slate-700">Nenhum chamado encontrado</h3>
+              <p className="text-xs text-slate-400">Você ainda não possui chamados registrados.</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {filtrados.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setSelecionadoId(t.id)}
+                  className="w-full text-left bg-white border border-slate-200 rounded-xl px-4 py-3.5 flex items-center gap-4 transition-all hover:shadow-md hover:border-brand-300 shadow-sm cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-slate-800 truncate">{t.titulo}</span>
+                      <span className="text-xs font-bold text-brand-600 font-mono shrink-0">#{t.numero}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{tempoRelativo(t.created_at)}</span>
+                    </div>
+                  </div>
+                  <span className={clsx('text-[10px] font-bold px-2.5 py-1 rounded-full border shrink-0', STATUS_CLASSES_LIGHT[t.status] || 'bg-slate-100 text-slate-600 border-slate-300')}>
+                    {t.status}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Detalhe do chamado na visão do cliente (só ver e responder; sem ferramentas de agente / anotações internas)
+function ClientePortalDetalhe({ ticketId, clienteNome, clienteEmail, onVoltar }: {
+  ticketId: string
+  clienteNome: string
+  clienteEmail: string
+  onVoltar: () => void
+}) {
+  const [ticket, setTicket] = useState<Ticket | null>(null)
+  const [mensagens, setMensagens] = useState<TicketMensagem[]>([])
+  const [anexos, setAnexos] = useState<TicketAnexo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [texto, setTexto] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  const carregar = async () => {
+    setLoading(true)
+    try {
+      const data = await api.getTicketById(ticketId)
+      setTicket(data)
+      // Cliente NÃO vê anotações internas
+      setMensagens((data.mensagens || []).filter(m => m.tipo !== 'anotacao'))
+      setAnexos(data.anexos || [])
+    } catch (err) {
+      console.error('Erro ao carregar chamado:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { carregar() }, [ticketId])
+
+  const anexosDoTicket = anexos.filter(a => !a.mensagem_id)
+  const anexosDaMensagem = (msgId: string) => anexos.filter(a => a.mensagem_id === msgId)
+
+  const enviar = async () => {
+    if (!texto.trim()) { alert('Escreva sua mensagem.'); return }
+    setEnviando(true)
+    try {
+      await api.addTicketMensagem({
+        ticket_id: ticketId,
+        tipo: 'cliente',
+        conteudo: texto.trim(),
+        autor_nome: clienteNome || clienteEmail,
+        autor_tipo: 'cliente'
+      })
+      // Notifica os agentes que o cliente respondeu
+      if (ticket) {
+        await api.createNotificacao({
+          titulo: `💬 Resposta do cliente no #${ticket.numero}`,
+          mensagem: `${clienteNome || clienteEmail} respondeu no chamado "${ticket.titulo}".`,
+          tipo: 'ticket'
+        }).catch(() => {})
+      }
+      setTexto('')
+      await carregar()
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao enviar: ' + (err.message || 'Desconhecido'))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <div className="text-slate-800 h-full flex flex-col min-h-0">
+      <div className="max-w-4xl mx-auto w-full min-w-0 flex flex-col flex-1 min-h-0">
+        {/* Cabeçalho */}
+        <div className="shrink-0 flex items-center gap-3 pb-4">
+          <button type="button" onClick={onVoltar} className="w-9 h-9 rounded-xl bg-white border border-slate-300 flex items-center justify-center text-slate-500 hover:text-brand-600 hover:border-brand-400 transition-colors cursor-pointer shrink-0">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-black text-slate-900 truncate">{ticket?.titulo || 'Chamado'}</h1>
+            {ticket && (
+              <p className="text-[11px] text-slate-500">
+                #{ticket.numero} · <span className={clsx('font-semibold', 'px-1.5 py-0.5 rounded border', STATUS_CLASSES_LIGHT[ticket.status] || 'bg-slate-100 text-slate-600 border-slate-300')}>{ticket.status}</span>
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-clean space-y-3">
+          {loading ? (
+            <div className="py-16 text-center text-slate-400 text-sm animate-pulse">Carregando...</div>
+          ) : (
+            <>
+              {/* Descrição inicial */}
+              {ticket?.descricao && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-bold text-slate-800">{ticket.cliente_nome || 'Você'}</span>
+                    <span className="text-[11px] text-slate-400 ml-auto">{formatDataHora(ticket.created_at)}</span>
+                  </div>
+                  {/^\s*<[a-z][\s\S]*>/i.test(ticket.descricao || '') ? (
+                    <div className="rte-content text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: sanitizeHtml(ticket.descricao || '') }} />
+                  ) : (
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.descricao}</p>
+                  )}
+                  {anexosDoTicket.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">{anexosDoTicket.map(a => <AnexoChip key={a.id} anexo={a} />)}</div>
+                  )}
+                </div>
+              )}
+
+              {/* Thread (sem anotações internas) */}
+              {mensagens.map(m => {
+                const doCliente = m.autor_tipo === 'cliente'
+                return (
+                  <div key={m.id} className={clsx('rounded-2xl p-4 border shadow-sm', doCliente ? 'bg-brand-50 border-brand-200' : 'bg-white border-slate-200')}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold text-slate-800">{doCliente ? (m.autor_nome || 'Você') : 'Suporte Mantran'}</span>
+                      <span className="text-[11px] text-slate-400 ml-auto">{formatDataHora(m.created_at)}</span>
+                    </div>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.conteudo}</p>
+                    {anexosDaMensagem(m.id).length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">{anexosDaMensagem(m.id).map(a => <AnexoChip key={a.id} anexo={a} />)}</div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* Responder (só para chamados não fechados) */}
+              {ticket && ticket.status !== 'Fechado' ? (
+                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <div className="p-2 border-b border-slate-200 bg-slate-50">
+                    <span className="text-xs font-bold text-brand-700 px-2">Responder</span>
+                  </div>
+                  <div className="p-3">
+                    <textarea
+                      value={texto}
+                      onChange={e => setTexto(e.target.value)}
+                      placeholder="Escreva sua resposta ao suporte..."
+                      rows={4}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-700 text-sm focus:outline-none focus:border-brand-500 resize-y"
+                    />
+                    <div className="flex justify-end mt-2">
+                      <button
+                        type="button"
+                        onClick={enviar}
+                        disabled={enviando || !texto.trim()}
+                        className="py-2 px-5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-bold transition-colors cursor-pointer flex items-center gap-2"
+                      >
+                        <Send className="w-4 h-4" /> {enviando ? 'Enviando...' : 'Enviar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center text-sm text-slate-500">
+                  Este chamado está fechado. Para uma nova solicitação, envie um e-mail para o suporte.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -2109,11 +2488,24 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
           alert('A resposta foi salva no chamado, mas não há um e-mail de cliente válido para enviar. Cadastre o e-mail do contato no chamado.')
         } else {
           const assunto = `[#${ticket!.numero}] ${ticket!.titulo || 'Seu chamado'}`
+          const linkChamado = `${window.location.origin}/tickets?chamado=${ticket!.numero}`
+          const corpoTexto = `${texto.trim()}\n\n---\nChamado #${ticket!.numero} - ${ticket!.titulo || ''}\nAcompanhe seu chamado: ${linkChamado}\n\nResponda a este e-mail mantendo o assunto para dar continuidade ao atendimento.`
           const corpoHtml = `
-            <div style="font-family:Arial,sans-serif;font-size:14px;color:#334155;line-height:1.6">
-              ${texto.trim().replace(/\n/g, '<br>')}
-              <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
-              <p style="font-size:12px;color:#94a3b8">
+            <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:600px">
+              <div style="font-size:15px;color:#1e293b">
+                ${texto.trim().replace(/\n/g, '<br>')}
+              </div>
+
+              <div style="margin-top:24px;padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
+                <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:bold">Seu chamado</p>
+                <p style="margin:0 0 12px;font-size:14px;color:#334155"><b>#${ticket!.numero}</b> — ${ticket!.titulo || ''}</p>
+                <a href="${linkChamado}" style="display:inline-block;background:#dc2626;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:10px 18px;border-radius:10px">
+                  Acompanhar chamado
+                </a>
+              </div>
+
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">
+              <p style="font-size:12px;color:#94a3b8;margin:0">
                 Este é um retorno referente ao seu chamado #${ticket!.numero}. Responda a este e-mail mantendo o assunto para dar continuidade ao atendimento.
               </p>
             </div>`
@@ -2121,7 +2513,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
             para: destino,
             assunto,
             html: corpoHtml,
-            texto: texto.trim()
+            texto: corpoTexto
           })
           if (!r.ok) {
             alert('A resposta foi salva no chamado, mas o e-mail ao cliente falhou:\n\n' + (r.erro || 'erro desconhecido'))

@@ -365,6 +365,8 @@ export function NotificationsPopover() {
       // Apenas felicitação/aviso: leva ao RH (aba de aniversariantes)
       navigate('/rh')
       return
+    } else if (item.tipo === 'ticket') {
+      navigate('/tickets')
     } else if (item.tipo?.startsWith('rh_') || item.dados_extras?.modulo === 'rh') {
       navigate('/rh')
     } else if (item.tipo === 'nova_implantacao' && item.implantacao_id) {

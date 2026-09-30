@@ -47,7 +47,7 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Cliente: {
     perfil: 'Cliente',
-    rotas: ['/implantacoes'],
+    rotas: ['/tickets', '/implantacoes'],
     projeto_especifico_id: null,
     read_only: true
   }

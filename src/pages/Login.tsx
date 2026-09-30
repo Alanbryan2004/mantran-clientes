@@ -30,7 +30,11 @@ export function Login() {
 
       // Redirecionamento direto para evitar telas piscando
       if (data.perfil === 'Cliente') {
-        const dest = data.implantacao_id ? `/implantacoes/${data.implantacao_id}` : '/implantacoes'
+        // Cliente que logou com o próprio e-mail vai para o portal de tickets;
+        // cliente legado (por implantação) vai para a implantação dele.
+        const dest = (data as any).cliente_email
+          ? '/tickets'
+          : data.implantacao_id ? `/implantacoes/${data.implantacao_id}` : '/implantacoes'
         window.location.href = dest
       } else {
         window.location.href = '/'

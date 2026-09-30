@@ -40,7 +40,15 @@ export function Sidebar() {
     const updateNav = () => {
       if (!isMounted) return
       
-      // Se for perfil Cliente, exibir apenas "Minha Implantação" com link direto
+      // Cliente do portal de tickets (logou com o próprio e-mail): só "Meus Chamados"
+      if (isCliente && user?.cliente_email) {
+        setAllowedNavItems([
+          { name: 'Meus Chamados', path: '/tickets', icon: Ticket }
+        ])
+        return
+      }
+
+      // Se for perfil Cliente (legado por implantação), exibir apenas "Minha Implantação"
       if (isCliente) {
         const directPath = user?.implantacao_id ? `/implantacoes/${user.implantacao_id}` : '/implantacoes'
         setAllowedNavItems([

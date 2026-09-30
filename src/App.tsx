@@ -22,11 +22,13 @@ import { api } from './lib/api'
 function RootRoute() {
   const isCliente = isClienteUser()
   const user = getLoggedUser()
+  // Cliente do PORTAL DE TICKETS (logou com o próprio e-mail): vai direto para os chamados
+  const isClientePortalTickets = isCliente && !!user?.cliente_email
   const [targetId, setTargetId] = useState<string | null>(user?.implantacao_id || null)
-  const [resolving, setResolving] = useState(isCliente && !user?.implantacao_id)
+  const [resolving, setResolving] = useState(isCliente && !isClientePortalTickets && !user?.implantacao_id)
 
   useEffect(() => {
-    if (isCliente && !user?.implantacao_id) {
+    if (isCliente && !isClientePortalTickets && !user?.implantacao_id) {
       api.getImplantacaoForLoggedCliente(user?.nome || user?.login || '').then(impl => {
         if (impl) {
           if (user) {
@@ -38,9 +40,13 @@ function RootRoute() {
         setResolving(false)
       }).catch(() => setResolving(false))
     }
-  }, [isCliente])
+  }, [isCliente, isClientePortalTickets])
 
   if (isCliente) {
+    // Portal de tickets do cliente
+    if (isClientePortalTickets) {
+      return <Navigate to="/tickets" replace />
+    }
     if (resolving) {
       return <div className="flex items-center justify-center p-12 text-slate-400">Carregando implantação...</div>
     }

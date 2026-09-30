@@ -10,6 +10,7 @@ export interface LoggedUser {
   data_nascimento?: string | null
   email_corporativo?: string | null
   email_pessoal?: string | null
+  cliente_email?: string | null // e-mail do cliente logado no portal de tickets
 }
 
 /**

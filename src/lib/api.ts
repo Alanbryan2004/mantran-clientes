@@ -117,7 +117,22 @@ export const api = {
     if (error) throw error
     if (!data || data.length === 0) return null
     const user = data[0]
-    if ((user.login || '').trim().toLowerCase().endsWith('@mantran') && (user.perfil === 'Usuario' || user.perfil === 'Cliente')) {
+    const loginLower = (user.login || '').trim().toLowerCase()
+
+    // Cliente do PORTAL DE TICKETS: loga com o próprio e-mail (login contém '@' e NÃO é @mantran).
+    // Vê apenas os tickets casados com esse e-mail.
+    const ehEmail = loginLower.includes('@') && !loginLower.endsWith('@mantran')
+    if (ehEmail && (user.perfil === 'Usuario' || user.perfil === 'Cliente')) {
+      return {
+        ...user,
+        perfil: 'Cliente',
+        cliente_email: loginLower,
+        implantacao_id: null
+      }
+    }
+
+    // Cliente "legado" por implantação (login termina em @mantran)
+    if (loginLower.endsWith('@mantran') && (user.perfil === 'Usuario' || user.perfil === 'Cliente')) {
       const clienteImpl = await api.getImplantacaoForLoggedCliente(user.nome || user.login).catch(() => null)
       return { 
         ...user, 
@@ -2918,6 +2933,30 @@ export const api = {
     const filtros: string[] = [`contato_id.eq.${contato.id}`]
     if (contato.email) filtros.push(`cliente_email.ilike.${contato.email}`)
     if (contato.nome) filtros.push(`cliente_nome.eq.${contato.nome}`)
+
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('*')
+      .or(filtros.join(','))
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  // Tickets do CLIENTE logado no portal: casa por e-mail (cliente_email) e, se houver
+  // contato com esse e-mail, também pelo contato_id.
+  async getTicketsDoCliente(email: string): Promise<Ticket[]> {
+    const e = (email || '').trim().toLowerCase()
+    if (!e) return []
+    const filtros: string[] = [`cliente_email.ilike.${e}`]
+    try {
+      const { data: ct } = await supabase
+        .from('ticket_contatos')
+        .select('id')
+        .ilike('email', e)
+        .maybeSingle()
+      if (ct?.id) filtros.push(`contato_id.eq.${ct.id}`)
+    } catch (_) { /* segue só pelo e-mail */ }
 
     const { data, error } = await supabase
       .from('tickets')
