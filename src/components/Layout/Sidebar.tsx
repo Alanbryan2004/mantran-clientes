@@ -65,8 +65,6 @@ export function Sidebar() {
 
       // Filter accessible navigation items
       const filtered = allNavItems.filter(item => {
-        // Tickets: por enquanto exclusivo do Administrador
-        if (item.path === '/tickets') return isAdmin
         return permissionsApi.canAccessRoute(item.path)
       })
       

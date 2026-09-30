@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, TrendingUp } from 'lucide-react'
+import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, TrendingUp, Ticket } from 'lucide-react'
 import { permissionsApi, DEFAULT_PERMISSOES } from '../lib/permissions'
 import type { PerfilPermissao } from '../lib/permissions'
 import { supabase } from '../lib/supabase'
@@ -22,6 +22,7 @@ const AVAILABLE_PROFILES = [
 
 const AVAILABLE_MODULES = [
   { path: '/', label: 'Dashboard', desc: 'Métricas gerais e visão executiva', icon: LayoutDashboard },
+  { path: '/tickets', label: 'Tickets', desc: 'Central de chamados e suporte a tickets', icon: Ticket },
   { path: '/comercial', label: 'Comercial', desc: 'Pipeline de vendas, simulador de propostas e metas', icon: TrendingUp },
   { path: '/clientes', label: 'Clientes', desc: 'Gerenciamento de clientes e bases de dados', icon: Users },
   { path: '/implantacoes', label: 'Implantações', desc: 'Processo de onboarding e etapas de implantação', icon: Rocket },
