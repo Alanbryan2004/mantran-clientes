@@ -37,6 +37,78 @@ function extrairNumeroChamado(assunto?: string): number | null {
   return m ? parseInt(m[1], 10) : null
 }
 
+const MAX_ANEXO = 4 * 1024 * 1024 // 4 MB por anexo (limite prudente para Data URL no banco)
+
+function isInline(a: any): boolean {
+  const disp = String(a.disposition || '').toLowerCase()
+  return disp === 'inline' || !!a.content_id
+}
+
+// Monta o corpo do chamado (preferindo HTML) e embute as imagens coladas (inline) no lugar dos cid:.
+// Retorna o corpo final e a lista de anexos que NÃO são inline (para virarem anexos do chamado).
+function montarCorpoEAnexos(html: string, plain: string, anexos: any[]): { corpo: string; anexosArquivo: any[] } {
+  let corpo = (html || '').trim()
+  const usouHtml = corpo.length > 0
+  if (!usouHtml) corpo = (plain || '').trim()
+
+  const anexosArquivo: any[] = []
+
+  for (const a of anexos) {
+    if (isInline(a) && a.content && usouHtml) {
+      // Embute a imagem inline no HTML, trocando o cid: pela Data URL
+      const tipo = a.content_type || a.type || 'image/png'
+      const base64 = String(a.content).replace(/\s/g, '')
+      const bytes = Math.floor(base64.length * 0.75)
+      if (bytes > MAX_ANEXO) { anexosArquivo.push(a); continue }
+      const dataUrl = `data:${tipo};base64,${base64}`
+      const cid = String(a.content_id || '').replace(/[<>]/g, '')
+      if (cid && corpo.includes(`cid:${cid}`)) {
+        corpo = corpo.split(`cid:${cid}`).join(dataUrl)
+      } else {
+        // Sem cid correspondente no HTML: anexa a imagem ao final do corpo
+        corpo += `<br><img src="${dataUrl}" style="max-width:100%" />`
+      }
+    } else {
+      anexosArquivo.push(a)
+    }
+  }
+
+  return { corpo, anexosArquivo }
+}
+
+// Salva anexos "de arquivo" (não inline) como anexos do chamado. Ignora anexos maiores que ~4 MB.
+async function salvarAnexos(supabase: any, ticketId: string, mensagemId: string | null, anexos: any[]) {
+  for (const a of anexos) {
+    try {
+      const nome = a.file_name || a.filename || a.name || 'anexo'
+      const tipo = a.content_type || a.type || 'application/octet-stream'
+      let arquivoUrl = ''
+      let tamanho = Number(a.size) || 0
+
+      if (a.content) {
+        const base64 = String(a.content).replace(/\s/g, '')
+        const bytes = Math.floor(base64.length * 0.75)
+        if (bytes > MAX_ANEXO) continue
+        arquivoUrl = `data:${tipo};base64,${base64}`
+        if (!tamanho) tamanho = bytes
+      } else if (a.url) {
+        arquivoUrl = String(a.url)
+      } else {
+        continue
+      }
+
+      await supabase.from('ticket_anexos').insert({
+        ticket_id: ticketId,
+        mensagem_id: mensagemId,
+        arquivo_nome: nome,
+        arquivo_tipo: tipo,
+        arquivo_url: arquivoUrl,
+        tamanho_bytes: tamanho || null
+      })
+    } catch (_) { /* ignora anexo com erro e segue */ }
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.status(405).json({ ok: false, erro: 'Método não permitido' })
@@ -66,15 +138,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const nomeMatch = nomeBruto.match(/^\s*"?([^"<]+?)"?\s*</)
     const nome = (nomeMatch ? nomeMatch[1].trim() : '') || remetente
     const assunto = (headers.subject || body.assunto || body.subject || body.Subject || '(sem assunto)').toString().trim()
-    const corpo = (
-      body.plain || body.reply_plain || body.text || body.corpo || body.body ||
-      body.html || body['body-plain'] || body['stripped-text'] || ''
-    ).toString().trim()
+    const htmlBruto = (body.html || body['body-html'] || '').toString()
+    const plainBruto = (body.plain || body.reply_plain || body.text || body.corpo || body.body || body['body-plain'] || body['stripped-text'] || '').toString()
+
+    // Anexos (CloudMailin embedded: content em base64; ou url se usar attachment store)
+    const anexosRaw: any[] = Array.isArray(body.attachments) ? body.attachments : []
 
     if (!remetente) {
       res.status(400).json({ ok: false, erro: 'Remetente não identificado.' })
       return
     }
+
+    // Monta o corpo (embute imagens coladas/inline) e separa os anexos "de arquivo"
+    const { corpo, anexosArquivo } = montarCorpoEAnexos(htmlBruto, plainBruto, anexosRaw)
 
     const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
@@ -94,13 +170,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .maybeSingle()
 
       if (existente) {
-        await supabase.from('ticket_mensagens').insert({
+        const { data: msg } = await supabase.from('ticket_mensagens').insert({
           ticket_id: existente.id,
           tipo: 'cliente',
           conteudo: corpo || '(sem conteúdo)',
           autor_nome: nome,
           autor_tipo: 'cliente'
-        })
+        }).select('id').single()
+        if (anexosArquivo.length) await salvarAnexos(supabase, existente.id, msg?.id || null, anexosArquivo)
         await supabase.from('tickets').update({ lido: false, status: 'Aberto', updated_at: new Date().toISOString() }).eq('id', existente.id)
 
         await supabase.from('notificacoes').insert({
@@ -155,6 +232,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (errNovo) {
       res.status(500).json({ ok: false, erro: 'Erro ao criar chamado: ' + errNovo.message })
       return
+    }
+
+    // Anexos "de arquivo" do e-mail -> anexos do chamado (imagens inline já foram embutidas no corpo)
+    if (anexosArquivo.length && novo?.id) {
+      await salvarAnexos(supabase, novo.id, null, anexosArquivo)
     }
 
     await supabase.from('notificacoes').insert({
