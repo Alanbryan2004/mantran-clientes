@@ -33,6 +33,7 @@ import {
   type TicketMensagem,
   type TicketAnexo,
   type TicketContato,
+  type ConfigEmail,
   type UsuarioSistema
 } from '../lib/api'
 import { getLoggedUser } from '../lib/auth'
@@ -1345,12 +1346,19 @@ function AdminCadastrosView({ cadastros, onChange }: {
   cadastros: { tipos: any[]; classificacoes: any[]; grupos: any[]; departamentos: any[] }
   onChange: () => void
 }) {
+  const [abaAdmin, setAbaAdmin] = useState<'cadastros' | 'email'>('cadastros')
+
   const grupos = [
     { tabela: 'ticket_tipos' as const, titulo: 'Tipos', itens: cadastros.tipos },
     { tabela: 'ticket_classificacoes' as const, titulo: 'Classificações', itens: cadastros.classificacoes },
     { tabela: 'ticket_grupos' as const, titulo: 'Grupos', itens: cadastros.grupos },
     { tabela: 'ticket_departamentos' as const, titulo: 'Departamentos', itens: cadastros.departamentos }
   ]
+
+  const tabCls = (ativo: boolean) => clsx(
+    'px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5',
+    ativo ? 'bg-brand-50 text-brand-700 border border-brand-200' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-transparent'
+  )
 
   return (
     <div className="max-w-5xl mx-auto w-full min-w-0 flex flex-col flex-1 min-h-0 pl-12">
@@ -1360,17 +1368,202 @@ function AdminCadastrosView({ cadastros, onChange }: {
         </div>
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">Admin</h1>
-          <p className="text-[11px] sm:text-xs text-slate-500">Gerencie os cadastros usados nos tickets</p>
+          <p className="text-[11px] sm:text-xs text-slate-500">Configurações e cadastros do sistema de tickets</p>
         </div>
       </div>
 
+      {/* Abas */}
+      <div className="shrink-0 flex items-center gap-2 pb-4">
+        <button type="button" onClick={() => setAbaAdmin('cadastros')} className={tabCls(abaAdmin === 'cadastros')}>
+          <Settings className="w-3.5 h-3.5" /> Cadastros
+        </button>
+        <button type="button" onClick={() => setAbaAdmin('email')} className={tabCls(abaAdmin === 'email')}>
+          <Mail className="w-3.5 h-3.5" /> E-mail
+        </button>
+      </div>
+
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-clean">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {grupos.map(g => (
-            <CadastroCard key={g.tabela} tabela={g.tabela} titulo={g.titulo} itens={g.itens} onChange={onChange} />
-          ))}
+        {abaAdmin === 'cadastros' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {grupos.map(g => (
+              <CadastroCard key={g.tabela} tabela={g.tabela} titulo={g.titulo} itens={g.itens} onChange={onChange} />
+            ))}
+          </div>
+        ) : (
+          <ConfigEmailForm />
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Formulário de configuração de E-mail (SMTP/entrada) — Admin
+function ConfigEmailForm() {
+  const [cfg, setCfg] = useState<ConfigEmail>({
+    id: 'default',
+    smtp_host: '', smtp_porta: 587, smtp_seguranca: 'STARTTLS',
+    smtp_usuario: '', smtp_senha: '',
+    remetente_nome: '', remetente_email: '',
+    entrada_protocolo: 'IMAP', entrada_host: '', entrada_porta: 993, entrada_ssl: true,
+    ativo: false
+  })
+  const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+  const [enviandoTeste, setEnviandoTeste] = useState(false)
+  const [mostrarSenha, setMostrarSenha] = useState(false)
+
+  useEffect(() => {
+    api.getConfigEmail().then(c => { if (c) setCfg(prev => ({ ...prev, ...c })) }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  const enviarTeste = async () => {
+    const destino = window.prompt('Enviar e-mail de teste para qual endereço?', cfg.remetente_email || cfg.smtp_usuario || '')
+    if (!destino) return
+    setEnviandoTeste(true)
+    try {
+      // Salva antes, para o backend usar a config atual
+      await api.saveConfigEmail(cfg)
+      const r = await api.enviarEmail({
+        para: destino.trim(),
+        assunto: 'Teste de e-mail — Mantran Tickets',
+        html: '<p>Este é um <b>e-mail de teste</b> do sistema de Tickets da Mantran.</p><p>Se você recebeu esta mensagem, a configuração de SMTP está funcionando. 🎉</p>'
+      })
+      if (r.ok) alert('E-mail de teste enviado com sucesso! Verifique a caixa de entrada.')
+      else alert('Não foi possível enviar o teste:\n\n' + (r.erro || 'erro desconhecido'))
+    } finally {
+      setEnviandoTeste(false)
+    }
+  }
+
+  const set = <K extends keyof ConfigEmail>(campo: K, valor: ConfigEmail[K]) => setCfg(prev => ({ ...prev, [campo]: valor }))
+
+  const salvar = async () => {
+    setSalvando(true)
+    try {
+      await api.saveConfigEmail(cfg)
+      alert('Configuração de e-mail salva com sucesso!')
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao salvar a configuração: ' + (err.message || 'desconhecido'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const inputCls = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm focus:outline-none focus:border-brand-500'
+  const labelCls = 'block text-xs font-semibold text-slate-600 mb-1'
+
+  if (loading) return <div className="py-16 text-center text-slate-400 text-sm animate-pulse">Carregando configuração...</div>
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      {/* Envio (SMTP) */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Mail className="w-4 h-4 text-brand-600" />
+          <h3 className="text-sm font-black text-slate-800">Envio de e-mail (SMTP)</h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Servidor SMTP</label>
+            <input className={inputCls} value={cfg.smtp_host || ''} onChange={e => set('smtp_host', e.target.value)} placeholder="ex: smtp.amantran.com.br" />
+          </div>
+          <div>
+            <label className={labelCls}>Porta</label>
+            <input type="number" className={inputCls} value={cfg.smtp_porta ?? ''} onChange={e => set('smtp_porta', e.target.value ? Number(e.target.value) : null)} placeholder="587" />
+          </div>
+          <div>
+            <label className={labelCls}>Segurança</label>
+            <select className={inputCls} value={cfg.smtp_seguranca || 'STARTTLS'} onChange={e => set('smtp_seguranca', e.target.value as any)}>
+              <option value="STARTTLS">STARTTLS (587)</option>
+              <option value="SSL">SSL/TLS (465)</option>
+              <option value="NENHUMA">Nenhuma</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Usuário (e-mail)</label>
+            <input className={inputCls} value={cfg.smtp_usuario || ''} onChange={e => set('smtp_usuario', e.target.value)} placeholder="nivel2@amantran.com.br" />
+          </div>
+          <div>
+            <label className={labelCls}>Senha</label>
+            <div className="relative">
+              <input type={mostrarSenha ? 'text' : 'password'} className={inputCls + ' pr-10'} value={cfg.smtp_senha || ''} onChange={e => set('smtp_senha', e.target.value)} placeholder="••••••••" />
+              <button type="button" onClick={() => setMostrarSenha(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-semibold">
+                {mostrarSenha ? 'ocultar' : 'ver'}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Nome do remetente</label>
+            <input className={inputCls} value={cfg.remetente_nome || ''} onChange={e => set('remetente_nome', e.target.value)} placeholder="Suporte Mantran" />
+          </div>
+          <div>
+            <label className={labelCls}>E-mail do remetente</label>
+            <input className={inputCls} value={cfg.remetente_email || ''} onChange={e => set('remetente_email', e.target.value)} placeholder="nivel2@amantran.com.br" />
+          </div>
         </div>
       </div>
+
+      {/* Recebimento (IMAP/POP) */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Mail className="w-4 h-4 text-slate-500" />
+          <h3 className="text-sm font-black text-slate-800">Recebimento (e-mail vira chamado)</h3>
+        </div>
+        <p className="text-[11px] text-slate-500 mb-4">Usado na próxima fase, quando o e-mail recebido abrir um chamado automaticamente.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>Protocolo</label>
+            <select className={inputCls} value={cfg.entrada_protocolo || 'IMAP'} onChange={e => set('entrada_protocolo', e.target.value as any)}>
+              <option value="IMAP">IMAP</option>
+              <option value="POP">POP</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Servidor de entrada</label>
+            <input className={inputCls} value={cfg.entrada_host || ''} onChange={e => set('entrada_host', e.target.value)} placeholder="mail.amantran.com.br" />
+          </div>
+          <div>
+            <label className={labelCls}>Porta</label>
+            <input type="number" className={inputCls} value={cfg.entrada_porta ?? ''} onChange={e => set('entrada_porta', e.target.value ? Number(e.target.value) : null)} placeholder="993" />
+          </div>
+          <div className="flex items-end pb-2">
+            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={!!cfg.entrada_ssl} onChange={e => set('entrada_ssl', e.target.checked)} className="w-4 h-4 accent-brand-600" />
+              Usar SSL/TLS
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Ações */}
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer mr-auto">
+          <input type="checkbox" checked={!!cfg.ativo} onChange={e => set('ativo', e.target.checked)} className="w-4 h-4 accent-brand-600" />
+          Ativar processamento de e-mail
+        </label>
+        <button
+          type="button"
+          onClick={enviarTeste}
+          disabled={enviandoTeste || !cfg.smtp_host || !cfg.smtp_usuario}
+          title="Envia um e-mail de teste usando a configuração atual"
+          className="py-2 px-4 rounded-xl bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-bold transition-colors cursor-pointer"
+        >
+          {enviandoTeste ? 'Enviando...' : 'Enviar e-mail de teste'}
+        </button>
+        <button
+          type="button"
+          onClick={salvar}
+          disabled={salvando}
+          className="py-2 px-5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-bold transition-colors cursor-pointer"
+        >
+          {salvando ? 'Salvando...' : 'Salvar'}
+        </button>
+      </div>
+
+      <p className="text-[11px] text-slate-400 leading-relaxed">
+        Observação de segurança: o envio de e-mails acontece no servidor (backend), nunca no navegador — a senha não é usada no seu computador. O botão "Enviar e-mail de teste" funciona após publicar a nova versão na Vercel.
+      </p>
     </div>
   )
 }

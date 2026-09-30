@@ -3,6 +3,9 @@ export interface Cliente {
   nome_empresa: string
   tipo: string
   possui_aditivo?: boolean
+  arquivo_aditivo_nome?: string | null
+  arquivo_aditivo_base64?: string | null
+  arquivo_aditivo_tamanho?: number | null
   created_at: string
 }
 

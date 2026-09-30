@@ -68,12 +68,23 @@ export function Clientes() {
     setIsEditModalOpen(true)
   }
 
-  const handleSaveEdit = async (clienteDbId: string, data: { empresa: string, tipo: string, senha: string, possui_aditivo?: boolean }) => {
+  const handleSaveEdit = async (clienteDbId: string, data: { 
+    empresa: string
+    tipo: string
+    senha: string
+    possui_aditivo?: boolean
+    arquivo_aditivo_nome?: string | null
+    arquivo_aditivo_base64?: string | null
+    arquivo_aditivo_tamanho?: number | null
+  }) => {
     try {
       await api.updateCliente(clienteDbId, { 
         nome_empresa: data.empresa, 
         tipo: data.tipo,
-        possui_aditivo: data.possui_aditivo
+        possui_aditivo: data.possui_aditivo,
+        arquivo_aditivo_nome: data.arquivo_aditivo_nome,
+        arquivo_aditivo_base64: data.arquivo_aditivo_base64,
+        arquivo_aditivo_tamanho: data.arquivo_aditivo_tamanho
       })
       if (data.senha) {
         // Try to update existing user passwords
@@ -89,6 +100,7 @@ export function Clientes() {
       await fetchBases()
     } catch (err) {
       console.error('Erro ao editar:', err)
+      alert('Erro ao salvar alterações do cliente.')
     }
   }
 
@@ -131,7 +143,18 @@ export function Clientes() {
 
   const handleVisualizarAditivo = async (cliente: BaseMantran) => {
     try {
-      // 1. Search for implantacao checkpoint with aditivo
+      // 1. Direct attachment saved on client
+      if (cliente.arquivo_aditivo_base64) {
+        const link = document.createElement('a')
+        link.href = cliente.arquivo_aditivo_base64
+        link.download = cliente.arquivo_aditivo_nome || `Aditivo_${cliente.empresa}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        return
+      }
+
+      // 2. Search for implantacao checkpoint with aditivo
       const implantacoes = await api.getImplantacoes()
       const imp = implantacoes.find((i: any) => 
         (i.cliente_id && i.cliente_id === cliente.clienteDbId) ||
@@ -230,6 +253,9 @@ export function Clientes() {
             empresa: cliente?.nome_empresa || '',
             tipo: cliente?.tipo || '',
             possui_aditivo: cliente?.possui_aditivo || false,
+            arquivo_aditivo_nome: cliente?.arquivo_aditivo_nome || null,
+            arquivo_aditivo_base64: cliente?.arquivo_aditivo_base64 || null,
+            arquivo_aditivo_tamanho: cliente?.arquivo_aditivo_tamanho || null,
             migradas: b.migrada ? 'OK' : (cliente ? 'NOK' : ''),
             ts: '', servico: '', lic: '', dblogin: '', senha: ''
           }
@@ -267,7 +293,10 @@ export function Clientes() {
       const clienteData = await api.insertCliente({ 
         nome_empresa: data.empresa || '', 
         tipo: data.tipo || 'NORMAL',
-        possui_aditivo: data.possui_aditivo || false
+        possui_aditivo: data.possui_aditivo || false,
+        arquivo_aditivo_nome: data.arquivo_aditivo_nome || null,
+        arquivo_aditivo_base64: data.arquivo_aditivo_base64 || null,
+        arquivo_aditivo_tamanho: data.arquivo_aditivo_tamanho || null
       })
 
       // 3. Atualizar a Base com o cliente_id

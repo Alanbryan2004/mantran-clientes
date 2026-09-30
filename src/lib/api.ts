@@ -144,6 +144,9 @@ export const api = {
           nome_empresa,
           tipo,
           possui_aditivo,
+          arquivo_aditivo_nome,
+          arquivo_aditivo_base64,
+          arquivo_aditivo_tamanho,
           modulos ( nome_modulo, ativo ),
           usuarios_gpo ( login, senha )
         )
@@ -163,6 +166,9 @@ export const api = {
         nome_empresa: b.clientes.nome_empresa,
         tipo: b.clientes.tipo,
         possui_aditivo: b.clientes.possui_aditivo,
+        arquivo_aditivo_nome: b.clientes.arquivo_aditivo_nome,
+        arquivo_aditivo_base64: b.clientes.arquivo_aditivo_base64,
+        arquivo_aditivo_tamanho: b.clientes.arquivo_aditivo_tamanho,
         modulos: b.clientes.modulos || [],
         usuarios_gpo: b.clientes.usuarios_gpo || []
       } : null
@@ -207,7 +213,14 @@ export const api = {
   },
 
   // --- Clientes ---
-  async insertCliente(cliente: { nome_empresa: string, tipo: string, possui_aditivo: boolean }) {
+  async insertCliente(cliente: { 
+    nome_empresa: string, 
+    tipo: string, 
+    possui_aditivo: boolean,
+    arquivo_aditivo_nome?: string | null,
+    arquivo_aditivo_base64?: string | null,
+    arquivo_aditivo_tamanho?: number | null
+  }) {
     const { data, error } = await supabase
       .from('clientes')
       .insert(cliente)
@@ -2601,6 +2614,52 @@ export const api = {
     return true
   },
 
+  // --- Configuração de E-mail (SMTP/entrada) ---
+  async getConfigEmail(): Promise<ConfigEmail | null> {
+    try {
+      const { data, error } = await supabase
+        .from('config_email')
+        .select('*')
+        .eq('id', 'default')
+        .maybeSingle()
+      if (error) {
+        console.warn('Aviso ao buscar config de e-mail:', error.message)
+        return null
+      }
+      return data
+    } catch (err) {
+      console.warn('Erro ao buscar config de e-mail:', err)
+      return null
+    }
+  },
+
+  async saveConfigEmail(payload: Partial<ConfigEmail>): Promise<boolean> {
+    const row = { ...payload, id: 'default', updated_at: new Date().toISOString() }
+    const { error } = await supabase
+      .from('config_email')
+      .upsert(row, { onConflict: 'id' })
+    if (error) throw error
+    return true
+  },
+
+  // Envia um e-mail pela função serverless (backend). Usado no teste e nas respostas de chamado.
+  async enviarEmail(payload: { para: string; assunto: string; html?: string; texto?: string }): Promise<{ ok: boolean; erro?: string }> {
+    try {
+      const resp = await fetch('/api/enviar-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const json = await resp.json().catch(() => ({}))
+      if (!resp.ok || !json.ok) {
+        return { ok: false, erro: json.erro || `Falha no envio (HTTP ${resp.status}).` }
+      }
+      return { ok: true }
+    } catch (err: any) {
+      return { ok: false, erro: err?.message || 'Não foi possível contatar o servidor de envio.' }
+    }
+  },
+
   // Técnicos (perfil Técnico) para "Responsável Técnico"
   async getUsuariosTecnicos() {
     const { data, error } = await supabase
@@ -2885,6 +2944,23 @@ export interface TicketContato {
   foto_url?: string | null
   ativo?: boolean
   created_at?: string
+  updated_at?: string
+}
+
+export interface ConfigEmail {
+  id: string
+  smtp_host?: string | null
+  smtp_porta?: number | null
+  smtp_seguranca?: 'STARTTLS' | 'SSL' | 'NENHUMA' | null
+  smtp_usuario?: string | null
+  smtp_senha?: string | null
+  remetente_nome?: string | null
+  remetente_email?: string | null
+  entrada_protocolo?: 'IMAP' | 'POP' | null
+  entrada_host?: string | null
+  entrada_porta?: number | null
+  entrada_ssl?: boolean | null
+  ativo?: boolean
   updated_at?: string
 }
 

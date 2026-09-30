@@ -1,7 +1,7 @@
 import type { BaseMantran } from '../data/mockBases'
 import { isReadOnlyUser } from '../lib/auth'
 import clsx from 'clsx'
-import { Users, Blocks, Pencil, Trash2, Eye } from 'lucide-react'
+import { Users, Blocks, Pencil, Trash2, Eye, Paperclip } from 'lucide-react'
 
 interface ClientesTableProps {
   clientes: BaseMantran[]
@@ -120,11 +120,15 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
                     <button
                       type="button"
                       onClick={() => onVisualizarAditivo?.(cliente)}
-                      className="px-2 py-0.5 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-semibold rounded border border-green-500/30 inline-flex items-center gap-1 transition-colors cursor-pointer"
-                      title="Visualizar / Baixar Aditivo Contratual"
+                      className="px-2 py-0.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-semibold rounded border border-emerald-500/30 inline-flex items-center gap-1 transition-colors cursor-pointer"
+                      title={cliente.arquivo_aditivo_nome ? `Anexo: ${cliente.arquivo_aditivo_nome} (Clique para baixar/visualizar)` : "Visualizar / Baixar Aditivo Contratual"}
                     >
                       <span>SIM</span>
-                      <Eye className="w-3 h-3 text-green-300" />
+                      {cliente.arquivo_aditivo_nome || cliente.arquivo_aditivo_base64 ? (
+                        <Paperclip className="w-3 h-3 text-emerald-300" />
+                      ) : (
+                        <Eye className="w-3 h-3 text-emerald-300" />
+                      )}
                     </button>
                   ) : (
                     <span className="px-2 py-0.5 bg-slate-800/50 text-slate-500 text-xs font-medium rounded border border-slate-700/50">NÃO</span>

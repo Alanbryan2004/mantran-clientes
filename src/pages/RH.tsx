@@ -5059,7 +5059,7 @@ export function RH() {
                 <button
                   key={u.id}
                   type="button"
-                  onClick={() => { setFuncionarioResumo(u); setIsFuncionariosModalOpen(false) }}
+                  onClick={() => setFuncionarioResumo(u)}
                   className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 transition-all text-left cursor-pointer"
                 >
                   <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-slate-700">
@@ -5094,7 +5094,7 @@ export function RH() {
         const saldoBanco = bancoHorasPorColaborador.get(u.id) ?? 0
 
         return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
             <div className="bg-dark-card border border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-xl sm:max-w-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] overflow-hidden">
               
               {/* Seção Superior: Foto em Destaque (Esquerda) + Perfil & Contatos (Direita) */}
