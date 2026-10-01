@@ -52,6 +52,36 @@ function htmlTemTexto(html: string): boolean {
   return semTags.length > 0
 }
 
+// Monta a assinatura HTML padrão da Mantran para o e-mail de resposta.
+// Usa nome/cargo/telefone/e-mail do usuário logado; o logo vem do site.
+function montarAssinatura(user: { nome?: string; cargo?: string | null; telefone_empresarial?: string | null; email_corporativo?: string | null } | null): string {
+  if (!user) return ''
+  const nome = (user.nome || '').toUpperCase()
+  const cargo = (user.cargo || '').toUpperCase()
+  const telefone = user.telefone_empresarial || '(19) 97129-6161'
+  const email = user.email_corporativo || 'contato@mantran.com.br'
+  const logoUrl = `${(typeof window !== 'undefined' ? window.location.origin : '')}/Logo_Mantran.png`
+
+  return `
+  <table cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#334155">
+    <tr>
+      <!-- Coluna esquerda: logo + nome + cargo -->
+      <td style="vertical-align:middle;text-align:center;padding-right:24px;border-right:1px solid #cbd5e1">
+        <img src="${logoUrl}" alt="Mantran" style="height:56px;width:auto;display:block;margin:0 auto 8px" />
+        <div style="font-size:15px;font-weight:bold;color:#1e293b;letter-spacing:.5px">${nome}</div>
+        ${cargo ? `<div style="font-size:12px;color:#dc2626;letter-spacing:.5px">${cargo}</div>` : ''}
+      </td>
+      <!-- Coluna direita: contatos -->
+      <td style="vertical-align:middle;padding-left:24px;font-size:13px;color:#334155;line-height:1.9">
+        <div>📱 ${telefone}</div>
+        <div>✉️ <a href="mailto:${email}" style="color:#2563eb;text-decoration:underline">${email}</a></div>
+        <div>🌐 <a href="https://www.mantran.com.br" style="color:#334155;text-decoration:none">https://www.mantran.com.br</a></div>
+        <div>📍 Av. Antonio Artioli, 570 — Swiss Park Office-B/Santis, Salas 1/3/5 — Campinas/SP</div>
+      </td>
+    </tr>
+  </table>`
+}
+
 // Sanitização básica de HTML antes de renderizar (remove scripts, handlers e URLs perigosas)
 function sanitizeHtml(html: string): string {
   if (!html) return ''
@@ -424,6 +454,22 @@ function TicketsAgente() {
           setSelecionadoId(null)
           if (searchParams.get('id') || searchParams.get('numero')) {
             setSearchParams({})
+          }
+          fetchTickets()
+        }}
+        onProximo={() => {
+          // Abre o próximo chamado em aberto na sequência da lista; se não houver, volta à lista
+          const abertos = ticketsOrdenados.filter(t => t.status !== 'Resolvido' && t.status !== 'Fechado')
+          const idxAtual = ticketsOrdenados.findIndex(t => t.id === selecionadoId)
+          // Procura o próximo (depois do atual) que esteja em aberto
+          let proximo = ticketsOrdenados.slice(idxAtual + 1).find(t => t.status !== 'Resolvido' && t.status !== 'Fechado')
+          // Se não houver depois, pega o primeiro em aberto diferente do atual
+          if (!proximo) proximo = abertos.find(t => t.id !== selecionadoId)
+          if (proximo) {
+            setSelecionadoId(proximo.id)
+          } else {
+            setSelecionadoId(null)
+            if (searchParams.get('id') || searchParams.get('numero')) setSearchParams({})
           }
           fetchTickets()
         }}
@@ -2422,7 +2468,7 @@ function NovoTicketTela({ agentes, tecnicos, clientes, contatos, cadastros, onVo
 // ============================================================
 // Detalhe do ticket
 // ============================================================
-function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emailsFuncionarios, cadastros, onVoltar, onChange }: {
+function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emailsFuncionarios, cadastros, onVoltar, onProximo, onChange }: {
   ticketId: string
   agentes: UsuarioSistema[]
   tecnicos: UsuarioSistema[]
@@ -2431,6 +2477,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
   emailsFuncionarios: string[]
   cadastros: { tipos: any[]; classificacoes: any[]; grupos: any[]; departamentos: any[] }
   onVoltar: () => void
+  onProximo?: () => void
   onChange: () => void
 }) {
   const user = getLoggedUser()
@@ -2544,8 +2591,8 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
     if (semConteudo && novoStatus) {
       // Só muda o status, sem criar mensagem vazia. Reaproveita a lógica de e-mail de fechamento.
       await atualizarPropriedade({ status: novoStatus })
-      // Resolvido/Fechado: volta para a lista (próximo chamado em aberto)
-      if (novoStatus === 'Resolvido' || novoStatus === 'Fechado') onVoltar()
+      // Resolvido/Fechado: pula para o próximo chamado em aberto
+      if (novoStatus === 'Resolvido' || novoStatus === 'Fechado') (onProximo || onVoltar)()
       return
     }
     setEnviando(true)
@@ -2582,10 +2629,12 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
           const linkChamado = `${window.location.origin}/tickets?chamado=${ticket!.numero}`
           const corpoTexto = `Chamado #${ticket!.numero} - ${ticket!.titulo || ''}\nAcompanhe seu chamado: ${linkChamado}\n\nResponda a este e-mail mantendo o assunto para dar continuidade ao atendimento.`
           const corpoHtml = `
-            <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:600px">
+            <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:620px">
               <div style="font-size:15px;color:#1e293b">
                 ${texto}
               </div>
+
+              ${montarAssinatura(user)}
 
               <div style="margin-top:24px;padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
                 <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:bold">Seu chamado</p>
@@ -2616,9 +2665,9 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
       setTexto('')
       setAnexosPend([])
       onChange()
-      // Se foi resolvido/fechado, volta para a lista (mostra o próximo chamado em aberto)
+      // Se foi resolvido/fechado, pula para o próximo chamado em aberto
       if (novoStatus === 'Resolvido' || novoStatus === 'Fechado') {
-        onVoltar()
+        (onProximo || onVoltar)()
         return
       }
       await carregar()

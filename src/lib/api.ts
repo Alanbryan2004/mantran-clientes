@@ -1409,6 +1409,9 @@ export const api = {
     data_nascimento?: string | null
     email_corporativo?: string | null
     email_pessoal?: string | null
+    cargo?: string | null
+    telefone_empresarial?: string | null
+    telefone_particular?: string | null
   }): Promise<UsuarioSistema> {
     const cleanLogin = (payload.login || '').trim()
 
@@ -1435,7 +1438,10 @@ export const api = {
         meta_semanal: Number(payload.meta_semanal) || 0,
         data_nascimento: payload.data_nascimento || null,
         email_corporativo: payload.email_corporativo?.trim() || null,
-        email_pessoal: payload.email_pessoal?.trim() || null
+        email_pessoal: payload.email_pessoal?.trim() || null,
+        cargo: payload.cargo?.trim() || null,
+        telefone_empresarial: payload.telefone_empresarial?.trim() || null,
+        telefone_particular: payload.telefone_particular?.trim() || null
       })
       .select('*')
       .single()
@@ -1456,6 +1462,9 @@ export const api = {
     data_nascimento?: string | null
     email_corporativo?: string | null
     email_pessoal?: string | null
+    cargo?: string | null
+    telefone_empresarial?: string | null
+    telefone_particular?: string | null
   }): Promise<UsuarioSistema> {
     const updateData: any = {}
     if (payload.nome !== undefined) updateData.nome = payload.nome.trim()
@@ -1500,6 +1509,15 @@ export const api = {
     }
     if (payload.email_pessoal !== undefined) {
       updateData.email_pessoal = payload.email_pessoal ? payload.email_pessoal.trim() : null
+    }
+    if (payload.cargo !== undefined) {
+      updateData.cargo = payload.cargo ? payload.cargo.trim() : null
+    }
+    if (payload.telefone_empresarial !== undefined) {
+      updateData.telefone_empresarial = payload.telefone_empresarial ? payload.telefone_empresarial.trim() : null
+    }
+    if (payload.telefone_particular !== undefined) {
+      updateData.telefone_particular = payload.telefone_particular ? payload.telefone_particular.trim() : null
     }
 
     const { data, error } = await supabase
@@ -3079,6 +3097,9 @@ export interface UsuarioSistema {
   data_nascimento?: string | null
   email_corporativo?: string | null
   email_pessoal?: string | null
+  cargo?: string | null
+  telefone_empresarial?: string | null
+  telefone_particular?: string | null
   created_at?: string
 }
 

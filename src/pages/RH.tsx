@@ -49,7 +49,7 @@ import {
   type JornadaTrabalho,
   type SolicitacaoDayOff
 } from '../lib/api'
-import { getLoggedUser, isAdminUser, updateLoggedUserFoto, updateLoggedUserDataNascimento, updateLoggedUserEmails } from '../lib/auth'
+import { getLoggedUser, isAdminUser, updateLoggedUserFoto, updateLoggedUserDataNascimento, updateLoggedUserEmails, updateLoggedUserAssinatura } from '../lib/auth'
 import { ControlePontoModal } from '../components/ControlePontoModal'
 import { calcularBancoHoras, formatSaldo } from '../lib/bancoHoras'
 import clsx from 'clsx'
@@ -188,6 +188,10 @@ export function RH() {
   const [editFuncDataNasc, setEditFuncDataNasc] = useState('')
   const [editFuncEmailCorp, setEditFuncEmailCorp] = useState('')
   const [editFuncEmailPessoal, setEditFuncEmailPessoal] = useState('')
+  const [editFuncNome, setEditFuncNome] = useState('')
+  const [editFuncCargo, setEditFuncCargo] = useState('')
+  const [editFuncTelEmp, setEditFuncTelEmp] = useState('')
+  const [editFuncTelPart, setEditFuncTelPart] = useState('')
   const [salvandoFuncionarioDados, setSalvandoFuncionarioDados] = useState(false)
 
   // Modal de Jornada de Trabalho (edição pelo RH)
@@ -1320,9 +1324,13 @@ export function RH() {
 
   const handleIniciarEdicaoFuncionario = () => {
     if (!funcionarioResumo) return
+    setEditFuncNome(funcionarioResumo.nome || '')
     setEditFuncDataNasc(funcionarioResumo.data_nascimento || '')
     setEditFuncEmailCorp(funcionarioResumo.email_corporativo || '')
     setEditFuncEmailPessoal(funcionarioResumo.email_pessoal || '')
+    setEditFuncCargo(funcionarioResumo.cargo || '')
+    setEditFuncTelEmp(funcionarioResumo.telefone_empresarial || '')
+    setEditFuncTelPart(funcionarioResumo.telefone_particular || '')
     setIsEditandoFuncionario(true)
   }
 
@@ -1332,16 +1340,22 @@ export function RH() {
 
     setSalvandoFuncionarioDados(true)
     try {
+      if (!editFuncNome.trim()) { alert('O nome do funcionário é obrigatório.'); setSalvandoFuncionarioDados(false); return }
       const updated = await api.updateUsuarioSistema(funcionarioResumo.id, {
+        nome: editFuncNome.trim(),
         data_nascimento: editFuncDataNasc || null,
         email_corporativo: editFuncEmailCorp.trim() || null,
-        email_pessoal: editFuncEmailPessoal.trim() || null
+        email_pessoal: editFuncEmailPessoal.trim() || null,
+        cargo: editFuncCargo.trim() || null,
+        telefone_empresarial: editFuncTelEmp.trim() || null,
+        telefone_particular: editFuncTelPart.trim() || null
       })
 
       // Se for o próprio usuário logado, atualiza o storage da sessão
       if (user && user.id === funcionarioResumo.id) {
         updateLoggedUserDataNascimento(editFuncDataNasc || null)
         updateLoggedUserEmails(editFuncEmailCorp.trim() || null, editFuncEmailPessoal.trim() || null)
+        updateLoggedUserAssinatura(editFuncCargo.trim() || null, editFuncTelEmp.trim() || null)
       }
 
       setUsuarios(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated } : u))
@@ -5166,6 +5180,16 @@ export function RH() {
                       {isEditandoFuncionario ? (
                         <form onSubmit={handleSalvarDadosFuncionario} className="space-y-2.5 pt-1">
                           <div>
+                            <label className="block text-[10px] font-bold text-slate-300 mb-0.5">Nome completo</label>
+                            <input
+                              type="text"
+                              placeholder="Ex: Alan Robert da Silva"
+                              value={editFuncNome}
+                              onChange={e => setEditFuncNome(e.target.value)}
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs font-semibold focus:border-purple-500"
+                            />
+                          </div>
+                          <div>
                             <label className="block text-[10px] font-bold text-slate-300 mb-0.5 flex items-center gap-1">
                               <Cake className="w-3 h-3 text-pink-400" />
                               Data de Nascimento
@@ -5204,6 +5228,40 @@ export function RH() {
                               onChange={e => setEditFuncEmailPessoal(e.target.value)}
                               className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs focus:border-amber-500"
                             />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-300 mb-0.5">Cargo / Função (assinatura)</label>
+                            <input
+                              type="text"
+                              placeholder="ex: Gerente Técnico"
+                              value={editFuncCargo}
+                              onChange={e => setEditFuncCargo(e.target.value)}
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs focus:border-purple-500"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-300 mb-0.5">Telefone Empresarial</label>
+                              <input
+                                type="text"
+                                placeholder="(19) 99999-9999"
+                                value={editFuncTelEmp}
+                                onChange={e => setEditFuncTelEmp(e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs focus:border-emerald-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-300 mb-0.5">Telefone Particular</label>
+                              <input
+                                type="text"
+                                placeholder="(19) 98888-8888"
+                                value={editFuncTelPart}
+                                onChange={e => setEditFuncTelPart(e.target.value)}
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs focus:border-emerald-500"
+                              />
+                            </div>
                           </div>
 
                           <div className="pt-1 flex gap-2">
@@ -5268,6 +5326,36 @@ export function RH() {
                                   {u.email_pessoal}
                                 </a>
                               ) : 'Não informado'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between py-0.5 border-t border-slate-800/60 pt-1.5">
+                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                              <Users2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                              Cargo / Função
+                            </span>
+                            <span className={clsx("font-semibold text-[11px] truncate max-w-[180px]", u.cargo ? "text-purple-300" : "text-slate-500 italic")} title={u.cargo || ''}>
+                              {u.cargo || 'Não informado'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between py-0.5">
+                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                              <PhoneCall className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              Tel. Empresarial
+                            </span>
+                            <span className={clsx("font-medium text-[11px]", u.telefone_empresarial ? "text-emerald-300" : "text-slate-500 italic")}>
+                              {u.telefone_empresarial || 'Não informado'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between py-0.5">
+                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                              <PhoneCall className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              Tel. Particular
+                            </span>
+                            <span className={clsx("font-medium text-[11px]", u.telefone_particular ? "text-slate-200" : "text-slate-500 italic")}>
+                              {u.telefone_particular || 'Não informado'}
                             </span>
                           </div>
                         </div>

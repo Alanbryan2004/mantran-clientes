@@ -10,6 +10,8 @@ export interface LoggedUser {
   data_nascimento?: string | null
   email_corporativo?: string | null
   email_pessoal?: string | null
+  cargo?: string | null
+  telefone_empresarial?: string | null
   cliente_email?: string | null // e-mail do cliente logado no portal de tickets
 }
 
@@ -50,6 +52,20 @@ export function updateLoggedUserEmails(emailCorporativo?: string | null, emailPe
     const user = JSON.parse(stored)
     if (emailCorporativo !== undefined) user.email_corporativo = emailCorporativo
     if (emailPessoal !== undefined) user.email_pessoal = emailPessoal
+    localStorage.setItem('@Mantran:user', JSON.stringify(user))
+  } catch (_) {}
+}
+
+/**
+ * Atualiza cargo e telefone empresarial do usuário logado no localStorage (para a assinatura).
+ */
+export function updateLoggedUserAssinatura(cargo?: string | null, telefoneEmpresarial?: string | null): void {
+  try {
+    const stored = localStorage.getItem('@Mantran:user')
+    if (!stored) return
+    const user = JSON.parse(stored)
+    if (cargo !== undefined) user.cargo = cargo
+    if (telefoneEmpresarial !== undefined) user.telefone_empresarial = telefoneEmpresarial
     localStorage.setItem('@Mantran:user', JSON.stringify(user))
   } catch (_) {}
 }
