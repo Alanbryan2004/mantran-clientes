@@ -60,23 +60,23 @@ function montarAssinatura(user: { nome?: string; cargo?: string | null; telefone
   const cargo = (user.cargo || '').toUpperCase()
   const telefone = user.telefone_empresarial || '(19) 97129-6161'
   const email = user.email_corporativo || 'contato@mantran.com.br'
-  const logoUrl = `${(typeof window !== 'undefined' ? window.location.origin : '')}/Logo_Mantran.png`
+  const logoUrl = `${(typeof window !== 'undefined' ? window.location.origin : '')}/logo.png`
 
   return `
-  <table cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#334155">
+  <table cellpadding="0" cellspacing="0" border="0" width="520" style="margin-top:24px;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#334155">
     <tr>
       <!-- Coluna esquerda: logo + nome + cargo -->
-      <td style="vertical-align:middle;text-align:center;padding-right:24px;border-right:1px solid #cbd5e1">
-        <img src="${logoUrl}" alt="Mantran" style="height:56px;width:auto;display:block;margin:0 auto 8px" />
-        <div style="font-size:15px;font-weight:bold;color:#1e293b;letter-spacing:.5px">${nome}</div>
-        ${cargo ? `<div style="font-size:12px;color:#dc2626;letter-spacing:.5px">${cargo}</div>` : ''}
+      <td width="210" style="width:210px;vertical-align:middle;text-align:center;padding-right:20px;border-right:1px solid #cbd5e1">
+        <img src="${logoUrl}" alt="Mantran" width="180" height="36" style="width:180px;height:auto;display:block;margin:0 auto 10px" />
+        <div style="font-size:14px;font-weight:bold;color:#1e293b;letter-spacing:.5px">${nome}</div>
+        ${cargo ? `<div style="font-size:11px;color:#dc2626;letter-spacing:.5px">${cargo}</div>` : ''}
       </td>
       <!-- Coluna direita: contatos -->
-      <td style="vertical-align:middle;padding-left:24px;font-size:13px;color:#334155;line-height:1.9">
+      <td style="vertical-align:middle;padding-left:20px;font-size:12px;color:#334155;line-height:1.8">
         <div>📱 ${telefone}</div>
         <div>✉️ <a href="mailto:${email}" style="color:#2563eb;text-decoration:underline">${email}</a></div>
         <div>🌐 <a href="https://www.mantran.com.br" style="color:#334155;text-decoration:none">https://www.mantran.com.br</a></div>
-        <div>📍 Av. Antonio Artioli, 570 — Swiss Park Office-B/Santis, Salas 1/3/5 — Campinas/SP</div>
+        <div>📍 Av. Antonio Artioli, 570 — Swiss Park Office-B/Santis — Salas 1/3/5 — Campinas/SP</div>
       </td>
     </tr>
   </table>`
@@ -160,7 +160,8 @@ function TicketsAgente() {
   const [loading, setLoading] = useState(true)
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
-  const [statusFiltro, setStatusFiltro] = useState<string>('TODOS')
+  // Padrão: mostrar apenas tickets em aberto (não resolvidos/fechados)
+  const [statusFiltro, setStatusFiltro] = useState<string>('ABERTOS')
   const [agenteFiltro, setAgenteFiltro] = useState<string>('TODOS')
   const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>('TODAS')
   const [periodoFiltro, setPeriodoFiltro] = useState<string>('TODOS') // TODOS | HOJE | 7 | 30
@@ -238,7 +239,12 @@ function TicketsAgente() {
     const termo = busca.trim().toLowerCase()
     const agora = Date.now()
     return tickets.filter(t => {
-      if (statusFiltro !== 'TODOS' && t.status !== statusFiltro) return false
+      // 'ABERTOS' (padrão) = só não resolvidos/fechados; 'TODOS' = qualquer; senão status exato
+      if (statusFiltro === 'ABERTOS') {
+        if (t.status === 'Resolvido' || t.status === 'Fechado') return false
+      } else if (statusFiltro !== 'TODOS' && t.status !== statusFiltro) {
+        return false
+      }
       if (agenteFiltro !== 'TODOS') {
         if (agenteFiltro === 'SEM_AGENTE' ? !!t.agente_nome : t.agente_nome !== agenteFiltro) return false
       }
@@ -328,7 +334,7 @@ function TicketsAgente() {
   }, [busca, statusFiltro, agenteFiltro, prioridadeFiltro, periodoFiltro, tipoFiltro, classificacaoFiltro, grupoFiltro, departamentoFiltro, empresaFiltro, tecnicoFiltro, ordenarPor, ordemDesc, porPagina])
 
   const filtrosAtivos = [
-    statusFiltro !== 'TODOS',
+    statusFiltro !== 'ABERTOS',
     agenteFiltro !== 'TODOS',
     prioridadeFiltro !== 'TODAS',
     periodoFiltro !== 'TODOS',
@@ -341,7 +347,7 @@ function TicketsAgente() {
   ].filter(Boolean).length
 
   const limparFiltros = () => {
-    setStatusFiltro('TODOS')
+    setStatusFiltro('ABERTOS')
     setAgenteFiltro('TODOS')
     setPrioridadeFiltro('TODAS')
     setPeriodoFiltro('TODOS')
@@ -765,6 +771,7 @@ function TicketsAgente() {
                   onChange={e => setStatusFiltro(e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:border-brand-500"
                 >
+                  <option value="ABERTOS">Em aberto (padrão)</option>
                   <option value="TODOS">Qualquer status</option>
                   {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
@@ -3038,6 +3045,11 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                       placeholder="Digite sua resposta ao cliente..."
                       minHeight={140}
                     />
+                    {/* Pré-visualização da assinatura que será anexada ao e-mail */}
+                    <div className="mt-2 border-t border-dashed border-slate-200 pt-2">
+                      <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold mb-1">Assinatura (anexada automaticamente)</p>
+                      <div className="rte-content opacity-90 scale-[0.92] origin-top-left" dangerouslySetInnerHTML={{ __html: sanitizeHtml(montarAssinatura(user)) }} />
+                    </div>
                   </>
                 )}
 
