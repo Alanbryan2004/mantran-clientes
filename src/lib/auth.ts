@@ -57,15 +57,16 @@ export function updateLoggedUserEmails(emailCorporativo?: string | null, emailPe
 }
 
 /**
- * Atualiza cargo e telefone empresarial do usuário logado no localStorage (para a assinatura).
+ * Atualiza nome, cargo e telefone empresarial do usuário logado no localStorage (para a assinatura).
  */
-export function updateLoggedUserAssinatura(cargo?: string | null, telefoneEmpresarial?: string | null): void {
+export function updateLoggedUserAssinatura(cargo?: string | null, telefoneEmpresarial?: string | null, nome?: string | null): void {
   try {
     const stored = localStorage.getItem('@Mantran:user')
     if (!stored) return
     const user = JSON.parse(stored)
     if (cargo !== undefined) user.cargo = cargo
     if (telefoneEmpresarial !== undefined) user.telefone_empresarial = telefoneEmpresarial
+    if (nome !== undefined && nome !== null && nome.trim()) user.nome = nome.trim()
     localStorage.setItem('@Mantran:user', JSON.stringify(user))
   } catch (_) {}
 }

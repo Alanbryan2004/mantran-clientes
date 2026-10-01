@@ -1355,7 +1355,7 @@ export function RH() {
       if (user && user.id === funcionarioResumo.id) {
         updateLoggedUserDataNascimento(editFuncDataNasc || null)
         updateLoggedUserEmails(editFuncEmailCorp.trim() || null, editFuncEmailPessoal.trim() || null)
-        updateLoggedUserAssinatura(editFuncCargo.trim() || null, editFuncTelEmp.trim() || null)
+        updateLoggedUserAssinatura(editFuncCargo.trim() || null, editFuncTelEmp.trim() || null, editFuncNome.trim() || null)
       }
 
       setUsuarios(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated } : u))

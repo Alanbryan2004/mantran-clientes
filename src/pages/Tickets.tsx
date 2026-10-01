@@ -62,21 +62,28 @@ function montarAssinatura(user: { nome?: string; cargo?: string | null; telefone
   const email = user.email_corporativo || 'contato@mantran.com.br'
   const logoUrl = `${(typeof window !== 'undefined' ? window.location.origin : '')}/logo.png`
 
+  // Ícones vermelhos (SVG inline, cor #dc2626)
+  const R = '#dc2626'
+  const icoCel = `<svg width="16" height="16" viewBox="0 0 24 24" fill="${R}" style="vertical-align:middle"><path d="M17 1H7a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm-5 20a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm5-4H7V4h10z"/></svg>`
+  const icoMail = `<svg width="16" height="16" viewBox="0 0 24 24" fill="${R}" style="vertical-align:middle"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4-8 5-8-5V6l8 5 8-5z"/></svg>`
+  const icoWeb = `<svg width="16" height="16" viewBox="0 0 24 24" fill="${R}" style="vertical-align:middle"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm6.9 6h-2.6a15.6 15.6 0 0 0-1.2-3.1A8 8 0 0 1 18.9 8zM12 4c.7 1 1.3 2.3 1.7 4h-3.4C10.7 6.3 11.3 5 12 4zM4.3 14a7.8 7.8 0 0 1 0-4h3a17 17 0 0 0 0 4zm.8 2h2.6c.3 1.1.7 2.2 1.2 3.1A8 8 0 0 1 5.1 16zm2.6-8H5.1a8 8 0 0 1 3.8-3.1C8.4 5.8 8 6.9 7.7 8zM12 20c-.7-1-1.3-2.3-1.7-4h3.4c-.4 1.7-1 3-1.7 4zm2.1-6H9.9a15 15 0 0 1 0-4h4.2a15 15 0 0 1 0 4zm.8 5.1c.5-.9.9-2 1.2-3.1h2.6a8 8 0 0 1-3.8 3.1zM16.6 14a17 17 0 0 0 0-4h3a7.8 7.8 0 0 1 0 4z"/></svg>`
+  const icoPin = `<svg width="16" height="16" viewBox="0 0 24 24" fill="${R}" style="vertical-align:top"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>`
+
   return `
-  <table cellpadding="0" cellspacing="0" border="0" width="520" style="margin-top:24px;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#334155">
+  <table cellpadding="0" cellspacing="0" border="0" width="540" style="margin-top:24px;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#334155">
     <tr>
       <!-- Coluna esquerda: logo + nome + cargo -->
-      <td width="210" style="width:210px;vertical-align:middle;text-align:center;padding-right:20px;border-right:1px solid #cbd5e1">
-        <img src="${logoUrl}" alt="Mantran" width="180" height="36" style="width:180px;height:auto;display:block;margin:0 auto 10px" />
-        <div style="font-size:14px;font-weight:bold;color:#1e293b;letter-spacing:.5px">${nome}</div>
-        ${cargo ? `<div style="font-size:11px;color:#dc2626;letter-spacing:.5px">${cargo}</div>` : ''}
+      <td width="220" style="width:220px;vertical-align:middle;text-align:center;padding-right:22px;border-right:1px solid #cbd5e1">
+        <img src="${logoUrl}" alt="Mantran" width="190" height="38" style="width:190px;height:auto;display:block;margin:0 auto 10px" />
+        <div style="font-size:15px;font-weight:bold;color:#1e293b;letter-spacing:1px">${nome}</div>
+        ${cargo ? `<div style="font-size:11px;color:#dc2626;letter-spacing:1px;margin-top:2px">${cargo}</div>` : ''}
       </td>
       <!-- Coluna direita: contatos -->
-      <td style="vertical-align:middle;padding-left:20px;font-size:12px;color:#334155;line-height:1.8">
-        <div>📱 ${telefone}</div>
-        <div>✉️ <a href="mailto:${email}" style="color:#2563eb;text-decoration:underline">${email}</a></div>
-        <div>🌐 <a href="https://www.mantran.com.br" style="color:#334155;text-decoration:none">https://www.mantran.com.br</a></div>
-        <div>📍 Av. Antonio Artioli, 570 — Swiss Park Office-B/Santis — Salas 1/3/5 — Campinas/SP</div>
+      <td style="vertical-align:middle;padding-left:22px;font-size:13px;color:#334155;line-height:1.9">
+        <div style="padding:2px 0">${icoCel} <span style="margin-left:8px">${telefone}</span></div>
+        <div style="padding:2px 0">${icoMail} <a href="mailto:${email}" style="margin-left:8px;color:#2563eb;text-decoration:underline">${email}</a></div>
+        <div style="padding:2px 0">${icoWeb} <a href="https://www.mantran.com.br" style="margin-left:8px;color:#334155;text-decoration:none">https://www.mantran.com.br</a></div>
+        <div style="padding:2px 0">${icoPin} <span style="margin-left:8px">Av. Antonio Artioli, 570 — Swiss Park Office-B/Santis<br><span style="margin-left:24px;display:inline-block">Salas 1/3/5 — Campinas/SP</span></span></div>
       </td>
     </tr>
   </table>`
@@ -579,9 +586,9 @@ function TicketsAgente() {
                 {ordemDesc ? 'Descendente' : 'Ascendente'}
               </button>
               <span className="ml-auto text-slate-400">
-                {ticketsOrdenados.length === tickets.length
-                  ? `${tickets.length} ticket(s)`
-                  : `${ticketsOrdenados.length} de ${tickets.length} tickets`}
+                {totalRegistros === 0
+                  ? '0 ticket(s)'
+                  : `${ticketsPagina.length} de ${totalRegistros} tickets`}
               </span>
             </div>
 
