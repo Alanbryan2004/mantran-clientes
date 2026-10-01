@@ -2799,6 +2799,36 @@ export const api = {
     return true
   },
 
+  // --- Tickets: Histórico (troca de agente/técnico, mudança de status, fechamento) ---
+  async getTicketHistorico(ticketId: string): Promise<TicketHistorico[]> {
+    const { data, error } = await supabase
+      .from('ticket_historico')
+      .select('*')
+      .eq('ticket_id', ticketId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  async addTicketHistorico(payload: {
+    ticket_id: string
+    tipo: 'agente' | 'tecnico' | 'status' | 'fechamento'
+    descricao: string
+    usuario_id?: string | null
+    usuario_nome?: string | null
+  }): Promise<void> {
+    const { error } = await supabase
+      .from('ticket_historico')
+      .insert({
+        ticket_id: payload.ticket_id,
+        tipo: payload.tipo,
+        descricao: payload.descricao,
+        usuario_id: payload.usuario_id || null,
+        usuario_nome: payload.usuario_nome || null
+      })
+    if (error) throw error
+  },
+
   // Adiciona uma mensagem à thread (resposta ao cliente ou anotação interna)
   async addTicketMensagem(payload: {
     ticket_id: string
@@ -3060,6 +3090,18 @@ export interface Ticket {
   primeira_resposta_at?: string | null
   resolvido_at?: string | null
   fechado_at?: string | null
+  fechado_por_id?: string | null
+  fechado_por_nome?: string | null
+}
+
+export interface TicketHistorico {
+  id: string
+  ticket_id: string
+  tipo: 'agente' | 'tecnico' | 'status' | 'fechamento'
+  descricao: string
+  usuario_id?: string | null
+  usuario_nome?: string | null
+  created_at?: string
 }
 
 export interface TicketCadastro {

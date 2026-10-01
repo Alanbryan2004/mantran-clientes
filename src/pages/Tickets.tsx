@@ -37,6 +37,7 @@ import {
   type TicketMensagem,
   type TicketAnexo,
   type TicketContato,
+  type TicketHistorico,
   type ConfigEmail,
   type UsuarioSistema
 } from '../lib/api'
@@ -2638,6 +2639,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [mensagens, setMensagens] = useState<TicketMensagem[]>([])
   const [anexos, setAnexos] = useState<TicketAnexo[]>([])
+  const [historicoTicket, setHistoricoTicket] = useState<TicketHistorico[]>([])
   const [loading, setLoading] = useState(true)
 
   // Composer
@@ -2705,6 +2707,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
       setTicket(data)
       setMensagens(data.mensagens)
       setAnexos(data.anexos)
+      api.getTicketHistorico(ticketId).then(setHistoricoTicket).catch(() => setHistoricoTicket([]))
       // Contato vinculado (para exibir a empresa/telefone). Se o ticket não tem
       // contato_id, tenta resolver pelo e-mail do cliente (chamados antigos/por e-mail).
       if (data.contato_id) {
@@ -2912,10 +2915,20 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
         autor_id: user?.id || null,
         autor_nome: user?.nome || user?.login || 'Agente',
         autor_tipo: 'agente',
-        novo_status: novoStatus || null,
+        // O status é aplicado via atualizarPropriedade (abaixo), para passar pela
+        // lógica única de histórico + regra de fechamento (agente/fechado_por).
+        novo_status: null,
         para: modo === 'resposta' ? (respostaPara || '').trim() || null : null,
         cc: modo === 'resposta' ? (respostaCc || '').trim() || null : null
       })
+      // Se o envio define um novo status, aplica aqui (registra histórico/fechamento).
+      // Suprime o e-mail de encerramento se já enviamos uma resposta ao cliente agora.
+      if (novoStatus) {
+        const extra = novoStatus === 'Fechado' ? { fechado_at: new Date().toISOString() }
+          : novoStatus === 'Resolvido' ? { resolvido_at: new Date().toISOString() } : {}
+        const respondeuAgora = modo === 'resposta' && htmlTemTexto(textoResposta)
+        await atualizarPropriedade({ status: novoStatus, ...extra }, { suprimirEmailFechamento: respondeuAgora })
+      }
       // Anexos
       for (const a of anexosPend) {
         await api.addTicketAnexo({
@@ -3055,15 +3068,65 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
     }
   }
 
-  const atualizarPropriedade = async (updates: Partial<Ticket>) => {
+  const atualizarPropriedade = async (updates: Partial<Ticket>, opts?: { suprimirEmailFechamento?: boolean }) => {
     try {
-      await api.updateTicket(ticketId, updates)
       const anterior = ticket
-      setTicket(prev => prev ? { ...prev, ...updates } : prev)
+      const usuarioNome = user?.nome || user?.login || 'Usuário'
+      const usuarioId = user?.id || null
+      const vaiFechar = updates.status === 'Fechado' && anterior && anterior.status !== 'Fechado'
+
+      // Regra: ao FECHAR o chamado, o Agente Responsável passa a ser quem fechou,
+      // e registramos quem fechou (fechado_por_*).
+      const updatesFinais: Partial<Ticket> = { ...updates }
+      if (vaiFechar) {
+        updatesFinais.agente_id = usuarioId
+        updatesFinais.agente_nome = usuarioNome
+        updatesFinais.fechado_por_id = usuarioId
+        updatesFinais.fechado_por_nome = usuarioNome
+      }
+
+      await api.updateTicket(ticketId, updatesFinais)
+      setTicket(prev => prev ? { ...prev, ...updatesFinais } : prev)
       onChange()
 
+      // ---- Histórico: registra os eventos relevantes desta alteração ----
+      const registros: { tipo: 'agente' | 'tecnico' | 'status' | 'fechamento'; descricao: string }[] = []
+      if (anterior) {
+        // Troca de Agente Responsável (ignora a troca automática do fechamento, tratada abaixo)
+        if (!vaiFechar && 'agente_nome' in updates && (updates.agente_nome || null) !== (anterior.agente_nome || null)) {
+          const de = anterior.agente_nome || 'Sem agente'
+          const para = updates.agente_nome || 'Sem agente'
+          registros.push({ tipo: 'agente', descricao: `Agente responsável alterado de "${de}" para "${para}"` })
+        }
+        // Troca de Responsável Técnico
+        if ('tecnico_nome' in updates && (updates.tecnico_nome || null) !== (anterior.tecnico_nome || null)) {
+          const de = anterior.tecnico_nome || 'Sem técnico'
+          const para = updates.tecnico_nome || 'Sem técnico'
+          registros.push({ tipo: 'tecnico', descricao: `Responsável técnico alterado de "${de}" para "${para}"` })
+        }
+        // Mudança de status
+        if ('status' in updates && updates.status && updates.status !== anterior.status) {
+          if (vaiFechar) {
+            registros.push({ tipo: 'fechamento', descricao: `Chamado fechado por ${usuarioNome}. Agente responsável definido como "${usuarioNome}".` })
+          } else {
+            registros.push({ tipo: 'status', descricao: `Status alterado de "${anterior.status}" para "${updates.status}"` })
+          }
+        }
+      }
+      if (registros.length) {
+        await Promise.all(registros.map(r => api.addTicketHistorico({
+          ticket_id: ticketId,
+          tipo: r.tipo,
+          descricao: r.descricao,
+          usuario_id: usuarioId,
+          usuario_nome: usuarioNome
+        }).catch(() => {})))
+        api.getTicketHistorico(ticketId).then(setHistoricoTicket).catch(() => {})
+      }
+
       // Ao mudar o status para "Fechado", envia e-mail de encerramento ao cliente
-      if (updates.status === 'Fechado' && anterior && anterior.status !== 'Fechado') {
+      // (pulado quando o fechamento acompanha uma resposta já enviada ao cliente)
+      if (!opts?.suprimirEmailFechamento && updates.status === 'Fechado' && anterior && anterior.status !== 'Fechado') {
         const ehEmail = (s?: string | null) => !!s && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim())
         const destino = ehEmail(anterior.cliente_email) ? anterior.cliente_email!.trim()
           : ehEmail(anterior.cliente_nome) ? anterior.cliente_nome!.trim()
@@ -3782,6 +3845,41 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                   onChange={novo => atualizarPropriedade({ tags: novo || null })}
                 />
               </div>
+
+              {ticket.fechado_por_nome && (
+                <div>
+                  <label className={labelLight}>Fechado por</label>
+                  <div className={clsx(inputLight, 'flex items-center text-slate-700')}>{ticket.fechado_por_nome}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Histórico (troca de agente/técnico, status, fechamento) */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 shadow-sm">
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" /> Histórico
+              </h3>
+              {historicoTicket.length === 0 ? (
+                <p className="text-xs text-slate-400 py-1">Nenhum evento registrado.</p>
+              ) : (
+                <ul className="space-y-2 max-h-64 overflow-y-auto scrollbar-clean pr-1">
+                  {historicoTicket.map(h => (
+                    <li key={h.id} className="relative pl-4 border-l-2 border-slate-200">
+                      <span className={clsx(
+                        'absolute -left-[5px] top-1 w-2 h-2 rounded-full',
+                        h.tipo === 'fechamento' ? 'bg-slate-500'
+                          : h.tipo === 'agente' ? 'bg-brand-500'
+                          : h.tipo === 'tecnico' ? 'bg-emerald-500'
+                          : 'bg-amber-500'
+                      )} />
+                      <p className="text-xs text-slate-700 leading-snug">{h.descricao}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {h.usuario_nome ? `${h.usuario_nome} • ` : ''}{formatDataHora(h.created_at)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             {/* Solicitante */}
