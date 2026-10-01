@@ -31,6 +31,23 @@ function extrairEmail(str?: string): string {
   return m ? m[0].toLowerCase() : ''
 }
 
+// Converte HTML em texto legível (remove tags, estilos e scripts). Fallback para respostas.
+function htmlParaTexto(html?: string): string {
+  if (!html) return ''
+  return String(html)
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<\/(p|div|br|li|tr|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 // Extrai o número do chamado do assunto: "[#40123] ..." -> 40123
 function extrairNumeroChamado(assunto?: string): number | null {
   if (!assunto) return null
@@ -96,16 +113,21 @@ async function enviarConfirmacao(supabase: any, para: string, numero: number, as
     const remetenteEmail = cfg.remetente_email || cfg.smtp_usuario
     const remetenteNome = cfg.remetente_nome || 'Suporte Mantran'
     const assuntoResp = `[#${numero}] ${assunto}`
+    const appUrl = (process.env.APP_URL || 'https://mantran-clientes-five.vercel.app').replace(/\/$/, '')
+    const linkChamado = `${appUrl}/tickets?chamado=${numero}`
     const html = `
       <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:600px">
         <p>Olá,</p>
         <p>Recebemos a sua solicitação e abrimos o chamado abaixo. Nossa equipe já foi notificada e irá atendê-lo em breve.</p>
         <div style="margin:20px 0;padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
           <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:bold">Número do chamado</p>
-          <p style="margin:0;font-size:20px;font-weight:bold;color:#dc2626">#${numero}</p>
-          <p style="margin:8px 0 0;font-size:14px;color:#334155">${assunto}</p>
+          <p style="margin:0 0 12px;font-size:20px;font-weight:bold;color:#dc2626">#${numero}</p>
+          <p style="margin:0 0 14px;font-size:14px;color:#334155">${assunto}</p>
+          <a href="${linkChamado}" style="display:inline-block;background:#dc2626;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:10px 18px;border-radius:10px">
+            Acompanhar meu chamado
+          </a>
         </div>
-        <p style="font-size:13px;color:#64748b">Para dar continuidade, basta <b>responder a este e-mail</b> mantendo o assunto (com o <b>#${numero}</b>). Guarde este número para acompanhar o seu atendimento.</p>
+        <p style="font-size:13px;color:#64748b">Para dar continuidade, basta <b>responder a este e-mail</b> mantendo o assunto (com o <b>#${numero}</b>), ou acompanhe pelo portal no link acima. Guarde este número para acompanhar o seu atendimento.</p>
         <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">
         <p style="font-size:12px;color:#94a3b8;margin:0">${remetenteNome}</p>
       </div>`
@@ -115,7 +137,7 @@ async function enviarConfirmacao(supabase: any, para: string, numero: number, as
       to: para,
       subject: assuntoResp,
       html,
-      text: `Recebemos a sua solicitação e abrimos o chamado #${numero} - ${assunto}. Para dar continuidade, responda a este e-mail mantendo o assunto (com o #${numero}). Guarde este número para acompanhar o atendimento.`
+      text: `Recebemos a sua solicitação e abrimos o chamado #${numero} - ${assunto}. Acompanhe pelo portal: ${linkChamado} . Para dar continuidade, responda a este e-mail mantendo o assunto (com o #${numero}).`
     })
   } catch (err) {
     console.warn('Falha ao enviar confirmação de abertura:', err)
@@ -187,6 +209,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const htmlBruto = (body.html || body['body-html'] || '').toString()
     const plainBruto = (body.plain || body.reply_plain || body.text || body.corpo || body.body || body['body-plain'] || body['stripped-text'] || '').toString()
 
+    // Texto LIMPO para respostas na thread (sem HTML/lixo do Outlook).
+    // Prioriza reply_plain (resposta extraída pelo CloudMailin, sem a conversa citada).
+    const textoLimpoBruto = (body.reply_plain || body.plain || body['stripped-text'] || '').toString()
+    const textoLimpo = (textoLimpoBruto.trim() || htmlParaTexto(plainBruto || htmlBruto)).trim()
+
     // Anexos (CloudMailin embedded: content em base64; ou url se usar attachment store)
     const anexosRaw: any[] = Array.isArray(body.attachments) ? body.attachments : []
 
@@ -219,7 +246,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { data: msg } = await supabase.from('ticket_mensagens').insert({
           ticket_id: existente.id,
           tipo: 'cliente',
-          conteudo: corpo || '(sem conteúdo)',
+          conteudo: textoLimpo || '(sem conteúdo)',
           autor_nome: nome,
           autor_tipo: 'cliente'
         }).select('id').single()
@@ -230,7 +257,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           titulo: `💬 Resposta por e-mail no #${existente.numero}`,
           mensagem: `${nome} respondeu por e-mail no chamado "${existente.titulo}".`,
           tipo: 'ticket',
-          lida: false
+          lida: false,
+          dados_extras: {
+            ticket_id: existente.id,
+            ticket_numero: existente.numero,
+            cliente_nome: nome,
+            modulo: 'tickets'
+          }
         })
         res.status(200).json({ ok: true, acao: 'mensagem_adicionada', ticket: existente.numero })
         return
@@ -289,7 +322,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       titulo: `🎫 Novo chamado por e-mail de ${nome}`,
       mensagem: `${nome} abriu um chamado por e-mail: "${assunto}".`,
       tipo: 'ticket',
-      lida: false
+      lida: false,
+      dados_extras: {
+        ticket_id: novo.id,
+        ticket_numero: novo.numero,
+        cliente_nome: nome,
+        modulo: 'tickets'
+      }
     })
 
     // Confirmação de abertura para o cliente, com o número do chamado

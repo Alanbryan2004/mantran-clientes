@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Ticket as TicketIcon,
   Plus,
@@ -123,6 +124,7 @@ export function Tickets() {
 }
 
 function TicketsAgente() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null)
@@ -185,6 +187,21 @@ function TicketsAgente() {
     // E-mails corporativos dos funcionários (classificação "Mantran")
     api.getEmailsFuncionarios().then(es => setEmailsFuncionarios(es)).catch(() => {})
   }, [])
+
+  // Seleciona automaticamente o ticket se vier id ou numero nos parâmetros de URL
+  const ticketIdParam = searchParams.get('id')
+  const ticketNumeroParam = searchParams.get('numero')
+
+  useEffect(() => {
+    if (ticketIdParam) {
+      setSelecionadoId(ticketIdParam)
+    } else if (ticketNumeroParam && tickets.length > 0) {
+      const match = tickets.find(t => String(t.numero) === String(ticketNumeroParam))
+      if (match) {
+        setSelecionadoId(match.id)
+      }
+    }
+  }, [ticketIdParam, ticketNumeroParam, tickets])
 
   const ticketsFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
@@ -402,7 +419,13 @@ function TicketsAgente() {
         contatos={contatos}
         emailsFuncionarios={emailsFuncionarios}
         cadastros={cadastros}
-        onVoltar={() => { setSelecionadoId(null); fetchTickets() }}
+        onVoltar={() => {
+          setSelecionadoId(null)
+          if (searchParams.get('id') || searchParams.get('numero')) {
+            setSearchParams({})
+          }
+          fetchTickets()
+        }}
         onChange={fetchTickets}
       />
     )
@@ -854,6 +877,16 @@ function ClientePortalTickets({ email, nome }: { email: string; nome: string }) 
     try {
       const data = await api.getTicketsDoCliente(email)
       setTickets(data)
+      // Se veio ?chamado=<numero>, ?numero=<numero> ou ?id=<id> no link, abre direto esse chamado
+      const params = new URLSearchParams(window.location.search)
+      const idParam = params.get('id')
+      const numParam = params.get('chamado') || params.get('numero')
+      if (idParam) {
+        setSelecionadoId(idParam)
+      } else if (numParam) {
+        const alvo = data.find(t => String(t.numero) === numParam)
+        if (alvo) setSelecionadoId(alvo.id)
+      }
     } catch (err) {
       console.error('Erro ao carregar meus chamados:', err)
     } finally {
@@ -881,27 +914,37 @@ function ClientePortalTickets({ email, nome }: { email: string; nome: string }) 
       await api.createNotificacao({
         titulo: `🎫 Novo chamado de ${nome || email}`,
         mensagem: `${nome || email} abriu um chamado pelo portal: "${novoAssunto.trim()}".`,
-        tipo: 'ticket'
+        tipo: 'ticket',
+        dados_extras: {
+          ticket_id: novo.id,
+          ticket_numero: novo.numero,
+          cliente_nome: nome || email,
+          modulo: 'tickets'
+        }
       }).catch(() => {})
       // Envia confirmação de abertura ao cliente (com o número do chamado)
       if (novo?.numero) {
         const assuntoConf = `[#${novo.numero}] ${novoAssunto.trim()}`
+        const linkChamado = `${window.location.origin}/tickets?chamado=${novo.numero}`
         const htmlConf = `
           <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:600px">
             <p>Olá,</p>
             <p>Recebemos a sua solicitação e abrimos o chamado abaixo. Nossa equipe irá atendê-lo em breve.</p>
             <div style="margin:20px 0;padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
               <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:bold">Número do chamado</p>
-              <p style="margin:0;font-size:20px;font-weight:bold;color:#dc2626">#${novo.numero}</p>
-              <p style="margin:8px 0 0;font-size:14px;color:#334155">${novoAssunto.trim()}</p>
+              <p style="margin:0 0 12px;font-size:20px;font-weight:bold;color:#dc2626">#${novo.numero}</p>
+              <p style="margin:0 0 14px;font-size:14px;color:#334155">${novoAssunto.trim()}</p>
+              <a href="${linkChamado}" style="display:inline-block;background:#dc2626;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:10px 18px;border-radius:10px">
+                Acompanhar meu chamado
+              </a>
             </div>
-            <p style="font-size:13px;color:#64748b">Guarde este número para acompanhar o seu atendimento. Você pode responder a este e-mail (mantendo o assunto com o #${novo.numero}) para dar continuidade.</p>
+            <p style="font-size:13px;color:#64748b">Guarde este número para acompanhar o seu atendimento. Você pode responder a este e-mail (mantendo o assunto com o #${novo.numero}) ou acompanhar pelo portal no link acima.</p>
           </div>`
         api.enviarEmail({
           para: email,
           assunto: assuntoConf,
           html: htmlConf,
-          texto: `Recebemos a sua solicitação e abrimos o chamado #${novo.numero} - ${novoAssunto.trim()}. Guarde este número para acompanhar o atendimento.`
+          texto: `Recebemos a sua solicitação e abrimos o chamado #${novo.numero} - ${novoAssunto.trim()}. Acompanhe pelo portal: ${linkChamado} . Guarde este número para acompanhar o atendimento.`
         }).catch(() => {})
       }
       setNovoAssunto('')
@@ -2557,8 +2600,36 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
   const atualizarPropriedade = async (updates: Partial<Ticket>) => {
     try {
       await api.updateTicket(ticketId, updates)
+      const anterior = ticket
       setTicket(prev => prev ? { ...prev, ...updates } : prev)
       onChange()
+
+      // Ao mudar o status para "Fechado", envia e-mail de encerramento ao cliente
+      if (updates.status === 'Fechado' && anterior && anterior.status !== 'Fechado') {
+        const ehEmail = (s?: string | null) => !!s && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim())
+        const destino = ehEmail(anterior.cliente_email) ? anterior.cliente_email!.trim()
+          : ehEmail(anterior.cliente_nome) ? anterior.cliente_nome!.trim()
+          : ''
+        if (destino) {
+          const nomeCliente = anterior.cliente_nome || 'Cliente'
+          const assunto = `[#${anterior.numero}] ${anterior.titulo || 'Seu chamado'}`
+          const html = `
+            <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:600px">
+              <p>Prezado(a) ${nomeCliente},</p>
+              <p>Seu ticket - <b>${anterior.titulo || ''}</b> - foi fechado.</p>
+              <p>Esperamos que seu ticket tenha sido resolvido satisfatoriamente. Se você acha que o ticket não deveria ter sido fechado ou não foi resolvido ainda, por favor responda este e-mail.</p>
+              <p style="margin-top:20px">Atenciosamente,<br>Time de Suporte - Mantran</p>
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
+              <p style="font-size:12px;color:#94a3b8">Chamado #${anterior.numero}. Para reabrir, responda este e-mail mantendo o assunto.</p>
+            </div>`
+          api.enviarEmail({
+            para: destino,
+            assunto,
+            html,
+            texto: `Prezado(a) ${nomeCliente}, seu ticket - ${anterior.titulo || ''} - foi fechado. Se acha que não deveria ter sido fechado ou não foi resolvido, responda este e-mail. Time de Suporte - Mantran. Chamado #${anterior.numero}.`
+          }).catch(() => {})
+        }
+      }
     } catch (err: any) {
       alert('Erro ao atualizar: ' + (err.message || 'Desconhecido'))
     }

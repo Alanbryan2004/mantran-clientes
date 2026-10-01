@@ -14,7 +14,8 @@ import {
   FileText, 
   Palmtree, 
   PhoneCall,
-  Gift 
+  Gift,
+  Ticket as TicketIcon
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
@@ -365,8 +366,17 @@ export function NotificationsPopover() {
       // Apenas felicitação/aviso: leva ao RH (aba de aniversariantes)
       navigate('/rh')
       return
-    } else if (item.tipo === 'ticket') {
-      navigate('/tickets')
+    } else if (item.tipo === 'ticket' || item.tipo?.startsWith('ticket_')) {
+      const ticketId = item.dados_extras?.ticket_id
+      const ticketNum = item.dados_extras?.ticket_numero || item.titulo?.match(/#(\d+)/)?.[1] || item.mensagem?.match(/#(\d+)/)?.[1]
+      if (ticketId) {
+        navigate(`/tickets?id=${ticketId}`)
+      } else if (ticketNum) {
+        navigate(`/tickets?numero=${ticketNum}`)
+      } else {
+        navigate('/tickets')
+      }
+      return
     } else if (item.tipo?.startsWith('rh_') || item.dados_extras?.modulo === 'rh') {
       navigate('/rh')
     } else if (item.tipo === 'nova_implantacao' && item.implantacao_id) {
@@ -565,6 +575,7 @@ export function NotificationsPopover() {
               </div>
             ) : (
               displayedNotificacoes.map((item) => {
+                const isTicket = item.tipo === 'ticket' || item.tipo?.startsWith('ticket_')
                 const isNovaImplantacao = item.tipo === 'nova_implantacao'
                 const isFerias = item.tipo === 'rh_ferias'
                 const isFalta = item.tipo === 'rh_falta'
@@ -593,6 +604,10 @@ export function NotificationsPopover() {
                           ? "bg-emerald-500/5 border-l-2 border-emerald-400"
                           : isPlantao
                           ? "bg-yellow-500/5 border-l-2 border-yellow-400"
+                          : isTicket
+                          ? "bg-sky-500/5 border-l-2 border-sky-400"
+                          : isNovaImplantacao
+                          ? "bg-purple-500/5 border-l-2 border-purple-400"
                           : "bg-brand-500/5 border-l-2 border-brand-400"
                         : "opacity-80 hover:opacity-100"
                     )}
@@ -610,6 +625,8 @@ export function NotificationsPopover() {
                         ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
                         : isPlantao
                         ? "bg-yellow-500/15 border-yellow-500/30 text-yellow-400 shadow-yellow-500/10"
+                        : isTicket
+                        ? "bg-sky-500/15 border-sky-500/30 text-sky-400 shadow-sky-500/10"
                         : isNovaImplantacao
                         ? "bg-purple-500/15 border-purple-500/30 text-purple-400 shadow-purple-500/10"
                         : isConcluido
@@ -626,6 +643,8 @@ export function NotificationsPopover() {
                         <FileText className="w-4 h-4" />
                       ) : isPlantao ? (
                         <PhoneCall className="w-4 h-4" />
+                      ) : isTicket ? (
+                        <TicketIcon className="w-4 h-4" />
                       ) : isNovaImplantacao ? (
                         <Rocket className="w-4 h-4" />
                       ) : isConcluido ? (
@@ -651,13 +670,15 @@ export function NotificationsPopover() {
                               ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
                               : isPlantao
                               ? "bg-yellow-950/40 text-yellow-300 border-yellow-500/30"
+                              : isTicket
+                              ? "bg-sky-950/40 text-sky-300 border-sky-500/30"
                               : isNovaImplantacao
                               ? "bg-purple-950/40 text-purple-300 border-purple-500/30"
                               : isConcluido
                               ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
                               : "bg-blue-950/40 text-blue-300 border-blue-500/30"
                           )}>
-                            {isAniversario ? '🎂 Aniversário' : isPontoLembrete ? '⏰ Ponto' : isRhNotification ? `👤 ${colaboradorNome}` : `🏢 ${nomeCliente}`}
+                            {isAniversario ? '🎂 Aniversário' : isPontoLembrete ? '⏰ Ponto' : isRhNotification ? `👤 ${colaboradorNome}` : isTicket ? '🎫 Chamado' : `🏢 ${nomeCliente}`}
                           </span>
 
                           <span className="text-xs font-bold text-white truncate">
@@ -675,6 +696,8 @@ export function NotificationsPopover() {
                               ? "bg-emerald-400 shadow-[0_0_6px_#34d399]"
                               : isPlantao
                               ? "bg-yellow-400 shadow-[0_0_6px_#facc15]"
+                              : isTicket
+                              ? "bg-sky-400 shadow-[0_0_6px_#38bdf8]"
                               : "bg-brand-400 shadow-[0_0_6px_#38bdf8]"
                           )} />
                         )}
@@ -707,13 +730,15 @@ export function NotificationsPopover() {
                                 ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
                                 : isPlantao
                                 ? "bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+                                : isTicket
+                                ? "bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border-sky-500/30"
                                 : isNovaImplantacao
                                 ? "bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border-purple-500/30"
                                 : "bg-brand-500/10 hover:bg-brand-500/20 text-brand-300 border-brand-500/30"
                             )}
                           >
                             <ExternalLink className="w-3 h-3" />
-                            {isPontoLembrete ? 'Visualizar Ponto' : isRhNotification ? 'Abrir RH' : isNovaImplantacao ? 'Abrir Implantação' : 'Visualizar Formulário'}
+                            {isPontoLembrete ? 'Visualizar Ponto' : isRhNotification ? 'Abrir RH' : isNovaImplantacao ? 'Abrir Implantação' : isTicket ? 'Visualizar Ticket' : 'Visualizar Formulário'}
                           </button>
 
                           <button
