@@ -24,6 +24,7 @@ import {
   Settings,
   SlidersHorizontal,
   ChevronLeft,
+  ChevronDown,
   Trash2,
   Loader2 as Spinner
 } from 'lucide-react'
@@ -2444,6 +2445,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
   const [respostaPara, setRespostaPara] = useState('')
   const [respostaCc, setRespostaCc] = useState('')
   const [mostrarCc, setMostrarCc] = useState(false)
+  const [menuEnviarAberto, setMenuEnviarAberto] = useState(false)
   const [anexosPend, setAnexosPend] = useState<{ nome: string; tipo: string; url: string; tamanho: number }[]>([])
   const [enviando, setEnviando] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -2542,6 +2544,8 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
     if (semConteudo && novoStatus) {
       // Só muda o status, sem criar mensagem vazia. Reaproveita a lógica de e-mail de fechamento.
       await atualizarPropriedade({ status: novoStatus })
+      // Resolvido/Fechado: volta para a lista (próximo chamado em aberto)
+      if (novoStatus === 'Resolvido' || novoStatus === 'Fechado') onVoltar()
       return
     }
     setEnviando(true)
@@ -2611,8 +2615,13 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
 
       setTexto('')
       setAnexosPend([])
-      await carregar()
       onChange()
+      // Se foi resolvido/fechado, volta para a lista (mostra o próximo chamado em aberto)
+      if (novoStatus === 'Resolvido' || novoStatus === 'Fechado') {
+        onVoltar()
+        return
+      }
+      await carregar()
     } catch (err: any) {
       console.error(err)
       alert('Erro ao enviar: ' + (err.message || 'Desconhecido'))
@@ -2831,28 +2840,31 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                   </span>
                   <span className="text-[11px] text-slate-400">relatado por e-mail • {formatDataHora(ticket.created_at)}</span>
                 </div>
-                {/* Para / Cc (como no Freshdesk) */}
-                <div className="text-[11px] text-slate-500 mb-2 space-y-0.5">
-                  {ticket.cliente_email && (
-                    <div><span className="font-semibold text-slate-600">Para:</span> {ticket.cliente_email}</div>
+                {/* Conteúdo alinhado com o nome do remetente (recuo do avatar: 28px + gap 8px = pl-9) */}
+                <div className="pl-9">
+                  {/* Para / Cc (como no Freshdesk) */}
+                  <div className="text-[11px] text-slate-500 mb-2 space-y-0.5">
+                    {ticket.cliente_email && (
+                      <div><span className="font-semibold text-slate-600">Para:</span> {ticket.cliente_email}</div>
+                    )}
+                    {ticket.cliente_cc && (
+                      <div className="break-all"><span className="font-semibold text-slate-600">Cc:</span> {ticket.cliente_cc}</div>
+                    )}
+                  </div>
+                  {/^\s*<[a-z][\s\S]*>/i.test(ticket.descricao || '') ? (
+                    <div
+                      className="rte-content text-sm text-slate-700"
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(ticket.descricao || '') }}
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.descricao}</p>
                   )}
-                  {ticket.cliente_cc && (
-                    <div className="break-all"><span className="font-semibold text-slate-600">Cc:</span> {ticket.cliente_cc}</div>
+                  {anexosDoTicket.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {anexosDoTicket.map(a => <AnexoChip key={a.id} anexo={a} />)}
+                    </div>
                   )}
                 </div>
-                {/^\s*<[a-z][\s\S]*>/i.test(ticket.descricao || '') ? (
-                  <div
-                    className="rte-content text-sm text-slate-700"
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(ticket.descricao || '') }}
-                  />
-                ) : (
-                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.descricao}</p>
-                )}
-                {anexosDoTicket.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {anexosDoTicket.map(a => <AnexoChip key={a.id} anexo={a} />)}
-                  </div>
-                )}
               </div>
             )}
 
@@ -2879,16 +2891,18 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                     )}
                     <span className="text-[11px] text-slate-400 ml-auto">{formatDataHora(m.created_at)}</span>
                   </div>
-                  {/^\s*<[a-z][\s\S]*>/i.test(m.conteudo || '') ? (
-                    <div className="rte-content text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: sanitizeHtml(m.conteudo || '') }} />
-                  ) : (
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.conteudo}</p>
-                  )}
-                  {anexosDaMensagem(m.id).length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {anexosDaMensagem(m.id).map(a => <AnexoChip key={a.id} anexo={a} />)}
-                    </div>
-                  )}
+                  <div className="pl-9">
+                    {/^\s*<[a-z][\s\S]*>/i.test(m.conteudo || '') ? (
+                      <div className="rte-content text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: sanitizeHtml(m.conteudo || '') }} />
+                    ) : (
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.conteudo}</p>
+                    )}
+                    {anexosDaMensagem(m.id).length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {anexosDaMensagem(m.id).map(a => <AnexoChip key={a.id} anexo={a} />)}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             })}
@@ -3006,29 +3020,46 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
 
                   <div className="flex items-center gap-2">
                     {modo === 'resposta' ? (
-                      <div className="flex items-center gap-1">
+                      <div className="relative flex items-stretch">
+                        {/* Botão principal: só Enviar (responde, sem mudar status) */}
                         <button
                           type="button"
                           disabled={enviando}
-                          onClick={() => enviar('Pendente')}
-                          className="py-2 px-4 text-xs font-bold rounded-lg bg-brand-600 hover:bg-brand-700 text-white flex items-center gap-1.5 transition-colors"
+                          onClick={() => { setMenuEnviarAberto(false); enviar() }}
+                          className="py-2 pl-4 pr-3 text-xs font-bold rounded-l-lg bg-brand-600 hover:bg-brand-700 text-white flex items-center gap-1.5 transition-colors disabled:opacity-60"
                         >
                           {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                           Enviar
                         </button>
-                        <select
-                          onChange={e => { if (e.target.value) enviar(e.target.value) }}
-                          value=""
-                          title="Enviar e definir status"
-                          className="py-2 px-1 text-xs bg-white border border-slate-300 rounded-lg text-slate-600 focus:outline-none focus:border-brand-500 cursor-pointer"
+                        {/* Divisória + seta que abre o menu "Enviar e definir como" */}
+                        <button
+                          type="button"
+                          disabled={enviando}
+                          onClick={() => setMenuEnviarAberto(v => !v)}
+                          title="Enviar e definir como..."
+                          className="py-2 px-2 rounded-r-lg bg-brand-600 hover:bg-brand-700 text-white border-l border-brand-500/60 flex items-center transition-colors disabled:opacity-60"
                         >
-                          <option value="">Enviar e definir…</option>
-                          <option value="Pendente">Pendente</option>
-                          <option value="Resolvido">Resolvido</option>
-                          <option value="Fechado">Fechado</option>
-                          <option value="Aguardando cliente">Aguardando cliente</option>
-                          <option value="Aguardando terceiros">Aguardando terceiros</option>
-                        </select>
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+
+                        {menuEnviarAberto && (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setMenuEnviarAberto(false)} />
+                            <div className="absolute right-0 bottom-full mb-2 z-40 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 animate-[fadeIn_.12s_ease-out]">
+                              <p className="px-3 py-1 text-[10px] font-black uppercase tracking-wide text-slate-400">Enviar e definir como</p>
+                              {['Pendente', 'Resolvido', 'Fechado', 'Aguardando cliente', 'Aguardando terceiros'].map(st => (
+                                <button
+                                  key={st}
+                                  type="button"
+                                  onClick={() => { setMenuEnviarAberto(false); enviar(st) }}
+                                  className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-brand-50 hover:text-brand-700 transition-colors cursor-pointer"
+                                >
+                                  {st}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
                       </div>
                     ) : (
                       <button
