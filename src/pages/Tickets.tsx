@@ -868,7 +868,7 @@ function ClientePortalTickets({ email, nome }: { email: string; nome: string }) 
     if (!novoDescricao.trim()) { alert('Descreva o seu chamado.'); return }
     setSalvandoNovo(true)
     try {
-      await api.createTicket({
+      const novo = await api.createTicket({
         titulo: novoAssunto.trim(),
         descricao: novoDescricao.trim(),
         cliente_nome: nome || email,
@@ -883,6 +883,27 @@ function ClientePortalTickets({ email, nome }: { email: string; nome: string }) 
         mensagem: `${nome || email} abriu um chamado pelo portal: "${novoAssunto.trim()}".`,
         tipo: 'ticket'
       }).catch(() => {})
+      // Envia confirmação de abertura ao cliente (com o número do chamado)
+      if (novo?.numero) {
+        const assuntoConf = `[#${novo.numero}] ${novoAssunto.trim()}`
+        const htmlConf = `
+          <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:600px">
+            <p>Olá,</p>
+            <p>Recebemos a sua solicitação e abrimos o chamado abaixo. Nossa equipe irá atendê-lo em breve.</p>
+            <div style="margin:20px 0;padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
+              <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:bold">Número do chamado</p>
+              <p style="margin:0;font-size:20px;font-weight:bold;color:#dc2626">#${novo.numero}</p>
+              <p style="margin:8px 0 0;font-size:14px;color:#334155">${novoAssunto.trim()}</p>
+            </div>
+            <p style="font-size:13px;color:#64748b">Guarde este número para acompanhar o seu atendimento. Você pode responder a este e-mail (mantendo o assunto com o #${novo.numero}) para dar continuidade.</p>
+          </div>`
+        api.enviarEmail({
+          para: email,
+          assunto: assuntoConf,
+          html: htmlConf,
+          texto: `Recebemos a sua solicitação e abrimos o chamado #${novo.numero} - ${novoAssunto.trim()}. Guarde este número para acompanhar o atendimento.`
+        }).catch(() => {})
+      }
       setNovoAssunto('')
       setNovoDescricao('')
       setNovoAberto(false)

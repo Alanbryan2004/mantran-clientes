@@ -22,6 +22,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import nodemailer from 'nodemailer'
 
 // Extrai o primeiro e-mail de uma string (ex.: '"Fulano" <fulano@x.com>' -> 'fulano@x.com')
 function extrairEmail(str?: string): string {
@@ -74,6 +75,51 @@ function montarCorpoEAnexos(html: string, plain: string, anexos: any[]): { corpo
   }
 
   return { corpo, anexosArquivo }
+}
+
+// Envia o e-mail de confirmação de abertura do chamado para o cliente.
+// Usa a mesma configuração SMTP do Admin (config_email). Falha de envio não quebra o fluxo.
+async function enviarConfirmacao(supabase: any, para: string, numero: number, assunto: string) {
+  try {
+    const { data: cfg } = await supabase.from('config_email').select('*').eq('id', 'default').maybeSingle()
+    if (!cfg || !cfg.smtp_host || !cfg.smtp_usuario || !cfg.smtp_senha) return
+
+    const seguranca = (cfg.smtp_seguranca || 'STARTTLS').toUpperCase()
+    const transporter = nodemailer.createTransport({
+      host: cfg.smtp_host,
+      port: Number(cfg.smtp_porta) || 587,
+      secure: seguranca === 'SSL',
+      auth: { user: cfg.smtp_usuario, pass: cfg.smtp_senha },
+      tls: seguranca === 'STARTTLS' ? { ciphers: 'TLSv1.2' } : undefined
+    })
+
+    const remetenteEmail = cfg.remetente_email || cfg.smtp_usuario
+    const remetenteNome = cfg.remetente_nome || 'Suporte Mantran'
+    const assuntoResp = `[#${numero}] ${assunto}`
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:600px">
+        <p>Olá,</p>
+        <p>Recebemos a sua solicitação e abrimos o chamado abaixo. Nossa equipe já foi notificada e irá atendê-lo em breve.</p>
+        <div style="margin:20px 0;padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
+          <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;font-weight:bold">Número do chamado</p>
+          <p style="margin:0;font-size:20px;font-weight:bold;color:#dc2626">#${numero}</p>
+          <p style="margin:8px 0 0;font-size:14px;color:#334155">${assunto}</p>
+        </div>
+        <p style="font-size:13px;color:#64748b">Para dar continuidade, basta <b>responder a este e-mail</b> mantendo o assunto (com o <b>#${numero}</b>). Guarde este número para acompanhar o seu atendimento.</p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">
+        <p style="font-size:12px;color:#94a3b8;margin:0">${remetenteNome}</p>
+      </div>`
+
+    await transporter.sendMail({
+      from: `"${remetenteNome}" <${remetenteEmail}>`,
+      to: para,
+      subject: assuntoResp,
+      html,
+      text: `Recebemos a sua solicitação e abrimos o chamado #${numero} - ${assunto}. Para dar continuidade, responda a este e-mail mantendo o assunto (com o #${numero}). Guarde este número para acompanhar o atendimento.`
+    })
+  } catch (err) {
+    console.warn('Falha ao enviar confirmação de abertura:', err)
+  }
 }
 
 // Salva anexos "de arquivo" (não inline) como anexos do chamado. Ignora anexos maiores que ~4 MB.
@@ -245,6 +291,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       tipo: 'ticket',
       lida: false
     })
+
+    // Confirmação de abertura para o cliente, com o número do chamado
+    if (novo?.numero) {
+      await enviarConfirmacao(supabase, remetente, novo.numero, assunto)
+    }
 
     res.status(200).json({ ok: true, acao: 'chamado_criado', ticket: novo?.numero })
   } catch (err: any) {
