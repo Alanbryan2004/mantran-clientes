@@ -2808,6 +2808,8 @@ export const api = {
     autor_nome?: string | null
     autor_tipo?: 'agente' | 'cliente'
     novo_status?: string | null
+    para?: string | null
+    cc?: string | null
   }): Promise<TicketMensagem> {
     const { data, error } = await supabase
       .from('ticket_mensagens')
@@ -2817,7 +2819,9 @@ export const api = {
         conteudo: payload.conteudo,
         autor_id: payload.autor_id || null,
         autor_nome: payload.autor_nome || null,
-        autor_tipo: payload.autor_tipo || 'agente'
+        autor_tipo: payload.autor_tipo || 'agente',
+        para: payload.para || null,
+        cc: payload.cc || null
       })
       .select('*')
       .single()
@@ -3070,6 +3074,8 @@ export interface TicketMensagem {
   autor_id?: string | null
   autor_nome?: string | null
   autor_tipo: 'agente' | 'cliente'
+  para?: string | null
+  cc?: string | null
   created_at?: string
 }
 

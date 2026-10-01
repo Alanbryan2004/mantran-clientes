@@ -114,7 +114,7 @@ async function enviarConfirmacao(supabase: any, para: string, numero: number, as
     const remetenteNome = cfg.remetente_nome || 'Suporte Mantran'
     const assuntoResp = `[#${numero}] ${assunto}`
     const appUrl = (process.env.APP_URL || 'https://mantran-clientes-five.vercel.app').replace(/\/$/, '')
-    const linkChamado = `${appUrl}/tickets?chamado=${numero}`
+    const linkChamado = `${appUrl}/tickets/${numero}`
     const html = `
       <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:600px">
         <p>Olá,</p>

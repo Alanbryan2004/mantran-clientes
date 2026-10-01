@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom'
 import {
   Ticket as TicketIcon,
   Plus,
@@ -162,7 +162,9 @@ export function Tickets() {
 }
 
 function TicketsAgente() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
+  const { numero: numeroRota } = useParams()
+  const navigate = useNavigate()
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null)
@@ -229,8 +231,8 @@ function TicketsAgente() {
 
   // Seleciona automaticamente o ticket se vier id ou numero nos parâmetros de URL
   const ticketIdParam = searchParams.get('id')
-  // O link enviado por e-mail usa ?chamado=<numero>; aceitamos também ?numero=
-  const ticketNumeroParam = searchParams.get('numero') || searchParams.get('chamado')
+  // Rota /tickets/:numero, ou (legado) ?chamado= / ?numero= no link de e-mail
+  const ticketNumeroParam = numeroRota || searchParams.get('numero') || searchParams.get('chamado')
 
   useEffect(() => {
     if (ticketIdParam) {
@@ -466,9 +468,7 @@ function TicketsAgente() {
         cadastros={cadastros}
         onVoltar={() => {
           setSelecionadoId(null)
-          if (searchParams.get('id') || searchParams.get('numero') || searchParams.get('chamado')) {
-            setSearchParams({})
-          }
+          navigate('/tickets')
           fetchTickets()
         }}
         onProximo={() => {
@@ -481,9 +481,10 @@ function TicketsAgente() {
           if (!proximo) proximo = abertos.find(t => t.id !== selecionadoId)
           if (proximo) {
             setSelecionadoId(proximo.id)
+            navigate(`/tickets/${proximo.numero}`)
           } else {
             setSelecionadoId(null)
-            if (searchParams.get('id') || searchParams.get('numero') || searchParams.get('chamado')) setSearchParams({})
+            navigate('/tickets')
           }
           fetchTickets()
         }}
@@ -611,7 +612,7 @@ function TicketsAgente() {
                     <button
                       key={t.id}
                       type="button"
-                      onClick={() => setSelecionadoId(t.id)}
+                      onClick={() => { setSelecionadoId(t.id); navigate(`/tickets/${t.numero}`) }}
                       className={clsx(
                         'w-full text-left bg-white border rounded-xl px-4 py-3.5 flex items-center gap-4 transition-all hover:shadow-md hover:border-brand-300 shadow-sm cursor-pointer',
                         isNovo ? 'border-brand-200' : 'border-slate-200'
@@ -939,10 +940,11 @@ function ClientePortalTickets({ email, nome }: { email: string; nome: string }) 
     try {
       const data = await api.getTicketsDoCliente(email)
       setTickets(data)
-      // Se veio ?chamado=<numero>, ?numero=<numero> ou ?id=<id> no link, abre direto esse chamado
+      // Abre direto o chamado pela rota /tickets/<numero> ou pelos parâmetros ?chamado=/?numero=/?id=
       const params = new URLSearchParams(window.location.search)
       const idParam = params.get('id')
-      const numParam = params.get('chamado') || params.get('numero')
+      const matchRota = window.location.pathname.match(/\/tickets\/(\d+)/)
+      const numParam = (matchRota ? matchRota[1] : null) || params.get('chamado') || params.get('numero')
       if (idParam) {
         setSelecionadoId(idParam)
       } else if (numParam) {
@@ -987,7 +989,7 @@ function ClientePortalTickets({ email, nome }: { email: string; nome: string }) 
       // Envia confirmação de abertura ao cliente (com o número do chamado)
       if (novo?.numero) {
         const assuntoConf = `[#${novo.numero}] ${novoAssunto.trim()}`
-        const linkChamado = `${window.location.origin}/tickets?chamado=${novo.numero}`
+        const linkChamado = `${window.location.origin}/tickets/${novo.numero}`
         const htmlConf = `
           <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:600px">
             <p>Olá,</p>
@@ -2619,7 +2621,9 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
         autor_id: user?.id || null,
         autor_nome: user?.nome || user?.login || 'Agente',
         autor_tipo: 'agente',
-        novo_status: novoStatus || null
+        novo_status: novoStatus || null,
+        para: modo === 'resposta' ? (respostaPara || '').trim() || null : null,
+        cc: modo === 'resposta' ? (respostaCc || '').trim() || null : null
       })
       // Anexos
       for (const a of anexosPend) {
@@ -2648,7 +2652,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
           }
 
           const assunto = `[#${ticket!.numero}] ${ticket!.titulo || 'Seu chamado'}`
-          const linkChamado = `${window.location.origin}/tickets?chamado=${ticket!.numero}`
+          const linkChamado = `${window.location.origin}/tickets/${ticket!.numero}`
           const corpoTexto = `Chamado #${ticket!.numero} - ${ticket!.titulo || ''}\nAcompanhe seu chamado: ${linkChamado}\n\nResponda a este e-mail mantendo o assunto para dar continuidade ao atendimento.`
           const corpoHtml = `
             <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:620px">
@@ -2966,6 +2970,13 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                     <span className="text-[11px] text-slate-400 ml-auto">{formatDataHora(m.created_at)}</span>
                   </div>
                   <div className="pl-9">
+                    {/* Destinatários desta resposta (Para / Cc) */}
+                    {(m.para || m.cc) && (
+                      <div className="text-[11px] text-slate-500 mb-1.5 space-y-0.5">
+                        {m.para && <div><span className="font-semibold text-slate-600">Para:</span> {m.para}</div>}
+                        {m.cc && <div className="break-all"><span className="font-semibold text-slate-600">Cc:</span> {m.cc}</div>}
+                      </div>
+                    )}
                     {/^\s*<[a-z][\s\S]*>/i.test(m.conteudo || '') ? (
                       <div className="rte-content text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: sanitizeHtml(m.conteudo || '') }} />
                     ) : (
@@ -3023,17 +3034,13 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                   </>
                 ) : (
                   <>
-                    {/* Destinatários: Para / Cc (como no Freshdesk) */}
+                    {/* Destinatários: Para / Cc (chips — Enter/vírgula para adicionar) */}
                     <div className="space-y-1.5 mb-2 text-xs">
                       <div className="flex items-start gap-2">
                         <span className="font-semibold text-slate-500 w-8 pt-2 shrink-0">Para</span>
-                        <input
-                          type="text"
-                          value={respostaPara}
-                          onChange={e => setRespostaPara(e.target.value)}
-                          placeholder="email@cliente.com"
-                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-700 focus:outline-none focus:border-brand-500"
-                        />
+                        <div className="flex-1">
+                          <EmailsInput value={respostaPara} onChange={setRespostaPara} placeholder="email@cliente.com" />
+                        </div>
                         {!mostrarCc && (
                           <button type="button" onClick={() => setMostrarCc(true)} className="text-brand-600 hover:underline font-semibold pt-2 shrink-0">
                             + Cc
@@ -3043,13 +3050,9 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                       {mostrarCc && (
                         <div className="flex items-start gap-2">
                           <span className="font-semibold text-slate-500 w-8 pt-2 shrink-0">Cc</span>
-                          <input
-                            type="text"
-                            value={respostaCc}
-                            onChange={e => setRespostaCc(e.target.value)}
-                            placeholder="separe por vírgula: a@x.com, b@y.com"
-                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-700 focus:outline-none focus:border-brand-500"
-                          />
+                          <div className="flex-1">
+                            <EmailsInput value={respostaCc} onChange={setRespostaCc} placeholder="Digite e Enter para adicionar" />
+                          </div>
                           <button type="button" onClick={() => { setRespostaCc(''); setMostrarCc(false) }} className="text-slate-400 hover:text-red-500 font-semibold pt-2 shrink-0">
                             Limpar
                           </button>
@@ -3438,6 +3441,54 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
 }
 
 // Input de tags (chips). Guarda/retorna como texto separado por vírgula.
+// Input de e-mails em chips (Para/Cc). Enter ou vírgula adiciona; Backspace remove o último.
+function EmailsInput({ value, onChange, placeholder }: { value: string; onChange: (csv: string) => void; placeholder?: string }) {
+  const emails = (value || '').split(',').map(e => e.trim()).filter(Boolean)
+  const [texto, setTexto] = useState('')
+
+  const commit = (novos: string[]) => onChange(novos.join(', '))
+
+  const adicionar = () => {
+    const e = texto.trim().replace(/[,;]+$/, '')
+    if (!e) { setTexto(''); return }
+    if (emails.some(x => x.toLowerCase() === e.toLowerCase())) { setTexto(''); return }
+    commit([...emails, e])
+    setTexto('')
+  }
+
+  const remover = (email: string) => commit(emails.filter(e => e !== email))
+
+  const ehValido = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
+
+  return (
+    <div className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-300 focus-within:border-brand-500 flex flex-wrap gap-1.5 items-center">
+      {emails.map(email => (
+        <span key={email} className={clsx(
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs',
+          ehValido(email) ? 'bg-white border-slate-200 text-slate-700' : 'bg-red-50 border-red-200 text-red-600'
+        )}>
+          {email}
+          <button type="button" onClick={() => remover(email)} className="text-slate-400 hover:text-red-500">
+            <X className="w-3 h-3" />
+          </button>
+        </span>
+      ))}
+      <input
+        type="text"
+        value={texto}
+        onChange={e => setTexto(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ',' || e.key === ';') { e.preventDefault(); adicionar() }
+          else if (e.key === 'Backspace' && !texto && emails.length) { remover(emails[emails.length - 1]) }
+        }}
+        onBlur={adicionar}
+        placeholder={emails.length ? '' : (placeholder || 'Digite e Enter')}
+        className="flex-1 min-w-[120px] px-1 py-0.5 text-sm text-slate-700 bg-transparent focus:outline-none"
+      />
+    </div>
+  )
+}
+
 function TagsInput({ value, onChange }: { value: string; onChange: (csv: string) => void }) {
   const tags = (value || '').split(',').map(t => t.trim()).filter(Boolean)
   const [texto, setTexto] = useState('')

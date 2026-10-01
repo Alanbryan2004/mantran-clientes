@@ -103,6 +103,7 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<RootRoute />} />
           <Route path="tickets" element={<Tickets />} />
+          <Route path="tickets/:numero" element={<Tickets />} />
           <Route path="comercial" element={<Comercial />} />
           <Route path="clientes" element={<Clientes />} />
           <Route path="implantacoes" element={<ImplantacoesRoute />} />
