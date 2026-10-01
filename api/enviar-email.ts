@@ -20,14 +20,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { para, assunto, html, texto, cc } = (req.body || {}) as {
+    const { para, assunto, html, texto, cc, anexos } = (req.body || {}) as {
       para?: string; assunto?: string; html?: string; texto?: string; cc?: string
+      anexos?: { nome: string; tipo?: string; conteudo: string }[]
     }
 
     if (!para || !assunto) {
       res.status(400).json({ ok: false, erro: 'Informe "para" e "assunto".' })
       return
     }
+
+    // Monta os anexos para o nodemailer a partir das Data URLs (data:tipo;base64,xxxx)
+    const attachments = (Array.isArray(anexos) ? anexos : [])
+      .map(a => {
+        const m = String(a.conteudo || '').match(/^data:([^;]+);base64,(.*)$/)
+        if (!m) return null
+        return { filename: a.nome || 'anexo', content: m[2], encoding: 'base64' as const, contentType: a.tipo || m[1] }
+      })
+      .filter(Boolean) as { filename: string; content: string; encoding: 'base64'; contentType: string }[]
 
     const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
@@ -72,7 +82,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       cc: cc && cc.trim() ? cc : undefined,
       subject: assunto,
       text: texto || undefined,
-      html: html || undefined
+      html: html || undefined,
+      attachments: attachments.length ? attachments : undefined
     })
 
     res.status(200).json({ ok: true })

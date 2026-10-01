@@ -229,7 +229,8 @@ function TicketsAgente() {
 
   // Seleciona automaticamente o ticket se vier id ou numero nos parâmetros de URL
   const ticketIdParam = searchParams.get('id')
-  const ticketNumeroParam = searchParams.get('numero')
+  // O link enviado por e-mail usa ?chamado=<numero>; aceitamos também ?numero=
+  const ticketNumeroParam = searchParams.get('numero') || searchParams.get('chamado')
 
   useEffect(() => {
     if (ticketIdParam) {
@@ -465,7 +466,7 @@ function TicketsAgente() {
         cadastros={cadastros}
         onVoltar={() => {
           setSelecionadoId(null)
-          if (searchParams.get('id') || searchParams.get('numero')) {
+          if (searchParams.get('id') || searchParams.get('numero') || searchParams.get('chamado')) {
             setSearchParams({})
           }
           fetchTickets()
@@ -482,7 +483,7 @@ function TicketsAgente() {
             setSelecionadoId(proximo.id)
           } else {
             setSelecionadoId(null)
-            if (searchParams.get('id') || searchParams.get('numero')) setSearchParams({})
+            if (searchParams.get('id') || searchParams.get('numero') || searchParams.get('chamado')) setSearchParams({})
           }
           fetchTickets()
         }}
@@ -2635,10 +2636,17 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
       // Destino: campo "Para" do composer (pré-preenchido com o e-mail do chamado); Cc opcional.
       if (modo === 'resposta' && htmlTemTexto(texto)) {
         const destino = (respostaPara || '').trim()
+        const ccLimpo = (respostaCc || '').trim()
 
         if (!destino) {
           alert('A resposta foi salva no chamado, mas não há um e-mail de destino. Preencha o campo "Para".')
         } else {
+          // Persiste o Cc no chamado (para aparecer registrado e pré-preencher nas próximas respostas)
+          if (ccLimpo !== (ticket!.cliente_cc || '')) {
+            api.updateTicket(ticketId, { cliente_cc: ccLimpo || null }).catch(() => {})
+            setTicket(prev => prev ? { ...prev, cliente_cc: ccLimpo || null } : prev)
+          }
+
           const assunto = `[#${ticket!.numero}] ${ticket!.titulo || 'Seu chamado'}`
           const linkChamado = `${window.location.origin}/tickets?chamado=${ticket!.numero}`
           const corpoTexto = `Chamado #${ticket!.numero} - ${ticket!.titulo || ''}\nAcompanhe seu chamado: ${linkChamado}\n\nResponda a este e-mail mantendo o assunto para dar continuidade ao atendimento.`
@@ -2663,16 +2671,19 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                 Este é um retorno referente ao seu chamado #${ticket!.numero}. Responda a este e-mail mantendo o assunto para dar continuidade ao atendimento.
               </p>
             </div>`
-          const r = await api.enviarEmail({
+          // Anexos da resposta vão junto no e-mail (nome + conteúdo em Data URL)
+          const anexosEmail = anexosPend.map(a => ({ nome: a.nome, tipo: a.tipo, conteudo: a.url }))
+          // ENVIO ASSÍNCRONO: não travamos a tela esperando o e-mail. Dispara em background.
+          api.enviarEmail({
             para: destino,
-            cc: (respostaCc || '').trim() || undefined,
+            cc: ccLimpo || undefined,
             assunto,
             html: corpoHtml,
-            texto: corpoTexto
-          })
-          if (!r.ok) {
-            alert('A resposta foi salva no chamado, mas o e-mail ao cliente falhou:\n\n' + (r.erro || 'erro desconhecido'))
-          }
+            texto: corpoTexto,
+            anexos: anexosEmail
+          }).then(r => {
+            if (!r.ok) console.warn('Falha ao enviar e-mail da resposta:', r.erro)
+          }).catch(() => {})
         }
       }
 

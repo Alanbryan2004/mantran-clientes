@@ -2676,7 +2676,7 @@ export const api = {
   },
 
   // Envia um e-mail pela função serverless (backend). Usado no teste e nas respostas de chamado.
-  async enviarEmail(payload: { para: string; assunto: string; html?: string; texto?: string; cc?: string }): Promise<{ ok: boolean; erro?: string }> {
+  async enviarEmail(payload: { para: string; assunto: string; html?: string; texto?: string; cc?: string; anexos?: { nome: string; tipo?: string; conteudo: string }[] }): Promise<{ ok: boolean; erro?: string }> {
     try {
       const resp = await fetch('/api/enviar-email', {
         method: 'POST',
