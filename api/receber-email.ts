@@ -206,12 +206,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const nomeMatch = nomeBruto.match(/^\s*"?([^"<]+?)"?\s*</)
     const nome = (nomeMatch ? nomeMatch[1].trim() : '') || remetente
 
-    // Cc (cópia) do e-mail — extrai todos os e-mails do campo Cc, exceto a própria caixa de chamados
+    // Cc (cópia) do e-mail — extrai todos os e-mails do campo Cc, exceto a própria
+    // caixa de chamados (para não se auto-copiar e gerar loop) e o próprio remetente.
+    // Observação: não filtramos todo o domínio @mantran, pois endereços internos
+    // (ex.: tecnico2@, implantacao@) legitimamente entram em cópia e devem aparecer no chamado.
+    const caixaChamados = extrairEmail(
+      envelope.to || headers.to || body.destinatario || body.to || body.To || 'chamado@mantran.com.br'
+    ) || 'chamado@mantran.com.br'
     const ccBruto = (headers.cc || headers.Cc || body.cc || '').toString()
     const cc = Array.from(new Set(
       (ccBruto.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) || [])
         .map(e => e.toLowerCase())
-        .filter(e => !e.includes('@mantran') && e !== remetente)
+        .filter(e => e !== remetente && e !== caixaChamados && !e.startsWith('chamado@'))
     )).join(', ')
     const assunto = (headers.subject || body.assunto || body.subject || body.Subject || '(sem assunto)').toString().trim()
     const htmlBruto = (body.html || body['body-html'] || '').toString()
@@ -246,7 +252,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (numero) {
       const { data: existente } = await supabase
         .from('tickets')
-        .select('id, numero, titulo')
+        .select('id, numero, titulo, cliente_cc')
         .eq('numero', numero)
         .maybeSingle()
 
@@ -259,7 +265,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           autor_tipo: 'cliente'
         }).select('id').single()
         if (anexosArquivo.length) await salvarAnexos(supabase, existente.id, msg?.id || null, anexosArquivo)
-        await supabase.from('tickets').update({ lido: false, status: 'Aberto', updated_at: new Date().toISOString() }).eq('id', existente.id)
+
+        // Mescla os e-mails em cópia (Cc) desta resposta com o Cc já registrado no chamado,
+        // sem duplicar, para que as pessoas copiadas apareçam no chamado e sejam
+        // pré-preenchidas nas próximas respostas do atendente.
+        const atualizacao: Record<string, any> = { lido: false, status: 'Aberto', updated_at: new Date().toISOString() }
+        const ccExistente = (existente.cliente_cc || '')
+          .split(',')
+          .map((e: string) => e.trim().toLowerCase())
+          .filter(Boolean)
+        const ccNovos = cc ? cc.split(',').map(e => e.trim().toLowerCase()).filter(Boolean) : []
+        const ccMesclado = Array.from(new Set([...ccExistente, ...ccNovos]))
+          .filter(e => e && e !== remetente)
+        if (ccMesclado.length) atualizacao.cliente_cc = ccMesclado.join(', ')
+
+        await supabase.from('tickets').update(atualizacao).eq('id', existente.id)
 
         await supabase.from('notificacoes').insert({
           titulo: `💬 Resposta por e-mail no #${existente.numero}`,

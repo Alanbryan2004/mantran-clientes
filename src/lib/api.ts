@@ -3023,6 +3023,9 @@ export interface ConfigEmail {
   entrada_porta?: number | null
   entrada_ssl?: boolean | null
   ativo?: boolean
+  // Threads automáticas: destinos dos disparos por tipo de chamado
+  email_customizacao?: string | null
+  email_suporte_estendido?: string | null
   updated_at?: string
 }
 

@@ -26,6 +26,8 @@ import {
   ChevronLeft,
   ChevronDown,
   Trash2,
+  Maximize2,
+  Minimize2,
   Loader2 as Spinner
 } from 'lucide-react'
 import clsx from 'clsx'
@@ -50,6 +52,39 @@ function htmlTemTexto(html: string): boolean {
   if (!html) return false
   const semTags = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
   return semTags.length > 0
+}
+
+// Detecta se um conteúdo tem marcação HTML (tag em qualquer posição, não só no início)
+function pareceHtml(s?: string | null): boolean {
+  return !!s && /<[a-z][\s\S]*>/i.test(s)
+}
+
+// Aplica a máscara de CNPJ (00.000.000/0000-00) sobre o que foi digitado.
+function formatarCnpj(valor: string): string {
+  const d = (valor || '').replace(/\D/g, '').slice(0, 14)
+  let out = d
+  if (d.length > 2) out = d.slice(0, 2) + '.' + d.slice(2)
+  if (d.length > 5) out = d.slice(0, 2) + '.' + d.slice(2, 5) + '.' + d.slice(5)
+  if (d.length > 8) out = d.slice(0, 2) + '.' + d.slice(2, 5) + '.' + d.slice(5, 8) + '/' + d.slice(8)
+  if (d.length > 12) out = d.slice(0, 2) + '.' + d.slice(2, 5) + '.' + d.slice(5, 8) + '/' + d.slice(8, 12) + '-' + d.slice(12)
+  return out
+}
+
+// Remove "parágrafos vazios" que o editor deixa no fim (ex.: <div><br></div>, <p><br></p>, <br>)
+function limparHtmlResposta(html: string): string {
+  if (!html) return ''
+  let out = html.trim()
+  // remove repetidamente blocos vazios no final
+  let anterior = ''
+  while (out !== anterior) {
+    anterior = out
+    out = out
+      .replace(/(?:<div>(?:\s|&nbsp;|<br\s*\/?>)*<\/div>)+\s*$/i, '')
+      .replace(/(?:<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>)+\s*$/i, '')
+      .replace(/(?:<br\s*\/?>\s*)+$/i, '')
+      .trim()
+  }
+  return out
 }
 
 // Monta a assinatura HTML padrão da Mantran para o e-mail de resposta.
@@ -1266,7 +1301,7 @@ function ClientePortalDetalhe({ ticketId, clienteNome, clienteEmail, onVoltar }:
                     <span className="text-xs font-bold text-slate-800">{ticket.cliente_nome || 'Você'}</span>
                     <span className="text-[11px] text-slate-400 ml-auto">{formatDataHora(ticket.created_at)}</span>
                   </div>
-                  {/^\s*<[a-z][\s\S]*>/i.test(ticket.descricao || '') ? (
+                  {pareceHtml(ticket.descricao) ? (
                     <div className="rte-content text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: sanitizeHtml(ticket.descricao || '') }} />
                   ) : (
                     <p className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.descricao}</p>
@@ -1286,7 +1321,7 @@ function ClientePortalDetalhe({ ticketId, clienteNome, clienteEmail, onVoltar }:
                       <span className="text-xs font-bold text-slate-800">{doCliente ? (m.autor_nome || 'Você') : 'Suporte Mantran'}</span>
                       <span className="text-[11px] text-slate-400 ml-auto">{formatDataHora(m.created_at)}</span>
                     </div>
-                    {/^\s*<[a-z][\s\S]*>/i.test(m.conteudo || '') ? (
+                    {pareceHtml(m.conteudo) ? (
                       <div className="rte-content text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: sanitizeHtml(m.conteudo || '') }} />
                     ) : (
                       <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.conteudo}</p>
@@ -1857,7 +1892,7 @@ function AdminCadastrosView({ cadastros, onChange }: {
   cadastros: { tipos: any[]; classificacoes: any[]; grupos: any[]; departamentos: any[] }
   onChange: () => void
 }) {
-  const [abaAdmin, setAbaAdmin] = useState<'cadastros' | 'email'>('cadastros')
+  const [abaAdmin, setAbaAdmin] = useState<'cadastros' | 'email' | 'threads'>('cadastros')
 
   const grupos = [
     { tabela: 'ticket_tipos' as const, titulo: 'Tipos', itens: cadastros.tipos },
@@ -1891,6 +1926,9 @@ function AdminCadastrosView({ cadastros, onChange }: {
         <button type="button" onClick={() => setAbaAdmin('email')} className={tabCls(abaAdmin === 'email')}>
           <Mail className="w-3.5 h-3.5" /> E-mail
         </button>
+        <button type="button" onClick={() => setAbaAdmin('threads')} className={tabCls(abaAdmin === 'threads')}>
+          <Forward className="w-3.5 h-3.5" /> Threads
+        </button>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-clean">
@@ -1900,9 +1938,108 @@ function AdminCadastrosView({ cadastros, onChange }: {
               <CadastroCard key={g.tabela} tabela={g.tabela} titulo={g.titulo} itens={g.itens} onChange={onChange} />
             ))}
           </div>
-        ) : (
+        ) : abaAdmin === 'email' ? (
           <ConfigEmailForm />
+        ) : (
+          <ConfigThreadsForm />
         )}
+      </div>
+    </div>
+  )
+}
+
+// Formulário de "Threads" — destinos de encaminhamento automático por tipo de chamado.
+// Customização -> e-mail de customização | Suporte Estendido -> e-mail do financeiro.
+function ConfigThreadsForm() {
+  const [cfg, setCfg] = useState<ConfigEmail>({
+    id: 'default',
+    email_customizacao: '',
+    email_suporte_estendido: ''
+  })
+  const [loading, setLoading] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+
+  useEffect(() => {
+    api.getConfigEmail().then(c => { if (c) setCfg(prev => ({ ...prev, ...c })) }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  const set = <K extends keyof ConfigEmail>(campo: K, valor: ConfigEmail[K]) => setCfg(prev => ({ ...prev, [campo]: valor }))
+
+  const salvar = async () => {
+    setSalvando(true)
+    try {
+      // Salva apenas os campos de threads, preservando o resto da config de e-mail
+      await api.saveConfigEmail({
+        id: 'default',
+        email_customizacao: (cfg.email_customizacao || '').trim() || null,
+        email_suporte_estendido: (cfg.email_suporte_estendido || '').trim() || null
+      })
+      alert('Threads salvas com sucesso!')
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao salvar: ' + (err.message || 'desconhecido'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const inputCls = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm focus:outline-none focus:border-brand-500'
+  const labelCls = 'block text-xs font-semibold text-slate-600 mb-1'
+
+  if (loading) return <div className="py-16 text-center text-slate-400 text-sm animate-pulse">Carregando configuração...</div>
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      {/* Customização */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Forward className="w-4 h-4 text-brand-600" />
+          <h3 className="text-sm font-black text-slate-800">Customização</h3>
+        </div>
+        <p className="text-[11px] text-slate-500 mb-4">
+          Quando um chamado for de <b>Customização</b>, o e-mail será disparado para este endereço com o
+          título <code className="text-slate-600">#Número - Título do chamado</code>.
+        </p>
+        <label className={labelCls}>E-mail de destino</label>
+        <input
+          type="email"
+          className={inputCls}
+          value={cfg.email_customizacao || ''}
+          onChange={e => set('email_customizacao', e.target.value)}
+          placeholder="customizacao@mantran.com.br"
+        />
+      </div>
+
+      {/* Suporte Estendido */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Forward className="w-4 h-4 text-brand-600" />
+          <h3 className="text-sm font-black text-slate-800">Suporte Estendido</h3>
+        </div>
+        <p className="text-[11px] text-slate-500 mb-4">
+          Quando um chamado for de <b>Suporte Estendido</b>, o e-mail será disparado para este endereço com o
+          título <code className="text-slate-600">Suporte Estendido</code>.
+        </p>
+        <label className={labelCls}>E-mail de destino</label>
+        <input
+          type="email"
+          className={inputCls}
+          value={cfg.email_suporte_estendido || ''}
+          onChange={e => set('email_suporte_estendido', e.target.value)}
+          placeholder="financeiro@mantran.com.br"
+        />
+      </div>
+
+      {/* Ações */}
+      <div className="flex items-center justify-end">
+        <button
+          type="button"
+          onClick={salvar}
+          disabled={salvando}
+          className="py-2 px-5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-bold transition-colors cursor-pointer"
+        >
+          {salvando ? 'Salvando...' : 'Salvar'}
+        </button>
       </div>
     </div>
   )
@@ -2505,14 +2642,28 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
 
   // Composer
   const [modo, setModo] = useState<'resposta' | 'anotacao'>('resposta')
+  // Sub-tipo da anotação interna: simples | customizacao | suporte_estendido
+  const [subAnotacao, setSubAnotacao] = useState<'simples' | 'customizacao' | 'suporte_estendido'>('simples')
+  // Modalidade da Customização: por horas ou por compra de componentes
+  const [modCustomizacao, setModCustomizacao] = useState<'horas' | 'componentes'>('horas')
+  const [horasCustomizacao, setHorasCustomizacao] = useState('')
+  const [componentesSel, setComponentesSel] = useState<string[]>([])
+  const [cnpjComponentes, setCnpjComponentes] = useState('')
+  // Suporte Estendido: problema relatado e solução aplicada
+  const [problemaSE, setProblemaSE] = useState('')
+  const [solucaoSE, setSolucaoSE] = useState('')
   const [texto, setTexto] = useState('')
   const [respostaPara, setRespostaPara] = useState('')
   const [respostaCc, setRespostaCc] = useState('')
   const [mostrarCc, setMostrarCc] = useState(false)
   const [menuEnviarAberto, setMenuEnviarAberto] = useState(false)
+  // Expande o composer (ocupa a área toda) ao focar na caixa de texto
+  const [composerExpandido, setComposerExpandido] = useState(false)
   const [anexosPend, setAnexosPend] = useState<{ nome: string; tipo: string; url: string; tamanho: number }[]>([])
   const [enviando, setEnviando] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  // Div editável da pré-visualização da tabela de Customização (contentEditable)
+  const tabelaRef = useRef<HTMLDivElement>(null)
 
   // Drawer de edição do ticket (contato, assunto, descrição, anexos)
   const [editOpen, setEditOpen] = useState(false)
@@ -2554,11 +2705,26 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
       setTicket(data)
       setMensagens(data.mensagens)
       setAnexos(data.anexos)
-      // Contato vinculado (para exibir a empresa no cabeçalho)
+      // Contato vinculado (para exibir a empresa/telefone). Se o ticket não tem
+      // contato_id, tenta resolver pelo e-mail do cliente (chamados antigos/por e-mail).
       if (data.contato_id) {
         api.getContatoById(data.contato_id).then(setContatoDoTicket).catch(() => setContatoDoTicket(null))
       } else {
-        setContatoDoTicket(null)
+        const emailCli = (data.cliente_email || '').trim().toLowerCase()
+        const achado = emailCli
+          ? contatos.find(c => (c.email || '').trim().toLowerCase() === emailCli
+              || (c.email_secundario || '').trim().toLowerCase() === emailCli)
+          : null
+        if (achado) {
+          setContatoDoTicket(achado)
+        } else if (emailCli) {
+          // Busca direta no banco (a lista local pode não estar carregada)
+          api.getOrCreateContatoByEmail(data.cliente_email || '', data.cliente_nome || 'Contato')
+            .then(setContatoDoTicket)
+            .catch(() => setContatoDoTicket(null))
+        } else {
+          setContatoDoTicket(null)
+        }
       }
       // Marca como lido ao abrir
       if (!data.lido) {
@@ -2599,9 +2765,134 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
     })
   }
 
+  // Telefone do contato vinculado ao chamado (fallback: telefone do próprio ticket)
+  const telefoneDoChamado = () =>
+    (contatoDoTicket?.celular || contatoDoTicket?.telefone_comercial || ticket?.cliente_telefone || '').trim()
+
+  // Monta a TABELA HTML da anotação de Customização, no estilo "Serviços Adicionais"
+  // (cabeçalho verde + linhas rótulo/valor), para renderizar bonito na thread e no e-mail.
+  // Modalidade "horas": linha Customização = Nº de horas.
+  // Modalidade "componentes": Solicitação = "Compra de Componentes CNPJ xxx" e linha Componentes.
+  const montarTabelaCustomizacao = (
+    modalidade: 'horas' | 'componentes',
+    horas: string,
+    componentes: string[],
+    cnpj: string
+  ) => {
+    if (!ticket) return ''
+    const esc = (v: string) =>
+      String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const telefone = telefoneDoChamado()
+    const email = ticket.cliente_email || ''
+    const linha = (rotulo: string, valor: string) => `
+      <tr>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px;background:#f8fafc;font-weight:bold;color:#334155;width:140px;vertical-align:top">${rotulo}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px;color:#334155;vertical-align:top">${valor}</td>
+      </tr>`
+
+    // Solicitação e linhas específicas variam conforme a modalidade
+    const solicitacao = modalidade === 'componentes'
+      ? `Compra de Componentes CNPJ ${esc((cnpj || '').trim() || '____')}`
+      : esc(ticket.titulo || '')
+    const linhaValor = modalidade === 'componentes'
+      ? linha('Componentes', esc(componentes.join(' – ') || '____'))
+      : linha('Customização', `${esc((horas || '').trim() || '____')} horas`)
+
+    return `
+<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;font-size:13px;width:100%;max-width:640px">
+  <tr>
+    <td colspan="2" style="border:1px solid #9cc19c;background:#e2efda;padding:7px 10px;font-weight:bold;color:#2e5a2e;letter-spacing:.3px">SERVIÇOS ADICIONAIS</td>
+  </tr>
+  ${linha('Nº Ticket', `#${ticket.numero}`)}
+  ${linha('Referência', esc(ticket.titulo || ''))}
+  ${linha('Solicitação', solicitacao)}
+  ${linhaValor}
+  ${linha('Contato', esc(ticket.cliente_nome || ''))}
+  ${linha('Telefone', esc(telefone || ''))}
+  ${linha('E-mail', email ? `<a href="mailto:${esc(email)}" style="color:#2563eb">${esc(email)}</a>` : '')}
+</table>`.trim()
+  }
+
+  // Nome da empresa vinculada ao contato do chamado (mesma regra do cabeçalho)
+  const empresaDoChamado = () => {
+    const ct = contatoDoTicket
+    if (!ct) return ''
+    return (ct.empresa_id ? (clientes.find(c => c.id === ct.empresa_id)?.nome_empresa || ct.empresa_nome) : ct.empresa_nome) || ''
+  }
+
+  // Monta o bloco HTML do Suporte Estendido: Problema + Solução + tabela "Serviços Adicionais".
+  const montarBlocoSuporteEstendido = (problema: string, solucao: string) => {
+    if (!ticket) return ''
+    const esc = (v: string) =>
+      String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const telefone = telefoneDoChamado()
+    const empresa = empresaDoChamado()
+    const email = ticket.cliente_email || ''
+    const analista = user?.nome || user?.login || ''
+    const linha = (rotulo: string, valor: string) => `
+      <tr>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px;background:#f8fafc;font-weight:bold;color:#334155;width:180px;vertical-align:top">${rotulo}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px;color:#334155;vertical-align:top">${valor}</td>
+      </tr>`
+    return `
+<p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#334155;margin:0 0 8px"><b>Problema:</b> ${esc((problema || '').trim() || '____')}</p>
+<p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#334155;margin:0 0 12px"><b>Solução:</b> ${esc((solucao || '').trim() || '____')}</p>
+<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;font-size:13px;width:100%;max-width:640px">
+  <tr>
+    <td colspan="2" style="border:1px solid #9cc19c;background:#e2efda;padding:7px 10px;font-weight:bold;color:#2e5a2e;letter-spacing:.3px">SERVIÇOS ADICIONAIS</td>
+  </tr>
+  ${linha('Nº Ticket', `#${ticket.numero}`)}
+  ${linha('Referência', 'Suporte Estendido – WhatsApp')}
+  ${linha('Solicitante', esc(ticket.cliente_nome || ''))}
+  ${linha('Analista que fez o atendimento', esc(analista))}
+  ${linha('Empresa', esc(empresa))}
+  ${linha('Telefone', esc(telefone || ''))}
+  ${linha('E-mail', email ? `<a href="mailto:${esc(email)}" style="color:#2563eb">${esc(email)}</a>` : '')}
+</table>`.trim()
+  }
+
+  // Ao escolher um sub-tipo de anotação, preenche o conteúdo com o modelo correspondente.
+  const selecionarSubAnotacao = (sub: 'simples' | 'customizacao' | 'suporte_estendido') => {
+    setSubAnotacao(sub)
+    if (sub === 'customizacao') {
+      setTexto(montarTabelaCustomizacao(modCustomizacao, horasCustomizacao, componentesSel, cnpjComponentes))
+    } else if (sub === 'suporte_estendido') {
+      setTexto(montarBlocoSuporteEstendido(problemaSE, solucaoSE))
+    } else {
+      // Volta para anotação simples: limpa o modelo (mantém se o usuário já digitou algo manual)
+      setTexto('')
+    }
+  }
+
+  // Mantém a tabela/bloco sincronizados com os campos informados
+  useEffect(() => {
+    if (modo !== 'anotacao') return
+    if (subAnotacao === 'customizacao') {
+      setTexto(montarTabelaCustomizacao(modCustomizacao, horasCustomizacao, componentesSel, cnpjComponentes))
+    } else if (subAnotacao === 'suporte_estendido') {
+      setTexto(montarBlocoSuporteEstendido(problemaSE, solucaoSE))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modCustomizacao, horasCustomizacao, componentesSel, cnpjComponentes, problemaSE, solucaoSE])
+
+  // Reflete o HTML da tabela na div editável SEM reescrever enquanto o usuário digita nela
+  // (evita o cursor "pular"). Só atualiza o DOM quando a tabela não está focada — ou seja,
+  // quando a mudança veio dos campos (componentes/horas/CNPJ) e não da edição manual.
+  useEffect(() => {
+    const el = tabelaRef.current
+    if (!el) return
+    const estaEditando = document.activeElement === el || el.contains(document.activeElement)
+    if (!estaEditando && el.innerHTML !== texto) {
+      el.innerHTML = sanitizeHtml(texto)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [texto, subAnotacao, modCustomizacao])
+
   const enviar = async (novoStatus?: string) => {
     // Na resposta o texto é HTML (editor rico); na anotação é texto puro.
-    const temTexto = modo === 'resposta' ? htmlTemTexto(texto) : !!texto.trim()
+    // Limpa parágrafos vazios no fim (ex.: <div><br></div>) só na resposta.
+    const textoResposta = modo === 'resposta' ? limparHtmlResposta(texto) : texto
+    const temTexto = modo === 'resposta' ? htmlTemTexto(textoResposta) : !!texto.trim()
     const semConteudo = !temTexto && anexosPend.length === 0
     // Permitido "definir status" sem escrever mensagem (ex.: apenas Fechar o chamado)
     if (semConteudo && !novoStatus) { alert('Escreva uma mensagem ou anexe um arquivo.'); return }
@@ -2617,7 +2908,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
       const msg = await api.addTicketMensagem({
         ticket_id: ticketId,
         tipo: modo,
-        conteudo: (temTexto ? texto.trim() : '(anexo)'),
+        conteudo: (temTexto ? (modo === 'resposta' ? textoResposta : texto.trim()) : '(anexo)'),
         autor_id: user?.id || null,
         autor_nome: user?.nome || user?.login || 'Agente',
         autor_tipo: 'agente',
@@ -2636,9 +2927,58 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
           tamanho_bytes: a.tamanho
         })
       }
+      // Se for ANOTAÇÃO de Customização ou Suporte Estendido, encaminha para o
+      // e-mail configurado em Admin → Threads, com título/corpo conforme o tipo.
+      if (modo === 'anotacao' && (subAnotacao === 'customizacao' || subAnotacao === 'suporte_estendido')) {
+        try {
+          const cfg = await api.getConfigEmail()
+          const destino = ((subAnotacao === 'customizacao'
+            ? cfg?.email_customizacao
+            : cfg?.email_suporte_estendido) || '').trim()
+
+          if (!destino) {
+            alert(
+              `A anotação foi salva, mas não há e-mail de destino configurado para ${subAnotacao === 'customizacao' ? 'Customização' : 'Suporte Estendido'}.\n` +
+              'Configure em Admin → Threads.'
+            )
+          } else {
+            // Título: Customização = "#Número - Título"; Suporte Estendido = "Suporte Estendido"
+            const assunto = subAnotacao === 'customizacao'
+              ? `#${ticket!.numero} - ${ticket!.titulo || 'Chamado'}`
+              : 'Suporte Estendido'
+
+            // Corpo: o próprio conteúdo da anotação (tabela de Customização ou
+            // bloco Problema/Solução + tabela do Suporte Estendido), já montado/editado.
+            const linkChamado = `${window.location.origin}/tickets/${ticket!.numero}`
+            const corpoHtml = `
+              <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:680px">
+                ${texto.trim()}
+                <p style="font-size:12px;color:#94a3b8;margin-top:16px">
+                  Chamado <b>#${ticket!.numero}</b> — <a href="${linkChamado}" style="color:#2563eb">abrir no portal</a>
+                </p>
+              </div>`
+            const corpoTexto = `Chamado #${ticket!.numero} - ${ticket!.titulo || ''}\nAbrir no portal: ${linkChamado}`
+
+            const anexosEmail = anexosPend.map(a => ({ nome: a.nome, tipo: a.tipo, conteudo: a.url }))
+            // Envio assíncrono: não trava a tela
+            api.enviarEmail({
+              para: destino,
+              assunto,
+              html: corpoHtml,
+              texto: corpoTexto,
+              anexos: anexosEmail
+            }).then(r => {
+              if (!r.ok) console.warn('Falha ao encaminhar anotação por e-mail:', r.erro)
+            }).catch(() => {})
+          }
+        } catch (err) {
+          console.warn('Erro ao encaminhar anotação por e-mail:', err)
+        }
+      }
+
       // Se for RESPOSTA (não anotação interna), envia por e-mail ao cliente.
       // Destino: campo "Para" do composer (pré-preenchido com o e-mail do chamado); Cc opcional.
-      if (modo === 'resposta' && htmlTemTexto(texto)) {
+      if (modo === 'resposta' && htmlTemTexto(textoResposta)) {
         const destino = (respostaPara || '').trim()
         const ccLimpo = (respostaCc || '').trim()
 
@@ -2657,7 +2997,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
           const corpoHtml = `
             <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:620px">
               <div style="font-size:15px;color:#1e293b">
-                ${texto}
+                ${textoResposta}
               </div>
 
               ${montarAssinatura(user)}
@@ -2693,6 +3033,13 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
 
       setTexto('')
       setAnexosPend([])
+      setSubAnotacao('simples')
+      setModCustomizacao('horas')
+      setHorasCustomizacao('')
+      setComponentesSel([])
+      setCnpjComponentes('')
+      setProblemaSE('')
+      setSolucaoSE('')
       onChange()
       // Se foi resolvido/fechado, pula para o próximo chamado em aberto
       if (novoStatus === 'Resolvido' || novoStatus === 'Fechado') {
@@ -2856,9 +3203,9 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
         </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0">
         {/* Coluna principal: thread + composer (com scroll próprio) */}
-        <div className="lg:col-span-2 flex flex-col min-h-0">
+        <div className="lg:col-span-3 flex flex-col min-h-0">
           <div className="flex-1 min-h-0 overflow-y-auto scrollbar-clean pr-1 space-y-3">
             {/* Descrição inicial */}
             {ticket.descricao && (
@@ -2929,7 +3276,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                       <div className="break-all"><span className="font-semibold text-slate-600">Cc:</span> {ticket.cliente_cc}</div>
                     )}
                   </div>
-                  {/^\s*<[a-z][\s\S]*>/i.test(ticket.descricao || '') ? (
+                  {pareceHtml(ticket.descricao) ? (
                     <div
                       className="rte-content text-sm text-slate-700"
                       dangerouslySetInnerHTML={{ __html: sanitizeHtml(ticket.descricao || '') }}
@@ -2949,12 +3296,15 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
             {/* Thread */}
             {mensagens.map(m => {
               const isAnotacao = m.tipo === 'anotacao'
+              const isAgente = m.autor_tipo === 'agente' && !isAnotacao
               return (
                 <div
                   key={m.id}
                   className={clsx(
                     'rounded-2xl p-4 border shadow-sm',
-                    isAnotacao ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'
+                    isAnotacao ? 'bg-amber-50 border-amber-200'
+                      : isAgente ? 'bg-slate-200/70 border-slate-300'  // resposta da Mantran: cinza mais escuro que o fundo
+                      : 'bg-white border-slate-200'                    // cliente/abertura: branco
                   )}
                 >
                   <div className="flex items-center gap-2 mb-2">
@@ -2977,7 +3327,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                         {m.cc && <div className="break-all"><span className="font-semibold text-slate-600">Cc:</span> {m.cc}</div>}
                       </div>
                     )}
-                    {/^\s*<[a-z][\s\S]*>/i.test(m.conteudo || '') ? (
+                    {pareceHtml(m.conteudo) ? (
                       <div className="rte-content text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: sanitizeHtml(m.conteudo || '') }} />
                     ) : (
                       <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.conteudo}</p>
@@ -2993,12 +3343,12 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
             })}
 
             {/* Composer */}
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mt-3 shrink-0">
               {/* Abas Responder / Anotação */}
-              <div className="flex items-center gap-1 p-2 border-b border-slate-200 bg-slate-50">
+              <div className="flex items-center gap-1 p-2 border-b border-slate-200 bg-slate-50 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setModo('resposta')}
+                  onClick={() => { setModo('resposta'); setSubAnotacao('simples') }}
                   className={clsx(
                     'px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors',
                     modo === 'resposta' ? 'bg-brand-50 text-brand-700 border border-brand-200' : 'text-slate-500 hover:text-slate-700'
@@ -3016,21 +3366,180 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                 >
                   <StickyNote className="w-3.5 h-3.5" /> Anotação Interna
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerExpandido(v => !v)}
+                  title={composerExpandido ? 'Recolher' : 'Expandir'}
+                  className="ml-auto p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  {composerExpandido ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
               </div>
 
-              <div className={clsx('p-3', modo === 'anotacao' && 'bg-amber-50/50')}>
+              <div className={clsx('p-3', modo === 'anotacao' && 'bg-amber-50/50', composerExpandido && 'max-h-[55vh] overflow-y-auto scrollbar-clean')}>
                 {modo === 'anotacao' ? (
                   <>
                     <p className="text-[11px] text-amber-700 mb-2 flex items-center gap-1.5">
                       <AlertCircle className="w-3.5 h-3.5" /> Esta anotação é visível apenas para a equipe, não para o cliente.
                     </p>
-                    <textarea
-                      value={texto}
-                      onChange={e => setTexto(e.target.value)}
-                      placeholder="Digite uma anotação interna..."
-                      rows={4}
-                      className="w-full px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-slate-700 text-sm focus:outline-none focus:border-amber-400 resize-y"
-                    />
+
+                    {/* Sub-tipos da anotação interna */}
+                    <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                      {([
+                        { v: 'simples', label: 'Anotação' },
+                        { v: 'customizacao', label: 'Customização' },
+                        { v: 'suporte_estendido', label: 'Suporte Estendido' }
+                      ] as const).map(opt => (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          onClick={() => selecionarSubAnotacao(opt.v)}
+                          className={clsx(
+                            'px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer',
+                            subAnotacao === opt.v
+                              ? 'bg-amber-100 text-amber-800 border-amber-300'
+                              : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:border-slate-300'
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {subAnotacao === 'customizacao' ? (
+                      <>
+                        {/* Modalidade: Qtd de horas | Componentes */}
+                        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                          {([
+                            { v: 'horas', label: 'Qtd de horas' },
+                            { v: 'componentes', label: 'Componentes' }
+                          ] as const).map(opt => (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              onClick={() => setModCustomizacao(opt.v)}
+                              className={clsx(
+                                'px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer',
+                                modCustomizacao === opt.v
+                                  ? 'bg-amber-200/70 text-amber-900 border-amber-300'
+                                  : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:border-slate-300'
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {modCustomizacao === 'horas' ? (
+                          /* Campo de horas */
+                          <div className="mb-2">
+                            <label className="block text-[11px] font-semibold text-amber-700 mb-1">Customização (horas)</label>
+                            <input
+                              type="text"
+                              value={horasCustomizacao}
+                              onChange={e => setHorasCustomizacao(e.target.value)}
+                              placeholder="ex: 8"
+                              className="w-32 px-3 py-2 rounded-lg bg-white border border-amber-200 text-slate-700 text-sm focus:outline-none focus:border-amber-400"
+                            />
+                          </div>
+                        ) : (
+                          /* Seleção de componentes + CNPJ */
+                          <div className="mb-2 space-y-2">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-amber-700 mb-1">Componentes solicitados</label>
+                              <div className="flex flex-wrap gap-1.5">
+                                {['CTe', 'MDFe', 'NFSe', 'NF'].map(comp => {
+                                  const marcado = componentesSel.includes(comp)
+                                  return (
+                                    <button
+                                      key={comp}
+                                      type="button"
+                                      onClick={() => setComponentesSel(prev =>
+                                        prev.includes(comp) ? prev.filter(c => c !== comp) : [...prev, comp]
+                                      )}
+                                      className={clsx(
+                                        'px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer',
+                                        marcado
+                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                          : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:border-slate-300'
+                                      )}
+                                    >
+                                      {marcado ? '✓ ' : ''}{comp}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-amber-700 mb-1">CNPJ</label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={cnpjComponentes}
+                                onChange={e => setCnpjComponentes(formatarCnpj(e.target.value))}
+                                placeholder="ex: 60.839.572/0001-90"
+                                maxLength={18}
+                                className="w-56 px-3 py-2 rounded-lg bg-white border border-amber-200 text-slate-700 text-sm focus:outline-none focus:border-amber-400"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : subAnotacao === 'suporte_estendido' ? (
+                      /* Campos do Suporte Estendido: Problema e Solução */
+                      <div className="mb-2 space-y-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-amber-700 mb-1">Problema</label>
+                          <textarea
+                            value={problemaSE}
+                            onChange={e => setProblemaSE(e.target.value)}
+                            onFocus={() => setComposerExpandido(true)}
+                            placeholder="Descreva o problema relatado pelo cliente..."
+                            rows={2}
+                            className="w-full px-3 py-2 rounded-lg bg-white border border-amber-200 text-slate-700 text-sm focus:outline-none focus:border-amber-400 resize-y"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-amber-700 mb-1">Solução</label>
+                          <textarea
+                            value={solucaoSE}
+                            onChange={e => setSolucaoSE(e.target.value)}
+                            onFocus={() => setComposerExpandido(true)}
+                            placeholder="Descreva a solução aplicada..."
+                            rows={2}
+                            className="w-full px-3 py-2 rounded-lg bg-white border border-amber-200 text-slate-700 text-sm focus:outline-none focus:border-amber-400 resize-y"
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {subAnotacao === 'simples' ? (
+                      <textarea
+                        value={texto}
+                        onChange={e => setTexto(e.target.value)}
+                        onFocus={() => setComposerExpandido(true)}
+                        placeholder="Digite uma anotação interna..."
+                        rows={composerExpandido ? 12 : 4}
+                        className="w-full px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-slate-700 text-sm focus:outline-none focus:border-amber-400 resize-y"
+                      />
+                    ) : (
+                      <>
+                        {/* Pré-visualização EDITÁVEL (Customização e Suporte Estendido).
+                            O conteúdo é populado pelo useEffect (tabelaRef); edições manuais
+                            são capturadas no onInput sem reescrever o DOM. */}
+                        <p className="text-[10px] uppercase tracking-wide text-amber-700/80 font-bold mb-1">
+                          Pré-visualização <span className="font-semibold text-amber-600/70 normal-case tracking-normal">(clique para editar)</span>
+                        </p>
+                        <div
+                          ref={tabelaRef}
+                          contentEditable
+                          suppressContentEditableWarning
+                          onFocus={() => setComposerExpandido(true)}
+                          onInput={e => setTexto((e.currentTarget as HTMLDivElement).innerHTML)}
+                          className="rte-content bg-white border border-amber-200 rounded-xl p-3 overflow-x-auto focus:outline-none focus:border-amber-400"
+                        />
+                      </>
+                    )}
                   </>
                 ) : (
                   <>
@@ -3060,12 +3569,14 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                       )}
                     </div>
                     {/* Editor com formatação (igual ao Novo Ticket) */}
-                    <RichTextEditor
-                      value={texto}
-                      onChange={setTexto}
-                      placeholder="Digite sua resposta ao cliente..."
-                      minHeight={140}
-                    />
+                    <div onFocusCapture={() => setComposerExpandido(true)}>
+                      <RichTextEditor
+                        value={texto}
+                        onChange={setTexto}
+                        placeholder="Digite sua resposta ao cliente..."
+                        minHeight={composerExpandido ? 300 : 140}
+                      />
+                    </div>
                     {/* Pré-visualização da assinatura que será anexada ao e-mail */}
                     <div className="mt-2 border-t border-dashed border-slate-200 pt-2">
                       <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold mb-1">Assinatura (anexada automaticamente)</p>
@@ -3150,8 +3661,8 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                         onClick={() => enviar()}
                         className="py-2 px-4 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5"
                       >
-                        {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <StickyNote className="w-4 h-4" />}
-                        Salvar Anotação
+                        {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : subAnotacao === 'simples' ? <StickyNote className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                        {subAnotacao === 'simples' ? 'Salvar Anotação' : 'Salvar e Enviar'}
                       </button>
                     )}
                   </div>
