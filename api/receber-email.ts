@@ -205,6 +205,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Extrai o nome amigável de '"Fulano" <fulano@x.com>' se houver
     const nomeMatch = nomeBruto.match(/^\s*"?([^"<]+?)"?\s*</)
     const nome = (nomeMatch ? nomeMatch[1].trim() : '') || remetente
+
+    // Cc (cópia) do e-mail — extrai todos os e-mails do campo Cc, exceto a própria caixa de chamados
+    const ccBruto = (headers.cc || headers.Cc || body.cc || '').toString()
+    const cc = Array.from(new Set(
+      (ccBruto.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) || [])
+        .map(e => e.toLowerCase())
+        .filter(e => !e.includes('@mantran') && e !== remetente)
+    )).join(', ')
     const assunto = (headers.subject || body.assunto || body.subject || body.Subject || '(sem assunto)').toString().trim()
     const htmlBruto = (body.html || body['body-html'] || '').toString()
     const plainBruto = (body.plain || body.reply_plain || body.text || body.corpo || body.body || body['body-plain'] || body['stripped-text'] || '').toString()
@@ -299,6 +307,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         descricao: corpo || null,
         cliente_nome: nome,
         cliente_email: remetente,
+        cliente_cc: cc || null,
         contato_id: contatoId,
         origem: 'email',
         status: 'Novo',

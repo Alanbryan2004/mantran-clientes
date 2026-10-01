@@ -2658,7 +2658,7 @@ export const api = {
   },
 
   // Envia um e-mail pela função serverless (backend). Usado no teste e nas respostas de chamado.
-  async enviarEmail(payload: { para: string; assunto: string; html?: string; texto?: string }): Promise<{ ok: boolean; erro?: string }> {
+  async enviarEmail(payload: { para: string; assunto: string; html?: string; texto?: string; cc?: string }): Promise<{ ok: boolean; erro?: string }> {
     try {
       const resp = await fetch('/api/enviar-email', {
         method: 'POST',
@@ -2731,6 +2731,7 @@ export const api = {
         cliente_id: payload.cliente_id || null,
         cliente_nome: payload.cliente_nome || null,
         cliente_email: payload.cliente_email || null,
+        cliente_cc: payload.cliente_cc || null,
         cliente_telefone: payload.cliente_telefone || null,
         prioridade: payload.prioridade || 'Média',
         tipo: payload.tipo || null,
@@ -3011,6 +3012,7 @@ export interface Ticket {
   cliente_id?: string | null
   cliente_nome?: string | null
   cliente_email?: string | null
+  cliente_cc?: string | null
   cliente_telefone?: string | null
   agente_id?: string | null
   agente_nome?: string | null

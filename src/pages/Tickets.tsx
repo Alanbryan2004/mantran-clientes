@@ -1222,7 +1222,11 @@ function ClientePortalDetalhe({ ticketId, clienteNome, clienteEmail, onVoltar }:
                       <span className="text-xs font-bold text-slate-800">{doCliente ? (m.autor_nome || 'Você') : 'Suporte Mantran'}</span>
                       <span className="text-[11px] text-slate-400 ml-auto">{formatDataHora(m.created_at)}</span>
                     </div>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.conteudo}</p>
+                    {/^\s*<[a-z][\s\S]*>/i.test(m.conteudo || '') ? (
+                      <div className="rte-content text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: sanitizeHtml(m.conteudo || '') }} />
+                    ) : (
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.conteudo}</p>
+                    )}
                     {anexosDaMensagem(m.id).length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">{anexosDaMensagem(m.id).map(a => <AnexoChip key={a.id} anexo={a} />)}</div>
                     )}
@@ -2437,6 +2441,9 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
   // Composer
   const [modo, setModo] = useState<'resposta' | 'anotacao'>('resposta')
   const [texto, setTexto] = useState('')
+  const [respostaPara, setRespostaPara] = useState('')
+  const [respostaCc, setRespostaCc] = useState('')
+  const [mostrarCc, setMostrarCc] = useState(false)
   const [anexosPend, setAnexosPend] = useState<{ nome: string; tipo: string; url: string; tamanho: number }[]>([])
   const [enviando, setEnviando] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -2503,6 +2510,16 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketId])
 
+  // Pré-preenche Para/Cc da resposta com os dados do chamado
+  useEffect(() => {
+    if (ticket) {
+      setRespostaPara(ticket.cliente_email || '')
+      setRespostaCc(ticket.cliente_cc || '')
+      setMostrarCc(!!ticket.cliente_cc)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket?.id])
+
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     e.target.value = ''
@@ -2517,13 +2534,22 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
   }
 
   const enviar = async (novoStatus?: string) => {
-    if (!texto.trim() && anexosPend.length === 0) { alert('Escreva uma mensagem ou anexe um arquivo.'); return }
+    // Na resposta o texto é HTML (editor rico); na anotação é texto puro.
+    const temTexto = modo === 'resposta' ? htmlTemTexto(texto) : !!texto.trim()
+    const semConteudo = !temTexto && anexosPend.length === 0
+    // Permitido "definir status" sem escrever mensagem (ex.: apenas Fechar o chamado)
+    if (semConteudo && !novoStatus) { alert('Escreva uma mensagem ou anexe um arquivo.'); return }
+    if (semConteudo && novoStatus) {
+      // Só muda o status, sem criar mensagem vazia. Reaproveita a lógica de e-mail de fechamento.
+      await atualizarPropriedade({ status: novoStatus })
+      return
+    }
     setEnviando(true)
     try {
       const msg = await api.addTicketMensagem({
         ticket_id: ticketId,
         tipo: modo,
-        conteudo: texto.trim() || '(anexo)',
+        conteudo: (temTexto ? texto.trim() : '(anexo)'),
         autor_id: user?.id || null,
         autor_nome: user?.nome || user?.login || 'Agente',
         autor_tipo: 'agente',
@@ -2541,23 +2567,20 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
         })
       }
       // Se for RESPOSTA (não anotação interna), envia por e-mail ao cliente.
-      // Destino: cliente_email; se vazio, usa cliente_nome quando for um e-mail válido.
-      if (modo === 'resposta' && texto.trim()) {
-        const ehEmail = (s?: string | null) => !!s && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim())
-        const destino = ehEmail(ticket?.cliente_email) ? ticket!.cliente_email!.trim()
-          : ehEmail(ticket?.cliente_nome) ? ticket!.cliente_nome!.trim()
-          : ''
+      // Destino: campo "Para" do composer (pré-preenchido com o e-mail do chamado); Cc opcional.
+      if (modo === 'resposta' && htmlTemTexto(texto)) {
+        const destino = (respostaPara || '').trim()
 
         if (!destino) {
-          alert('A resposta foi salva no chamado, mas não há um e-mail de cliente válido para enviar. Cadastre o e-mail do contato no chamado.')
+          alert('A resposta foi salva no chamado, mas não há um e-mail de destino. Preencha o campo "Para".')
         } else {
           const assunto = `[#${ticket!.numero}] ${ticket!.titulo || 'Seu chamado'}`
           const linkChamado = `${window.location.origin}/tickets?chamado=${ticket!.numero}`
-          const corpoTexto = `${texto.trim()}\n\n---\nChamado #${ticket!.numero} - ${ticket!.titulo || ''}\nAcompanhe seu chamado: ${linkChamado}\n\nResponda a este e-mail mantendo o assunto para dar continuidade ao atendimento.`
+          const corpoTexto = `Chamado #${ticket!.numero} - ${ticket!.titulo || ''}\nAcompanhe seu chamado: ${linkChamado}\n\nResponda a este e-mail mantendo o assunto para dar continuidade ao atendimento.`
           const corpoHtml = `
             <div style="font-family:Arial,Helvetica,sans-serif;color:#334155;line-height:1.6;max-width:600px">
               <div style="font-size:15px;color:#1e293b">
-                ${texto.trim().replace(/\n/g, '<br>')}
+                ${texto}
               </div>
 
               <div style="margin-top:24px;padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
@@ -2575,6 +2598,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
             </div>`
           const r = await api.enviarEmail({
             para: destino,
+            cc: (respostaCc || '').trim() || undefined,
             assunto,
             html: corpoHtml,
             texto: corpoTexto
@@ -2807,6 +2831,15 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                   </span>
                   <span className="text-[11px] text-slate-400">relatado por e-mail • {formatDataHora(ticket.created_at)}</span>
                 </div>
+                {/* Para / Cc (como no Freshdesk) */}
+                <div className="text-[11px] text-slate-500 mb-2 space-y-0.5">
+                  {ticket.cliente_email && (
+                    <div><span className="font-semibold text-slate-600">Para:</span> {ticket.cliente_email}</div>
+                  )}
+                  {ticket.cliente_cc && (
+                    <div className="break-all"><span className="font-semibold text-slate-600">Cc:</span> {ticket.cliente_cc}</div>
+                  )}
+                </div>
                 {/^\s*<[a-z][\s\S]*>/i.test(ticket.descricao || '') ? (
                   <div
                     className="rte-content text-sm text-slate-700"
@@ -2846,7 +2879,11 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                     )}
                     <span className="text-[11px] text-slate-400 ml-auto">{formatDataHora(m.created_at)}</span>
                   </div>
-                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.conteudo}</p>
+                  {/^\s*<[a-z][\s\S]*>/i.test(m.conteudo || '') ? (
+                    <div className="rte-content text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: sanitizeHtml(m.conteudo || '') }} />
+                  ) : (
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{m.conteudo}</p>
+                  )}
                   {anexosDaMensagem(m.id).length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {anexosDaMensagem(m.id).map(a => <AnexoChip key={a.id} anexo={a} />)}
@@ -2883,18 +2920,63 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
               </div>
 
               <div className={clsx('p-3', modo === 'anotacao' && 'bg-amber-50/50')}>
-                {modo === 'anotacao' && (
-                  <p className="text-[11px] text-amber-700 mb-2 flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5" /> Esta anotação é visível apenas para a equipe, não para o cliente.
-                  </p>
+                {modo === 'anotacao' ? (
+                  <>
+                    <p className="text-[11px] text-amber-700 mb-2 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5" /> Esta anotação é visível apenas para a equipe, não para o cliente.
+                    </p>
+                    <textarea
+                      value={texto}
+                      onChange={e => setTexto(e.target.value)}
+                      placeholder="Digite uma anotação interna..."
+                      rows={4}
+                      className="w-full px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-slate-700 text-sm focus:outline-none focus:border-amber-400 resize-y"
+                    />
+                  </>
+                ) : (
+                  <>
+                    {/* Destinatários: Para / Cc (como no Freshdesk) */}
+                    <div className="space-y-1.5 mb-2 text-xs">
+                      <div className="flex items-start gap-2">
+                        <span className="font-semibold text-slate-500 w-8 pt-2 shrink-0">Para</span>
+                        <input
+                          type="text"
+                          value={respostaPara}
+                          onChange={e => setRespostaPara(e.target.value)}
+                          placeholder="email@cliente.com"
+                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-700 focus:outline-none focus:border-brand-500"
+                        />
+                        {!mostrarCc && (
+                          <button type="button" onClick={() => setMostrarCc(true)} className="text-brand-600 hover:underline font-semibold pt-2 shrink-0">
+                            + Cc
+                          </button>
+                        )}
+                      </div>
+                      {mostrarCc && (
+                        <div className="flex items-start gap-2">
+                          <span className="font-semibold text-slate-500 w-8 pt-2 shrink-0">Cc</span>
+                          <input
+                            type="text"
+                            value={respostaCc}
+                            onChange={e => setRespostaCc(e.target.value)}
+                            placeholder="separe por vírgula: a@x.com, b@y.com"
+                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-slate-700 focus:outline-none focus:border-brand-500"
+                          />
+                          <button type="button" onClick={() => { setRespostaCc(''); setMostrarCc(false) }} className="text-slate-400 hover:text-red-500 font-semibold pt-2 shrink-0">
+                            Limpar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {/* Editor com formatação (igual ao Novo Ticket) */}
+                    <RichTextEditor
+                      value={texto}
+                      onChange={setTexto}
+                      placeholder="Digite sua resposta ao cliente..."
+                      minHeight={140}
+                    />
+                  </>
                 )}
-                <textarea
-                  value={texto}
-                  onChange={e => setTexto(e.target.value)}
-                  placeholder={modo === 'resposta' ? 'Digite sua resposta ao cliente...' : 'Digite uma anotação interna...'}
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-700 text-sm focus:outline-none focus:border-brand-500 resize-y"
-                />
 
                 {/* Anexos pendentes */}
                 {anexosPend.length > 0 && (

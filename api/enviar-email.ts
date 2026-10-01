@@ -20,8 +20,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { para, assunto, html, texto } = (req.body || {}) as {
-      para?: string; assunto?: string; html?: string; texto?: string
+    const { para, assunto, html, texto, cc } = (req.body || {}) as {
+      para?: string; assunto?: string; html?: string; texto?: string; cc?: string
     }
 
     if (!para || !assunto) {
@@ -69,6 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await transporter.sendMail({
       from: `"${remetenteNome}" <${remetenteEmail}>`,
       to: para,
+      cc: cc && cc.trim() ? cc : undefined,
       subject: assunto,
       text: texto || undefined,
       html: html || undefined
