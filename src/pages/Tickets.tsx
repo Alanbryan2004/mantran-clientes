@@ -28,6 +28,11 @@ import {
   Trash2,
   Maximize2,
   Minimize2,
+  MoreVertical,
+  GitMerge,
+  Plus as PlusIcon,
+  Minus,
+  BadgeCheck,
   Loader2 as Spinner
 } from 'lucide-react'
 import clsx from 'clsx'
@@ -217,6 +222,13 @@ function TicketsAgente() {
   const [empresaFiltro, setEmpresaFiltro] = useState<string>('TODAS')
   const [tecnicoFiltro, setTecnicoFiltro] = useState<string>('TODOS')
   const [novoAberto, setNovoAberto] = useState(false)
+  // Mesclagem em lote pela lista
+  const [modoMesclar, setModoMesclar] = useState(false)
+  const [selecionadosMerge, setSelecionadosMerge] = useState<Set<string>>(new Set())
+  const [mergeListaAberto, setMergeListaAberto] = useState(false)
+  const [mergeListaPrincipalId, setMergeListaPrincipalId] = useState('')
+  const [mergeListaAddCc, setMergeListaAddCc] = useState(false)
+  const [mesclandoLista, setMesclandoLista] = useState(false)
   // Barra flutuante de navegação (estilo Freshdesk): view atual + expandido
   const [view, setView] = useState<'painel' | 'tickets' | 'contatos' | 'admin'>('tickets')
   const [railAberto, setRailAberto] = useState(false)
@@ -478,6 +490,63 @@ function TicketsAgente() {
     }
   }
 
+  // ---- Mesclagem em lote pela lista ----
+  const alternarModoMesclar = () => {
+    setModoMesclar(v => {
+      if (v) setSelecionadosMerge(new Set()) // ao sair do modo, limpa seleção
+      return !v
+    })
+  }
+
+  const alternarSelecaoMerge = (id: string) => {
+    setSelecionadosMerge(prev => {
+      const novo = new Set(prev)
+      if (novo.has(id)) novo.delete(id); else novo.add(id)
+      return novo
+    })
+  }
+
+  const abrirConfirmMerge = () => {
+    if (selecionadosMerge.size < 2) {
+      alert('Selecione pelo menos 2 chamados para mesclar.')
+      return
+    }
+    // Principal padrão: o mais antigo entre os selecionados (menor número)
+    const sel = tickets.filter(t => selecionadosMerge.has(t.id))
+    const principal = [...sel].sort((a, b) => (a.numero || 0) - (b.numero || 0))[0]
+    setMergeListaPrincipalId(principal?.id || '')
+    setMergeListaAddCc(false)
+    setMergeListaAberto(true)
+  }
+
+  const executarMergeLista = async () => {
+    const sel = tickets.filter(t => selecionadosMerge.has(t.id))
+    const principal = sel.find(t => t.id === mergeListaPrincipalId)
+    const secundarios = sel.filter(t => t.id !== mergeListaPrincipalId)
+    if (!principal || secundarios.length === 0) {
+      alert('Selecione o chamado principal e ao menos um secundário.')
+      return
+    }
+    const user = getLoggedUser()
+    setMesclandoLista(true)
+    try {
+      await api.mergeTickets(principal.id, secundarios.map(t => t.id), {
+        usuarioId: user?.id || null,
+        usuarioNome: user?.nome || user?.login || 'Usuário',
+        adicionarCcSecundarios: mergeListaAddCc
+      })
+      setMergeListaAberto(false)
+      setModoMesclar(false)
+      setSelecionadosMerge(new Set())
+      await fetchTickets()
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao mesclar: ' + (err.message || 'Desconhecido'))
+    } finally {
+      setMesclandoLista(false)
+    }
+  }
+
   if (novoAberto) {
     return (
       <NovoTicketTela
@@ -540,7 +609,7 @@ function TicketsAgente() {
       />
 
       {view === 'painel' ? (
-        <PainelControleView tickets={tickets} agentes={agentes} loading={loading} />
+        <PainelControleView tickets={tickets} agentes={agentes} tecnicos={tecnicos} loading={loading} />
       ) : view === 'contatos' ? (
         <ContatosView clientes={clientes} grupos={cadastros.grupos} emailsFuncionarios={emailsFuncionarios} onChange={() => api.getContatos().then(cs => setContatos(cs || [])).catch(() => {})} />
       ) : view === 'admin' ? (
@@ -574,6 +643,19 @@ function TicketsAgente() {
             </button>
             <button
               type="button"
+              onClick={alternarModoMesclar}
+              className={clsx(
+                'py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl border shadow-sm transition-colors cursor-pointer',
+                modoMesclar
+                  ? 'bg-brand-50 border-brand-300 text-brand-700'
+                  : 'bg-white border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600'
+              )}
+            >
+              <GitMerge className="w-4 h-4 shrink-0" />
+              <span>{modoMesclar ? 'Cancelar' : 'Mesclar'}</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setNovoAberto(true)}
               className="py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm transition-colors cursor-pointer"
             >
@@ -582,6 +664,25 @@ function TicketsAgente() {
             </button>
           </div>
         </div>
+
+        {/* Barra de ação do modo mesclagem */}
+        {modoMesclar && (
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-brand-50 border border-brand-200">
+            <GitMerge className="w-4 h-4 text-brand-600 shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold text-brand-700">
+              {selecionadosMerge.size} chamado(s) selecionado(s) para mesclar
+            </span>
+            <span className="text-[11px] text-brand-600/70 hidden sm:inline">Marque os chamados que deseja juntar.</span>
+            <button
+              type="button"
+              onClick={abrirConfirmMerge}
+              disabled={selecionadosMerge.size < 2}
+              className="ml-auto py-1.5 px-4 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition-colors cursor-pointer"
+            >
+              Mesclar selecionados
+            </button>
+          </div>
+        )}
 
         {/* Busca */}
         <div className="relative">
@@ -644,16 +745,32 @@ function TicketsAgente() {
               <div className="space-y-2.5">
                 {ticketsPagina.map(t => {
                   const isNovo = !t.lido
+                  const selecionadoParaMerge = selecionadosMerge.has(t.id)
                   return (
                     <button
                       key={t.id}
                       type="button"
-                      onClick={() => { setSelecionadoId(t.id); navigate(`/tickets/${t.numero}`) }}
+                      onClick={() => {
+                        if (modoMesclar) { alternarSelecaoMerge(t.id); return }
+                        setSelecionadoId(t.id); navigate(`/tickets/${t.numero}`)
+                      }}
                       className={clsx(
                         'w-full text-left bg-white border rounded-xl px-4 py-3.5 flex items-center gap-4 transition-all hover:shadow-md hover:border-brand-300 shadow-sm cursor-pointer',
-                        isNovo ? 'border-brand-200' : 'border-slate-200'
+                        selecionadoParaMerge ? 'border-brand-400 ring-2 ring-brand-200' : isNovo ? 'border-brand-200' : 'border-slate-200'
                       )}
                     >
+                      {/* Checkbox do modo mesclagem */}
+                      {modoMesclar && (
+                        <span
+                          className={clsx(
+                            'w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors',
+                            selecionadoParaMerge ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-slate-300'
+                          )}
+                        >
+                          {selecionadoParaMerge && <BadgeCheck className="w-3.5 h-3.5" />}
+                        </span>
+                      )}
+
                       {/* Avatar cliente */}
                       <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-sm font-bold text-slate-500 uppercase shrink-0">
                         {(t.cliente_nome || '?').charAt(0)}
@@ -952,6 +1069,66 @@ function TicketsAgente() {
         </div>
       </div>
       )}
+
+      {/* ===== Modal: confirmar mesclagem em lote (escolher principal) ===== */}
+      {mergeListaAberto && (() => {
+        const sel = tickets.filter(t => selecionadosMerge.has(t.id))
+        return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={() => !mesclandoLista && setMergeListaAberto(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-2 p-5 border-b border-slate-200 shrink-0">
+                <GitMerge className="w-5 h-5 text-brand-600" />
+                <h2 className="text-base font-bold text-slate-900">Mesclar {sel.length} chamados</h2>
+                <button onClick={() => !mesclandoLista && setMergeListaAberto(false)} className="ml-auto text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5 space-y-3 overflow-y-auto scrollbar-clean flex-1 min-h-0">
+                <p className="text-xs text-slate-500">Selecione o chamado <b>principal</b>. Os demais serão fechados e suas interações movidas para ele.</p>
+                {sel.map(t => {
+                  const ehPrincipal = t.id === mergeListaPrincipalId
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setMergeListaPrincipalId(t.id)}
+                      className={clsx('w-full flex items-center gap-2 p-3 rounded-xl border text-left transition-colors cursor-pointer', ehPrincipal ? 'border-brand-300 bg-brand-50/40' : 'border-slate-200 bg-white hover:border-slate-300')}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-[11px] text-slate-400 font-mono">#{t.numero}</span>
+                        <span className="block text-sm font-bold text-brand-700 truncate">{t.titulo}</span>
+                        <span className="block text-[11px] text-slate-500 truncate">{t.cliente_nome || ''} • {t.status}</span>
+                      </div>
+                      <span className={clsx('flex flex-col items-center gap-0.5 shrink-0', ehPrincipal ? 'text-brand-600' : 'text-slate-300')}>
+                        <BadgeCheck className="w-5 h-5" />
+                        {ehPrincipal && <span className="text-[9px] font-bold">Principal</span>}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex items-center gap-3 p-4 border-t border-slate-200 shrink-0">
+                <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer mr-auto">
+                  <input type="checkbox" checked={mergeListaAddCc} onChange={e => setMergeListaAddCc(e.target.checked)} className="w-4 h-4 accent-brand-600" />
+                  Adicionar destinatários dos secundários no Cc
+                </label>
+                <button type="button" onClick={() => setMergeListaAberto(false)} className="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-600 text-sm font-bold hover:bg-slate-50 cursor-pointer">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={executarMergeLista}
+                  disabled={mesclandoLista}
+                  className="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-bold flex items-center gap-2 cursor-pointer"
+                >
+                  {mesclandoLista ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitMerge className="w-4 h-4" />}
+                  {mesclandoLista ? 'Mesclando...' : 'Mesclar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
     </div>
   )
@@ -1451,9 +1628,10 @@ function TicketsNavRail({ aberto, onToggle, view, onSelect }: {
 // ============================================================
 // View: Painel de Controle (dashboard)
 // ============================================================
-function PainelControleView({ tickets, agentes, loading }: {
+function PainelControleView({ tickets, agentes, tecnicos, loading }: {
   tickets: Ticket[]
   agentes: UsuarioSistema[]
+  tecnicos: UsuarioSistema[]
   loading: boolean
 }) {
   // Considera "fechado" os status Fechado e Resolvido
@@ -1488,8 +1666,30 @@ function PainelControleView({ tickets, agentes, loading }: {
     return Array.from(mapa.values()).sort((a, b) => b.qtd - a.qtd)
   }, [tickets, agentes])
 
+  // Tickets encerrados agrupados por Responsável (Técnico)
+  const fechadosPorTecnico = useMemo(() => {
+    const mapa = new Map<string, { nome: string; qtd: number }>()
+    tickets.filter(t => isFechado(t.status)).forEach(t => {
+      if (!t.tecnico_id && !t.tecnico_nome) return // só conta chamados com técnico definido
+      const chave = t.tecnico_id || t.tecnico_nome!
+      const nome = t.tecnico_nome || 'Técnico'
+      const atual = mapa.get(chave)
+      if (atual) atual.qtd += 1
+      else mapa.set(chave, { nome, qtd: 1 })
+    })
+    // Garante que técnicos sem tickets encerrados também apareçam com 0
+    tecnicos.forEach(t => {
+      if (!mapa.has(t.id) && !Array.from(mapa.values()).some(v => v.nome === t.nome)) {
+        mapa.set(t.id, { nome: t.nome, qtd: 0 })
+      }
+    })
+    return Array.from(mapa.values()).sort((a, b) => b.qtd - a.qtd)
+  }, [tickets, tecnicos])
+
   const maxQtd = Math.max(1, ...fechadosPorAgente.map(a => a.qtd))
+  const maxQtdTec = Math.max(1, ...fechadosPorTecnico.map(a => a.qtd))
   const totalFechados = resumo.resolvidos + resumo.fechados
+  const totalFechadosTec = fechadosPorTecnico.reduce((s, a) => s + a.qtd, 0)
 
   // Tendências: tickets criados por hora — hoje x ontem
   const tendencias = useMemo(() => {
@@ -1590,6 +1790,42 @@ function PainelControleView({ tickets, agentes, loading }: {
                         <div
                           className="h-full bg-brand-500 rounded-full transition-all"
                           style={{ width: `${(a.qtd / maxQtd) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-black text-slate-800 w-8 text-right shrink-0">{a.qtd}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Card: Tickets encerrados por técnico */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-black text-slate-800">Tickets encerrados por técnico</h2>
+                  <p className="text-[11px] text-slate-500">Conta pelo Responsável (Técnico) do chamado · Resolvidos e Fechados</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-black text-emerald-600 leading-none">{totalFechadosTec}</p>
+                  <p className="text-[11px] text-slate-500">no total</p>
+                </div>
+              </div>
+
+              {fechadosPorTecnico.length === 0 ? (
+                <p className="text-sm text-slate-400 py-6 text-center">Nenhum técnico com tickets encerrados.</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {fechadosPorTecnico.map(a => (
+                    <div key={a.nome} className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[11px] font-bold text-emerald-600 shrink-0">
+                        {iniciais(a.nome)}
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700 w-40 truncate shrink-0">{a.nome}</span>
+                      <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500 rounded-full transition-all"
+                          style={{ width: `${(a.qtd / maxQtdTec) * 100}%` }}
                         />
                       </div>
                       <span className="text-sm font-black text-slate-800 w-8 text-right shrink-0">{a.qtd}</span>
@@ -2636,6 +2872,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
   onChange: () => void
 }) {
   const user = getLoggedUser()
+  const navigate = useNavigate()
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [mensagens, setMensagens] = useState<TicketMensagem[]>([])
   const [anexos, setAnexos] = useState<TicketAnexo[]>([])
@@ -2661,6 +2898,8 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
   const [menuEnviarAberto, setMenuEnviarAberto] = useState(false)
   // Expande o composer (ocupa a área toda) ao focar na caixa de texto
   const [composerExpandido, setComposerExpandido] = useState(false)
+  // Mostra/oculta a pré-visualização da assinatura (recolhida por padrão)
+  const [assinaturaExpandida, setAssinaturaExpandida] = useState(false)
   const [anexosPend, setAnexosPend] = useState<{ nome: string; tipo: string; url: string; tamanho: number }[]>([])
   const [enviando, setEnviando] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -2681,6 +2920,17 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
   const [contatoAberto, setContatoAberto] = useState<any | null>(null)
   // Contato vinculado ao ticket (para exibir empresa no cabeçalho)
   const [contatoDoTicket, setContatoDoTicket] = useState<any | null>(null)
+
+  // Menu "..." do cabeçalho + fluxo de mesclagem
+  const [menuAcoesAberto, setMenuAcoesAberto] = useState(false)
+  const [mergeAberto, setMergeAberto] = useState(false)
+  const [mergeEtapa, setMergeEtapa] = useState<'selecao' | 'revisao'>('selecao')
+  const [mergeBusca, setMergeBusca] = useState('')
+  const [mergeSelecionados, setMergeSelecionados] = useState<Ticket[]>([]) // inclui o principal e secundários
+  const [mergePrincipalId, setMergePrincipalId] = useState<string>('')
+  const [mergeAddCc, setMergeAddCc] = useState(false)
+  const [mesclando, setMesclando] = useState(false)
+  const [todosTickets, setTodosTickets] = useState<Ticket[]>([])
 
   const abrirContato = async () => {
     if (!ticket) return
@@ -3073,10 +3323,13 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
       const anterior = ticket
       const usuarioNome = user?.nome || user?.login || 'Usuário'
       const usuarioId = user?.id || null
-      const vaiFechar = updates.status === 'Fechado' && anterior && anterior.status !== 'Fechado'
+      // Encerramento = marcar como Resolvido ou Fechado (ambos contam no dashboard).
+      const encerrados = ['Resolvido', 'Fechado']
+      const vaiFechar = !!updates.status && encerrados.includes(updates.status)
+        && anterior && !encerrados.includes(anterior.status)
 
-      // Regra: ao FECHAR o chamado, o Agente Responsável passa a ser quem fechou,
-      // e registramos quem fechou (fechado_por_*).
+      // Regra: ao ENCERRAR o chamado (Resolvido/Fechado), o Agente Responsável
+      // passa a ser quem encerrou, e registramos quem encerrou (fechado_por_*).
       const updatesFinais: Partial<Ticket> = { ...updates }
       if (vaiFechar) {
         updatesFinais.agente_id = usuarioId
@@ -3107,7 +3360,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
         // Mudança de status
         if ('status' in updates && updates.status && updates.status !== anterior.status) {
           if (vaiFechar) {
-            registros.push({ tipo: 'fechamento', descricao: `Chamado fechado por ${usuarioNome}. Agente responsável definido como "${usuarioNome}".` })
+            registros.push({ tipo: 'fechamento', descricao: `Chamado ${updates.status === 'Resolvido' ? 'resolvido' : 'fechado'} por ${usuarioNome}. Agente responsável definido como "${usuarioNome}".` })
           } else {
             registros.push({ tipo: 'status', descricao: `Status alterado de "${anterior.status}" para "${updates.status}"` })
           }
@@ -3153,6 +3406,82 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
       }
     } catch (err: any) {
       alert('Erro ao atualizar: ' + (err.message || 'Desconhecido'))
+    }
+  }
+
+  // ---- Mesclagem de tickets ----
+  const abrirMerge = async () => {
+    if (!ticket) return
+    setMenuAcoesAberto(false)
+    setMergeEtapa('selecao')
+    setMergeBusca('')
+    setMergeAddCc(false)
+    // Começa com o ticket atual já selecionado e marcado como principal
+    setMergeSelecionados([ticket])
+    setMergePrincipalId(ticket.id)
+    setMergeAberto(true)
+    // Carrega a lista para a busca (se ainda não tiver)
+    try {
+      const todos = await api.getTickets()
+      setTodosTickets(todos)
+    } catch { /* a busca fica vazia se falhar */ }
+  }
+
+  const mergeResultadosBusca = (() => {
+    const termo = mergeBusca.trim().toLowerCase()
+    if (!termo) return []
+    const jaSel = new Set(mergeSelecionados.map(t => t.id))
+    return todosTickets.filter(t =>
+      !jaSel.has(t.id) &&
+      t.status !== 'Fechado' &&
+      (String(t.numero).includes(termo)
+        || t.titulo?.toLowerCase().includes(termo)
+        || t.cliente_nome?.toLowerCase().includes(termo))
+    ).slice(0, 8)
+  })()
+
+  const adicionarAoMerge = (t: Ticket) => {
+    setMergeSelecionados(prev => prev.some(x => x.id === t.id) ? prev : [...prev, t])
+    setMergeBusca('')
+  }
+
+  const removerDoMerge = (id: string) => {
+    setMergeSelecionados(prev => {
+      const novo = prev.filter(t => t.id !== id)
+      // Se removeu o principal, elege o primeiro restante
+      if (id === mergePrincipalId && novo.length) setMergePrincipalId(novo[0].id)
+      return novo
+    })
+  }
+
+  const executarMerge = async () => {
+    const principal = mergeSelecionados.find(t => t.id === mergePrincipalId)
+    const secundarios = mergeSelecionados.filter(t => t.id !== mergePrincipalId)
+    if (!principal || secundarios.length === 0) {
+      alert('Selecione ao menos um ticket secundário para mesclar.')
+      return
+    }
+    setMesclando(true)
+    try {
+      await api.mergeTickets(principal.id, secundarios.map(t => t.id), {
+        usuarioId: user?.id || null,
+        usuarioNome: user?.nome || user?.login || 'Usuário',
+        adicionarCcSecundarios: mergeAddCc
+      })
+      setMergeAberto(false)
+      setMergeSelecionados([])
+      onChange()
+      // Vai para o chamado principal resultante
+      if (principal.id === ticketId) {
+        await carregar()
+      } else {
+        navigate(`/tickets/${principal.numero}`)
+      }
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao mesclar: ' + (err.message || 'Desconhecido'))
+    } finally {
+      setMesclando(false)
     }
   }
 
@@ -3264,6 +3593,31 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
         <span className={clsx('text-[11px] font-bold px-2.5 py-1 rounded-full border shrink-0', STATUS_CLASSES_LIGHT[ticket.status] || 'bg-slate-100 text-slate-600 border-slate-300')}>
           {ticket.status}
         </span>
+        {/* Menu de ações "..." */}
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setMenuAcoesAberto(v => !v)}
+            title="Mais ações"
+            className="p-2 rounded-lg bg-white border border-slate-300 text-slate-600 hover:text-brand-600 hover:border-brand-400 transition-colors shadow-sm cursor-pointer"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+          {menuAcoesAberto && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setMenuAcoesAberto(false)} />
+              <div className="absolute right-0 top-full mt-2 z-40 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 animate-[fadeIn_.12s_ease-out]">
+                <button
+                  type="button"
+                  onClick={abrirMerge}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-brand-50 hover:text-brand-700 transition-colors cursor-pointer"
+                >
+                  <GitMerge className="w-3.5 h-3.5" /> Mesclar
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0">
@@ -3642,8 +3996,17 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
                     </div>
                     {/* Pré-visualização da assinatura que será anexada ao e-mail */}
                     <div className="mt-2 border-t border-dashed border-slate-200 pt-2">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold mb-1">Assinatura (anexada automaticamente)</p>
-                      <div className="rte-content opacity-90 scale-[0.92] origin-top-left" dangerouslySetInnerHTML={{ __html: sanitizeHtml(montarAssinatura(user)) }} />
+                      <button
+                        type="button"
+                        onClick={() => setAssinaturaExpandida(v => !v)}
+                        className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400 font-bold hover:text-slate-600 transition-colors cursor-pointer"
+                      >
+                        <ChevronDown className={clsx('w-3 h-3 transition-transform', assinaturaExpandida && 'rotate-180')} />
+                        Assinatura (anexada automaticamente)
+                      </button>
+                      {assinaturaExpandida && (
+                        <div className="rte-content opacity-90 scale-[0.92] origin-top-left mt-1" dangerouslySetInnerHTML={{ __html: sanitizeHtml(montarAssinatura(user)) }} />
+                      )}
                     </div>
                   </>
                 )}
@@ -3916,6 +4279,167 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
           </div>
         </div>
       </div>
+
+      {/* ===== Modal: Mesclar tickets ===== */}
+      {mergeAberto && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={() => !mesclando && setMergeAberto(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Cabeçalho */}
+            <div className="flex items-center gap-2 p-5 border-b border-slate-200 shrink-0">
+              {mergeEtapa === 'revisao' && (
+                <button type="button" onClick={() => setMergeEtapa('selecao')} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100">
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              )}
+              <GitMerge className="w-5 h-5 text-brand-600" />
+              <h2 className="text-base font-bold text-slate-900">Mesclar ticket</h2>
+              <button onClick={() => !mesclando && setMergeAberto(false)} className="ml-auto text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {mergeEtapa === 'selecao' ? (
+              <>
+                <div className="p-5 space-y-3 overflow-y-auto scrollbar-clean flex-1 min-h-0">
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    {Math.max(0, mergeSelecionados.length - 1)} ticket(s) secundário(s) selecionado(s). As interações dos tickets secundários serão movidas para o principal e os secundários serão fechados.
+                  </p>
+
+                  {/* Busca */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={mergeBusca}
+                      onChange={e => setMergeBusca(e.target.value)}
+                      placeholder="Procurar tickets por ID, título ou cliente..."
+                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm focus:outline-none focus:border-brand-500"
+                    />
+                    {mergeResultadosBusca.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-white border border-slate-200 rounded-xl shadow-xl py-1 max-h-64 overflow-y-auto scrollbar-clean">
+                        {mergeResultadosBusca.map(t => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => adicionarAoMerge(t)}
+                            className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-brand-50 transition-colors cursor-pointer"
+                          >
+                            <PlusIcon className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                            <span className="min-w-0">
+                              <span className="block text-[11px] text-slate-400 font-mono">#{t.numero}</span>
+                              <span className="block text-xs font-bold text-brand-700 truncate">{t.titulo}</span>
+                              <span className="block text-[11px] text-slate-500 truncate">{t.cliente_nome || ''} • {t.status}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Lista de selecionados */}
+                  <div className="space-y-2">
+                    {mergeSelecionados.map(t => {
+                      const ehPrincipal = t.id === mergePrincipalId
+                      return (
+                        <div key={t.id} className={clsx('flex items-center gap-2 p-3 rounded-xl border', ehPrincipal ? 'border-brand-300 bg-brand-50/40' : 'border-slate-200 bg-white')}>
+                          <button
+                            type="button"
+                            onClick={() => removerDoMerge(t.id)}
+                            title="Remover"
+                            className="w-6 h-6 flex items-center justify-center rounded-full bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 shrink-0 cursor-pointer"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <div className="min-w-0 flex-1">
+                            <span className="block text-[11px] text-slate-400 font-mono">#{t.numero}</span>
+                            <span className="block text-xs font-bold text-brand-700 truncate">{t.titulo}</span>
+                            <span className="block text-[11px] text-slate-500 truncate">{t.cliente_nome || ''} • {t.status}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setMergePrincipalId(t.id)}
+                            title={ehPrincipal ? 'Chamado principal' : 'Definir como principal'}
+                            className={clsx('flex flex-col items-center gap-0.5 shrink-0 cursor-pointer', ehPrincipal ? 'text-brand-600' : 'text-slate-300 hover:text-slate-500')}
+                          >
+                            <BadgeCheck className="w-5 h-5" />
+                            {ehPrincipal && <span className="text-[9px] font-bold">Principal</span>}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Rodapé seleção */}
+                <div className="flex items-center gap-3 p-4 border-t border-slate-200 shrink-0">
+                  <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer mr-auto">
+                    <input type="checkbox" checked={mergeAddCc} onChange={e => setMergeAddCc(e.target.checked)} className="w-4 h-4 accent-brand-600" />
+                    Adicionar destinatários dos tickets secundários no campo Cc
+                  </label>
+                  <button type="button" onClick={() => setMergeAberto(false)} className="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-600 text-sm font-bold hover:bg-slate-50 cursor-pointer">
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMergeEtapa('revisao')}
+                    disabled={mergeSelecionados.length < 2}
+                    className="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold cursor-pointer"
+                  >
+                    Continuar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Revisão */}
+                <div className="p-5 space-y-3 overflow-y-auto scrollbar-clean flex-1 min-h-0">
+                  <p className="text-xs text-slate-500">Revise o ticket que você está mesclando. Os secundários serão fechados e suas interações movidas para o principal.</p>
+                  {(() => {
+                    const principal = mergeSelecionados.find(t => t.id === mergePrincipalId)
+                    const secundarios = mergeSelecionados.filter(t => t.id !== mergePrincipalId)
+                    return (
+                      <>
+                        {principal && (
+                          <div className="p-3 rounded-xl border border-brand-300 bg-brand-50/40">
+                            <span className="block text-[11px] text-slate-400 font-mono">#{principal.numero}</span>
+                            <span className="block text-sm font-bold text-brand-700">{principal.titulo}</span>
+                            <span className="block text-[11px] text-brand-600 font-semibold mt-0.5">Chamado principal</span>
+                          </div>
+                        )}
+                        <div className="pl-3 border-l-2 border-slate-200 ml-2 space-y-2">
+                          <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Tickets secundários ({secundarios.length})</p>
+                          {secundarios.map(t => (
+                            <div key={t.id} className="p-3 rounded-xl border border-slate-200 bg-white">
+                              <span className="block text-[11px] text-slate-400 font-mono">#{t.numero}</span>
+                              <span className="block text-sm font-bold text-slate-700">{t.titulo}</span>
+                              <span className="block text-[11px] text-slate-500 mt-0.5">{t.cliente_nome || ''} • {t.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+                {/* Rodapé revisão */}
+                <div className="flex items-center gap-3 p-4 border-t border-slate-200 shrink-0">
+                  <button type="button" onClick={() => setMergeEtapa('selecao')} className="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-600 text-sm font-bold hover:bg-slate-50 ml-auto cursor-pointer">
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={executarMerge}
+                    disabled={mesclando}
+                    className="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-bold flex items-center gap-2 cursor-pointer"
+                  >
+                    {mesclando ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitMerge className="w-4 h-4" />}
+                    {mesclando ? 'Mesclando...' : 'Mesclar'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ===== Drawer lateral: Editar ticket ===== */}
       {editOpen && (

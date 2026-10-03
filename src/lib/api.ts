@@ -2829,6 +2829,96 @@ export const api = {
     if (error) throw error
   },
 
+  // Mescla tickets secundários no principal: move mensagens e anexos para o principal,
+  // registra a descrição inicial de cada secundário como anotação interna no principal,
+  // fecha os secundários (com histórico) e registra o evento no principal.
+  // opts.adicionarCcSecundarios: acumula os e-mails dos secundários no Cc do principal.
+  async mergeTickets(
+    principalId: string,
+    secundariosIds: string[],
+    opts?: { usuarioId?: string | null; usuarioNome?: string | null; adicionarCcSecundarios?: boolean }
+  ): Promise<boolean> {
+    const usuarioNome = opts?.usuarioNome || 'Usuário'
+    const usuarioId = opts?.usuarioId || null
+
+    // Dados do principal (para número e Cc)
+    const { data: principal, error: ePrinc } = await supabase
+      .from('tickets').select('*').eq('id', principalId).single()
+    if (ePrinc) throw ePrinc
+
+    const ccAcumulado = new Set(
+      (principal.cliente_cc || '').split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean)
+    )
+
+    for (const secId of secundariosIds) {
+      if (!secId || secId === principalId) continue
+
+      const { data: sec, error: eSec } = await supabase
+        .from('tickets').select('*').eq('id', secId).single()
+      if (eSec) throw eSec
+
+      // 1) A descrição inicial do secundário vira uma anotação interna no principal
+      if (sec.descricao && String(sec.descricao).trim()) {
+        await supabase.from('ticket_mensagens').insert({
+          ticket_id: principalId,
+          tipo: 'anotacao',
+          conteudo: `<p><b>↳ Mesclado do chamado #${sec.numero} — ${sec.titulo || ''}</b></p>${sec.descricao}`,
+          autor_id: usuarioId,
+          autor_nome: usuarioNome,
+          autor_tipo: 'agente'
+        })
+      }
+
+      // 2) Move as mensagens e anexos do secundário para o principal
+      const { error: eMsg } = await supabase
+        .from('ticket_mensagens').update({ ticket_id: principalId }).eq('ticket_id', secId)
+      if (eMsg) throw eMsg
+      const { error: eAnx } = await supabase
+        .from('ticket_anexos').update({ ticket_id: principalId }).eq('ticket_id', secId)
+      if (eAnx) throw eAnx
+
+      // 3) Acumula o Cc, se solicitado (destinatários do secundário)
+      if (opts?.adicionarCcSecundarios) {
+        for (const campo of [sec.cliente_email, sec.cliente_cc]) {
+          String(campo || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+            .forEach(e => ccAcumulado.add(e))
+        }
+      }
+
+      // 4) Fecha o secundário e registra o histórico apontando ao principal
+      await supabase.from('tickets').update({
+        status: 'Fechado',
+        fechado_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }).eq('id', secId)
+
+      await supabase.from('ticket_historico').insert({
+        ticket_id: secId,
+        tipo: 'status',
+        descricao: `Chamado mesclado no #${principal.numero} e fechado.`,
+        usuario_id: usuarioId,
+        usuario_nome: usuarioNome
+      })
+
+      await supabase.from('ticket_historico').insert({
+        ticket_id: principalId,
+        tipo: 'status',
+        descricao: `Chamado #${sec.numero} (${sec.titulo || ''}) foi mesclado neste chamado.`,
+        usuario_id: usuarioId,
+        usuario_nome: usuarioNome
+      })
+    }
+
+    // 5) Atualiza o principal (Cc acumulado + touch no updated_at)
+    const principalUpdate: any = { updated_at: new Date().toISOString(), lido: false }
+    if (opts?.adicionarCcSecundarios && ccAcumulado.size) {
+      principalUpdate.cliente_cc = Array.from(ccAcumulado).join(', ')
+    }
+    await supabase.from('tickets').update(principalUpdate).eq('id', principalId)
+
+    return true
+  },
+
   // Adiciona uma mensagem à thread (resposta ao cliente ou anotação interna)
   async addTicketMensagem(payload: {
     ticket_id: string
