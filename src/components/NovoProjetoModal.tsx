@@ -13,7 +13,7 @@ interface Base {
 interface ColunaDef {
   id: string // temporary internal id
   nome: string
-  tipo: 'DATA' | 'TEXTO' | 'TEXTO_MULTI' | 'STATUS'
+  tipo: 'DATA' | 'TEXTO' | 'TEXTO_MULTI' | 'STATUS' | 'STATUS_SN' | 'JSON'
   indicador_conclusao: boolean
 }
 
@@ -302,10 +302,12 @@ export function NovoProjetoModal({ isOpen, onClose, onSuccess }: NovoProjetoModa
                           onChange={e => handleChangeColuna(coluna.id, 'tipo', e.target.value as any)}
                           className="input-field w-full h-10 text-sm pr-8"
                         >
-                          <option value="STATUS">Status (OK/PENDENTE)</option>
+                          <option value="STATUS">Status (OK/PENDENTE/ERRO)</option>
+                          <option value="STATUS_SN">Status (SIM/NÃO)</option>
                           <option value="DATA">Data (DD/MM/AAAA)</option>
                           <option value="TEXTO">Texto Curto (1 por base)</option>
                           <option value="TEXTO_MULTI">Texto Múltiplo (Desdobra em sub-linhas, ex: Agency ID)</option>
+                          <option value="JSON">JSON (formata ao colar)</option>
                         </select>
                       </div>
                     </div>

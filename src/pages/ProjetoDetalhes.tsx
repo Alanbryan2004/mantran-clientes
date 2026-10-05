@@ -25,6 +25,185 @@ const getProgressTextColor = (progress: number) => {
   return 'text-green-400'
 }
 
+// Classe de cor da célula de status conforme o valor (serve para STATUS e STATUS_SN)
+const statusCellClass = (valor: string): string => {
+  if (valor === 'OK' || valor === 'SIM') return 'bg-green-500/10 text-green-400 border-green-500/30'
+  if (valor === 'PENDENTE' || valor === 'NÃO') return 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+  if (valor === 'ERRO') return 'bg-red-500/10 text-red-400 border-red-500/30'
+  return 'bg-slate-800/80 text-slate-400'
+}
+
+// Extrai o JSON "de dados" quando o conteúdo vem precedido por lixo/cabeçalho.
+// Ex. (estilo JWT): {"alg":"HS256","typ":"JWT"}.{"data":{...}}  -> retorna o {"data":{...}}
+// Estratégia: quebra em segmentos nos limites "}.{", testa cada segmento como JSON
+// e devolve o maior objeto válido (o payload de dados costuma ser o maior).
+const extrairJsonValido = (texto: string): any | undefined => {
+  const t = (texto || '').trim()
+  if (!t) return undefined
+  // 1) Tenta direto
+  try { return JSON.parse(t) } catch { /* segue */ }
+
+  // 2) Quebra em segmentos candidatos: separados por "}." / ".{"
+  const segmentos = t
+    .replace(/\}\s*\.\s*\{/g, '}\u0000{') // marca os limites entre objetos
+    .split('\u0000')
+
+  let melhor: any
+  let melhorTam = -1
+  for (const seg of segmentos) {
+    const s = seg.trim()
+    if (!s) continue
+    try {
+      const obj = JSON.parse(s)
+      // Prefere o maior (payload de dados) sobre o cabeçalho pequeno
+      const tam = s.length
+      if (tam > melhorTam) { melhor = obj; melhorTam = tam }
+    } catch { /* ignora segmento inválido */ }
+  }
+  if (melhor !== undefined) return melhor
+
+  // 3) Fallback: pega do primeiro "{" ao último "}" e tenta
+  const ini = t.indexOf('{')
+  const fim = t.lastIndexOf('}')
+  if (ini >= 0 && fim > ini) {
+    try { return JSON.parse(t.slice(ini, fim + 1)) } catch { /* nada */ }
+  }
+  return undefined
+}
+
+// Tenta formatar (indentar) um JSON, removendo cabeçalho/lixo do início se houver.
+// Retorna o texto formatado ou null se não houver JSON válido.
+const formatarJson = (texto: string): string | null => {
+  const t = (texto || '').trim()
+  if (!t) return ''
+  const obj = extrairJsonValido(t)
+  if (obj === undefined) return null
+  return JSON.stringify(obj, null, 2)
+}
+
+// Escapa HTML e aplica cores (syntax highlight) a um JSON já indentado.
+const escaparHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+const jsonParaHtmlColorido = (jsonIndentado: string): string => {
+  const esc = escaparHtml(jsonIndentado)
+  // Regex clássico para destacar tokens JSON (chaves, strings, números, bool/null)
+  return esc.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
+    (match) => {
+      let cor = '#e2e8f0' // número (slate claro)
+      if (/^"/.test(match)) {
+        cor = /:$/.test(match) ? '#7dd3fc' : '#86efac' // chave = azul claro; string = verde
+      } else if (/true|false/.test(match)) {
+        cor = '#fca5a5' // booleano = vermelho claro
+      } else if (/null/.test(match)) {
+        cor = '#cbd5e1'
+      } else if (/^-?\d/.test(match)) {
+        cor = '#fcd34d' // número = âmbar
+      }
+      return `<span style="color:${cor}">${match}</span>`
+    }
+  )
+}
+
+// Célula de edição de JSON: formata ao colar e ao sair do campo (blur); marca em vermelho se inválido.
+// Clicar no ícone de lupa abre um modal com o JSON expandido e colorido.
+function JsonCell({ valor, readOnly, onChange }: {
+  valor: string
+  readOnly: boolean
+  onChange: (v: string) => void
+}) {
+  const [erro, setErro] = useState(false)
+  const [modalAberto, setModalAberto] = useState(false)
+
+  // JSON indentado para visualização (reaproveita o formatador; se inválido, usa o texto cru)
+  const jsonFormatado = formatarJson(valor) ?? valor
+
+  const aplicarFormatacao = (texto: string) => {
+    const formatado = formatarJson(texto)
+    if (formatado === null) {
+      setErro(texto.trim() !== '')
+      onChange(texto) // mantém o que o usuário colou/digitou, mesmo inválido
+    } else {
+      setErro(false)
+      onChange(formatado)
+    }
+  }
+
+  return (
+    <div className="relative min-w-[220px]">
+      <textarea
+        value={valor}
+        disabled={readOnly}
+        spellCheck={false}
+        rows={2}
+        onChange={(e) => { onChange(e.target.value); if (erro) setErro(false) }}
+        onBlur={(e) => aplicarFormatacao(e.target.value)}
+        onPaste={(e) => {
+          const texto = e.clipboardData.getData('text')
+          const formatado = formatarJson(texto)
+          if (formatado !== null) {
+            e.preventDefault()
+            setErro(false)
+            onChange(formatado)
+          }
+        }}
+        placeholder={readOnly ? '' : 'Cole o JSON aqui...'}
+        className={`input-field py-1.5 pl-3 pr-8 text-[11px] font-mono w-full max-h-[56px] rounded-lg resize-none overflow-auto whitespace-pre ${
+          erro
+            ? 'bg-red-500/10 text-red-300 border-red-500/40'
+            : 'bg-slate-800/40 text-slate-200 border-slate-700/60 focus:bg-slate-800 focus:border-brand-500'
+        } ${readOnly ? 'cursor-default opacity-80' : ''} transition-colors`}
+      />
+
+      {/* Botão para abrir a visualização expandida e colorida */}
+      {valor.trim() && (
+        <button
+          type="button"
+          onClick={() => setModalAberto(true)}
+          title="Visualizar JSON expandido"
+          className="absolute top-1.5 right-1.5 p-1 rounded-md bg-slate-900/80 border border-slate-700 text-slate-400 hover:text-brand-400 hover:border-brand-500 transition-colors cursor-pointer"
+        >
+          <Search className="w-3.5 h-3.5" />
+        </button>
+      )}
+
+      {/* Modal: visualização expandida com cores */}
+      {modalAberto && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setModalAberto(false)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-700 shrink-0">
+              <FileText className="w-4 h-4 text-brand-400" />
+              <h3 className="text-sm font-bold text-slate-200">Visualização do JSON</h3>
+              <button
+                type="button"
+                onClick={() => { navigator.clipboard?.writeText(jsonFormatado).catch(() => {}) }}
+                title="Copiar JSON"
+                className="ml-auto text-xs font-semibold text-slate-400 hover:text-brand-400 px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Copiar
+              </button>
+              <button onClick={() => setModalAberto(false)} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg hover:bg-slate-800">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <pre
+              className="flex-1 min-h-0 overflow-auto p-5 text-xs font-mono leading-relaxed text-slate-200 whitespace-pre"
+              dangerouslySetInnerHTML={{ __html: jsonParaHtmlColorido(jsonFormatado) }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Helpers para valores múltiplos por pipe '|'
 const parsePipeValues = (val: string | undefined | null, targetLength: number = 1, isStatus: boolean = false): string[] => {
   if (!val) {
@@ -116,6 +295,8 @@ export function ProjetoDetalhes() {
   const getBaseItemCount = (baseId: string): number => {
     let max = 1
     colunas.forEach(col => {
+      // JSON é valor único por base (pode conter '|' no conteúdo) — não conta como agências
+      if (col.tipo?.toUpperCase() === 'JSON') return
       const val = dados[`${baseId}_${col.id}`]
       if (val && val.includes('|')) {
         const count = val.split('|').map(s => s.trim()).filter(Boolean).length
@@ -128,9 +309,12 @@ export function ProjetoDetalhes() {
   // Obtém o valor de uma sub-linha específica
   const getSubValor = (baseId: string, colunaId: string, subIndex: number): string => {
     const raw = dados[`${baseId}_${colunaId}`] || ''
-    const totalItems = getBaseItemCount(baseId)
     const col = colunas.find(c => c.id === colunaId)
-    const isStatus = col?.tipo?.toUpperCase() === 'STATUS'
+    const tipoUp = col?.tipo?.toUpperCase()
+    // JSON é único por base: o valor inteiro vai no índice 0 (não divide por '|')
+    if (tipoUp === 'JSON') return subIndex === 0 ? raw : ''
+    const totalItems = getBaseItemCount(baseId)
+    const isStatus = tipoUp === 'STATUS' || tipoUp === 'STATUS_SN'
     const arr = parsePipeValues(raw, totalItems, isStatus)
     return arr[subIndex] || ''
   }
@@ -140,15 +324,20 @@ export function ProjetoDetalhes() {
     if (isReadOnlyUser()) return
     const key = `${baseId}_${colunaId}`
     const raw = dados[key] || ''
-    const totalItems = Math.max(getBaseItemCount(baseId), subIndex + 1)
     const col = colunas.find(c => c.id === colunaId)
-    const isStatus = col?.tipo?.toUpperCase() === 'STATUS'
-    const arr = parsePipeValues(raw, totalItems, isStatus)
-    
-    arr[subIndex] = novoValor
+    const tipoUp = col?.tipo?.toUpperCase()
 
-    // Trim trailing empty items if needed, but preserve structure
-    const joined = arr.join(' | ')
+    // JSON é único por base: grava o valor inteiro (não junta com '|')
+    let joined: string
+    if (tipoUp === 'JSON') {
+      joined = novoValor
+    } else {
+      const totalItems = Math.max(getBaseItemCount(baseId), subIndex + 1)
+      const isStatus = tipoUp === 'STATUS' || tipoUp === 'STATUS_SN'
+      const arr = parsePipeValues(raw, totalItems, isStatus)
+      arr[subIndex] = novoValor
+      joined = arr.join(' | ')
+    }
 
     // Optimistic update
     setDados(prev => ({ ...prev, [key]: joined }))
@@ -258,7 +447,8 @@ export function ProjetoDetalhes() {
           const val = getSubValor(base.id, ind.id, i)
           const tipo = ind.tipo?.toUpperCase()
           if (tipo === 'STATUS' && val !== 'OK') isItemDone = false
-          if (tipo !== 'STATUS' && (!val || val.trim() === '')) isItemDone = false
+          else if (tipo === 'STATUS_SN' && val !== 'SIM') isItemDone = false
+          else if (tipo !== 'STATUS' && tipo !== 'STATUS_SN' && (!val || val.trim() === '')) isItemDone = false
         })
         if (isItemDone) concluidos++
       }
@@ -297,7 +487,7 @@ export function ProjetoDetalhes() {
       // 2. Filtro por status de coluna
       if (filtroStatus !== 'TODOS') {
         const targetCols = filtroColunaId === 'TODAS' 
-          ? colunas.filter(c => c.tipo?.toUpperCase() === 'STATUS')
+          ? colunas.filter(c => ['STATUS', 'STATUS_SN'].includes(c.tipo?.toUpperCase() || ''))
           : colunas.filter(c => c.id === filtroColunaId)
 
         if (targetCols.length === 0) return true
@@ -567,7 +757,7 @@ export function ProjetoDetalhes() {
               className="bg-transparent text-xs text-slate-200 font-medium focus:outline-none cursor-pointer"
             >
               <option value="TODAS" className="bg-slate-900 text-white">Todas as Colunas</option>
-              {colunas.filter(c => c.tipo?.toUpperCase() === 'STATUS').map(c => (
+              {colunas.filter(c => ['STATUS', 'STATUS_SN'].includes(c.tipo?.toUpperCase() || '')).map(c => (
                 <option key={c.id} value={c.id} className="bg-slate-900 text-white">
                   {c.nome}
                 </option>
@@ -585,7 +775,10 @@ export function ProjetoDetalhes() {
             >
               <option value="TODOS" className="bg-slate-900 text-white">Todos os Status</option>
               <option value="OK" className="bg-slate-900 text-green-400">OK</option>
+              <option value="SIM" className="bg-slate-900 text-green-400">SIM</option>
               <option value="PENDENTE" className="bg-slate-900 text-amber-400">PENDENTE</option>
+              <option value="NÃO" className="bg-slate-900 text-amber-400">NÃO</option>
+              <option value="ERRO" className="bg-slate-900 text-red-400">ERRO</option>
               <option value="EM_BRANCO" className="bg-slate-900 text-slate-400">EM BRANCO</option>
             </select>
           </div>
@@ -726,15 +919,25 @@ export function ProjetoDetalhes() {
                                   onChange={(e) => handleUpdateSubDado(base.id, col.id, 0, e.target.value)}
                                   className={`input-field w-full max-w-[140px] py-1.5 px-2.5 text-xs font-bold border-transparent focus:border-brand-500 rounded-lg ${
                                     isReadOnlyUser() ? 'cursor-default' : 'cursor-pointer'
-                                  } ${
-                                    valor === 'OK' ? 'bg-green-500/10 text-green-400 border-green-500/30' :
-                                    valor === 'PENDENTE' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
-                                    'bg-slate-800/80 text-slate-400'
-                                  }`}
+                                  } ${statusCellClass(valor)}`}
                                 >
                                   <option value="" className="bg-slate-900 text-slate-400">EM BRANCO</option>
                                   <option value="OK" className="bg-slate-900 text-green-400">OK</option>
                                   <option value="PENDENTE" className="bg-slate-900 text-amber-400">PENDENTE</option>
+                                  <option value="ERRO" className="bg-slate-900 text-red-400">ERRO</option>
+                                </select>
+                              ) : col.tipo?.toUpperCase() === 'STATUS_SN' ? (
+                                <select
+                                  value={valor}
+                                  disabled={isReadOnlyUser()}
+                                  onChange={(e) => handleUpdateSubDado(base.id, col.id, 0, e.target.value)}
+                                  className={`input-field w-full max-w-[140px] py-1.5 px-2.5 text-xs font-bold border-transparent focus:border-brand-500 rounded-lg ${
+                                    isReadOnlyUser() ? 'cursor-default' : 'cursor-pointer'
+                                  } ${statusCellClass(valor)}`}
+                                >
+                                  <option value="" className="bg-slate-900 text-slate-400">EM BRANCO</option>
+                                  <option value="SIM" className="bg-slate-900 text-green-400">SIM</option>
+                                  <option value="NÃO" className="bg-slate-900 text-amber-400">NÃO</option>
                                 </select>
                               ) : col.tipo?.toUpperCase() === 'DATA' ? (
                                 <input
@@ -745,6 +948,12 @@ export function ProjetoDetalhes() {
                                   className={`input-field py-1.5 px-3 text-xs w-full max-w-[140px] bg-slate-800/80 border-slate-700 focus:border-brand-500 rounded-lg ${
                                     isReadOnlyUser() ? 'cursor-default opacity-80' : ''
                                   }`}
+                                />
+                              ) : col.tipo?.toUpperCase() === 'JSON' ? (
+                                <JsonCell
+                                  valor={valor}
+                                  readOnly={isReadOnlyUser()}
+                                  onChange={(v) => handleUpdateSubDado(base.id, col.id, 0, v)}
                                 />
                               ) : (
                                 <input
@@ -801,15 +1010,25 @@ export function ProjetoDetalhes() {
                                       onChange={(e) => handleUpdateSubDado(base.id, col.id, subIndex, e.target.value)}
                                       className={`input-field w-full max-w-[140px] py-1.5 px-2.5 text-xs font-bold border-transparent focus:border-brand-500 rounded-lg ${
                                         isReadOnlyUser() ? 'cursor-default' : 'cursor-pointer'
-                                      } ${
-                                        valor === 'OK' ? 'bg-green-500/10 text-green-400 border-green-500/30' :
-                                        valor === 'PENDENTE' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
-                                        'bg-slate-800/80 text-slate-400'
-                                      }`}
+                                      } ${statusCellClass(valor)}`}
                                     >
                                       <option value="" className="bg-slate-900 text-slate-400">EM BRANCO</option>
                                       <option value="OK" className="bg-slate-900 text-green-400">OK</option>
                                       <option value="PENDENTE" className="bg-slate-900 text-amber-400">PENDENTE</option>
+                                      <option value="ERRO" className="bg-slate-900 text-red-400">ERRO</option>
+                                    </select>
+                                  ) : col.tipo?.toUpperCase() === 'STATUS_SN' ? (
+                                    <select
+                                      value={valor}
+                                      disabled={isReadOnlyUser()}
+                                      onChange={(e) => handleUpdateSubDado(base.id, col.id, subIndex, e.target.value)}
+                                      className={`input-field w-full max-w-[140px] py-1.5 px-2.5 text-xs font-bold border-transparent focus:border-brand-500 rounded-lg ${
+                                        isReadOnlyUser() ? 'cursor-default' : 'cursor-pointer'
+                                      } ${statusCellClass(valor)}`}
+                                    >
+                                      <option value="" className="bg-slate-900 text-slate-400">EM BRANCO</option>
+                                      <option value="SIM" className="bg-slate-900 text-green-400">SIM</option>
+                                      <option value="NÃO" className="bg-slate-900 text-amber-400">NÃO</option>
                                     </select>
                                   ) : col.tipo?.toUpperCase() === 'DATA' ? (
                                     <input
@@ -820,6 +1039,12 @@ export function ProjetoDetalhes() {
                                       className={`input-field py-1.5 px-3 text-xs w-full max-w-[140px] bg-slate-800/80 border-slate-700 focus:border-brand-500 rounded-lg ${
                                         isReadOnlyUser() ? 'cursor-default opacity-80' : ''
                                       }`}
+                                    />
+                                  ) : col.tipo?.toUpperCase() === 'JSON' ? (
+                                    <JsonCell
+                                      valor={valor}
+                                      readOnly={isReadOnlyUser()}
+                                      onChange={(v) => handleUpdateSubDado(base.id, col.id, subIndex, v)}
                                     />
                                   ) : (
                                     <input

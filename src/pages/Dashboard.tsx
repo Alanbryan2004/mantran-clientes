@@ -161,8 +161,10 @@ export function Dashboard() {
             colsProj.forEach((c: any) => {
               const d = dadosProj.find((data: any) => data.base_id === b.base_id && data.coluna_id === c.id)
               const val = d?.valor
-              if (c.tipo === 'STATUS' && val !== 'OK') isDone = false
-              if (c.tipo !== 'STATUS' && (!val || val.trim() === '')) isDone = false
+              const tp = (c.tipo || '').toUpperCase()
+              if (tp === 'STATUS' && val !== 'OK') isDone = false
+              else if (tp === 'STATUS_SN' && val !== 'SIM') isDone = false
+              else if (tp !== 'STATUS' && tp !== 'STATUS_SN' && (!val || val.trim() === '')) isDone = false
             })
             if (isDone) concluidos++
           })

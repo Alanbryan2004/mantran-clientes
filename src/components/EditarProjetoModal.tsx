@@ -8,7 +8,7 @@ export interface ColunaItem {
   id: string
   isNew?: boolean
   nome: string
-  tipo: 'STATUS' | 'DATA' | 'TEXTO' | 'TEXTO_MULTI'
+  tipo: 'STATUS' | 'STATUS_SN' | 'DATA' | 'TEXTO' | 'TEXTO_MULTI' | 'JSON'
   indicador_conclusao: boolean
   ordem: number
 }
@@ -316,10 +316,12 @@ export function EditarProjetoModal({ isOpen, onClose, projetoId, onSuccess }: Ed
                           onChange={e => handleChangeColuna(col.id, 'tipo', e.target.value)}
                           className="input-field py-1.5 px-2.5 text-xs w-full bg-slate-800/80 border-slate-700 text-slate-200 cursor-pointer"
                         >
-                          <option value="STATUS">STATUS (OK/Pend.)</option>
+                          <option value="STATUS">STATUS (OK/Pend./Erro)</option>
+                          <option value="STATUS_SN">STATUS (Sim/Não)</option>
                           <option value="DATA">DATA</option>
                           <option value="TEXTO">TEXTO (1 por base)</option>
                           <option value="TEXTO_MULTI">TEXTO MÚLTIPLO (Sub-linhas)</option>
+                          <option value="JSON">JSON (formata ao colar)</option>
                         </select>
                       </div>
 
@@ -370,7 +372,7 @@ export function EditarProjetoModal({ isOpen, onClose, projetoId, onSuccess }: Ed
                 <div className="p-3.5 rounded-xl bg-brand-500/5 border border-brand-500/20 flex items-start gap-2.5 text-xs text-brand-300/90 mt-4">
                   <CheckCircle2 className="w-4 h-4 text-brand-400 shrink-0 mt-0.5" />
                   <p className="leading-relaxed">
-                    <strong>Regra de Conclusão:</strong> Para as colunas marcadas como <em>Indicador de Conclusão</em>, o sistema calcula o progresso geral: se a coluna for do tipo <strong>STATUS</strong>, só contabilizará como concluída quando estiver marcada como <strong>OK</strong>.
+                    <strong>Regra de Conclusão:</strong> Para as colunas marcadas como <em>Indicador de Conclusão</em>, o sistema calcula o progresso geral: se a coluna for do tipo <strong>STATUS</strong>, contabiliza como concluída quando estiver marcada como <strong>OK</strong>; se for <strong>STATUS (Sim/Não)</strong>, quando estiver marcada como <strong>SIM</strong>.
                   </p>
                 </div>
               </div>
