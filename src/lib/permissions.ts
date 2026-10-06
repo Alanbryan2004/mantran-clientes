@@ -121,22 +121,35 @@ export const permissionsApi = {
     current[perm.perfil] = perm
     localStorage.setItem(STORAGE_KEY, JSON.stringify(current))
 
+    const lista = (perm.projetos_especificos_ids && perm.projetos_especificos_ids.length)
+      ? perm.projetos_especificos_ids
+      : (perm.projeto_especifico_id ? [perm.projeto_especifico_id] : [])
+
+    const baseRow: Record<string, any> = {
+      perfil: perm.perfil,
+      rotas_permitidas: perm.rotas,
+      projeto_id_permitido: lista[0] || null, // singular (1º) por compatibilidade
+      read_only: perm.read_only,
+      updated_at: new Date().toISOString()
+    }
+
     try {
-      const lista = (perm.projetos_especificos_ids && perm.projetos_especificos_ids.length)
-        ? perm.projetos_especificos_ids
-        : (perm.projeto_especifico_id ? [perm.projeto_especifico_id] : [])
-      await supabase
+      // 1ª tentativa: grava também a lista completa (coluna nova)
+      const { error } = await supabase
         .from('perfil_permissoes')
-        .upsert({
-          perfil: perm.perfil,
-          rotas_permitidas: perm.rotas,
-          // Mantém o singular (1º projeto) por compatibilidade e grava a lista completa
-          projeto_id_permitido: lista[0] || null,
-          projetos_ids_permitidos: lista,
-          read_only: perm.read_only,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'perfil' })
-    } catch (_) {}
+        .upsert({ ...baseRow, projetos_ids_permitidos: lista }, { onConflict: 'perfil' })
+
+      if (error) {
+        // Se a coluna nova ainda não existe no banco, faz fallback sem ela (grava ao menos o singular)
+        console.warn('Falha ao salvar lista de projetos (verifique se a coluna projetos_ids_permitidos existe):', error.message)
+        const { error: err2 } = await supabase
+          .from('perfil_permissoes')
+          .upsert(baseRow, { onConflict: 'perfil' })
+        if (err2) console.warn('Falha ao salvar permissão (fallback):', err2.message)
+      }
+    } catch (err) {
+      console.warn('Erro ao salvar permissão:', err)
+    }
   },
 
   canAccessRoute(path: string): boolean {
