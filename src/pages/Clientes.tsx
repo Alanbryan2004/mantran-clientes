@@ -143,15 +143,18 @@ export function Clientes() {
 
   const handleVisualizarAditivo = async (cliente: BaseMantran) => {
     try {
-      // 1. Direct attachment saved on client
-      if (cliente.arquivo_aditivo_base64) {
-        const link = document.createElement('a')
-        link.href = cliente.arquivo_aditivo_base64
-        link.download = cliente.arquivo_aditivo_nome || `Aditivo_${cliente.empresa}.pdf`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        return
+      // 1. Anexo salvo no cliente — busca o conteúdo (base64) SOB DEMANDA (não vem na listagem)
+      if (cliente.clienteDbId && cliente.arquivo_aditivo_nome) {
+        const aditivo = await api.getAditivoByClienteId(cliente.clienteDbId)
+        if (aditivo?.base64) {
+          const link = document.createElement('a')
+          link.href = aditivo.base64
+          link.download = aditivo.nome || `Aditivo_${cliente.empresa}.pdf`
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          return
+        }
       }
 
       // 2. Search for implantacao checkpoint with aditivo
@@ -274,9 +277,10 @@ export function Clientes() {
         })
         setClientes(mappedData)
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao buscar dados:', err)
-      alert('Erro ao carregar os clientes do banco.')
+      const detalhe = err?.message || err?.details || err?.hint || err?.code || 'erro desconhecido'
+      alert('Erro ao carregar os clientes do banco:\n\n' + detalhe)
     } finally {
       setLoading(false)
     }

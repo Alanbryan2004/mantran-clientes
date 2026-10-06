@@ -4,7 +4,8 @@ import { getLoggedUser } from './auth'
 export interface PerfilPermissao {
   perfil: string
   rotas: string[] // rotas permitidas: '/', '/clientes', '/implantacoes', '/bases', '/leo-madeiras'
-  projeto_especifico_id?: string | null // se definido, só acessa este projeto
+  projeto_especifico_id?: string | null // (legado) um único projeto — mantido por compatibilidade
+  projetos_especificos_ids?: string[] // se definido e não vazio, só acessa estes projetos
   read_only?: boolean
 }
 
@@ -36,7 +37,8 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Parceiro: {
     perfil: 'Parceiro',
     rotas: ['/bases', '/processamento-shopee'],
-    projeto_especifico_id: '9a1fa78a-f8de-4119-8ef3-643d89b64035', // Padrão: Shopee 4PL
+    projeto_especifico_id: '9a1fa78a-f8de-4119-8ef3-643d89b64035', // Padrão: Shopee 4PL (legado)
+    projetos_especificos_ids: ['9a1fa78a-f8de-4119-8ef3-643d89b64035'],
     read_only: false
   },
   Comercial: {
@@ -86,10 +88,23 @@ export const permissionsApi = {
             rotas.push('/rh')
           }
 
+          // Lista de projetos: usa a coluna nova (array/JSONB); se vazia, cai no campo singular legado
+          let projetosIds: string[] = []
+          const brutaLista = row.projetos_ids_permitidos
+          if (Array.isArray(brutaLista)) {
+            projetosIds = brutaLista.filter(Boolean)
+          } else if (typeof brutaLista === 'string' && brutaLista.trim()) {
+            try { const arr = JSON.parse(brutaLista); if (Array.isArray(arr)) projetosIds = arr.filter(Boolean) } catch { /* ignora */ }
+          }
+          if (projetosIds.length === 0 && row.projeto_id_permitido) {
+            projetosIds = [row.projeto_id_permitido]
+          }
+
           mapped[row.perfil] = {
             perfil: row.perfil,
             rotas,
-            projeto_especifico_id: row.projeto_id_permitido || null,
+            projeto_especifico_id: row.projeto_id_permitido || projetosIds[0] || null,
+            projetos_especificos_ids: projetosIds,
             read_only: !!row.read_only
           }
         })
@@ -107,12 +122,17 @@ export const permissionsApi = {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(current))
 
     try {
+      const lista = (perm.projetos_especificos_ids && perm.projetos_especificos_ids.length)
+        ? perm.projetos_especificos_ids
+        : (perm.projeto_especifico_id ? [perm.projeto_especifico_id] : [])
       await supabase
         .from('perfil_permissoes')
         .upsert({
           perfil: perm.perfil,
           rotas_permitidas: perm.rotas,
-          projeto_id_permitido: perm.projeto_especifico_id || null,
+          // Mantém o singular (1º projeto) por compatibilidade e grava a lista completa
+          projeto_id_permitido: lista[0] || null,
+          projetos_ids_permitidos: lista,
           read_only: perm.read_only,
           updated_at: new Date().toISOString()
         }, { onConflict: 'perfil' })
@@ -145,11 +165,16 @@ export const permissionsApi = {
     // Special case for bases / project details
     if (cleanPath.startsWith('/bases')) {
       if (!userPerm.rotas.includes('/bases')) return false
-      
-      // If user has a specific restricted project
-      if (userPerm.projeto_especifico_id) {
-        // If on /bases/:id, ensure it is the specific project
-        if (cleanPath.startsWith('/bases/') && cleanPath !== `/bases/${userPerm.projeto_especifico_id}`) {
+
+      // Lista de projetos permitidos (nova) com fallback ao campo singular (legado)
+      const projetosPermitidos = (userPerm.projetos_especificos_ids && userPerm.projetos_especificos_ids.length)
+        ? userPerm.projetos_especificos_ids
+        : (userPerm.projeto_especifico_id ? [userPerm.projeto_especifico_id] : [])
+
+      // Se há restrição e está em /bases/:id, o id tem que estar na lista permitida
+      if (projetosPermitidos.length > 0 && cleanPath.startsWith('/bases/')) {
+        const projId = cleanPath.replace('/bases/', '').split('/')[0]
+        if (projId && !projetosPermitidos.includes(projId)) {
           return false
         }
       }
@@ -163,12 +188,24 @@ export const permissionsApi = {
     return userPerm.rotas.some(r => r !== '/' && cleanPath.startsWith(r))
   },
 
-  getAllowedProjectForUser(): string | null {
+  // Lista de projetos permitidos para o usuário logado (vazia = sem restrição)
+  getAllowedProjectsForUser(): string[] {
     const user = getLoggedUser()
-    if (!user || !user.perfil) return null
+    if (!user || !user.perfil) return []
     const perms = this.getStoredPermissions()
     const userPerm = perms[user.perfil] || DEFAULT_PERMISSOES[user.perfil]
-    return userPerm?.projeto_especifico_id || null
+    if (!userPerm) return []
+    if (userPerm.projetos_especificos_ids && userPerm.projetos_especificos_ids.length) {
+      return userPerm.projetos_especificos_ids
+    }
+    return userPerm.projeto_especifico_id ? [userPerm.projeto_especifico_id] : []
+  },
+
+  // (Legado) Retorna o 1º projeto permitido — usado quando a restrição é de projeto único.
+  getAllowedProjectForUser(): string | null {
+    const lista = this.getAllowedProjectsForUser()
+    // Só "trava" num projeto único quando há exatamente 1; com vários, não força navegação única
+    return lista.length === 1 ? lista[0] : null
   },
 
   getFirstAllowedRouteForUser(): string {

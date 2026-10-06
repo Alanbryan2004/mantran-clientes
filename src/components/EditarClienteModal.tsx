@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import type { BaseMantran } from '../data/mockBases'
+import { api } from '../lib/api'
 import { X, Save, FileText, Upload, Trash2, Eye, AlertCircle, FileCheck } from 'lucide-react'
 
 interface EditarClienteModalProps {
@@ -26,6 +27,9 @@ export function EditarClienteModal({ isOpen, onClose, cliente, onSave }: EditarC
   const [arquivoBase64, setArquivoBase64] = useState<string | null>(null)
   const [arquivoTamanho, setArquivoTamanho] = useState<number | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  // Indica se o usuário trocou/removeu o anexo nesta edição. Se não mexeu, não reenviamos
+  // o base64 (ele não vem na listagem) para não apagar o anexo existente no banco.
+  const [arquivoAlterado, setArquivoAlterado] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -37,6 +41,7 @@ export function EditarClienteModal({ isOpen, onClose, cliente, onSave }: EditarC
       setArquivoNome(cliente.arquivo_aditivo_nome || null)
       setArquivoBase64(cliente.arquivo_aditivo_base64 || null)
       setArquivoTamanho(cliente.arquivo_aditivo_tamanho || null)
+      setArquivoAlterado(false)
       setUploadError(null)
     }
   }, [isOpen, cliente])
@@ -71,6 +76,7 @@ export function EditarClienteModal({ isOpen, onClose, cliente, onSave }: EditarC
       setArquivoBase64(base64)
       setArquivoTamanho(file.size)
       setPossuiAditivo(true)
+      setArquivoAlterado(true)
     }
     reader.onerror = () => {
       setUploadError('Erro ao ler o arquivo PDF.')
@@ -82,15 +88,25 @@ export function EditarClienteModal({ isOpen, onClose, cliente, onSave }: EditarC
     setArquivoNome(null)
     setArquivoBase64(null)
     setArquivoTamanho(null)
+    setArquivoAlterado(true)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
   }
 
-  const handleVisualizarArquivo = () => {
-    if (arquivoBase64) {
+  const handleVisualizarArquivo = async () => {
+    // Se o base64 já está em memória (anexo recém-selecionado), usa direto
+    let base64 = arquivoBase64
+    // Senão, busca sob demanda (o conteúdo não vem na listagem)
+    if (!base64 && cliente?.clienteDbId && arquivoNome) {
+      try {
+        const aditivo = await api.getAditivoByClienteId(cliente.clienteDbId)
+        base64 = aditivo?.base64 || null
+      } catch { /* cai no fallback abaixo */ }
+    }
+    if (base64) {
       const link = document.createElement('a')
-      link.href = arquivoBase64
+      link.href = base64
       link.download = arquivoNome || `Aditivo_${empresa || 'Cliente'}.pdf`
       document.body.appendChild(link)
       link.click()
@@ -104,15 +120,31 @@ export function EditarClienteModal({ isOpen, onClose, cliente, onSave }: EditarC
     e.preventDefault()
     if (!cliente || !cliente.clienteDbId || !empresa) return
 
-    onSave(cliente.clienteDbId, {
+    const payload: {
+      empresa: string; tipo: string; senha: string; possui_aditivo?: boolean
+      arquivo_aditivo_nome?: string | null; arquivo_aditivo_base64?: string | null; arquivo_aditivo_tamanho?: number | null
+    } = {
       empresa: empresa.toUpperCase(),
       tipo,
       senha,
-      possui_aditivo: possuiAditivo,
-      arquivo_aditivo_nome: possuiAditivo ? arquivoNome : null,
-      arquivo_aditivo_base64: possuiAditivo ? arquivoBase64 : null,
-      arquivo_aditivo_tamanho: possuiAditivo ? arquivoTamanho : null
-    })
+      possui_aditivo: possuiAditivo
+    }
+
+    // Só envia os campos do anexo se o usuário trocou/removeu o arquivo nesta edição,
+    // ou se desmarcou "possui aditivo". Caso contrário, preserva o anexo já salvo
+    // (o base64 não vem na listagem, então não podemos reenviá-lo aqui).
+    if (!possuiAditivo) {
+      payload.arquivo_aditivo_nome = null
+      payload.arquivo_aditivo_base64 = null
+      payload.arquivo_aditivo_tamanho = null
+    } else if (arquivoAlterado) {
+      payload.arquivo_aditivo_nome = arquivoNome
+      payload.arquivo_aditivo_base64 = arquivoBase64
+      payload.arquivo_aditivo_tamanho = arquivoTamanho
+    }
+    // (se possui aditivo e não alterou: não envia esses campos -> update os preserva)
+
+    onSave(cliente.clienteDbId, payload)
   }
 
   if (!isOpen || !cliente) return null

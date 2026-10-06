@@ -124,7 +124,7 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
                       title={cliente.arquivo_aditivo_nome ? `Anexo: ${cliente.arquivo_aditivo_nome} (Clique para baixar/visualizar)` : "Visualizar / Baixar Aditivo Contratual"}
                     >
                       <span>SIM</span>
-                      {cliente.arquivo_aditivo_nome || cliente.arquivo_aditivo_base64 ? (
+                      {cliente.arquivo_aditivo_nome ? (
                         <Paperclip className="w-3 h-3 text-emerald-300" />
                       ) : (
                         <Eye className="w-3 h-3 text-emerald-300" />

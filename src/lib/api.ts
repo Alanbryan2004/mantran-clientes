@@ -160,7 +160,6 @@ export const api = {
           tipo,
           possui_aditivo,
           arquivo_aditivo_nome,
-          arquivo_aditivo_base64,
           arquivo_aditivo_tamanho,
           modulos ( nome_modulo, ativo ),
           usuarios_gpo ( login, senha )
@@ -182,12 +181,30 @@ export const api = {
         tipo: b.clientes.tipo,
         possui_aditivo: b.clientes.possui_aditivo,
         arquivo_aditivo_nome: b.clientes.arquivo_aditivo_nome,
-        arquivo_aditivo_base64: b.clientes.arquivo_aditivo_base64,
+        // arquivo_aditivo_base64 NÃO é trazido na listagem (reduz egress); busca-se sob demanda
         arquivo_aditivo_tamanho: b.clientes.arquivo_aditivo_tamanho,
         modulos: b.clientes.modulos || [],
         usuarios_gpo: b.clientes.usuarios_gpo || []
       } : null
     }))
+  },
+
+  // Busca o conteúdo (base64) do aditivo de UM cliente — sob demanda, para não trafegar
+  // esse arquivo pesado em toda listagem de clientes (economia de egress).
+  async getAditivoByClienteId(clienteId: string): Promise<{ nome: string | null; base64: string | null; tamanho: number | null } | null> {
+    if (!clienteId) return null
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('arquivo_aditivo_nome, arquivo_aditivo_base64, arquivo_aditivo_tamanho')
+      .eq('id', clienteId)
+      .maybeSingle()
+    if (error) throw error
+    if (!data) return null
+    return {
+      nome: data.arquivo_aditivo_nome ?? null,
+      base64: data.arquivo_aditivo_base64 ?? null,
+      tamanho: data.arquivo_aditivo_tamanho ?? null
+    }
   },
 
   async getBasesCount() {
@@ -247,9 +264,15 @@ export const api = {
   },
 
   async updateCliente(clienteId: string, updates: any) {
+    // Remove chaves undefined para NÃO sobrescrever colunas que não foram alteradas
+    // (ex.: arquivo_aditivo_base64 quando o anexo não foi trocado na edição).
+    const limpo: Record<string, any> = {}
+    for (const [k, v] of Object.entries(updates || {})) {
+      if (v !== undefined) limpo[k] = v
+    }
     const { error } = await supabase
       .from('clientes')
-      .update(updates)
+      .update(limpo)
       .eq('id', clienteId)
     
     if (error) throw error
@@ -1301,6 +1324,42 @@ export const api = {
     } catch (err) {
       console.warn('Erro ao inserir notificação:', err)
       return null
+    }
+  },
+
+  // Cria a notificação de "Day Off hoje" para toda a equipe — mas APENAS UMA VEZ por
+  // Day Off (dedupe pelo dayoff_id em dados_extras). Chamada quando o app detecta que
+  // há um Day Off aprovado com data = hoje. Idempotente: se já existe, não cria de novo.
+  async criarNotificacaoDayOffDoDia(dayoff: { id: string; usuario_id?: string; usuario_nome: string; data_solicitada: string }): Promise<boolean> {
+    try {
+      // Verifica se já existe uma notificação para este Day Off
+      const { data: existentes, error: errBusca } = await supabase
+        .from('notificacoes')
+        .select('id, dados_extras')
+        .eq('tipo', 'dayoff')
+        .contains('dados_extras', { dayoff_id: dayoff.id })
+        .limit(1)
+
+      // Se a consulta por 'contains' não for suportada/der erro, cai no fallback de não duplicar via created_at do dia
+      if (!errBusca && existentes && existentes.length > 0) return false
+
+      await supabase.from('notificacoes').insert({
+        titulo: `🎂 Day Off hoje: ${dayoff.usuario_nome}`,
+        mensagem: `${dayoff.usuario_nome} está de Day Off (folga de aniversário) hoje.`,
+        tipo: 'dayoff',
+        lida: false,
+        dados_extras: {
+          dayoff_id: dayoff.id,
+          usuario_id: dayoff.usuario_id || null,
+          usuario_nome: dayoff.usuario_nome,
+          data_solicitada: dayoff.data_solicitada,
+          modulo: 'dayoff'
+        }
+      })
+      return true
+    } catch (err) {
+      console.warn('Erro ao criar notificação de Day Off do dia:', err)
+      return false
     }
   },
 

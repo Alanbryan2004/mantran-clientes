@@ -39,9 +39,11 @@ export function Bases() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const specificProjId = permissionsApi.getAllowedProjectForUser()
-    if (specificProjId) {
-      navigate(`/bases/${specificProjId}`, { replace: true })
+    // Com restrição de UM único projeto, vai direto para ele.
+    // Com vários (ou nenhum), mostra a lista (filtrada abaixo).
+    const projetosPermitidos = permissionsApi.getAllowedProjectsForUser()
+    if (projetosPermitidos.length === 1) {
+      navigate(`/bases/${projetosPermitidos[0]}`, { replace: true })
       return
     }
     fetchProjetos()
@@ -50,14 +52,15 @@ export function Bases() {
   const fetchProjetos = async () => {
     setLoading(true)
     try {
-      const specificProjId = permissionsApi.getAllowedProjectForUser()
+      const projetosPermitidos = permissionsApi.getAllowedProjectsForUser()
       let query = supabase
         .from('projetos')
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (specificProjId) {
-        query = query.eq('id', specificProjId)
+      // Restrição: mostra apenas os projetos permitidos (um ou vários)
+      if (projetosPermitidos.length > 0) {
+        query = query.in('id', projetosPermitidos)
       }
 
       const { data: projs, error } = await query

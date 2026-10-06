@@ -285,7 +285,23 @@ export function RH() {
 
       setUsuarios(funcionariosMantran)
       setTodasFeriasEquipe((todasFerias || []).filter(isRecordDeFuncionario))
-      setTodasDayOffEquipe((dayOffs || []).filter(isRecordDeFuncionario))
+      const dayOffsEquipe = (dayOffs || []).filter(isRecordDeFuncionario)
+      setTodasDayOffEquipe(dayOffsEquipe)
+
+      // Notifica a equipe NO DIA do Day Off: para cada Day Off aprovado com data = hoje,
+      // cria (uma única vez) uma notificação global. A função é idempotente (dedupe por dayoff_id).
+      const hojeStrLocal = new Date().toISOString().split('T')[0]
+      dayOffsEquipe
+        .filter(d => d.status === 'Aprovado' && d.data_solicitada === hojeStrLocal)
+        .forEach(d => {
+          api.criarNotificacaoDayOffDoDia({
+            id: d.id,
+            usuario_id: d.usuario_id,
+            usuario_nome: d.usuario_nome,
+            data_solicitada: d.data_solicitada
+          }).catch(() => {})
+        })
+
       setTodasFaltasEquipe((faltas || []).filter(isRecordDeFuncionario))
       setTodasEscalasEquipe((escalas || []).filter(isRecordDeFuncionario))
       setTodosPlantoesEquipe(plantoes || [])
@@ -1181,6 +1197,24 @@ export function RH() {
           respostaRh.trim(),
           aprovador
         )
+        // Notifica APENAS o funcionário dono do Day Off sobre o resultado da avaliação
+        const aprovado = statusAvaliacao === 'Aprovado'
+        await api.createNotificacao({
+          titulo: aprovado
+            ? `✅ Seu Day Off foi aprovado`
+            : `❌ Seu Day Off foi reprovado`,
+          mensagem: aprovado
+            ? `Seu Day Off (folga de aniversário) para ${formatDateDisplay(itemAvaliacao.item.data_solicitada)} foi aprovado.`
+            : `Seu Day Off para ${formatDateDisplay(itemAvaliacao.item.data_solicitada)} foi reprovado.${respostaRh.trim() ? ' Motivo: ' + respostaRh.trim() : ''}`,
+          tipo: 'dayoff',
+          dados_extras: {
+            destinatario_usuario_id: itemAvaliacao.item.usuario_id,
+            usuario_id: itemAvaliacao.item.usuario_id,
+            usuario_nome: itemAvaliacao.item.usuario_nome,
+            data_solicitada: itemAvaliacao.item.data_solicitada,
+            modulo: 'dayoff'
+          }
+        }).catch(err => console.warn('Erro ao notificar funcionário do Day Off:', err))
       } else if (itemAvaliacao.type === 'ferias') {
         await api.updateStatusFerias(
           itemAvaliacao.item.id,
@@ -3644,17 +3678,31 @@ export function RH() {
                 const fUsuario = todasFeriasEquipe.filter(f => f.usuario_id === u.id || f.usuario_nome.toLowerCase() === u.nome.toLowerCase())
                 const hoUsuario = todasEscalasEquipe.find(h => h.usuario_id === u.id || h.usuario_nome.toLowerCase() === u.nome.toLowerCase())
                 const plantoesUsuario = todosPlantoesEquipe.filter(p => p.tecnico_id === u.id || p.tecnico_nome.toLowerCase() === u.nome.toLowerCase())
+                // Day Off APROVADO para hoje?
+                const estaDayOffHoje = todasDayOffEquipe.some(d =>
+                  d.status === 'Aprovado' &&
+                  d.data_solicitada === hojeStr &&
+                  (d.usuario_id === u.id || d.usuario_nome.toLowerCase() === u.nome.toLowerCase())
+                )
 
                 return (
-                  <div key={u.id} className="bg-dark-card border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+                  <div key={u.id} className={clsx(
+                    'bg-dark-card border rounded-2xl p-5 shadow-lg space-y-3',
+                    estaDayOffHoje ? 'border-pink-500/50 ring-1 ring-pink-500/30' : 'border-slate-800'
+                  )}>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-slate-800 font-bold flex items-center justify-center text-xs text-white">
                         {u.nome.charAt(0)}
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold text-white">{u.nome}</p>
                         <span className="text-[10px] text-slate-400 capitalize">{u.perfil}</span>
                       </div>
+                      {estaDayOffHoje && (
+                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/40 text-[10px] font-bold">
+                          <Gift className="w-3 h-3" /> Day Off hoje
+                        </span>
+                      )}
                     </div>
 
                     <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-xs space-y-1.5">

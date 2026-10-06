@@ -68,8 +68,14 @@ export function PermissoesModal({ isOpen, onClose }: PermissoesModalProps) {
     perfil: selectedPerfil,
     rotas: ['/bases'],
     projeto_especifico_id: null,
+    projetos_especificos_ids: [],
     read_only: selectedPerfil === 'Usuario' || selectedPerfil === 'Parceiro'
   }
+
+  // Lista atual de projetos permitidos (com fallback ao campo singular legado)
+  const projetosSelecionados: string[] = (currentPerm.projetos_especificos_ids && currentPerm.projetos_especificos_ids.length)
+    ? currentPerm.projetos_especificos_ids
+    : (currentPerm.projeto_especifico_id ? [currentPerm.projeto_especifico_id] : [])
 
   const toggleRoute = (path: string) => {
     if (selectedPerfil === 'Administrador') return // Admin has all routes
@@ -88,12 +94,31 @@ export function PermissoesModal({ isOpen, onClose }: PermissoesModalProps) {
     })
   }
 
-  const handleProjetoChange = (projetoId: string | null) => {
+  // Alterna um projeto na lista de permitidos (multi-seleção)
+  const toggleProjeto = (projetoId: string) => {
+    if (selectedPerfil === 'Administrador') return
+    const atuais = projetosSelecionados
+    const novos = atuais.includes(projetoId)
+      ? atuais.filter(id => id !== projetoId)
+      : [...atuais, projetoId]
     setPermissions({
       ...permissions,
       [selectedPerfil]: {
         ...currentPerm,
-        projeto_especifico_id: projetoId || null
+        projetos_especificos_ids: novos,
+        projeto_especifico_id: novos[0] || null // mantém o singular (1º) por compatibilidade
+      }
+    })
+  }
+
+  const limparProjetos = () => {
+    if (selectedPerfil === 'Administrador') return
+    setPermissions({
+      ...permissions,
+      [selectedPerfil]: {
+        ...currentPerm,
+        projetos_especificos_ids: [],
+        projeto_especifico_id: null
       }
     })
   }
@@ -274,33 +299,60 @@ export function PermissoesModal({ isOpen, onClose }: PermissoesModalProps) {
                 )}
               </h4>
               <p className="text-xs text-slate-400">
-                Se você deseja que o usuário com este perfil visualize <strong>apenas um projeto específico</strong> (como o projeto Shopee 4PL), selecione-o abaixo:
+                Marque <strong>um ou mais projetos</strong> que este perfil poderá visualizar. Se nenhum for marcado, o usuário terá acesso a <strong>todos os projetos</strong> (padrão).
               </p>
 
-              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-300 mb-1">
-                    Projeto Permitido para este Perfil:
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="block text-xs font-bold text-slate-300">
+                    Projetos permitidos para este Perfil:
                   </label>
-                  <select
-                    value={currentPerm.projeto_especifico_id || ''}
-                    onChange={e => handleProjetoChange(e.target.value ? e.target.value : null)}
-                    disabled={selectedPerfil === 'Administrador'}
-                    className="input-field py-2 px-3 text-xs w-full max-w-md bg-slate-800 border-slate-700 text-white cursor-pointer disabled:opacity-50"
-                  >
-                    <option value="">-- Acesso a Todos os Projetos (Padrão) --</option>
-                    {projetos.map(p => (
-                      <option key={p.id} value={p.id}>
-                        Projeto: {p.nome}
-                      </option>
-                    ))}
-                  </select>
+                  {projetosSelecionados.length > 0 && selectedPerfil !== 'Administrador' && (
+                    <button
+                      type="button"
+                      onClick={limparProjetos}
+                      className="text-[11px] font-bold text-orange-400 hover:text-orange-300 cursor-pointer"
+                    >
+                      Limpar seleção ({projetosSelecionados.length})
+                    </button>
+                  )}
                 </div>
 
-                {currentPerm.projeto_especifico_id && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1 scrollbar-clean">
+                  {projetos.length === 0 ? (
+                    <p className="text-xs text-slate-500 py-2">Nenhum projeto cadastrado.</p>
+                  ) : (
+                    projetos.map(p => {
+                      const marcado = projetosSelecionados.includes(p.id)
+                      return (
+                        <label
+                          key={p.id}
+                          className={clsx(
+                            'flex items-center gap-2 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors',
+                            selectedPerfil === 'Administrador' ? 'opacity-50 cursor-not-allowed' : '',
+                            marcado
+                              ? 'bg-orange-500/10 border-orange-500/40 text-orange-200'
+                              : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={marcado}
+                            disabled={selectedPerfil === 'Administrador'}
+                            onChange={() => toggleProjeto(p.id)}
+                            className="accent-orange-500 w-4 h-4"
+                          />
+                          <span className="truncate">{p.nome}</span>
+                        </label>
+                      )
+                    })
+                  )}
+                </div>
+
+                {projetosSelecionados.length > 0 && (
                   <div className="px-3 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs font-medium flex items-center gap-2">
                     <Database className="w-4 h-4 text-orange-400 shrink-0" />
-                    <span>Usuário verá apenas este projeto selecionado</span>
+                    <span>Usuário verá {projetosSelecionados.length === 1 ? 'apenas o projeto selecionado' : `apenas os ${projetosSelecionados.length} projetos selecionados`}</span>
                   </div>
                 )}
               </div>

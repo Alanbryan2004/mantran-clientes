@@ -120,7 +120,13 @@ export function NotificationsPopover() {
       const userList = (rawList || [])
         .filter((n: any) => {
           if (deletedIds.has(n.id)) return false
-          
+
+          // 0. Notificação direcionada a um único usuário: só o destinatário vê
+          const destinatario = n.dados_extras?.destinatario_usuario_id
+          if (destinatario && destinatario !== currentUser?.id) {
+            return false
+          }
+
           // 1. Notificações de RH são restritas exclusivamente a Administradores / Gestão RH
           const isRh = n.tipo?.startsWith('rh_') || n.dados_extras?.onlyAdmin || n.dados_extras?.modulo === 'rh'
           if (isRh && !isAdmin && !isGestorRh) {
