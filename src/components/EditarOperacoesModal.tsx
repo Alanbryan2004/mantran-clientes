@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Check, Settings2, Save } from 'lucide-react'
+import { X, Check, Settings2, Save, Calendar } from 'lucide-react'
 import { api } from '../lib/api'
 import clsx from 'clsx'
 
@@ -53,13 +53,28 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
   const [selectedOperacoes, setSelectedOperacoes] = useState<string[]>([])
   const [selectedModulos, setSelectedModulos] = useState<string[]>([])
   const [modulosDisponiveis, setModulosDisponiveis] = useState<any[]>([])
+  const [dataCriacao, setDataCriacao] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const isShopee = implantacao?.tipo_cliente === 'SHOPEE'
 
+  const isoToDateInput = (isoString: string) => {
+    if (!isoString) return ''
+    try {
+      const d = new Date(isoString)
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    } catch {
+      return ''
+    }
+  }
+
   useEffect(() => {
     if (isOpen && implantacao) {
+      setDataCriacao(isoToDateInput(implantacao.created_at))
       if (isShopee) {
         setSelectedOperacoes(implantacao.operacoes_shopee || [])
       } else {
@@ -169,10 +184,24 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
       }
 
       // 3. Update implantacao record
+      let novaDataIso = implantacao.created_at
+      if (dataCriacao) {
+        const [year, month, day] = dataCriacao.split('-').map(Number)
+        if (year && month && day) {
+          novaDataIso = new Date(Date.UTC(year, month - 1, day, 12, 0, 0)).toISOString()
+        }
+      }
+
       if (isShopee) {
-        await api.updateImplantacao(implantacao.id, { operacoes_shopee: selectedOperacoes })
+        await api.updateImplantacao(implantacao.id, { 
+          operacoes_shopee: selectedOperacoes,
+          created_at: novaDataIso
+        })
       } else {
-        await api.updateImplantacao(implantacao.id, { modulos_normal: selectedModulos })
+        await api.updateImplantacao(implantacao.id, { 
+          modulos_normal: selectedModulos,
+          created_at: novaDataIso
+        })
       }
 
       onSuccess()
@@ -207,6 +236,24 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
 
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+          {/* Data de Criação */}
+          <div className="mb-6 p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-brand-400" /> Data de Criação da Implantação
+              </label>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Utilizada para indicar quanto tempo a implantação está em andamento.
+              </p>
+            </div>
+            <input
+              type="date"
+              value={dataCriacao}
+              onChange={(e) => setDataCriacao(e.target.value)}
+              className="input-field py-1.5 px-3 text-xs w-full sm:w-auto bg-slate-800 border-slate-700 text-slate-200 rounded-lg focus:border-brand-500 cursor-pointer"
+            />
+          </div>
+
           {isShopee ? (
             <div className="space-y-4">
               <p className="text-sm text-slate-300">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star, Pencil } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
@@ -100,6 +100,37 @@ export function ImplantacaoDetalhes() {
   const [addingHistorico, setAddingHistorico] = useState(false)
   const [isHistoricoExpanded, setIsHistoricoExpanded] = useState(false)
   const [selectedHistoricoItem, setSelectedHistoricoItem] = useState<any | null>(null)
+
+  const [isEditingDataCriacao, setIsEditingDataCriacao] = useState(false)
+
+  const isoToDateInput = (isoString: string) => {
+    if (!isoString) return ''
+    try {
+      const d = new Date(isoString)
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    } catch {
+      return ''
+    }
+  }
+
+  const handleUpdateDataCriacao = async (novaDataStr: string) => {
+    if (!novaDataStr || !id) return
+    try {
+      const [year, month, day] = novaDataStr.split('-').map(Number)
+      if (!year || !month || !day) return
+      const novaDataIso = new Date(Date.UTC(year, month - 1, day, 12, 0, 0)).toISOString()
+
+      setImplantacao((prev: any) => ({ ...prev, created_at: novaDataIso }))
+      await api.updateImplantacao(id, { created_at: novaDataIso })
+    } catch (err: any) {
+      console.error('Erro ao atualizar data de criação:', err)
+      alert('Erro ao atualizar data de criação: ' + err.message)
+      fetchImplantacao()
+    }
+  }
 
   useEffect(() => {
     if (id) {
@@ -336,18 +367,56 @@ export function ImplantacaoDetalhes() {
               const criadorNome = criadorRegistro?.usuario_nome || null
 
               return (
-                <p className="text-xs text-slate-400 mt-1">
+                <div className="text-xs text-slate-400 mt-1 flex items-center gap-1.5 flex-wrap">
                   {criadorNome ? (
-                    <>
-                      Criado por <span className="font-semibold text-slate-200">{criadorNome}</span> em {new Date(implantacao.created_at).toLocaleDateString('pt-BR')}
-                    </>
+                    <span>
+                      Criado por <strong className="font-semibold text-slate-200">{criadorNome}</strong> em
+                    </span>
                   ) : (
-                    <>
-                      Criado em {new Date(implantacao.created_at).toLocaleDateString('pt-BR')}
-                    </>
+                    <span>Criado em</span>
                   )}
-                  {' '}• {etapas.length} etapas no processo
-                </p>
+
+                  {isEditingDataCriacao && !isReadOnlyUser() ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="date"
+                        defaultValue={isoToDateInput(implantacao.created_at)}
+                        autoFocus
+                        onChange={async (e) => {
+                          const val = e.target.value
+                          if (val) {
+                            await handleUpdateDataCriacao(val)
+                            setIsEditingDataCriacao(false)
+                          }
+                        }}
+                        onBlur={() => setIsEditingDataCriacao(false)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape' || e.key === 'Enter') setIsEditingDataCriacao(false)
+                        }}
+                        className="bg-slate-900 border border-brand-500 text-slate-200 text-xs font-mono rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-400 shadow cursor-pointer"
+                      />
+                    </div>
+                  ) : !isReadOnlyUser() ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingDataCriacao(true)}
+                      title="Clique para editar a Data de Criação"
+                      className="text-xs font-semibold text-slate-200 hover:text-brand-300 hover:bg-slate-800 px-1.5 py-0.5 rounded transition-all flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-700 group/date"
+                    >
+                      <Calendar className="w-3.5 h-3.5 text-slate-400 group-hover/date:text-brand-400 transition-colors" />
+                      <span>{new Date(implantacao.created_at).toLocaleDateString('pt-BR')}</span>
+                      <Pencil className="w-2.5 h-2.5 text-slate-400 opacity-0 group-hover/date:opacity-100 transition-opacity ml-0.5" />
+                    </button>
+                  ) : (
+                    <span className="font-semibold text-slate-200 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      {new Date(implantacao.created_at).toLocaleDateString('pt-BR')}
+                    </span>
+                  )}
+
+                  <span className="text-slate-600">•</span>
+                  <span>{etapas.length} etapas no processo</span>
+                </div>
               )
             })()}
           </div>

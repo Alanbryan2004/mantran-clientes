@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Rocket, Trash2, Settings, ShoppingBag, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck, History, KeyRound } from 'lucide-react'
+import { Plus, Rocket, Trash2, Settings, ShoppingBag, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck, History, KeyRound, Calendar, Pencil } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser, getLoggedUser } from '../lib/auth'
 import { NovaImplantacaoModal } from '../components/NovaImplantacaoModal'
@@ -198,6 +198,38 @@ export function Implantacoes() {
       console.error('Erro ao buscar implantações:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const [editingDateImplId, setEditingDateImplId] = useState<string | null>(null)
+
+  const isoToDateInput = (isoString: string) => {
+    if (!isoString) return ''
+    try {
+      const d = new Date(isoString)
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    } catch {
+      return ''
+    }
+  }
+
+  const handleUpdateDataCriacao = async (implId: string, novaDataStr: string) => {
+    if (!novaDataStr) return
+    try {
+      const [year, month, day] = novaDataStr.split('-').map(Number)
+      if (!year || !month || !day) return
+      // Define a data ao meio-dia UTC para prevenir variações de fuso horário (-3h)
+      const novaDataIso = new Date(Date.UTC(year, month - 1, day, 12, 0, 0)).toISOString()
+
+      setImplantacoes(prev => prev.map(i => i.id === implId ? { ...i, created_at: novaDataIso } : i))
+      await api.updateImplantacao(implId, { created_at: novaDataIso })
+    } catch (err: any) {
+      console.error('Erro ao atualizar data de criação:', err)
+      alert('Erro ao atualizar data de criação: ' + err.message)
+      fetchImplantacoes()
     }
   }
 
@@ -493,6 +525,12 @@ export function Implantacoes() {
                                   {openMenuId === impl.id && (
                                     <div className="absolute right-0 mt-1 w-52 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50 divide-y divide-slate-700/50">
                                       <button 
+                                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setEditingDateImplId(impl.id) }}
+                                        className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-2 transition-colors font-medium"
+                                      >
+                                        <Calendar className="w-4 h-4 text-slate-400" /> Alterar Data de Criação
+                                      </button>
+                                      <button 
                                         onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setSelectedAcessoImpl(impl) }}
                                         className="w-full text-left px-4 py-2.5 text-xs text-brand-300 hover:bg-brand-500/10 flex items-center gap-2 transition-colors font-semibold"
                                       >
@@ -510,7 +548,7 @@ export function Implantacoes() {
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 mb-2.5">
+                            <div className="flex items-center gap-2 mb-2.5 flex-wrap">
                               <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                                 impl.tipo_cliente === 'SHOPEE' 
                                   ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' 
@@ -519,9 +557,50 @@ export function Implantacoes() {
                                 {impl.tipo_cliente === 'SHOPEE' ? <ShoppingBag className="w-3 h-3" /> : <Building className="w-3 h-3" />}
                                 {impl.tipo_cliente}
                               </span>
-                              <span className="text-[11px] text-slate-500">
-                                {new Date(impl.created_at).toLocaleDateString('pt-BR')}
-                              </span>
+
+                              {editingDateImplId === impl.id && !isReadOnlyUser() ? (
+                                <div 
+                                  className="flex items-center gap-1 z-20"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <input
+                                    type="date"
+                                    defaultValue={isoToDateInput(impl.created_at)}
+                                    autoFocus
+                                    onChange={async (e) => {
+                                      const val = e.target.value
+                                      if (val) {
+                                        await handleUpdateDataCriacao(impl.id, val)
+                                        setEditingDateImplId(null)
+                                      }
+                                    }}
+                                    onBlur={() => setEditingDateImplId(null)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Escape' || e.key === 'Enter') setEditingDateImplId(null)
+                                    }}
+                                    className="bg-slate-900 border border-brand-500 text-slate-200 text-xs font-mono rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-400 shadow-lg cursor-pointer"
+                                  />
+                                </div>
+                              ) : !isReadOnlyUser() ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setEditingDateImplId(impl.id)
+                                  }}
+                                  title="Clique para editar a Data de Criação"
+                                  className="text-[11px] text-slate-400 hover:text-brand-300 hover:bg-slate-800/80 px-1.5 py-0.5 rounded transition-all flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-700 group/date"
+                                >
+                                  <Calendar className="w-3 h-3 text-slate-500 group-hover/date:text-brand-400 transition-colors" />
+                                  <span>{new Date(impl.created_at).toLocaleDateString('pt-BR')}</span>
+                                  <Pencil className="w-2.5 h-2.5 text-slate-500 opacity-0 group-hover/date:opacity-100 transition-opacity ml-0.5" />
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                                  <Calendar className="w-3 h-3 text-slate-600" />
+                                  {new Date(impl.created_at).toLocaleDateString('pt-BR')}
+                                </span>
+                              )}
                             </div>
 
                             {/* Próxima etapa a ser concluída */}
@@ -688,6 +767,12 @@ export function Implantacoes() {
                                 {openMenuId === impl.id && (
                                   <div className="absolute right-0 mt-1 w-52 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50 divide-y divide-slate-700/50">
                                     <button 
+                                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setEditingDateImplId(impl.id) }}
+                                      className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-2 transition-colors font-medium"
+                                    >
+                                      <Calendar className="w-4 h-4 text-slate-400" /> Alterar Data de Criação
+                                    </button>
+                                    <button 
                                       onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setSelectedAcessoImpl(impl) }}
                                       className="w-full text-left px-4 py-2.5 text-xs text-brand-300 hover:bg-brand-500/10 flex items-center gap-2 transition-colors font-semibold"
                                     >
@@ -705,7 +790,7 @@ export function Implantacoes() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                               impl.tipo_cliente === 'SHOPEE' 
                                 ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' 
@@ -717,6 +802,50 @@ export function Implantacoes() {
                             <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" /> Concluído
                             </span>
+
+                            {editingDateImplId === impl.id && !isReadOnlyUser() ? (
+                              <div 
+                                className="flex items-center gap-1 z-20 ml-auto"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <input
+                                  type="date"
+                                  defaultValue={isoToDateInput(impl.created_at)}
+                                  autoFocus
+                                  onChange={async (e) => {
+                                    const val = e.target.value
+                                    if (val) {
+                                      await handleUpdateDataCriacao(impl.id, val)
+                                      setEditingDateImplId(null)
+                                    }
+                                  }}
+                                  onBlur={() => setEditingDateImplId(null)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape' || e.key === 'Enter') setEditingDateImplId(null)
+                                  }}
+                                  className="bg-slate-900 border border-brand-500 text-slate-200 text-xs font-mono rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-400 shadow-lg cursor-pointer"
+                                />
+                              </div>
+                            ) : !isReadOnlyUser() ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditingDateImplId(impl.id)
+                                }}
+                                title="Clique para editar a Data de Criação"
+                                className="text-[11px] text-slate-400 hover:text-brand-300 hover:bg-slate-800/80 px-1.5 py-0.5 rounded transition-all flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-700 group/date ml-auto"
+                              >
+                                <Calendar className="w-3 h-3 text-slate-500 group-hover/date:text-brand-400 transition-colors" />
+                                <span>{new Date(impl.created_at).toLocaleDateString('pt-BR')}</span>
+                                <Pencil className="w-2.5 h-2.5 text-slate-500 opacity-0 group-hover/date:opacity-100 transition-opacity ml-0.5" />
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-500 flex items-center gap-1 ml-auto">
+                                <Calendar className="w-3 h-3 text-slate-600" />
+                                {new Date(impl.created_at).toLocaleDateString('pt-BR')}
+                              </span>
+                            )}
                           </div>
 
                           {/* Último Status / Histórico (Concluídos) */}
