@@ -3167,7 +3167,302 @@ export const api = {
       .order('created_at', { ascending: false })
     if (error) throw error
     return data || []
+  },
+
+  // ============================================================
+  // --- Calendário / Agenda ---
+  // ============================================================
+
+  // Lista eventos num intervalo [inicioISO, fimISO) já com os convidados aninhados.
+  async getEventosCalendario(inicioISO: string, fimISO: string): Promise<EventoCalendario[]> {
+    const { data, error } = await supabase
+      .from('calendario_eventos')
+      .select('*, convidados:calendario_convidados(*)')
+      .gte('inicio', inicioISO)
+      .lt('inicio', fimISO)
+      .order('inicio', { ascending: true })
+
+    if (error) {
+      console.warn('Aviso ao buscar eventos do calendário:', error.message)
+      return []
+    }
+    return (data || []) as EventoCalendario[]
+  },
+
+  // Eventos em que o usuário participa (criou ou foi convidado) a partir de agora.
+  // Usado para avaliar os lembretes in-app.
+  async getEventosFuturosDoUsuario(usuarioId: string, aPartirDeISO?: string): Promise<EventoCalendario[]> {
+    if (!usuarioId) return []
+    const desde = aPartirDeISO || new Date().toISOString()
+    try {
+      const { data, error } = await supabase
+        .from('calendario_eventos')
+        .select('*, convidados:calendario_convidados(*)')
+        .gte('inicio', desde)
+        .order('inicio', { ascending: true })
+        .limit(200)
+
+      if (error) {
+        console.warn('Aviso ao buscar eventos futuros:', error.message)
+        return []
+      }
+
+      // Mantém apenas eventos onde o usuário é criador ou convidado
+      return ((data || []) as EventoCalendario[]).filter(ev =>
+        ev.criado_por_id === usuarioId ||
+        (ev.convidados || []).some(c => c.usuario_id === usuarioId)
+      )
+    } catch (err) {
+      console.warn('Erro ao buscar eventos futuros do usuário:', err)
+      return []
+    }
+  },
+
+  // Cria um evento com seus convidados e materializa os lembretes de e-mail.
+  async createEventoCalendario(payload: {
+    titulo: string
+    descricao?: string | null
+    local?: string | null
+    tipo?: string
+    cor?: string | null
+    inicio: string            // ISO
+    fim?: string | null       // ISO
+    dia_inteiro?: boolean
+    criado_por_id?: string | null
+    criado_por_nome?: string | null
+    convidados: Array<{
+      usuario_id: string
+      usuario_nome?: string | null
+      usuario_email?: string | null
+      organizador?: boolean
+      antecedencia_min?: number
+    }>
+  }): Promise<EventoCalendario | null> {
+    try {
+      const { data: evento, error } = await supabase
+        .from('calendario_eventos')
+        .insert({
+          titulo: payload.titulo,
+          descricao: payload.descricao || null,
+          local: payload.local || null,
+          tipo: payload.tipo || 'outro',
+          cor: payload.cor || null,
+          inicio: payload.inicio,
+          fim: payload.fim || null,
+          dia_inteiro: !!payload.dia_inteiro,
+          criado_por_id: payload.criado_por_id || null,
+          criado_por_nome: payload.criado_por_nome || null,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (error || !evento) {
+        console.warn('Aviso ao criar evento:', error?.message)
+        return null
+      }
+
+      await this._syncConvidadosELembretes(evento.id, payload.inicio, payload.convidados)
+
+      // Notificação in-app imediata para os convidados (fora o próprio criador)
+      await this._notificarConvite(evento, payload.convidados)
+
+      return (await this.getEventoCalendario(evento.id)) || (evento as EventoCalendario)
+    } catch (err) {
+      console.warn('Erro ao criar evento do calendário:', err)
+      return null
+    }
+  },
+
+  async getEventoCalendario(id: string): Promise<EventoCalendario | null> {
+    const { data, error } = await supabase
+      .from('calendario_eventos')
+      .select('*, convidados:calendario_convidados(*)')
+      .eq('id', id)
+      .single()
+    if (error) return null
+    return data as EventoCalendario
+  },
+
+  async updateEventoCalendario(id: string, payload: {
+    titulo?: string
+    descricao?: string | null
+    local?: string | null
+    tipo?: string
+    cor?: string | null
+    inicio?: string
+    fim?: string | null
+    dia_inteiro?: boolean
+    convidados?: Array<{
+      usuario_id: string
+      usuario_nome?: string | null
+      usuario_email?: string | null
+      organizador?: boolean
+      antecedencia_min?: number
+    }>
+  }): Promise<EventoCalendario | null> {
+    try {
+      const patch: Record<string, any> = { updated_at: new Date().toISOString() }
+      for (const k of ['titulo', 'descricao', 'local', 'tipo', 'cor', 'inicio', 'fim', 'dia_inteiro'] as const) {
+        if (payload[k] !== undefined) patch[k] = payload[k]
+      }
+
+      const { error } = await supabase
+        .from('calendario_eventos')
+        .update(patch)
+        .eq('id', id)
+
+      if (error) {
+        console.warn('Aviso ao atualizar evento:', error.message)
+        return null
+      }
+
+      // Se os convidados foram enviados, regrava-os (e os lembretes)
+      if (payload.convidados) {
+        const ev = await this.getEventoCalendario(id)
+        const inicio = payload.inicio || ev?.inicio || new Date().toISOString()
+        await supabase.from('calendario_convidados').delete().eq('evento_id', id)
+        await supabase.from('calendario_lembretes').delete().eq('evento_id', id)
+        await this._syncConvidadosELembretes(id, inicio, payload.convidados)
+      }
+
+      return this.getEventoCalendario(id)
+    } catch (err) {
+      console.warn('Erro ao atualizar evento do calendário:', err)
+      return null
+    }
+  },
+
+  async deleteEventoCalendario(id: string): Promise<boolean> {
+    // ON DELETE CASCADE remove convidados e lembretes
+    const { error } = await supabase.from('calendario_eventos').delete().eq('id', id)
+    if (error) {
+      console.warn('Aviso ao excluir evento:', error.message)
+      return false
+    }
+    return true
+  },
+
+  // Responder a um convite (aceito | recusado | talvez)
+  async responderConviteCalendario(convidadoId: string, status: 'aceito' | 'recusado' | 'talvez'): Promise<boolean> {
+    const { error } = await supabase
+      .from('calendario_convidados')
+      .update({ status })
+      .eq('id', convidadoId)
+    if (error) {
+      console.warn('Aviso ao responder convite:', error.message)
+      return false
+    }
+    return true
+  },
+
+  // Grava convidados e recria os lembretes materializados (disparar_em = inicio - antecedencia)
+  async _syncConvidadosELembretes(
+    eventoId: string,
+    inicioISO: string,
+    convidados: Array<{
+      usuario_id: string
+      usuario_nome?: string | null
+      usuario_email?: string | null
+      organizador?: boolean
+      antecedencia_min?: number
+    }>
+  ): Promise<void> {
+    if (!convidados || convidados.length === 0) return
+
+    const linhasConvidados = convidados.map(c => ({
+      evento_id: eventoId,
+      usuario_id: c.usuario_id,
+      usuario_nome: c.usuario_nome || null,
+      usuario_email: c.usuario_email || null,
+      organizador: !!c.organizador,
+      status: c.organizador ? 'aceito' : 'pendente',
+      antecedencia_min: typeof c.antecedencia_min === 'number' ? c.antecedencia_min : 30
+    }))
+
+    const { data: inseridos, error } = await supabase
+      .from('calendario_convidados')
+      .insert(linhasConvidados)
+      .select()
+
+    if (error || !inseridos) {
+      console.warn('Aviso ao gravar convidados:', error?.message)
+      return
+    }
+
+    const inicioMs = new Date(inicioISO).getTime()
+    const lembretes = inseridos
+      .filter((c: any) => (c.antecedencia_min ?? 0) >= 0)
+      .map((c: any) => ({
+        evento_id: eventoId,
+        convidado_id: c.id,
+        usuario_id: c.usuario_id,
+        usuario_email: c.usuario_email || null,
+        disparar_em: new Date(inicioMs - (c.antecedencia_min || 0) * 60000).toISOString(),
+        enviado: false
+      }))
+
+    if (lembretes.length) {
+      const { error: errLemb } = await supabase.from('calendario_lembretes').insert(lembretes)
+      if (errLemb) console.warn('Aviso ao gravar lembretes:', errLemb.message)
+    }
+  },
+
+  // Dispara notificação in-app (sininho) direcionada a cada convidado ao ser incluído no evento.
+  async _notificarConvite(
+    evento: EventoCalendario,
+    convidados: Array<{ usuario_id: string; organizador?: boolean }>
+  ): Promise<void> {
+    try {
+      const dataFmt = new Date(evento.inicio).toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+      })
+      const alvos = convidados.filter(c => !c.organizador)
+      for (const c of alvos) {
+        await this.createNotificacao({
+          titulo: `📅 Convite: ${evento.titulo}`,
+          mensagem: `Você foi convidado para "${evento.titulo}" em ${dataFmt}${evento.local ? ` • ${evento.local}` : ''}.`,
+          tipo: 'calendario_convite',
+          dados_extras: {
+            modulo: 'calendario',
+            evento_id: evento.id,
+            destinatario_usuario_id: c.usuario_id
+          }
+        })
+      }
+    } catch (err) {
+      console.warn('Aviso ao notificar convite:', err)
+    }
   }
+}
+
+export interface ConvidadoCalendario {
+  id: string
+  evento_id: string
+  usuario_id: string
+  usuario_nome?: string | null
+  usuario_email?: string | null
+  status: 'pendente' | 'aceito' | 'recusado' | 'talvez'
+  organizador: boolean
+  antecedencia_min: number
+  created_at?: string
+}
+
+export interface EventoCalendario {
+  id: string
+  titulo: string
+  descricao?: string | null
+  local?: string | null
+  tipo: 'treinamento' | 'validacao' | 'reuniao' | 'tarefa' | 'outro' | string
+  cor?: string | null
+  inicio: string
+  fim?: string | null
+  dia_inteiro: boolean
+  criado_por_id?: string | null
+  criado_por_nome?: string | null
+  convidados?: ConvidadoCalendario[]
+  created_at?: string
+  updated_at?: string
 }
 
 export interface TicketContato {

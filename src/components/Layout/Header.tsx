@@ -18,7 +18,8 @@ import {
   LogOut, 
   ChevronDown,
   UserCheck,
-  Clock
+  Clock,
+  CalendarDays
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -182,6 +183,21 @@ export function Header() {
                 <KeyRound className="w-4 h-4 text-brand-400" />
                 <span>Alterar Senha</span>
               </button>
+
+              {/* Opção: Calendário (apenas para funcionários com acesso) */}
+              {permissionsApi.canAccessRoute('/calendario') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUserMenuOpen(false)
+                    navigate('/calendario')
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors text-left cursor-pointer"
+                >
+                  <CalendarDays className="w-4 h-4 text-sky-400" />
+                  <span>Calendário</span>
+                </button>
+              )}
 
               {/* Opção 2: Controle de Ponto (Apenas para funcionários) */}
               {isFuncionarioUser() && (

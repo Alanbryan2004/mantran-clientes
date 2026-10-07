@@ -15,6 +15,7 @@ import {
   Palmtree, 
   PhoneCall,
   Gift,
+  CalendarClock,
   Ticket as TicketIcon
 } from 'lucide-react'
 import { api } from '../lib/api'
@@ -22,6 +23,7 @@ import { supabase } from '../lib/supabase'
 import { getLoggedUser, isClienteUser, isAdminUser, isTecnicoUser, isFuncionarioUser } from '../lib/auth'
 import { avaliarLembretesPonto } from '../lib/lembretesPonto'
 import { avaliarAniversarios } from '../lib/aniversarios'
+import { avaliarLembretesCalendario } from '../lib/lembretesCalendario'
 import clsx from 'clsx'
 
 export function NotificationsPopover() {
@@ -49,6 +51,8 @@ export function NotificationsPopover() {
   const [lembretesPonto, setLembretesPonto] = useState<any[]>([])
   // Notificações de aniversário (locais: felicitação ao aniversariante + avisos dos colegas)
   const [aniversarios, setAniversarios] = useState<any[]>([])
+  // Lembretes de eventos do Calendário (locais, pessoais deste usuário)
+  const [lembretesCalendario, setLembretesCalendario] = useState<any[]>([])
 
   // Obter IDs lidos pelo usuário atual
   const getReadIds = (): Set<string> => {
@@ -279,6 +283,51 @@ export function NotificationsPopover() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCliente, isFuncionario, isTecnico, userKey])
 
+  // Lembretes de Calendário: avalia periodicamente os eventos futuros do usuário e
+  // gera notificações locais quando entra na janela de antecedência configurada.
+  useEffect(() => {
+    if (isCliente || !isFuncionario) return
+    const uid = currentUser?.id
+    if (!uid) return
+
+    let ativo = true
+
+    const avaliar = async () => {
+      try {
+        const eventos = await api.getEventosFuturosDoUsuario(uid).catch(() => [])
+        if (!ativo) return
+
+        const lembretes = avaliarLembretesCalendario(uid, eventos)
+        const dispensados = getDeletedIds()
+        const readIds = getReadIds()
+
+        const itens = lembretes
+          .filter(l => !dispensados.has(l.id))
+          .map(l => ({
+            id: l.id,
+            titulo: l.titulo,
+            mensagem: l.mensagem,
+            tipo: 'calendario_lembrete',
+            lida: readIds.has(l.id),
+            created_at: new Date().toISOString(),
+            dados_extras: { modulo: 'calendario', local: true, evento_id: l.eventoId }
+          }))
+
+        setLembretesCalendario(itens)
+      } catch (_) {
+        // silencioso
+      }
+    }
+
+    avaliar()
+    const interval = setInterval(avaliar, 60000) // a cada 1 min
+    return () => {
+      ativo = false
+      clearInterval(interval)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCliente, isFuncionario, userKey])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -307,6 +356,7 @@ export function NotificationsPopover() {
     setNotificacoes(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
     setLembretesPonto(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
     setAniversarios(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
+    setLembretesCalendario(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n))
 
     // Persiste no banco (por usuário) para não reaparecer após deslogar/atualizar
     if (currentUser?.id) api.markNotificacaoAsLida(id, currentUser.id).catch(() => {})
@@ -314,13 +364,14 @@ export function NotificationsPopover() {
 
   const handleMarkAllAsRead = () => {
     const readIds = getReadIds()
-    const ids = [...notificacoes, ...lembretesPonto, ...aniversarios].map(n => n.id)
+    const ids = [...notificacoes, ...lembretesPonto, ...aniversarios, ...lembretesCalendario].map(n => n.id)
     ids.forEach(id => readIds.add(id))
     saveReadIds(readIds)
 
     setNotificacoes(prev => prev.map(n => ({ ...n, lida: true })))
     setLembretesPonto(prev => prev.map(n => ({ ...n, lida: true })))
     setAniversarios(prev => prev.map(n => ({ ...n, lida: true })))
+    setLembretesCalendario(prev => prev.map(n => ({ ...n, lida: true })))
 
     if (currentUser?.id && ids.length) api.markAllNotificacoesAsLidas(ids, currentUser.id).catch(() => {})
   }
@@ -334,6 +385,7 @@ export function NotificationsPopover() {
     setNotificacoes(prev => prev.filter(n => n.id !== id))
     setLembretesPonto(prev => prev.filter(n => n.id !== id))
     setAniversarios(prev => prev.filter(n => n.id !== id))
+    setLembretesCalendario(prev => prev.filter(n => n.id !== id))
 
     if (currentUser?.id) api.deleteNotificacao(id, currentUser.id).catch(() => {})
   }
@@ -341,13 +393,14 @@ export function NotificationsPopover() {
   const handleClearAll = () => {
     if (window.confirm('Deseja limpar suas notificações deste painel? (Não afetará os outros usuários da equipe)')) {
       const deletedIds = getDeletedIds()
-      const ids = [...notificacoes, ...lembretesPonto, ...aniversarios].map(n => n.id)
+      const ids = [...notificacoes, ...lembretesPonto, ...aniversarios, ...lembretesCalendario].map(n => n.id)
       ids.forEach(id => deletedIds.add(id))
       saveDeletedIds(deletedIds)
 
       setNotificacoes([])
       setLembretesPonto([])
       setAniversarios([])
+      setLembretesCalendario([])
 
       if (currentUser?.id && ids.length) api.clearAllNotificacoes(ids, currentUser.id).catch(() => {})
     }
@@ -362,6 +415,10 @@ export function NotificationsPopover() {
     if (item.tipo === 'ponto_lembrete') {
       // Lembrete de ponto: abre o modal de Controle de Ponto (montado no Header)
       window.dispatchEvent(new CustomEvent('mantran:abrir-controle-ponto'))
+      return
+    } else if (item.tipo === 'calendario_lembrete' || item.tipo === 'calendario_convite' || item.dados_extras?.modulo === 'calendario') {
+      // Lembrete/convite de evento: leva ao Calendário
+      navigate('/calendario')
       return
     } else if (item.tipo === 'aniversario_dayoff') {
       // Aniversariante sem Day Off marcado: leva ao RH e abre o modal de Day Off
@@ -420,8 +477,9 @@ export function NotificationsPopover() {
   }
 
   // Filtered notifications
-  // Combina aniversários e lembretes de ponto (locais, no topo) com as notificações do banco
-  const todasNotificacoes = [...aniversarios, ...lembretesPonto, ...notificacoes]
+  // Combina lembretes de calendário, aniversários e lembretes de ponto (locais, no topo)
+  // com as notificações do banco
+  const todasNotificacoes = [...lembretesCalendario, ...aniversarios, ...lembretesPonto, ...notificacoes]
 
   const displayedNotificacoes = todasNotificacoes.filter(n => {
     if (filter === 'unread') return !n.lida
@@ -588,6 +646,7 @@ export function NotificationsPopover() {
                 const isPlantao = item.tipo === 'rh_plantao'
                 const isPontoLembrete = item.tipo === 'ponto_lembrete'
                 const isAniversario = item.tipo === 'aniversario_dayoff' || item.tipo === 'aniversario_felicitacao' || item.tipo === 'aniversario_aviso'
+                const isCalendario = item.tipo === 'calendario_lembrete' || item.tipo === 'calendario_convite' || item.dados_extras?.modulo === 'calendario'
                 const isRhNotification = isFerias || isFalta || isPlantao || item.dados_extras?.modulo === 'rh'
                 const isConcluido = item.titulo?.includes('Concluído') || item.dados_extras?.isCompleto
                 const nomeCliente = item.dados_extras?.nome_empresa || 'Cliente'
@@ -600,7 +659,9 @@ export function NotificationsPopover() {
                     className={clsx(
                       "p-3.5 transition-all duration-150 cursor-pointer group flex items-start gap-3 relative hover:bg-slate-800/60",
                       !item.lida
-                        ? isAniversario
+                        ? isCalendario
+                          ? "bg-teal-500/5 border-l-2 border-teal-400"
+                          : isAniversario
                           ? "bg-pink-500/5 border-l-2 border-pink-400"
                           : isPontoLembrete
                           ? "bg-indigo-500/5 border-l-2 border-indigo-400"
@@ -621,7 +682,9 @@ export function NotificationsPopover() {
                     {/* Status Icon */}
                     <div className={clsx(
                       "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5 shadow-sm",
-                      isAniversario
+                      isCalendario
+                        ? "bg-teal-500/15 border-teal-500/30 text-teal-400 shadow-teal-500/10"
+                        : isAniversario
                         ? "bg-pink-500/15 border-pink-500/30 text-pink-400 shadow-pink-500/10"
                         : isPontoLembrete
                         ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-400 shadow-indigo-500/10"
@@ -639,7 +702,9 @@ export function NotificationsPopover() {
                         ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
                         : "bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-blue-500/10"
                     )}>
-                      {isAniversario ? (
+                      {isCalendario ? (
+                        <CalendarClock className="w-4 h-4" />
+                      ) : isAniversario ? (
                         <Gift className="w-4 h-4" />
                       ) : isPontoLembrete ? (
                         <Clock className="w-4 h-4" />
@@ -666,7 +731,9 @@ export function NotificationsPopover() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={clsx(
                             "text-[11px] font-bold px-2 py-0.5 rounded-md border",
-                            isAniversario
+                            isCalendario
+                              ? "bg-teal-950/40 text-teal-300 border-teal-500/30"
+                              : isAniversario
                               ? "bg-pink-950/40 text-pink-300 border-pink-500/30"
                               : isPontoLembrete
                               ? "bg-indigo-950/40 text-indigo-300 border-indigo-500/30"
@@ -684,7 +751,7 @@ export function NotificationsPopover() {
                               ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
                               : "bg-blue-950/40 text-blue-300 border-blue-500/30"
                           )}>
-                            {isAniversario ? '🎂 Aniversário' : isPontoLembrete ? '⏰ Ponto' : isRhNotification ? `👤 ${colaboradorNome}` : isTicket ? '🎫 Chamado' : `🏢 ${nomeCliente}`}
+                            {isCalendario ? '📅 Calendário' : isAniversario ? '🎂 Aniversário' : isPontoLembrete ? '⏰ Ponto' : isRhNotification ? `👤 ${colaboradorNome}` : isTicket ? '🎫 Chamado' : `🏢 ${nomeCliente}`}
                           </span>
 
                           <span className="text-xs font-bold text-white truncate">

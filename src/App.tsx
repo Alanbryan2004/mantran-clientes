@@ -11,6 +11,7 @@ import { RH } from './pages/RH'
 import { Implantacoes } from './pages/Implantacoes'
 import { ImplantacaoDetalhes } from './pages/ImplantacaoDetalhes'
 import { Tickets } from './pages/Tickets'
+import { Calendario } from './pages/Calendario'
 import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
 import { Login } from './pages/Login'
 
@@ -104,6 +105,7 @@ function App() {
           <Route index element={<RootRoute />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="tickets/:numero" element={<Tickets />} />
+          <Route path="calendario" element={<Calendario />} />
           <Route path="comercial" element={<Comercial />} />
           <Route path="clientes" element={<Clientes />} />
           <Route path="implantacoes" element={<ImplantacoesRoute />} />

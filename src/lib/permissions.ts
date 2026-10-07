@@ -12,19 +12,19 @@ export interface PerfilPermissao {
 export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Administrador: {
     perfil: 'Administrador',
-    rotas: ['/', '/tickets', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh'],
+    rotas: ['/', '/tickets', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh'],
     projeto_especifico_id: null,
     read_only: false
   },
   Tecnico: {
     perfil: 'Tecnico',
-    rotas: ['/', '/tickets', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh'],
+    rotas: ['/', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh'],
     projeto_especifico_id: null,
     read_only: false
   },
   Suporte: {
     perfil: 'Suporte',
-    rotas: ['/', '/tickets', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh'],
+    rotas: ['/', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh'],
     projeto_especifico_id: null,
     read_only: false
   },
@@ -43,7 +43,7 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Comercial: {
     perfil: 'Comercial',
-    rotas: ['/comercial', '/implantacoes', '/rh'],
+    rotas: ['/comercial', '/calendario', '/implantacoes', '/rh'],
     projeto_especifico_id: null,
     read_only: false
   },
@@ -162,8 +162,9 @@ export const permissionsApi = {
     // Normalize path
     const cleanPath = path.split('?')[0].split('#')[0]
 
-    // Rota /rh: permitida para todos os funcionários internos (Suporte, Tecnico, Comercial, etc.)
-    if (cleanPath.startsWith('/rh')) {
+    // Rotas /rh e /calendario: permitidas para todos os funcionários internos
+    // (Suporte, Tecnico, Comercial, etc.), independentemente das permissões salvas.
+    if (cleanPath.startsWith('/rh') || cleanPath.startsWith('/calendario')) {
       const p = perfilName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       if (p === 'cliente' || p === 'parceiro' || p === 'usuario' || p.includes('consulta')) {
         return false
