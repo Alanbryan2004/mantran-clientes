@@ -611,9 +611,11 @@ export function Implantacoes() {
                                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
                                     proximaEtapa.valor === 'PENDENTE'
                                       ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                      : proximaEtapa.valor === 'ERRO'
+                                      ? 'bg-red-500/15 text-red-400 border-red-500/30'
                                       : 'bg-slate-800 text-slate-400 border-slate-700'
                                   }`}>
-                                    {proximaEtapa.valor === 'PENDENTE' ? 'Pendente' : 'Em Branco'}
+                                    {proximaEtapa.valor === 'PENDENTE' ? 'Pendente' : proximaEtapa.valor === 'ERRO' ? 'Erro' : 'Em Branco'}
                                   </span>
                                 ) : (
                                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-green-500/10 text-green-400 border-green-500/20">
@@ -627,6 +629,8 @@ export function Implantacoes() {
                                     ? 'bg-green-500' 
                                     : proximaEtapa.valor === 'PENDENTE' 
                                     ? 'bg-amber-400' 
+                                    : proximaEtapa.valor === 'ERRO'
+                                    ? 'bg-red-500'
                                     : 'bg-slate-500'
                                 }`}></span>
                                 <span className="truncate">

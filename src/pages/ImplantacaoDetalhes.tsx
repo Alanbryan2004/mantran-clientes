@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star, Pencil } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star, Pencil, AlertTriangle } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
@@ -12,6 +12,7 @@ import { VisualizarCheckpointModal } from '../components/VisualizarCheckpointMod
 import { VisualizarHistoricoModal } from '../components/VisualizarHistoricoModal'
 import { EnviarFeedbackModal } from '../components/EnviarFeedbackModal'
 import { VisualizarFeedbackModal } from '../components/VisualizarFeedbackModal'
+import { ModalErro4PL } from '../components/ModalErro4PL'
 import clsx from 'clsx'
 
 
@@ -83,6 +84,8 @@ export function ImplantacaoDetalhes() {
   const [isVisualizarCheckpointModalOpen, setIsVisualizarCheckpointModalOpen] = useState(false)
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false)
   const [isVisualizarFeedbackModalOpen, setIsVisualizarFeedbackModalOpen] = useState(false)
+  const [isErro4PLModalOpen, setIsErro4PLModalOpen] = useState(false)
+  const [selectedErroEtapa, setSelectedErroEtapa] = useState<any | null>(null)
 
   // Historico form state
   const getCurrentDateTimeLocal = () => {
@@ -269,6 +272,15 @@ export function ImplantacaoDetalhes() {
     }
   }
 
+  const handleEtapaSelectChange = (etapa: any, novoValor: string) => {
+    if (novoValor === 'ERRO') {
+      setSelectedErroEtapa(etapa)
+      setIsErro4PLModalOpen(true)
+      return
+    }
+    handleUpdateEtapa(etapa.id, novoValor)
+  }
+
   const calculateProgress = () => {
     if (etapas.length === 0) return 0
     const ok = etapas.filter(e => e.valor === 'OK').length
@@ -290,6 +302,7 @@ export function ImplantacaoDetalhes() {
     switch (valor) {
       case 'OK': return <CheckCircle2 className="w-4 h-4 text-green-400" />
       case 'PENDENTE': return <Clock className="w-4 h-4 text-amber-400" />
+      case 'ERRO': return <AlertTriangle className="w-4 h-4 text-red-400" />
       default: return <AlertCircle className="w-4 h-4 text-slate-500" />
     }
   }
@@ -298,6 +311,7 @@ export function ImplantacaoDetalhes() {
     switch (valor) {
       case 'OK': return 'bg-green-500/10 text-green-400 border-green-500/30'
       case 'PENDENTE': return 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+      case 'ERRO': return 'bg-red-500/15 text-red-400 border-red-500/40 font-bold'
       default: return 'bg-slate-800 text-slate-400 border-slate-700'
     }
   }
@@ -669,7 +683,9 @@ export function ImplantacaoDetalhes() {
 
         {/* Grid layout spanning full width (3-4 columns on large screens, 2 on medium, 1 on mobile) */}
         <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 bg-slate-950/20">
-          {etapas.map((etapa, index) => (
+          {etapas.map((etapa, index) => {
+            const is4PLEtapa = normalizeEtapaNome(etapa.nome_etapa) === 'Ativo 4PL' || (etapa.nome_etapa || '').toLowerCase().includes('4pl') || (etapa.nome_etapa || '').toLowerCase().includes('4pi')
+            return (
             <div 
               key={etapa.id} 
               className={clsx(
@@ -678,17 +694,24 @@ export function ImplantacaoDetalhes() {
                   ? 'bg-green-500/5 border-green-500/30' 
                   : etapa.valor === 'PENDENTE'
                   ? 'bg-amber-500/5 border-amber-500/30'
+                  : etapa.valor === 'ERRO'
+                  ? 'bg-red-500/10 border-red-500/40 shadow-red-500/5'
                   : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
               )}
             >
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div className="flex items-center gap-2.5">
-                  <span className="w-6 h-6 rounded-full bg-slate-800 text-slate-400 font-mono text-xs font-bold flex items-center justify-center shrink-0 border border-slate-700">
+                  <span className={clsx(
+                    "w-6 h-6 rounded-full font-mono text-xs font-bold flex items-center justify-center shrink-0 border",
+                    etapa.valor === 'ERRO'
+                      ? "bg-red-950/60 text-red-300 border-red-500/40"
+                      : "bg-slate-800 text-slate-400 border-slate-700"
+                  )}>
                     {index + 1}
                   </span>
                   <h4 className={clsx(
                     "text-sm font-bold leading-tight",
-                    etapa.valor === 'OK' ? 'text-green-300' : 'text-slate-200'
+                    etapa.valor === 'OK' ? 'text-green-300' : etapa.valor === 'ERRO' ? 'text-red-300' : 'text-slate-200'
                   )}>
                     {normalizeEtapaNome(etapa.nome_etapa)}
                   </h4>
@@ -703,7 +726,7 @@ export function ImplantacaoDetalhes() {
                 <select
                   value={etapa.valor}
                   disabled={isReadOnlyUser()}
-                  onChange={(e) => handleUpdateEtapa(etapa.id, e.target.value)}
+                  onChange={(e) => handleEtapaSelectChange(etapa, e.target.value)}
                   className={clsx(
                     "text-xs font-bold py-1.5 px-3 rounded-lg border transition-all appearance-none text-center min-w-[120px]",
                     isReadOnlyUser() ? "cursor-default opacity-90" : "cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/50",
@@ -713,8 +736,29 @@ export function ImplantacaoDetalhes() {
                   <option value="EM BRANCO">EM BRANCO</option>
                   <option value="OK">OK</option>
                   <option value="PENDENTE">PENDENTE</option>
+                  {is4PLEtapa && (
+                    <option value="ERRO" className="bg-slate-900 text-red-400 font-bold">
+                      ERRO
+                    </option>
+                  )}
                 </select>
               </div>
+
+              {is4PLEtapa && etapa.valor === 'ERRO' && (
+                <div className="mt-3 pt-2.5 border-t border-red-500/20 flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedErroEtapa(etapa)
+                      setIsErro4PLModalOpen(true)
+                    }}
+                    className="w-full text-[11px] font-bold py-1.5 px-2.5 rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 border border-red-500/30 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                    <span>Ver / Editar Justificativa</span>
+                  </button>
+                </div>
+              )}
 
               {((etapa.nome_etapa || '').trim().toLowerCase() === 'checkpoint') && (
                 <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
@@ -807,7 +851,8 @@ export function ImplantacaoDetalhes() {
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -1057,6 +1102,27 @@ export function ImplantacaoDetalhes() {
         implantacao={implantacao}
         historicoItem={feedbackHistoricoItem}
       />
+
+      {/* Modal de Registro de ERRO no 4PL */}
+      {selectedErroEtapa && (
+        <ModalErro4PL
+          isOpen={isErro4PLModalOpen}
+          onClose={() => {
+            setIsErro4PLModalOpen(false)
+            setSelectedErroEtapa(null)
+          }}
+          implantacaoId={implantacao.id}
+          etapaId={selectedErroEtapa.id}
+          etapaNome={normalizeEtapaNome(selectedErroEtapa.nome_etapa)}
+          nomeEmpresa={implantacao.nome_empresa}
+          baseId={implantacao.base_id || implantacao.bases?.id}
+          baseNome={implantacao.bases?.nome_base}
+          onSuccess={async () => {
+            await fetchImplantacao()
+            await fetchHistorico()
+          }}
+        />
+      )}
     </div>
   )
 }

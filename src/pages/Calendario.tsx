@@ -2,11 +2,27 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin,
   Users, RefreshCw, CalendarDays, CalendarRange, List, Loader2, CheckCircle2,
-  XCircle, HelpCircle, CircleDot
+  XCircle, HelpCircle, CircleDot, Globe, User
 } from 'lucide-react'
 import clsx from 'clsx'
 import { api, type EventoCalendario } from '../lib/api'
 import { getLoggedUser } from '../lib/auth'
+
+type Escopo = 'todos' | 'meus'
+
+// Dados do criador para exibir avatar + tooltip
+export interface AutorInfo { nome: string; foto?: string | null }
+
+// Mini-avatar do criador do evento (com fallback para inicial do nome)
+function AvatarAutor({ autor, size = 'sm' }: { autor?: AutorInfo; size?: 'sm' | 'xs' }) {
+  const dim = size === 'xs' ? 'w-4 h-4 text-[8px]' : 'w-5 h-5 text-[9px]'
+  if (!autor) return null
+  return (
+    <span className={clsx('rounded-full bg-slate-700 flex items-center justify-center font-bold text-slate-200 uppercase shrink-0 overflow-hidden border border-slate-600', dim)}>
+      {autor.foto ? <img src={autor.foto} alt={autor.nome} className="w-full h-full object-cover" /> : (autor.nome || 'U').charAt(0)}
+    </span>
+  )
+}
 import { getFeriadosNacionais } from '../lib/feriados'
 import { EventoCalendarioModal, tipoEventoMeta } from '../components/EventoCalendarioModal'
 import { supabase } from '../lib/supabase'
@@ -40,8 +56,10 @@ function horaFmt(iso: string): string {
 export function Calendario() {
   const usuario = getLoggedUser()
   const [visao, setVisao] = useState<Visao>('mes')
+  const [escopo, setEscopo] = useState<Escopo>('todos')       // 'todos' = todos os eventos | 'meus' = só do usuário
   const [cursor, setCursor] = useState(new Date())            // data de referência da visão
   const [eventos, setEventos] = useState<EventoCalendario[]>([])
+  const [autores, setAutores] = useState<Map<string, AutorInfo>>(new Map())
   const [loading, setLoading] = useState(false)
 
   const [modalAberto, setModalAberto] = useState(false)
@@ -93,6 +111,34 @@ export function Calendario() {
     return () => { supabase.removeChannel(ch) }
   }, [carregar])
 
+  // Carrega uma vez o mapa id -> { nome, foto } para exibir o avatar do criador
+  useEffect(() => {
+    api.getUsuariosSistema()
+      .then(list => {
+        const map = new Map<string, AutorInfo>()
+        for (const u of list || []) map.set(u.id, { nome: u.nome || u.login, foto: u.foto_url })
+        setAutores(map)
+      })
+      .catch(() => { /* sem avatares; usa inicial do nome */ })
+  }, [])
+
+  // Aplica o escopo: 'meus' = eventos que criei ou fui convidado; 'todos' = tudo
+  const eventosVisiveis = useMemo(() => {
+    if (escopo === 'todos') return eventos
+    const uid = usuario?.id
+    return eventos.filter(ev =>
+      ev.criado_por_id === uid ||
+      (ev.convidados || []).some(c => c.usuario_id === uid)
+    )
+  }, [eventos, escopo, usuario?.id])
+
+  // Resolve o AutorInfo de um evento (mapa de usuários; fallback para criado_por_nome)
+  const autorDoEvento = useCallback((ev: EventoCalendario): AutorInfo | undefined => {
+    if (ev.criado_por_id && autores.has(ev.criado_por_id)) return autores.get(ev.criado_por_id)
+    if (ev.criado_por_nome) return { nome: ev.criado_por_nome }
+    return undefined
+  }, [autores])
+
   // Feriados do(s) ano(s) visíveis
   const feriados = useMemo(() => {
     const anos = new Set([intervalo.de.getFullYear(), intervalo.ate.getFullYear()])
@@ -101,17 +147,17 @@ export function Calendario() {
     return map
   }, [intervalo.de, intervalo.ate])
 
-  // Eventos agrupados por dia (YYYY-MM-DD)
+  // Eventos (já filtrados pelo escopo) agrupados por dia (YYYY-MM-DD)
   const eventosPorDia = useMemo(() => {
     const map = new Map<string, EventoCalendario[]>()
-    for (const ev of eventos) {
+    for (const ev of eventosVisiveis) {
       const chave = ymd(new Date(ev.inicio))
       if (!map.has(chave)) map.set(chave, [])
       map.get(chave)!.push(ev)
     }
     for (const arr of map.values()) arr.sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime())
     return map
-  }, [eventos])
+  }, [eventosVisiveis])
 
   // --- Navegação ---
   const irHoje = () => setCursor(new Date())
@@ -176,6 +222,27 @@ export function Calendario() {
           {loading && <Loader2 className="w-4 h-4 text-brand-400 animate-spin ml-1" />}
         </div>
 
+        <div className="flex items-center gap-2 flex-wrap">
+        {/* Escopo: Todos x Meus */}
+        <div className="flex items-center gap-1 bg-slate-800/60 rounded-lg p-1 border border-slate-700">
+          {([
+            { e: 'todos', label: 'Todos', icon: Globe },
+            { e: 'meus', label: 'Meus', icon: User },
+          ] as const).map(({ e, label, icon: Icon }) => (
+            <button
+              key={e}
+              onClick={() => setEscopo(e)}
+              title={e === 'todos' ? 'Ver eventos de toda a equipe' : 'Ver apenas os meus eventos'}
+              className={clsx(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors',
+                escopo === e ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30' : 'text-slate-400 hover:text-slate-200 border border-transparent'
+              )}
+            >
+              <Icon className="w-3.5 h-3.5" /> {label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex items-center gap-1 bg-slate-800/60 rounded-lg p-1 border border-slate-700">
           {([
             { v: 'mes', label: 'Mês', icon: CalendarDays },
@@ -198,20 +265,21 @@ export function Calendario() {
             <RefreshCw className={clsx('w-3.5 h-3.5', loading && 'animate-spin text-brand-400')} />
           </button>
         </div>
+        </div>
       </div>
 
       {/* Conteúdo da visão */}
       {visao === 'mes' && (
-        <VisaoMes cursor={cursor} eventosPorDia={eventosPorDia} feriados={feriados} onDiaClick={abrirNovo} onEventoClick={setEventoDetalhe} />
+        <VisaoMes cursor={cursor} eventosPorDia={eventosPorDia} feriados={feriados} autorDe={autorDoEvento} onDiaClick={abrirNovo} onEventoClick={setEventoDetalhe} />
       )}
       {visao === 'semana' && (
-        <VisaoSemana cursor={cursor} eventosPorDia={eventosPorDia} feriados={feriados} onDiaClick={abrirNovo} onEventoClick={setEventoDetalhe} />
+        <VisaoSemana cursor={cursor} eventosPorDia={eventosPorDia} feriados={feriados} autorDe={autorDoEvento} onDiaClick={abrirNovo} onEventoClick={setEventoDetalhe} />
       )}
       {visao === 'dia' && (
-        <VisaoDia eventos={eventosPorDia.get(ymd(cursor)) || []} feriado={feriados.get(ymd(cursor))} onNovo={() => abrirNovo(cursor)} onEventoClick={setEventoDetalhe} />
+        <VisaoDia eventos={eventosPorDia.get(ymd(cursor)) || []} feriado={feriados.get(ymd(cursor))} autorDe={autorDoEvento} onNovo={() => abrirNovo(cursor)} onEventoClick={setEventoDetalhe} />
       )}
       {visao === 'agenda' && (
-        <VisaoAgenda eventos={eventos} onEventoClick={setEventoDetalhe} />
+        <VisaoAgenda eventos={eventosVisiveis} autorDe={autorDoEvento} onEventoClick={setEventoDetalhe} />
       )}
 
       {/* Modal criar/editar */}
@@ -240,16 +308,19 @@ export function Calendario() {
 // ------------------------------------------------------------
 // Pílula de evento (reutilizada nas visões)
 // ------------------------------------------------------------
-function PilulaEvento({ ev, onClick, compacta }: { ev: EventoCalendario; onClick: () => void; compacta?: boolean }) {
+function PilulaEvento({ ev, autor, onClick, compacta }: { ev: EventoCalendario; autor?: AutorInfo; onClick: () => void; compacta?: boolean }) {
   const meta = tipoEventoMeta(ev.tipo)
+  const criador = autor?.nome || ev.criado_por_nome
+  const tooltip = `${ev.titulo}${!ev.dia_inteiro ? ` • ${horaFmt(ev.inicio)}` : ''}${criador ? `\nCriado por: ${criador}` : ''}`
   return (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onClick() }}
       className={clsx('w-full text-left rounded-md border px-1.5 py-1 truncate transition-colors hover:brightness-125', meta.classeChip)}
-      title={ev.titulo}
+      title={tooltip}
     >
       <span className="inline-flex items-center gap-1 w-full">
+        <AvatarAutor autor={autor} size="xs" />
         <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', meta.classeDot)} />
         {!ev.dia_inteiro && !compacta && <span className="text-[10px] font-mono opacity-80 shrink-0">{horaFmt(ev.inicio)}</span>}
         <span className="text-[11px] font-semibold truncate">{ev.titulo}</span>
@@ -261,10 +332,11 @@ function PilulaEvento({ ev, onClick, compacta }: { ev: EventoCalendario; onClick
 // ------------------------------------------------------------
 // Visão Mês
 // ------------------------------------------------------------
-function VisaoMes({ cursor, eventosPorDia, feriados, onDiaClick, onEventoClick }: {
+function VisaoMes({ cursor, eventosPorDia, feriados, autorDe, onDiaClick, onEventoClick }: {
   cursor: Date
   eventosPorDia: Map<string, EventoCalendario[]>
   feriados: Map<string, string>
+  autorDe: (ev: EventoCalendario) => AutorInfo | undefined
   onDiaClick: (d: Date) => void
   onEventoClick: (ev: EventoCalendario) => void
 }) {
@@ -311,7 +383,7 @@ function VisaoMes({ cursor, eventosPorDia, feriados, onDiaClick, onEventoClick }
                 <div className="text-[10px] text-rose-400 font-medium truncate mb-0.5" title={feriado}>🎌 {feriado}</div>
               )}
               <div className="space-y-0.5">
-                {evs.slice(0, 3).map(ev => <PilulaEvento key={ev.id} ev={ev} onClick={() => onEventoClick(ev)} compacta />)}
+                {evs.slice(0, 3).map(ev => <PilulaEvento key={ev.id} ev={ev} autor={autorDe(ev)} onClick={() => onEventoClick(ev)} compacta />)}
                 {evs.length > 3 && <div className="text-[10px] text-slate-500 font-semibold pl-1">+{evs.length - 3} mais</div>}
               </div>
             </div>
@@ -325,10 +397,11 @@ function VisaoMes({ cursor, eventosPorDia, feriados, onDiaClick, onEventoClick }
 // ------------------------------------------------------------
 // Visão Semana
 // ------------------------------------------------------------
-function VisaoSemana({ cursor, eventosPorDia, feriados, onDiaClick, onEventoClick }: {
+function VisaoSemana({ cursor, eventosPorDia, feriados, autorDe, onDiaClick, onEventoClick }: {
   cursor: Date
   eventosPorDia: Map<string, EventoCalendario[]>
   feriados: Map<string, string>
+  autorDe: (ev: EventoCalendario) => AutorInfo | undefined
   onDiaClick: (d: Date) => void
   onEventoClick: (ev: EventoCalendario) => void
 }) {
@@ -356,7 +429,7 @@ function VisaoSemana({ cursor, eventosPorDia, feriados, onDiaClick, onEventoClic
             <div className="space-y-1 flex-1">
               {evs.length === 0 ? (
                 <div className="text-[11px] text-slate-600 italic">Sem eventos</div>
-              ) : evs.map(ev => <PilulaEvento key={ev.id} ev={ev} onClick={() => onEventoClick(ev)} />)}
+              ) : evs.map(ev => <PilulaEvento key={ev.id} ev={ev} autor={autorDe(ev)} onClick={() => onEventoClick(ev)} />)}
             </div>
           </div>
         )
@@ -368,9 +441,10 @@ function VisaoSemana({ cursor, eventosPorDia, feriados, onDiaClick, onEventoClic
 // ------------------------------------------------------------
 // Visão Dia
 // ------------------------------------------------------------
-function VisaoDia({ eventos, feriado, onNovo, onEventoClick }: {
+function VisaoDia({ eventos, feriado, autorDe, onNovo, onEventoClick }: {
   eventos: EventoCalendario[]
   feriado?: string
+  autorDe: (ev: EventoCalendario) => AutorInfo | undefined
   onNovo: () => void
   onEventoClick: (ev: EventoCalendario) => void
 }) {
@@ -389,7 +463,7 @@ function VisaoDia({ eventos, feriado, onNovo, onEventoClick }: {
         </div>
       ) : (
         <div className="space-y-2.5">
-          {eventos.map(ev => <CardEventoLista key={ev.id} ev={ev} onClick={() => onEventoClick(ev)} />)}
+          {eventos.map(ev => <CardEventoLista key={ev.id} ev={ev} autor={autorDe(ev)} onClick={() => onEventoClick(ev)} />)}
         </div>
       )}
     </div>
@@ -399,7 +473,7 @@ function VisaoDia({ eventos, feriado, onNovo, onEventoClick }: {
 // ------------------------------------------------------------
 // Visão Agenda (lista cronológica agrupada por dia)
 // ------------------------------------------------------------
-function VisaoAgenda({ eventos, onEventoClick }: { eventos: EventoCalendario[]; onEventoClick: (ev: EventoCalendario) => void }) {
+function VisaoAgenda({ eventos, autorDe, onEventoClick }: { eventos: EventoCalendario[]; autorDe: (ev: EventoCalendario) => AutorInfo | undefined; onEventoClick: (ev: EventoCalendario) => void }) {
   const grupos = useMemo(() => {
     const map = new Map<string, EventoCalendario[]>()
     for (const ev of [...eventos].sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime())) {
@@ -433,7 +507,7 @@ function VisaoAgenda({ eventos, onEventoClick }: { eventos: EventoCalendario[]; 
               {ehHoje && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30">Hoje</span>}
             </div>
             <div className="p-3 space-y-2">
-              {evs.map(ev => <CardEventoLista key={ev.id} ev={ev} onClick={() => onEventoClick(ev)} />)}
+              {evs.map(ev => <CardEventoLista key={ev.id} ev={ev} autor={autorDe(ev)} onClick={() => onEventoClick(ev)} />)}
             </div>
           </div>
         )
@@ -443,13 +517,15 @@ function VisaoAgenda({ eventos, onEventoClick }: { eventos: EventoCalendario[]; 
 }
 
 // Card de evento usado nas visões Dia/Agenda
-function CardEventoLista({ ev, onClick }: { ev: EventoCalendario; onClick: () => void }) {
+function CardEventoLista({ ev, autor, onClick }: { ev: EventoCalendario; autor?: AutorInfo; onClick: () => void }) {
   const meta = tipoEventoMeta(ev.tipo)
   const nConvidados = (ev.convidados || []).length
+  const criador = autor?.nome || ev.criado_por_nome
   return (
     <button
       type="button"
       onClick={onClick}
+      title={criador ? `Criado por: ${criador}` : undefined}
       className="w-full text-left bg-slate-900/40 border border-slate-800 rounded-xl p-3 flex items-start gap-3 hover:border-slate-700 hover:bg-slate-800/40 transition-all"
     >
       <div className={clsx('w-1.5 self-stretch rounded-full shrink-0', meta.classeDot)} />
@@ -462,6 +538,7 @@ function CardEventoLista({ ev, onClick }: { ev: EventoCalendario; onClick: () =>
           <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {ev.dia_inteiro ? 'Dia inteiro' : `${horaFmt(ev.inicio)}${ev.fim ? ' – ' + horaFmt(ev.fim) : ''}`}</span>
           {ev.local && <span className="inline-flex items-center gap-1 truncate"><MapPin className="w-3 h-3" /> {ev.local}</span>}
           {nConvidados > 0 && <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" /> {nConvidados}</span>}
+          {criador && <span className="inline-flex items-center gap-1"><AvatarAutor autor={autor} size="xs" /> {criador}</span>}
         </div>
       </div>
     </button>
