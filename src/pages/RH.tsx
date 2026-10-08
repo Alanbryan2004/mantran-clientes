@@ -192,6 +192,8 @@ export function RH() {
   const [editFuncCargo, setEditFuncCargo] = useState('')
   const [editFuncTelEmp, setEditFuncTelEmp] = useState('')
   const [editFuncTelPart, setEditFuncTelPart] = useState('')
+  const [editFuncTipoVinculo, setEditFuncTipoVinculo] = useState<'CLT' | 'CNPJ'>('CLT')
+  const [editFuncRegistraPonto, setEditFuncRegistraPonto] = useState(true)
   const [salvandoFuncionarioDados, setSalvandoFuncionarioDados] = useState(false)
 
   // Modal de Jornada de Trabalho (edição pelo RH)
@@ -1365,6 +1367,13 @@ export function RH() {
     setEditFuncCargo(funcionarioResumo.cargo || '')
     setEditFuncTelEmp(funcionarioResumo.telefone_empresarial || '')
     setEditFuncTelPart(funcionarioResumo.telefone_particular || '')
+    setEditFuncTipoVinculo(funcionarioResumo.tipo_vinculo === 'CNPJ' ? 'CNPJ' : 'CLT')
+    // registra_ponto: usa o valor salvo; se ausente, assume o default pelo vínculo
+    setEditFuncRegistraPonto(
+      funcionarioResumo.registra_ponto !== undefined
+        ? !!funcionarioResumo.registra_ponto
+        : funcionarioResumo.tipo_vinculo !== 'CNPJ'
+    )
     setIsEditandoFuncionario(true)
   }
 
@@ -1382,7 +1391,9 @@ export function RH() {
         email_pessoal: editFuncEmailPessoal.trim() || null,
         cargo: editFuncCargo.trim() || null,
         telefone_empresarial: editFuncTelEmp.trim() || null,
-        telefone_particular: editFuncTelPart.trim() || null
+        telefone_particular: editFuncTelPart.trim() || null,
+        tipo_vinculo: editFuncTipoVinculo,
+        registra_ponto: editFuncRegistraPonto
       })
 
       // Se for o próprio usuário logado, atualiza o storage da sessão
@@ -1604,6 +1615,118 @@ export function RH() {
       </span>
     )
   }
+
+  // Cards de visão geral da equipe (Plantão, Férias, Home Office, Quadro Mantran).
+  // Visível para todos os usuários — são informações úteis para qualquer colaborador.
+  const renderDashboardCards = () => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+      {/* 1. Plantonista do Fim de Semana */}
+      <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plantão Fim de Semana</span>
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+            <PhoneCall className="w-4 h-4" />
+          </div>
+        </div>
+        <div className="mt-3">
+          {proximoPlantao ? (
+            <div>
+              <p className="text-lg font-black text-white truncate">{proximoPlantao.tecnico_nome}</p>
+              <span className="text-[11px] text-amber-400 font-mono">
+                {formatDateDisplay(proximoPlantao.data_inicio)} a {formatDateDisplay(proximoPlantao.data_fim)}
+              </span>
+            </div>
+          ) : (
+            <div>
+              <span className="text-2xl font-black text-slate-500">-</span>
+              <p className="text-[11px] text-slate-500">Nenhum plantão agendado</p>
+            </div>
+          )}
+        </div>
+        {isGestorRh && (
+          <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+            <span>{kpis.plantoesPendentesPagamento.length} a pagar</span>
+            <button
+              type="button"
+              onClick={() => setTab('plantoes_equipe')}
+              className="text-amber-400 font-bold hover:underline"
+            >
+              Ver todos
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 2. Em Férias Hoje */}
+      <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Em Férias Hoje</span>
+          <div className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center">
+            <Palmtree className="w-4 h-4" />
+          </div>
+        </div>
+        <div className="mt-3 flex items-baseline gap-2">
+          <span className="text-3xl font-black text-white">{kpis.emFeriasHoje.length}</span>
+          <span className="text-xs text-slate-400">colaboradores</span>
+        </div>
+        {kpis.emFeriasHoje.length > 0 ? (
+          <p className="mt-2 text-[11px] text-teal-300/80 truncate">
+            {kpis.emFeriasHoje.map(f => f.usuario_nome).join(', ')}
+          </p>
+        ) : kpis.proximaFeria ? (
+          <p className="mt-2 text-[11px] text-teal-300/80 truncate">
+            Próximo: <strong className="text-teal-200">{kpis.proximaFeria.nome}</strong> em {formatDateDisplay(kpis.proximaFeria.inicio)}
+          </p>
+        ) : (
+          <p className="mt-2 text-[11px] text-teal-300/80 truncate">
+            Nenhuma férias agendada
+          </p>
+        )}
+      </div>
+
+      {/* 3. Home Office Hoje */}
+      <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Home Office Hoje</span>
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center">
+            <Laptop className="w-4 h-4" />
+          </div>
+        </div>
+        <div className="mt-3 flex items-baseline gap-2">
+          <span className="text-3xl font-black text-white">{kpis.emHomeOfficeHoje.length}</span>
+          <span className="text-xs text-slate-400">remotos</span>
+        </div>
+        <p className="mt-2 text-[11px] text-cyan-300/80 truncate">
+          {kpis.emHomeOfficeHoje.length > 0
+            ? kpis.emHomeOfficeHoje.map(h => h.usuario_nome).join(', ')
+            : 'Toda equipe em presencial hoje'}
+        </p>
+      </div>
+
+      {/* 4. Quadro Mantran */}
+      <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quadro Mantran</span>
+          <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
+            <Users2 className="w-4 h-4" />
+          </div>
+        </div>
+        <div className="mt-3 flex items-baseline gap-2">
+          <span className="text-3xl font-black text-white">{kpis.totalColaboradores}</span>
+          <span className="text-xs text-slate-400">funcionários</span>
+        </div>
+        <p className="mt-2 text-[11px] text-purple-300/80">
+          {isGestorRh
+            ? (kpis.feriasPendentes.length + kpis.faltasPendentes.length > 0
+                ? `${kpis.feriasPendentes.length + kpis.faltasPendentes.length} pendência(s) de aprovação`
+                : 'Tudo em dia com o RH')
+            : 'Equipe Mantran'}
+        </p>
+      </div>
+
+    </div>
+  )
 
   return (
     <div className="max-w-7xl mx-auto w-full min-w-0 space-y-4 sm:space-y-6">
@@ -2011,6 +2134,9 @@ export function RH() {
       ) : !isGestorRh ? (
         /* ================= VISTA DO COLABORADOR (NÃO-ADMIN) ================= */
         <div className="space-y-6">
+
+          {/* Visão geral da equipe — útil para todos (plantão, férias, home office, quadro) */}
+          {renderDashboardCards()}
           
           {tab === 'minhas_ferias' && (
             <div className="space-y-5">
@@ -2660,109 +2786,7 @@ export function RH() {
             <div className="space-y-6">
               
               {/* KPI CARDS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                
-                {/* 1. Plantonista do Fim de Semana */}
-                <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plantão Fim de Semana</span>
-                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
-                      <PhoneCall className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    {proximoPlantao ? (
-                      <div>
-                        <p className="text-lg font-black text-white truncate">{proximoPlantao.tecnico_nome}</p>
-                        <span className="text-[11px] text-amber-400 font-mono">
-                          {formatDateDisplay(proximoPlantao.data_inicio)} a {formatDateDisplay(proximoPlantao.data_fim)}
-                        </span>
-                      </div>
-                    ) : (
-                      <div>
-                        <span className="text-2xl font-black text-slate-500">-</span>
-                        <p className="text-[11px] text-slate-500">Nenhum plantão agendado</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-                    <span>{kpis.plantoesPendentesPagamento.length} a pagar</span>
-                    <button
-                      type="button"
-                      onClick={() => setTab('plantoes_equipe')}
-                      className="text-amber-400 font-bold hover:underline"
-                    >
-                      Ver todos
-                    </button>
-                  </div>
-                </div>
-
-                {/* 2. Em Férias Hoje */}
-                <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Em Férias Hoje</span>
-                    <div className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center">
-                      <Palmtree className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-white">{kpis.emFeriasHoje.length}</span>
-                    <span className="text-xs text-slate-400">colaboradores</span>
-                  </div>
-                  {kpis.emFeriasHoje.length > 0 ? (
-                    <p className="mt-2 text-[11px] text-teal-300/80 truncate">
-                      {kpis.emFeriasHoje.map(f => f.usuario_nome).join(', ')}
-                    </p>
-                  ) : kpis.proximaFeria ? (
-                    <p className="mt-2 text-[11px] text-teal-300/80 truncate">
-                      Próximo: <strong className="text-teal-200">{kpis.proximaFeria.nome}</strong> em {formatDateDisplay(kpis.proximaFeria.inicio)}
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-[11px] text-teal-300/80 truncate">
-                      Nenhuma férias agendada
-                    </p>
-                  )}
-                </div>
-
-                {/* 3. Home Office Hoje */}
-                <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Home Office Hoje</span>
-                    <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center">
-                      <Laptop className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-white">{kpis.emHomeOfficeHoje.length}</span>
-                    <span className="text-xs text-slate-400">remotos</span>
-                  </div>
-                  <p className="mt-2 text-[11px] text-cyan-300/80 truncate">
-                    {kpis.emHomeOfficeHoje.length > 0
-                      ? kpis.emHomeOfficeHoje.map(h => h.usuario_nome).join(', ')
-                      : 'Toda equipe em presencial hoje'}
-                  </p>
-                </div>
-
-                {/* 4. Quadro Mantran */}
-                <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-2xl shadow-lg relative overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Quadro Mantran</span>
-                    <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
-                      <Users2 className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-white">{kpis.totalColaboradores}</span>
-                    <span className="text-xs text-slate-400">funcionários</span>
-                  </div>
-                  <p className="mt-2 text-[11px] text-purple-300/80">
-                    {kpis.feriasPendentes.length + kpis.faltasPendentes.length > 0
-                      ? `${kpis.feriasPendentes.length + kpis.faltasPendentes.length} pendência(s) de aprovação`
-                      : 'Tudo em dia com o RH'}
-                  </p>
-                </div>
-
-              </div>
+              {renderDashboardCards()}
 
               {/* PRESENÇA HOJE */}
               <div className="bg-dark-card border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
@@ -5312,6 +5336,81 @@ export function RH() {
                             </div>
                           </div>
 
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-300 mb-1">Vínculo contratual</label>
+                            <div className="flex items-center gap-2">
+                              <label className={clsx(
+                                "flex-1 flex items-center gap-2 px-2.5 py-1.5 rounded-lg border cursor-pointer transition-colors",
+                                editFuncTipoVinculo === 'CLT'
+                                  ? "bg-emerald-500/15 border-emerald-500/60 text-emerald-200"
+                                  : "bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-600"
+                              )}>
+                                <input
+                                  type="radio"
+                                  name="tipo_vinculo"
+                                  value="CLT"
+                                  checked={editFuncTipoVinculo === 'CLT'}
+                                  onChange={() => { setEditFuncTipoVinculo('CLT'); setEditFuncRegistraPonto(true) }}
+                                  className="accent-emerald-500"
+                                />
+                                <span className="text-xs font-bold">CLT</span>
+                                <span className="text-[9px] text-slate-400">registra ponto</span>
+                              </label>
+                              <label className={clsx(
+                                "flex-1 flex items-center gap-2 px-2.5 py-1.5 rounded-lg border cursor-pointer transition-colors",
+                                editFuncTipoVinculo === 'CNPJ'
+                                  ? "bg-amber-500/15 border-amber-500/60 text-amber-200"
+                                  : "bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-600"
+                              )}>
+                                <input
+                                  type="radio"
+                                  name="tipo_vinculo"
+                                  value="CNPJ"
+                                  checked={editFuncTipoVinculo === 'CNPJ'}
+                                  onChange={() => { setEditFuncTipoVinculo('CNPJ'); setEditFuncRegistraPonto(false) }}
+                                  className="accent-amber-500"
+                                />
+                                <span className="text-xs font-bold">CNPJ</span>
+                                <span className="text-[9px] text-slate-400">não registra ponto</span>
+                              </label>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-300 mb-1">Registro de ponto</label>
+                            <button
+                              type="button"
+                              onClick={() => setEditFuncRegistraPonto(v => !v)}
+                              className={clsx(
+                                "w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer",
+                                editFuncRegistraPonto
+                                  ? "bg-emerald-500/15 border-emerald-500/60"
+                                  : "bg-slate-950 border-slate-700 hover:border-slate-600"
+                              )}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <Clock className={clsx("w-3.5 h-3.5 shrink-0", editFuncRegistraPonto ? "text-emerald-400" : "text-slate-500")} />
+                                <span className={clsx("text-xs font-bold", editFuncRegistraPonto ? "text-emerald-200" : "text-slate-300")}>
+                                  {editFuncRegistraPonto ? 'Bate ponto' : 'Não bate ponto'}
+                                </span>
+                              </span>
+                              <span className={clsx(
+                                "relative inline-flex h-4 w-7 items-center rounded-full transition-colors shrink-0",
+                                editFuncRegistraPonto ? "bg-emerald-500" : "bg-slate-600"
+                              )}>
+                                <span className={clsx(
+                                  "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
+                                  editFuncRegistraPonto ? "translate-x-3.5" : "translate-x-0.5"
+                                )} />
+                              </span>
+                            </button>
+                            {editFuncTipoVinculo === 'CNPJ' && editFuncRegistraPonto && (
+                              <p className="text-[9px] text-amber-400/90 mt-1">
+                                Atenção: funcionário CNPJ marcado para bater ponto (exceção).
+                              </p>
+                            )}
+                          </div>
+
                           <div className="pt-1 flex gap-2">
                             <button
                               type="button"
@@ -5386,6 +5485,43 @@ export function RH() {
                               {u.cargo || 'Não informado'}
                             </span>
                           </div>
+
+                          <div className="flex items-center justify-between py-0.5">
+                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                              <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                              Vínculo
+                            </span>
+                            {(u.tipo_vinculo === 'CNPJ') ? (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold" title="Funcionário PJ — não registra ponto">
+                                CNPJ · sem ponto
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold" title="Funcionário CLT — registra ponto">
+                                CLT
+                              </span>
+                            )}
+                          </div>
+
+                          {(() => {
+                            const bate = u.registra_ponto !== undefined ? !!u.registra_ponto : u.tipo_vinculo !== 'CNPJ'
+                            return (
+                              <div className="flex items-center justify-between py-0.5">
+                                <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                                  <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                                  Registra ponto
+                                </span>
+                                {bate ? (
+                                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                                    Bate ponto
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-700/40 text-slate-300 border border-slate-600/50 text-[10px] font-bold">
+                                    Não bate ponto
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })()}
 
                           <div className="flex items-center justify-between py-0.5">
                             <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">

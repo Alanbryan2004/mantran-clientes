@@ -253,6 +253,7 @@ export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePonto
   const [registros, setRegistros] = useState<RegistroPonto[]>([])
   const [todosMeusRegistros, setTodosMeusRegistros] = useState<RegistroPonto[]>([])
   const [jornada, setJornada] = useState<JornadaTrabalho | null>(null)
+  const [registraPonto, setRegistraPonto] = useState(true)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState<TipoPonto | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -263,14 +264,16 @@ export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePonto
     setLoading(true)
     setError(null)
     try {
-      const [data, todos, jornadaData] = await Promise.all([
+      const [data, todos, jornadaData, batePonto] = await Promise.all([
         api.getRegistrosPontoDoDia(userId),
         api.getRegistrosPonto(userId).catch(() => [] as RegistroPonto[]),
-        api.getJornadaPorUsuario(userId).catch(() => null)
+        api.getJornadaPorUsuario(userId).catch(() => null),
+        api.getRegistraPonto(userId).catch(() => true)
       ])
       setRegistros(data)
       setTodosMeusRegistros(todos)
       setJornada(jornadaData)
+      setRegistraPonto(batePonto)
     } catch (err: any) {
       console.error('Erro ao carregar registros de ponto:', err)
       setError('Não foi possível carregar os registros de hoje.')
@@ -291,6 +294,70 @@ export function ControlePontoModal({ isOpen, onClose, onSuccess }: ControlePonto
   }, [isOpen])
 
   if (!isOpen) return null
+
+  // Funcionário que não bate ponto: não exibe o fluxo de registro.
+  // (não mostramos nada enquanto ainda está carregando o flag, para evitar "piscar")
+  if (!loading && !registraPonto) {
+    return createPortal(
+      <div
+        className={clsx(
+          'fixed inset-0 z-[9999] flex justify-center bg-black/75 backdrop-blur-sm',
+          isMobile ? 'items-end p-0' : 'items-center p-4'
+        )}
+      >
+        <div
+          className={clsx(
+            'bg-dark-card border border-slate-800 shadow-2xl flex flex-col animate-in fade-in duration-200',
+            isMobile
+              ? 'w-full max-w-full rounded-t-3xl rounded-b-none max-h-[92vh] slide-in-from-bottom'
+              : 'w-full max-w-md rounded-2xl zoom-in-95 max-h-[90vh]'
+          )}
+        >
+          <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-400">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white">Controle de Ponto</h2>
+                <p className="text-xs text-slate-400 truncate max-w-[220px]">
+                  {user?.nome || user?.login}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-8 flex flex-col items-center text-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-slate-800/60 border border-slate-700 flex items-center justify-center text-slate-400">
+              <CalendarOff className="w-8 h-8" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-white">Você não bate ponto</h3>
+              <p className="text-sm text-slate-400 max-w-xs">
+                Seu cadastro está configurado para não registrar ponto, então o controle de expediente não se aplica ao seu perfil.
+              </p>
+              <p className="text-xs text-slate-500">
+                Se isso estiver incorreto, procure o RH.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="btn-secondary px-6 py-2 text-sm font-bold mt-2"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )
+  }
 
   const tiposFeitos = new Set(registros.map(r => r.tipo))
   const status = getStatus(tiposFeitos)

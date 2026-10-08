@@ -192,11 +192,18 @@ export function NotificationsPopover() {
 
     const avaliar = async () => {
       try {
-        const [registrosDia, jornada] = await Promise.all([
+        const [registrosDia, jornada, registraPonto] = await Promise.all([
           api.getRegistrosPontoDoDia(uid).catch(() => []),
-          api.getJornadaPorUsuario(uid).catch(() => null)
+          api.getJornadaPorUsuario(uid).catch(() => null),
+          api.getRegistraPonto(uid).catch(() => true)
         ])
         if (!ativo) return
+
+        // Funcionário que não bate ponto não recebe lembretes de ponto
+        if (!registraPonto) {
+          setLembretesPonto([])
+          return
+        }
 
         const lembretes = avaliarLembretesPonto(uid, registrosDia, jornada)
         const dispensados = getDeletedIds()

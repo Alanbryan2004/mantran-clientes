@@ -1524,6 +1524,8 @@ export const api = {
     cargo?: string | null
     telefone_empresarial?: string | null
     telefone_particular?: string | null
+    tipo_vinculo?: 'CLT' | 'CNPJ'
+    registra_ponto?: boolean
   }): Promise<UsuarioSistema> {
     const updateData: any = {}
     if (payload.nome !== undefined) updateData.nome = payload.nome.trim()
@@ -1577,6 +1579,12 @@ export const api = {
     }
     if (payload.telefone_particular !== undefined) {
       updateData.telefone_particular = payload.telefone_particular ? payload.telefone_particular.trim() : null
+    }
+    if (payload.tipo_vinculo !== undefined) {
+      updateData.tipo_vinculo = payload.tipo_vinculo === 'CNPJ' ? 'CNPJ' : 'CLT'
+    }
+    if (payload.registra_ponto !== undefined) {
+      updateData.registra_ponto = !!payload.registra_ponto
     }
 
     const { data, error } = await supabase
@@ -2626,6 +2634,30 @@ export const api = {
     }
   },
 
+  // Indica se o funcionário bate ponto. Usa a coluna registra_ponto; se ela
+  // ainda não existir no banco (ou a leitura falhar), assume o default pelo
+  // vínculo: CNPJ não bate ponto, demais batem. Nunca lança — retorna boolean.
+  async getRegistraPonto(usuarioId: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('usuario')
+        .select('registra_ponto, tipo_vinculo')
+        .eq('id', usuarioId)
+        .maybeSingle()
+
+      if (error) throw error
+      if (!data) return true
+      if (data.registra_ponto !== null && data.registra_ponto !== undefined) {
+        return !!data.registra_ponto
+      }
+      // Sem valor explícito: default pelo vínculo
+      return data.tipo_vinculo !== 'CNPJ'
+    } catch {
+      // Falha de rede ou coluna ausente: preserva o comportamento atual (bate ponto)
+      return true
+    }
+  },
+
   async upsertJornada(payload: Partial<JornadaTrabalho>): Promise<JornadaTrabalho> {
     const item: JornadaTrabalho = {
       id: payload.id || (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15)),
@@ -3653,6 +3685,8 @@ export interface UsuarioSistema {
   cargo?: string | null
   telefone_empresarial?: string | null
   telefone_particular?: string | null
+  tipo_vinculo?: 'CLT' | 'CNPJ'
+  registra_ponto?: boolean
   created_at?: string
 }
 
