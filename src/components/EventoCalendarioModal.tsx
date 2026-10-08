@@ -60,9 +60,13 @@ interface Props {
   onSaved: () => void
   evento?: EventoCalendario | null       // se definido => edição
   dataInicial?: Date | null              // ao criar a partir de um clique no dia
+  tituloInicial?: string                 // pré-preenche o título ao criar (ex: treinamento)
+  tipoInicial?: string                   // pré-preenche a categoria ao criar
+  descricaoInicial?: string              // pré-preenche a descrição ao criar
+  localInicial?: string                  // pré-preenche o local ao criar
 }
 
-export function EventoCalendarioModal({ isOpen, onClose, onSaved, evento, dataInicial }: Props) {
+export function EventoCalendarioModal({ isOpen, onClose, onSaved, evento, dataInicial, tituloInicial, tipoInicial, descricaoInicial, localInicial }: Props) {
   const usuarioLogado = getLoggedUser()
   const isEdicao = !!evento
 
@@ -76,6 +80,9 @@ export function EventoCalendarioModal({ isOpen, onClose, onSaved, evento, dataIn
   const [minhaAntecedencia, setMinhaAntecedencia] = useState(30)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  // Avisos de conflito de horário (eventos sobrepostos). Enquanto houver, o usuário
+  // precisa confirmar "Salvar mesmo assim".
+  const [conflitos, setConflitos] = useState<Array<{ titulo: string; quem: string; quando: string }>>([])
 
   // Convidados
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([])
@@ -111,10 +118,10 @@ export function EventoCalendarioModal({ isOpen, onClose, onSaved, evento, dataIn
       if (!dataInicial) base.setMinutes(0, 0, 0), base.setHours(base.getHours() + 1)
       const fimBase = new Date(base)
       fimBase.setHours(fimBase.getHours() + 1)
-      setTitulo('')
-      setDescricao('')
-      setLocal('')
-      setTipo('reuniao')
+      setTitulo(tituloInicial || '')
+      setDescricao(descricaoInicial || '')
+      setLocal(localInicial || '')
+      setTipo(tipoInicial || 'reuniao')
       setDiaInteiro(false)
       setInicio(toLocalInput(base))
       setFim(toLocalInput(fimBase))
@@ -122,9 +129,16 @@ export function EventoCalendarioModal({ isOpen, onClose, onSaved, evento, dataIn
       setMinhaAntecedencia(30)
     }
     setErro('')
+    setConflitos([])
     setBuscaConvidado('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, evento])
+
+  // Ao mudar horário/convidados, zera os conflitos para forçar nova verificação
+  useEffect(() => {
+    setConflitos([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inicio, fim, diaInteiro, convidadosIds])
 
   const usuariosFiltrados = useMemo(() => {
     const q = buscaConvidado.trim().toLowerCase()
@@ -155,6 +169,36 @@ export function EventoCalendarioModal({ isOpen, onClose, onSaved, evento, dataIn
 
     setSalvando(true)
     try {
+      const inicioISO = localInputToISO(inicio)
+      const fimISO = fim ? localInputToISO(fim) : null
+
+      // --- Verificação de conflito de horário ---
+      // Só checa na 1ª tentativa (quando ainda não há conflitos exibidos). Se o usuário
+      // já viu os avisos e clicou de novo, respeita a decisão e segue o salvamento.
+      if (conflitos.length === 0 && !diaInteiro) {
+        const idsParticipantes = [usuarioLogado?.id, ...Array.from(convidadosIds)].filter(Boolean) as string[]
+        const achados = await api.getEventosConflitantes(
+          inicioISO,
+          fimISO || inicioISO,
+          idsParticipantes,
+          isEdicao ? evento?.id : undefined
+        )
+        if (achados.length > 0) {
+          const nomePorId = new Map<string, string>()
+          nomePorId.set(usuarioLogado?.id || '', 'Você')
+          usuarios.forEach(u => nomePorId.set(u.id, u.nome || u.login))
+          const resumo = achados.map(a => ({
+            titulo: a.evento.titulo,
+            quem: a.usuariosEmConflito.map(id => nomePorId.get(id) || 'participante').join(', '),
+            quando: new Date(a.evento.inicio).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+              + (a.evento.fim ? ` – ${new Date(a.evento.fim).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''),
+          }))
+          setConflitos(resumo)
+          setSalvando(false)
+          return
+        }
+      }
+
       // Monta a lista de convidados: organizador (logado) + selecionados
       const convidados = [
         {
@@ -182,8 +226,8 @@ export function EventoCalendarioModal({ isOpen, onClose, onSaved, evento, dataIn
         local: local.trim() || null,
         tipo,
         cor: TIPOS_EVENTO.find(t => t.valor === tipo)?.cor || null,
-        inicio: localInputToISO(inicio),
-        fim: fim ? localInputToISO(fim) : null,
+        inicio: inicioISO,
+        fim: fimISO,
         dia_inteiro: diaInteiro,
         criado_por_id: usuarioLogado?.id || null,
         criado_por_nome: usuarioLogado?.nome || usuarioLogado?.login || null,
@@ -245,6 +289,24 @@ export function EventoCalendarioModal({ isOpen, onClose, onSaved, evento, dataIn
           {erro && (
             <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
               {erro}
+            </div>
+          )}
+
+          {conflitos.length > 0 && (
+            <div className="px-3 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/40 text-amber-200 text-sm space-y-1.5">
+              <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                <Bell className="w-4 h-4" /> Conflito de horário detectado
+              </div>
+              <p className="text-xs text-amber-200/90">Já existe {conflitos.length > 1 ? 'eventos' : 'um evento'} nesse horário:</p>
+              <ul className="text-xs space-y-1">
+                {conflitos.map((c, i) => (
+                  <li key={i} className="flex items-start gap-1.5">
+                    <span className="text-amber-400 mt-0.5">•</span>
+                    <span><strong>{c.titulo}</strong> ({c.quando}) — {c.quem}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-amber-200/80 pt-0.5">Revise o horário ou clique novamente em salvar para agendar mesmo assim.</p>
             </div>
           )}
 
@@ -379,9 +441,16 @@ export function EventoCalendarioModal({ isOpen, onClose, onSaved, evento, dataIn
             <button onClick={onClose} disabled={salvando} className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm font-semibold hover:bg-slate-700 transition-colors disabled:opacity-50">
               Cancelar
             </button>
-            <button onClick={handleSalvar} disabled={salvando} className="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-60">
+            <button
+              onClick={handleSalvar}
+              disabled={salvando}
+              className={clsx(
+                'px-4 py-2 rounded-lg text-white text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-60',
+                conflitos.length > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-brand-600 hover:bg-brand-700'
+              )}
+            >
               {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              {salvando ? 'Salvando...' : isEdicao ? 'Salvar alterações' : 'Criar evento'}
+              {salvando ? 'Salvando...' : conflitos.length > 0 ? 'Agendar mesmo assim' : isEdicao ? 'Salvar alterações' : 'Criar evento'}
             </button>
           </div>
         </div>

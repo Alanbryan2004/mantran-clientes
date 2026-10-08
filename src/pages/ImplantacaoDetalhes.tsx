@@ -13,6 +13,7 @@ import { VisualizarHistoricoModal } from '../components/VisualizarHistoricoModal
 import { EnviarFeedbackModal } from '../components/EnviarFeedbackModal'
 import { VisualizarFeedbackModal } from '../components/VisualizarFeedbackModal'
 import { ModalErro4PL } from '../components/ModalErro4PL'
+import { EventoCalendarioModal } from '../components/EventoCalendarioModal'
 import clsx from 'clsx'
 
 
@@ -86,6 +87,9 @@ export function ImplantacaoDetalhes() {
   const [isVisualizarFeedbackModalOpen, setIsVisualizarFeedbackModalOpen] = useState(false)
   const [isErro4PLModalOpen, setIsErro4PLModalOpen] = useState(false)
   const [selectedErroEtapa, setSelectedErroEtapa] = useState<any | null>(null)
+  // Agendamento de treinamento no calendário (a partir do relógio da etapa)
+  const [isEventoModalOpen, setIsEventoModalOpen] = useState(false)
+  const [etapaTreinamento, setEtapaTreinamento] = useState<any | null>(null)
 
   // Historico form state
   const getCurrentDateTimeLocal = () => {
@@ -685,6 +689,7 @@ export function ImplantacaoDetalhes() {
         <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 bg-slate-950/20">
           {etapas.map((etapa, index) => {
             const is4PLEtapa = normalizeEtapaNome(etapa.nome_etapa) === 'Ativo 4PL' || (etapa.nome_etapa || '').toLowerCase().includes('4pl') || (etapa.nome_etapa || '').toLowerCase().includes('4pi')
+            const isTreinamento = (etapa.nome_etapa || '').trim().toLowerCase().startsWith('treinamento')
             return (
             <div 
               key={etapa.id} 
@@ -716,7 +721,17 @@ export function ImplantacaoDetalhes() {
                     {normalizeEtapaNome(etapa.nome_etapa)}
                   </h4>
                 </div>
-                <div className="shrink-0">
+                <div className="shrink-0 flex items-center gap-1.5">
+                  {isTreinamento && !isReadOnlyUser() && !isClienteUser() && (
+                    <button
+                      type="button"
+                      onClick={() => { setEtapaTreinamento(etapa); setIsEventoModalOpen(true) }}
+                      title="Agendar este treinamento no calendário"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-brand-300 hover:bg-slate-700/60 transition-colors cursor-pointer"
+                    >
+                      <Clock className="w-4 h-4" />
+                    </button>
+                  )}
                   {getStatusIcon(etapa.valor)}
                 </div>
               </div>
@@ -1010,6 +1025,16 @@ export function ImplantacaoDetalhes() {
         onClose={() => setIsEditModalOpen(false)}
         implantacao={implantacao}
         onSuccess={fetchImplantacao}
+      />
+
+      {/* Modal de Agendamento de Treinamento no Calendário */}
+      <EventoCalendarioModal
+        isOpen={isEventoModalOpen}
+        onClose={() => { setIsEventoModalOpen(false); setEtapaTreinamento(null) }}
+        onSaved={() => { setIsEventoModalOpen(false); setEtapaTreinamento(null) }}
+        tipoInicial="treinamento"
+        tituloInicial={etapaTreinamento ? `${normalizeEtapaNome(etapaTreinamento.nome_etapa)} - ${implantacao.nome_empresa}` : ''}
+        descricaoInicial={etapaTreinamento ? `Treinamento referente à implantação de ${implantacao.nome_empresa}.` : ''}
       />
 
       {/* Modal for editing analista responsavel */}

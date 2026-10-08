@@ -34,6 +34,18 @@ export interface UsuarioItem {
   funcao: string
 }
 
+export interface NfseItem {
+  id: string
+  inscricao_municipal: string
+  nome_municipio: string
+  codigo_tributacao: string
+  codigo_servico: string
+  cnae: string
+  aliquota_iss: string
+  emitia_rps: boolean | null
+  cnpj_emissao: string
+}
+
 export interface PercursoLineHaulItem {
   id: string
   cnpj_hub_shopee: string
@@ -59,14 +71,18 @@ export interface CheckpointFormData {
   usuarios: UsuarioItem[]
   nfse: {
     emitira_nfse: boolean | null
-    inscricao_municipal: string
-    codigo_tributacao: string
-    codigo_servico: string
-    cnae: string
-    aliquota_iss: string
-    emitia_rps: boolean | null
-    nome_municipio: string
-    cnpj_emissao: string
+    // Lista de cadastros de NFSe (um por município/inscrição). Mantido retrocompatível
+    // com o formato antigo (campos soltos no próprio objeto nfse).
+    parametros: NfseItem[]
+    // --- Campos legados (formato antigo, objeto único) — opcionais ---
+    inscricao_municipal?: string
+    codigo_tributacao?: string
+    codigo_servico?: string
+    cnae?: string
+    aliquota_iss?: string
+    emitia_rps?: boolean | null
+    nome_municipio?: string
+    cnpj_emissao?: string
   }
   certificado_digital: {
     arquivo_nome: string
@@ -98,6 +114,22 @@ const UFS = [
   'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 
   'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
 ]
+
+// Estado padrão da NFSe (um cadastro em branco), usado como fallback na normalização.
+const prevNfseDefault = (): CheckpointFormData['nfse'] => ({
+  emitira_nfse: null,
+  parametros: [{
+    id: '1',
+    inscricao_municipal: '',
+    nome_municipio: '',
+    codigo_tributacao: '',
+    codigo_servico: '',
+    cnae: '',
+    aliquota_iss: '',
+    emitia_rps: null,
+    cnpj_emissao: ''
+  }]
+})
 
 export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess, initialData }: ClienteFormularioModalProps) {
   const isShopee = implantacao?.tipo_cliente === 'SHOPEE'
@@ -137,14 +169,19 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
     ],
     nfse: {
       emitira_nfse: null,
-      inscricao_municipal: '',
-      codigo_tributacao: '',
-      codigo_servico: '',
-      cnae: '',
-      aliquota_iss: '',
-      emitia_rps: null,
-      nome_municipio: '',
-      cnpj_emissao: ''
+      parametros: [
+        {
+          id: '1',
+          inscricao_municipal: '',
+          nome_municipio: '',
+          codigo_tributacao: '',
+          codigo_servico: '',
+          cnae: '',
+          aliquota_iss: '',
+          emitia_rps: null,
+          cnpj_emissao: ''
+        }
+      ]
     },
     certificado_digital: {
       arquivo_nome: '',
@@ -173,10 +210,38 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
         if ((!percursos || percursos.length === 0) && dataObj.percurso_line_haul) {
           percursos = [{ id: '1', ...dataObj.percurso_line_haul }]
         }
+
+        // Normaliza a NFSe: converte o formato antigo (campos soltos no objeto nfse)
+        // para a nova lista `parametros`. Mantém `emitira_nfse`.
+        let nfseNorm = prevNfseDefault()
+        if (dataObj.nfse) {
+          const n = dataObj.nfse
+          if (Array.isArray(n.parametros) && n.parametros.length > 0) {
+            nfseNorm = { emitira_nfse: n.emitira_nfse ?? null, parametros: n.parametros }
+          } else {
+            // Formato legado: um único conjunto de campos no próprio objeto nfse
+            nfseNorm = {
+              emitira_nfse: n.emitira_nfse ?? null,
+              parametros: [{
+                id: '1',
+                inscricao_municipal: n.inscricao_municipal || '',
+                nome_municipio: n.nome_municipio || '',
+                codigo_tributacao: n.codigo_tributacao || '',
+                codigo_servico: n.codigo_servico || '',
+                cnae: n.cnae || '',
+                aliquota_iss: n.aliquota_iss || '',
+                emitia_rps: n.emitia_rps ?? null,
+                cnpj_emissao: n.cnpj_emissao || ''
+              }]
+            }
+          }
+        }
+
         setFormData(prev => ({
           ...prev,
           ...dataObj,
           percursos_line_haul: percursos && percursos.length > 0 ? percursos : prev.percursos_line_haul,
+          nfse: nfseNorm,
           cst_config: dataObj.cst_config ? {
             ...prev.cst_config,
             ...dataObj.cst_config,
@@ -315,6 +380,46 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
       const updated = [...prev.usuarios]
       updated[index] = { ...updated[index], [field]: value }
       return { ...prev, usuarios: updated }
+    })
+  }
+
+  // NFSe helpers (lista dinâmica de cadastros fiscais)
+  const handleAddNfse = () => {
+    setFormData(prev => ({
+      ...prev,
+      nfse: {
+        ...prev.nfse,
+        parametros: [
+          ...prev.nfse.parametros,
+          {
+            id: String(Date.now()),
+            inscricao_municipal: '',
+            nome_municipio: '',
+            codigo_tributacao: '',
+            codigo_servico: '',
+            cnae: '',
+            aliquota_iss: '',
+            emitia_rps: null,
+            cnpj_emissao: ''
+          }
+        ]
+      }
+    }))
+  }
+
+  const handleRemoveNfse = (index: number) => {
+    if (formData.nfse.parametros.length <= 1) return
+    setFormData(prev => ({
+      ...prev,
+      nfse: { ...prev.nfse, parametros: prev.nfse.parametros.filter((_, i) => i !== index) }
+    }))
+  }
+
+  const handleUpdateNfse = (index: number, field: keyof NfseItem, value: any) => {
+    setFormData(prev => {
+      const updated = [...prev.nfse.parametros]
+      updated[index] = { ...updated[index], [field]: value }
+      return { ...prev, nfse: { ...prev.nfse, parametros: updated } }
     })
   }
 
@@ -1116,105 +1221,130 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
               </div>
 
               {formData.nfse.emitira_nfse === true && (
-                <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4 animate-fadeIn">
-                  <h4 className="text-xs font-bold text-brand-400 uppercase tracking-wider">
-                    Parâmetros Fiscais da NFSe
-                  </h4>
+                <div className="space-y-3 animate-fadeIn">
+                  {formData.nfse.parametros.map((n, index) => (
+                    <div key={n.id} className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-brand-400 uppercase tracking-wider">
+                          Parâmetros Fiscais da NFSe {formData.nfse.parametros.length > 1 ? `#${index + 1}` : ''}
+                        </h4>
+                        {formData.nfse.parametros.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNfse(index)}
+                            className="p-1.5 text-slate-500 hover:text-red-400 transition-colors"
+                            title="Remover este cadastro de NFSe"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Inscrição Municipal</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: 123456-7"
-                        value={formData.nfse.inscricao_municipal}
-                        onChange={(e) => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, inscricao_municipal: e.target.value } }))}
-                        className="input-field text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Nome do Município</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: São Paulo / Curitiba"
-                        value={formData.nfse.nome_municipio}
-                        onChange={(e) => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, nome_municipio: e.target.value } }))}
-                        className="input-field text-sm"
-                      />
-                    </div>
-                  </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">Inscrição Municipal</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: 123456-7"
+                            value={n.inscricao_municipal}
+                            onChange={(e) => handleUpdateNfse(index, 'inscricao_municipal', e.target.value)}
+                            className="input-field text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">Nome do Município</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: São Paulo / Curitiba"
+                            value={n.nome_municipio}
+                            onChange={(e) => handleUpdateNfse(index, 'nome_municipio', e.target.value)}
+                            className="input-field text-sm"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Código de Tributação</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: 01.01"
-                        value={formData.nfse.codigo_tributacao}
-                        onChange={(e) => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, codigo_tributacao: e.target.value } }))}
-                        className="input-field text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Código do Serviço</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: 16.01"
-                        value={formData.nfse.codigo_servico}
-                        onChange={(e) => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, codigo_servico: e.target.value } }))}
-                        className="input-field text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Código CNAE</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: 4930-2/02"
-                        value={formData.nfse.cnae}
-                        onChange={(e) => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, cnae: e.target.value } }))}
-                        className="input-field text-sm"
-                      />
-                    </div>
-                  </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">Código de Tributação</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: 01.01"
+                            value={n.codigo_tributacao}
+                            onChange={(e) => handleUpdateNfse(index, 'codigo_tributacao', e.target.value)}
+                            className="input-field text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">Código do Serviço</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: 16.01"
+                            value={n.codigo_servico}
+                            onChange={(e) => handleUpdateNfse(index, 'codigo_servico', e.target.value)}
+                            className="input-field text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">Código CNAE</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: 4930-2/02"
+                            value={n.cnae}
+                            onChange={(e) => handleUpdateNfse(index, 'cnae', e.target.value)}
+                            className="input-field text-sm"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Alíquota ISS do Município (%)</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: 2.5% ou 5%"
-                        value={formData.nfse.aliquota_iss}
-                        onChange={(e) => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, aliquota_iss: e.target.value } }))}
-                        className="input-field text-sm"
-                      />
-                    </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">Alíquota ISS do Município (%)</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: 2.5% ou 5%"
+                            value={n.aliquota_iss}
+                            onChange={(e) => handleUpdateNfse(index, 'aliquota_iss', e.target.value)}
+                            className="input-field text-sm"
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Já emitiu NFSe por RPS (outro sistema)?</label>
-                      <div className="grid grid-cols-2 gap-2 mt-1">
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, emitia_rps: false } }))}
-                          className={clsx(
-                            "py-2 rounded-lg border text-xs font-bold transition-colors",
-                            formData.nfse.emitia_rps === false ? "bg-slate-700 text-white border-slate-600" : "border-slate-800 text-slate-400"
-                          )}
-                        >
-                          Não
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, nfse: { ...prev.nfse, emitia_rps: true } }))}
-                          className={clsx(
-                            "py-2 rounded-lg border text-xs font-bold transition-colors",
-                            formData.nfse.emitia_rps === true ? "bg-brand-500/20 text-brand-300 border-brand-500" : "border-slate-800 text-slate-400"
-                          )}
-                        >
-                          Sim
-                        </button>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">Já emitiu NFSe por RPS (outro sistema)?</label>
+                          <div className="grid grid-cols-2 gap-2 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateNfse(index, 'emitia_rps', false)}
+                              className={clsx(
+                                "py-2 rounded-lg border text-xs font-bold transition-colors",
+                                n.emitia_rps === false ? "bg-slate-700 text-white border-slate-600" : "border-slate-800 text-slate-400"
+                              )}
+                            >
+                              Não
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateNfse(index, 'emitia_rps', true)}
+                              className={clsx(
+                                "py-2 rounded-lg border text-xs font-bold transition-colors",
+                                n.emitia_rps === true ? "bg-brand-500/20 text-brand-300 border-brand-500" : "border-slate-800 text-slate-400"
+                              )}
+                            >
+                              Sim
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={handleAddNfse}
+                    className="w-full py-2.5 rounded-xl border border-dashed border-slate-700 hover:border-brand-500 bg-slate-900/30 hover:bg-brand-500/10 text-slate-300 hover:text-brand-300 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Adicionar outro cadastro de NFSe</span>
+                  </button>
                 </div>
               )}
             </div>

@@ -34,6 +34,19 @@ export function VisualizarCheckpointModal({
   const percursos = dados.percursos_line_haul || (dados.percurso_line_haul ? [dados.percurso_line_haul] : [])
   const usuarios = dados.usuarios || []
   const nfse = dados.nfse || {}
+  // Lista de cadastros de NFSe (novo formato); fallback para o formato antigo (objeto único)
+  const nfseParametros: any[] = Array.isArray(nfse.parametros) && nfse.parametros.length > 0
+    ? nfse.parametros
+    : [{
+        id: '1',
+        nome_municipio: nfse.nome_municipio,
+        inscricao_municipal: nfse.inscricao_municipal,
+        aliquota_iss: nfse.aliquota_iss,
+        codigo_servico: nfse.codigo_servico,
+        codigo_tributacao: nfse.codigo_tributacao,
+        cnae: nfse.cnae,
+        emitia_rps: nfse.emitia_rps
+      }]
   const certificado = dados.certificado_digital || { arquivo_nome: '', arquivo_base64: '', senha: '' }
   const frete = dados.tabela_frete || {}
   const cstConfig = dados.cst_config || { habilitar_cst: null, cst_por_processo: {}, arquivo_aditivo_nome: '', arquivo_aditivo_base64: '' }
@@ -315,45 +328,52 @@ export function VisualizarCheckpointModal({
               </h3>
 
               {nfse.emitira_nfse ? (
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                      <p className="text-slate-400 text-[11px] mb-0.5">Município de Emissão</p>
-                      <p className="font-bold text-slate-200">{nfse.nome_municipio || 'Não informado'}</p>
-                    </div>
+                <div className="space-y-3">
+                  {nfseParametros.map((item: any, idx: number) => (
+                    <div key={item.id || idx} className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                      {nfseParametros.length > 1 && (
+                        <p className="text-[11px] font-bold text-brand-400 uppercase tracking-wider">Cadastro de NFSe #{idx + 1}</p>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                          <p className="text-slate-400 text-[11px] mb-0.5">Município de Emissão</p>
+                          <p className="font-bold text-slate-200">{item.nome_municipio || 'Não informado'}</p>
+                        </div>
 
-                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                      <p className="text-slate-400 text-[11px] mb-0.5">Inscrição Municipal</p>
-                      <p className="font-mono font-bold text-slate-200">{nfse.inscricao_municipal || 'Não informado'}</p>
-                    </div>
+                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                          <p className="text-slate-400 text-[11px] mb-0.5">Inscrição Municipal</p>
+                          <p className="font-mono font-bold text-slate-200">{item.inscricao_municipal || 'Não informado'}</p>
+                        </div>
 
-                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                      <p className="text-slate-400 text-[11px] mb-0.5">Alíquota ISS</p>
-                      <p className="font-bold text-emerald-400">{nfse.aliquota_iss || 'Não informado'}</p>
-                    </div>
+                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                          <p className="text-slate-400 text-[11px] mb-0.5">Alíquota ISS</p>
+                          <p className="font-bold text-emerald-400">{item.aliquota_iss || 'Não informado'}</p>
+                        </div>
 
-                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                      <p className="text-slate-400 text-[11px] mb-0.5">Código do Serviço</p>
-                      <p className="font-mono font-semibold text-slate-200">{nfse.codigo_servico || 'Não informado'}</p>
-                    </div>
-                  </div>
+                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                          <p className="text-slate-400 text-[11px] mb-0.5">Código do Serviço</p>
+                          <p className="font-mono font-semibold text-slate-200">{item.codigo_servico || 'Não informado'}</p>
+                        </div>
+                      </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                      <p className="text-slate-400 text-[11px] mb-0.5">Código de Tributação</p>
-                      <p className="font-mono text-slate-200">{nfse.codigo_tributacao || 'Não informado'}</p>
-                    </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                          <p className="text-slate-400 text-[11px] mb-0.5">Código de Tributação</p>
+                          <p className="font-mono text-slate-200">{item.codigo_tributacao || 'Não informado'}</p>
+                        </div>
 
-                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                      <p className="text-slate-400 text-[11px] mb-0.5">CNAE</p>
-                      <p className="font-mono text-slate-200">{nfse.cnae || 'Não informado'}</p>
-                    </div>
+                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                          <p className="text-slate-400 text-[11px] mb-0.5">CNAE</p>
+                          <p className="font-mono text-slate-200">{item.cnae || 'Não informado'}</p>
+                        </div>
 
-                    <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                      <p className="text-slate-400 text-[11px] mb-0.5">Emitia RPS Anteriormente?</p>
-                      <p className="font-bold text-slate-200">{nfse.emitia_rps ? 'Sim' : 'Não'}</p>
+                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                          <p className="text-slate-400 text-[11px] mb-0.5">Emitia RPS Anteriormente?</p>
+                          <p className="font-bold text-slate-200">{item.emitia_rps ? 'Sim' : 'Não'}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               ) : (
                 <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 text-center text-slate-400 text-xs">

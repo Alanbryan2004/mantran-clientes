@@ -3343,6 +3343,64 @@ export const api = {
     return true
   },
 
+  // Verifica conflitos de horário: retorna os eventos que se sobrepõem ao intervalo
+  // [inicioISO, fimISO) e que envolvem algum dos usuarioIds informados (como criador
+  // ou convidado). Útil para avisar antes de criar/editar um evento.
+  // excluirEventoId: ignora um evento específico (ao editar o próprio evento).
+  async getEventosConflitantes(
+    inicioISO: string,
+    fimISO: string,
+    usuarioIds: string[],
+    excluirEventoId?: string
+  ): Promise<Array<{ evento: EventoCalendario; usuariosEmConflito: string[] }>> {
+    if (!usuarioIds || usuarioIds.length === 0) return []
+    const inicioMs = new Date(inicioISO).getTime()
+    const fimMs = fimISO ? new Date(fimISO).getTime() : inicioMs + 60 * 60000 // sem fim => assume 1h
+
+    // Janela de busca ampla (um dia antes/depois) para pegar eventos que começam antes
+    // e terminam dentro do intervalo. O overlap real é checado no cliente.
+    const janelaDe = new Date(inicioMs - 24 * 60 * 60000).toISOString()
+    const janelaAte = new Date(fimMs + 24 * 60 * 60000).toISOString()
+
+    const { data, error } = await supabase
+      .from('calendario_eventos')
+      .select('*, convidados:calendario_convidados(*)')
+      .gte('inicio', janelaDe)
+      .lte('inicio', janelaAte)
+
+    if (error) {
+      console.warn('Aviso ao verificar conflitos:', error.message)
+      return []
+    }
+
+    const alvo = new Set(usuarioIds)
+    const resultado: Array<{ evento: EventoCalendario; usuariosEmConflito: string[] }> = []
+
+    for (const ev of (data || []) as EventoCalendario[]) {
+      if (excluirEventoId && ev.id === excluirEventoId) continue
+
+      const evIniMs = new Date(ev.inicio).getTime()
+      const evFimMs = ev.fim ? new Date(ev.fim).getTime() : evIniMs + 60 * 60000
+
+      // Sobreposição de intervalos: (iniA < fimB) && (iniB < fimA)
+      const sobrepoe = inicioMs < evFimMs && evIniMs < fimMs
+      if (!sobrepoe) continue
+
+      // Quais dos usuários-alvo participam deste evento (criador ou convidado)?
+      const participantes = new Set<string>()
+      if (ev.criado_por_id && alvo.has(ev.criado_por_id)) participantes.add(ev.criado_por_id)
+      for (const c of ev.convidados || []) {
+        if (alvo.has(c.usuario_id) && c.status !== 'recusado') participantes.add(c.usuario_id)
+      }
+
+      if (participantes.size > 0) {
+        resultado.push({ evento: ev, usuariosEmConflito: Array.from(participantes) })
+      }
+    }
+
+    return resultado
+  },
+
   // Responder a um convite (aceito | recusado | talvez)
   async responderConviteCalendario(convidadoId: string, status: 'aceito' | 'recusado' | 'talvez'): Promise<boolean> {
     const { error } = await supabase
