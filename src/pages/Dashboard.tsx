@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { isClienteUser } from '../lib/auth'
-import { Users, Database, Server, ShoppingBag, Briefcase, Building, Rocket, ArrowRight, AlertCircle } from 'lucide-react'
+import { Users, Database, Server, ShoppingBag, ShoppingCart, Briefcase, Building, Rocket, ArrowRight, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 
@@ -46,6 +46,7 @@ export function Dashboard() {
     clientesNormal: 0,
     clientesLeoAtivos: 0,
     clientesLeoTotal: 0,
+    clientesMeli: 0,
   })
 
   const [implantacoesStats, setImplantacoesStats] = useState({
@@ -80,7 +81,7 @@ export function Dashboard() {
     setLoading(true)
     try {
       // Parallel fast fetching for smooth rendering
-      const [basesRes, clientesRes, leoRes, impRes, projsRes, colsRes, pBasesRes, dadosRes] = await Promise.allSettled([
+      const [basesRes, clientesRes, leoRes, impRes, projsRes, colsRes, pBasesRes, dadosRes, meliRes] = await Promise.allSettled([
         api.getBases(),
         api.getClientes(),
         api.getLeoEmpresas(),
@@ -88,8 +89,10 @@ export function Dashboard() {
         api.getProjetosAtivos(),
         api.getProjetoColunas(),
         api.getProjetoBases(),
-        api.getProjetoDados()
+        api.getProjetoDados(),
+        api.countClientesMeli()
       ])
+      const clientesMeli = meliRes.status === 'fulfilled' ? meliRes.value : 0
 
       const bases = basesRes.status === 'fulfilled' ? basesRes.value : []
       const clientes = clientesRes.status === 'fulfilled' ? clientesRes.value : []
@@ -118,7 +121,8 @@ export function Dashboard() {
           clientesShopee,
           clientesNormal,
           clientesLeoAtivos,
-          clientesLeoTotal
+          clientesLeoTotal,
+          clientesMeli
         })
       }
 
@@ -327,6 +331,26 @@ export function Dashboard() {
                 </div>
                 <div className="text-sm text-slate-400 leading-tight">
                   empresas com <br/>operação logística padrão
+                </div>
+              </div>
+            </div>
+
+            {/* Clientes MELI (Mercado Livre) */}
+            <div 
+              className="card p-6 border border-slate-800/50 hover:border-amber-500/50 transition-all duration-300 group flex flex-col justify-between"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-white flex items-center group-hover:text-amber-400 transition-colors">
+                  <ShoppingCart className="w-5 h-5 mr-2 text-amber-500 shrink-0" />
+                  Clientes MELI
+                </h3>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-br from-amber-400 to-yellow-600">
+                  {stats.clientesMeli}
+                </div>
+                <div className="text-sm text-slate-400 leading-tight">
+                  empresas que trabalham <br/>com o Mercado Livre
                 </div>
               </div>
             </div>

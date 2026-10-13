@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { X, Check } from 'lucide-react'
+import { X, Check, Rocket, ShoppingCart, ExternalLink } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
 
 interface ModulosModalProps {
@@ -16,18 +18,101 @@ type ModuloMantran = {
   tipo: string
 }
 
+const MELI_NOME = 'Mercado Livre'
+
 export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: ModulosModalProps) {
+  const navigate = useNavigate()
   const [modulosDisponiveis, setModulosDisponiveis] = useState<ModuloMantran[]>([])
   const [clienteModulos, setClienteModulos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  // Implantação atual do cliente (se houver) — define o comportamento do botão MELI.
+  const [implantacaoCliente, setImplantacaoCliente] = useState<any | null>(null)
+  const [meliBusy, setMeliBusy] = useState(false)
+  const [meliMsg, setMeliMsg] = useState('')
+
+  const temMeli = clienteModulos.includes(MELI_NOME)
+  // A etapa 'Mercado Livre' já existe na implantação do cliente?
+  const implantacaoTemCardMeli = (implantacaoCliente?.implantacao_etapas || []).some(
+    (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre'
+  )
 
   useEffect(() => {
     if (isOpen) {
       fetchDados()
     } else {
       setClienteModulos([])
+      setImplantacaoCliente(null)
+      setMeliMsg('')
     }
   }, [isOpen, clienteId])
+
+  const fetchImplantacaoCliente = async () => {
+    if (!clienteId) { setImplantacaoCliente(null); return }
+    try {
+      const impl = await api.getImplantacaoByClienteId(clienteId)
+      setImplantacaoCliente(impl)
+    } catch (err) {
+      console.error('Erro ao buscar implantação do cliente:', err)
+      setImplantacaoCliente(null)
+    }
+  }
+
+  const handleCriarOuAdicionarMeli = async () => {
+    if (!clienteId || isReadOnlyUser()) return
+    setMeliBusy(true)
+    setMeliMsg('')
+    try {
+      if (implantacaoCliente) {
+        // Já existe implantação → adiciona apenas o card MELI
+        const adicionou = await api.addEtapaMeliToImplantacao(implantacaoCliente.id)
+        setMeliMsg(adicionou ? 'Card MELI adicionado à implantação existente.' : 'A implantação já possui o card MELI.')
+        // Notifica o Suporte que um novo card (MELI) entrou numa implantação existente
+        if (adicionou) {
+          await api.createNotificacao({
+            titulo: `🛒 Mercado Livre adicionado: ${clienteNome}`,
+            mensagem: `A integração Mercado Livre (MELI) foi adicionada à implantação da empresa "${clienteNome}". Um novo card de checkpoint MELI está disponível para o Suporte.`,
+            tipo: 'nova_implantacao',
+            implantacao_id: implantacaoCliente.id,
+            cliente_id: clienteId,
+            dados_extras: {
+              nome_empresa: clienteNome,
+              origem: 'modulos_cliente',
+              card: 'Mercado Livre'
+            }
+          }).catch(err => console.warn('Aviso ao notificar card MELI:', err))
+        }
+        await fetchImplantacaoCliente()
+      } else {
+        // Sem implantação → cria uma mínima só com o card MELI
+        const nova = await api.createImplantacaoMeli({
+          cliente_id: clienteId,
+          nome_empresa: clienteNome
+        })
+        setImplantacaoCliente({ ...nova, implantacao_etapas: [{ nome_etapa: 'Mercado Livre' }] })
+        setMeliMsg('Implantação criada com o card MELI.')
+        // Notifica a equipe de Suporte sobre a NOVA implantação ativada pelo Comercial
+        const tipoLabel = (nova?.tipo_cliente || '').toUpperCase() === 'SHOPEE' ? 'Shopee' : 'Padrão'
+        await api.createNotificacao({
+          titulo: `🚀 Nova Implantação: ${clienteNome}`,
+          mensagem: `A implantação da empresa "${clienteNome}" (${tipoLabel}) foi iniciada com a integração Mercado Livre (MELI). Checkpoint MELI pendente de preenchimento.`,
+          tipo: 'nova_implantacao',
+          implantacao_id: nova?.id || null,
+          cliente_id: clienteId,
+          dados_extras: {
+            nome_empresa: clienteNome,
+            tipo_cliente: nova?.tipo_cliente || null,
+            origem: 'modulos_cliente',
+            card: 'Mercado Livre'
+          }
+        }).catch(err => console.warn('Aviso ao notificar nova implantação MELI:', err))
+      }
+    } catch (err: any) {
+      console.error('Erro no fluxo MELI:', err)
+      setMeliMsg('Erro: ' + (err?.message || 'Falha na operação'))
+    } finally {
+      setMeliBusy(false)
+    }
+  }
 
   const fetchDados = async () => {
     setLoading(true)
@@ -52,6 +137,9 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: Modulo
         
         setClienteModulos(clientData ? clientData.map(m => m.nome_modulo) : [])
       }
+
+      // Carrega a implantação do cliente (para o fluxo MELI)
+      await fetchImplantacaoCliente()
     } catch (err) {
       console.error('Erro ao carregar dados:', err)
     } finally {
@@ -107,6 +195,48 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: Modulo
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
+          {/* Faixa de ação MELI: aparece quando a integração Mercado Livre está marcada */}
+          {!loading && temMeli && !isReadOnlyUser() && (
+            <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <ShoppingCart className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-amber-200">Integração Mercado Livre (MELI) marcada</p>
+                  <p className="text-xs text-amber-200/70">
+                    {implantacaoTemCardMeli
+                      ? 'A implantação deste cliente já possui o card MELI.'
+                      : implantacaoCliente
+                        ? 'O cliente já tem uma implantação. Adicione o card MELI a ela.'
+                        : 'O cliente ainda não tem implantação. Crie uma com o card MELI.'}
+                  </p>
+                  {meliMsg && <p className="text-[11px] text-amber-300 mt-1 font-semibold">{meliMsg}</p>}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {implantacaoTemCardMeli ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/implantacoes/${implantacaoCliente.id}`)}
+                    className="px-4 py-2 text-xs font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Abrir Implantação</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCriarOuAdicionarMeli}
+                    disabled={meliBusy}
+                    className="px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 rounded-lg shadow-lg shadow-amber-600/25 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Rocket className="w-3.5 h-3.5" />
+                    <span>{meliBusy ? 'Processando...' : implantacaoCliente ? 'Adicionar Card MELI' : 'Criar Implantação'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="flex justify-center items-center h-32">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>

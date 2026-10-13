@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star, Pencil, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, ShoppingCart, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star, Pencil, AlertTriangle } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
@@ -13,8 +13,10 @@ import { VisualizarHistoricoModal } from '../components/VisualizarHistoricoModal
 import { EnviarFeedbackModal } from '../components/EnviarFeedbackModal'
 import { VisualizarFeedbackModal } from '../components/VisualizarFeedbackModal'
 import { ModalErro4PL } from '../components/ModalErro4PL'
+import { MeliCheckpointModal } from '../components/MeliCheckpointModal'
 import { EventoCalendarioModal } from '../components/EventoCalendarioModal'
 import clsx from 'clsx'
+import { calcularPrazoImplantacao } from '../lib/implantacaoPrazo'
 
 
 const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
@@ -35,7 +37,9 @@ const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'treinamento mobile hub': 9,
   'treinamento de mobile hub': 9,
   'treinamento fatura': 10,
-  'feedback': 11,
+  'nfse': 11,
+  'mercado livre': 12,
+  'feedback': 13,
 }
 
 export const normalizeEtapaNome = (nome: string): string => {
@@ -87,6 +91,7 @@ export function ImplantacaoDetalhes() {
   const [isVisualizarFeedbackModalOpen, setIsVisualizarFeedbackModalOpen] = useState(false)
   const [isErro4PLModalOpen, setIsErro4PLModalOpen] = useState(false)
   const [selectedErroEtapa, setSelectedErroEtapa] = useState<any | null>(null)
+  const [isMeliModalOpen, setIsMeliModalOpen] = useState(false)
   // Agendamento de treinamento no calendário (a partir do relógio da etapa)
   const [isEventoModalOpen, setIsEventoModalOpen] = useState(false)
   const [etapaTreinamento, setEtapaTreinamento] = useState<any | null>(null)
@@ -326,6 +331,8 @@ export function ImplantacaoDetalhes() {
   const progress = calculateProgress()
   const isComplete = progress === 100
   const isShopee = implantacao.tipo_cliente === 'SHOPEE'
+  // Selo MELI: implantação possui a etapa 'Mercado Livre'
+  const hasMeli = etapas.some(e => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre')
 
   const nonFeedbackEtapas = etapas.filter(e => (e.nome_etapa || '').trim().toLowerCase() !== 'feedback')
   const areAllNonFeedbackEtapasOk = nonFeedbackEtapas.length > 0 && nonFeedbackEtapas.every(e => e.valor === 'OK')
@@ -368,6 +375,12 @@ export function ImplantacaoDetalhes() {
                 {isShopee ? <ShoppingBag className="w-3.5 h-3.5" /> : <Building className="w-3.5 h-3.5" />}
                 {implantacao.tipo_cliente}
               </span>
+              {hasMeli && (
+                <span className="text-[10px] uppercase font-bold px-2.5 py-1 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/20 flex items-center gap-1.5">
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                  MELI
+                </span>
+              )}
               <span className={`text-[10px] uppercase font-bold px-2.5 py-1 rounded-full border ${
                 isComplete 
                   ? 'bg-green-500/10 text-green-400 border-green-500/20' 
@@ -383,6 +396,7 @@ export function ImplantacaoDetalhes() {
                 h.texto?.toLowerCase().includes('criada no sistema')
               )
               const criadorNome = criadorRegistro?.usuario_nome || null
+              const prazo = calcularPrazoImplantacao(implantacao.created_at, implantacao.status === 'Concluído')
 
               return (
                 <div className="text-xs text-slate-400 mt-1 flex items-center gap-1.5 flex-wrap">
@@ -422,15 +436,54 @@ export function ImplantacaoDetalhes() {
                       className="text-xs font-semibold text-slate-200 hover:text-brand-300 hover:bg-slate-800 px-1.5 py-0.5 rounded transition-all flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-700 group/date"
                     >
                       <Calendar className="w-3.5 h-3.5 text-slate-400 group-hover/date:text-brand-400 transition-colors" />
-                      <span>{new Date(implantacao.created_at).toLocaleDateString('pt-BR')}</span>
+                      <span>{prazo.dataCriacaoStr}</span>
                       <Pencil className="w-2.5 h-2.5 text-slate-400 opacity-0 group-hover/date:opacity-100 transition-opacity ml-0.5" />
                     </button>
                   ) : (
                     <span className="font-semibold text-slate-200 flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      {new Date(implantacao.created_at).toLocaleDateString('pt-BR')}
+                      {prazo.dataCriacaoStr}
                     </span>
                   )}
+
+                  {/* Data Limite ao lado da Data de Criação */}
+                  <span className="text-slate-600">•</span>
+                  <span 
+                    className="text-xs px-2 py-0.5 rounded border flex items-center gap-1.5 font-medium transition-colors"
+                    style={{
+                      backgroundColor: prazo.badgeBg,
+                      borderColor: prazo.badgeBorder,
+                      color: prazo.badgeText
+                    }}
+                    title={`Prazo máximo de 40 dias para encerramento da implantação.\nCriado em: ${prazo.dataCriacaoStr}\nLimite: ${prazo.dataLimiteStr}`}
+                  >
+                    <Clock className="w-3.5 h-3.5 shrink-0" />
+                    <span>Data Limite: <strong className="font-bold">{prazo.dataLimiteStr}</strong></span>
+                  </span>
+
+                  {/* Alerta de Prazo Estourado ou Restante */}
+                  {prazo.estourou ? (
+                    <span className="text-xs font-black px-2 py-0.5 rounded bg-red-500/25 text-red-300 border border-red-500/50 flex items-center gap-1.5 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.3)]">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      <span>PRAZO ESTOURADO (+{prazo.diasAtraso} {prazo.diasAtraso === 1 ? 'dia' : 'dias'} de atraso)</span>
+                    </span>
+                  ) : prazo.status === 'alerta' ? (
+                    <span 
+                      className="text-xs font-bold px-2 py-0.5 rounded border flex items-center gap-1.5"
+                      style={{
+                        backgroundColor: prazo.badgeBg,
+                        borderColor: prazo.badgeBorder,
+                        color: prazo.badgeText
+                      }}
+                    >
+                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                      <span>Restam {prazo.diasRestantes} {prazo.diasRestantes === 1 ? 'dia' : 'dias'} (limite 40d)</span>
+                    </span>
+                  ) : !isComplete ? (
+                    <span className="text-xs text-slate-400 flex items-center gap-1 font-medium">
+                      ({prazo.diasRestantes} dias restantes)
+                    </span>
+                  ) : null}
 
                   <span className="text-slate-600">•</span>
                   <span>{etapas.length} etapas no processo</span>
@@ -479,6 +532,63 @@ export function ImplantacaoDetalhes() {
           </div>
         )}
       </div>
+
+      {/* Banner Informativo de Prazo Estourado ou em Alerta */}
+      {(() => {
+        const prazo = calcularPrazoImplantacao(implantacao.created_at, implantacao.status === 'Concluído')
+        if (prazo.estourou && implantacao.status !== 'Concluído') {
+          return (
+            <div className="p-4 rounded-xl bg-red-500/15 border border-red-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-red-200 shadow-[0_0_20px_rgba(239,68,68,0.25)] animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-red-500/25 text-red-300 shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm sm:text-base font-black text-red-300">
+                      PRAZO DE IMPLANTAÇÃO ESTOURADO!
+                    </h4>
+                    <span className="text-[10px] font-mono font-black text-red-100 bg-red-950/80 px-2 py-0.5 rounded border border-red-500/40">
+                      +{prazo.diasAtraso} {prazo.diasAtraso === 1 ? 'dia' : 'dias'} de atraso
+                    </span>
+                  </div>
+                  <p className="text-xs text-red-200/90 mt-0.5">
+                    Esta implantação foi criada em <strong>{prazo.dataCriacaoStr}</strong> e possuía prazo de encerramento de 40 dias (limite: <strong>{prazo.dataLimiteStr}</strong>). Já se passaram <strong>{prazo.diasCorridos} dias</strong> desde o início do processo.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )
+        }
+        if (prazo.status === 'alerta' && implantacao.status !== 'Concluído') {
+          return (
+            <div 
+              className="p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md"
+              style={{
+                backgroundColor: prazo.badgeBg,
+                borderColor: prazo.badgeBorder,
+                color: prazo.badgeText
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg shrink-0" style={{ backgroundColor: `hsla(${prazo.hue}, 90%, 50%, 0.2)` }}>
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm">
+                    Atenção ao Prazo de Encerramento (40 Dias)
+                  </h4>
+                  <p className="opacity-90 mt-0.5">
+                    Data de início: <strong>{prazo.dataCriacaoStr}</strong> • Data limite: <strong>{prazo.dataLimiteStr}</strong> ({prazo.diasCorridos} dias decorridos). 
+                    Restam apenas <strong>{prazo.diasRestantes} {prazo.diasRestantes === 1 ? 'dia' : 'dias'}</strong> para o prazo limite.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )
+        }
+        return null
+      })()}
 
 
       {/* Full Width Top Stats Grid */}
@@ -821,6 +931,24 @@ export function ImplantacaoDetalhes() {
                 </div>
               )}
 
+              {((etapa.nome_etapa || '').trim().toLowerCase() === 'mercado livre') && !isClienteUser() && (
+                <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsMeliModalOpen(true)}
+                    className={clsx(
+                      "w-full text-xs font-bold py-1.5 px-3 rounded-lg border flex items-center justify-center gap-1.5 transition-colors cursor-pointer",
+                      etapa.valor === 'OK'
+                        ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border-emerald-500/30"
+                        : "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-amber-500/30"
+                    )}
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span>{etapa.valor === 'OK' ? 'Ver / Editar Checkpoint MELI' : 'Preencher Checkpoint MELI'}</span>
+                  </button>
+                </div>
+              )}
+
               {((etapa.nome_etapa || '').trim().toLowerCase() === 'feedback') && (
                 <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
                   {isClienteUser() ? (
@@ -1148,6 +1276,18 @@ export function ImplantacaoDetalhes() {
           }}
         />
       )}
+
+      {/* Modal de Checkpoint do MELI (Mercado Livre) */}
+      <MeliCheckpointModal
+        isOpen={isMeliModalOpen}
+        onClose={() => setIsMeliModalOpen(false)}
+        implantacaoId={implantacao.id}
+        nomeEmpresa={implantacao.nome_empresa}
+        onSuccess={() => {
+          fetchImplantacao()
+          fetchHistorico()
+        }}
+      />
     </div>
   )
 }

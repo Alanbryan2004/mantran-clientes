@@ -510,6 +510,21 @@ export const api = {
     return data || []
   },
 
+  // Lê os módulos contratados de um cliente (tabela `modulos`).
+  // Retorna apenas os nomes dos módulos ativos.
+  async getModulosByCliente(clienteId: string): Promise<string[]> {
+    if (!clienteId) return []
+    const { data, error } = await supabase
+      .from('modulos')
+      .select('nome_modulo, ativo')
+      .eq('cliente_id', clienteId)
+    if (error) throw error
+    return (data || [])
+      .filter((m: any) => m.ativo !== false)
+      .map((m: any) => (m.nome_modulo || '').trim())
+      .filter(Boolean)
+  },
+
   async insertClienteModulos(clienteId: string, modulosNomes: string[]) {
     if (!clienteId || !modulosNomes || modulosNomes.length === 0) return []
     const payload = modulosNomes.map(nome => ({
@@ -773,6 +788,201 @@ export const api = {
       .in('id', ids)
     
     if (error) throw error
+  },
+
+  // ===================== MELI (Mercado Livre) =====================
+  // MELI é um "selo adicional" que coexiste com NORMAL/SHOPEE. Materializa-se
+  // como UMA etapa chamada 'Mercado Livre' na implantação, com um checkpoint
+  // próprio (Client ID / Client Secret) guardado em implantacao_checkpoint.dados.meli.
+  MELI_ETAPA_NOME: 'Mercado Livre',
+
+  // Retorna a implantação (uma) de um cliente, ou null. Inclui etapas.
+  async getImplantacaoByClienteId(clienteId: string) {
+    if (!clienteId) return null
+    const { data, error } = await supabase
+      .from('implantacoes')
+      .select(`*, implantacao_etapas ( id, nome_etapa, valor, ordem )`)
+      .eq('cliente_id', clienteId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) throw error
+    return data
+  },
+
+  // Adiciona a etapa 'Mercado Livre' a uma implantação existente (idempotente).
+  // Insere logo antes do Feedback (ordem = ordem do feedback; feedback empurrado).
+  async addEtapaMeliToImplantacao(implantacaoId: string) {
+    const { data: etapas, error: errSel } = await supabase
+      .from('implantacao_etapas')
+      .select('id, nome_etapa, ordem')
+      .eq('implantacao_id', implantacaoId)
+    if (errSel) throw errSel
+
+    const jaTem = (etapas || []).some(
+      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre'
+    )
+    if (jaTem) return false
+
+    // Ordem: posiciona antes do Feedback, se existir; senão no fim.
+    const feedback = (etapas || []).find(
+      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'feedback'
+    )
+    const maxOrdem = (etapas || []).reduce((m: number, e: any) => Math.max(m, e.ordem || 0), 0)
+    const ordemMeli = feedback ? (feedback.ordem || maxOrdem) : (maxOrdem + 1)
+
+    const { error: errIns } = await supabase
+      .from('implantacao_etapas')
+      .insert({
+        implantacao_id: implantacaoId,
+        nome_etapa: 'Mercado Livre',
+        valor: 'EM BRANCO',
+        ordem: ordemMeli
+      })
+    if (errIns) throw errIns
+    return true
+  },
+
+  // Lê o checkpoint MELI (Client ID / Client Secret) de uma implantação.
+  async getMeliCheckpoint(implantacaoId: string): Promise<{ client_id: string; client_secret: string } | null> {
+    const cp = await api.getImplantacaoCheckpoint(implantacaoId)
+    const meli = cp?.dados?.meli
+    if (!meli) return null
+    return {
+      client_id: meli.client_id || '',
+      client_secret: meli.client_secret || ''
+    }
+  },
+
+  // Salva o checkpoint MELI, fazendo MERGE em implantacao_checkpoint.dados.meli
+  // (sem sobrescrever os demais dados do checkpoint principal).
+  // Atualiza a etapa 'Mercado Livre' para 'OK' quando ambos os campos estão
+  // preenchidos, senão 'PENDENTE'.
+  async saveMeliCheckpoint(implantacaoId: string, meli: { client_id: string; client_secret: string }) {
+    const existing = await api.getImplantacaoCheckpoint(implantacaoId)
+    const dadosAtuais = existing?.dados || {}
+    const novosDados = { ...dadosAtuais, meli: { client_id: (meli.client_id || '').trim(), client_secret: (meli.client_secret || '').trim() } }
+
+    if (existing) {
+      const { error } = await supabase
+        .from('implantacao_checkpoint')
+        .update({ dados: novosDados, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+      if (error) throw error
+    } else {
+      // Não marca o checkpoint principal como concluído; só guarda os dados do MELI.
+      const { error } = await supabase
+        .from('implantacao_checkpoint')
+        .insert({ implantacao_id: implantacaoId, dados: novosDados, concluido: false })
+      if (error) throw error
+    }
+
+    // Atualiza a etapa 'Mercado Livre' para refletir o preenchimento.
+    const completo = !!novosDados.meli.client_id && !!novosDados.meli.client_secret
+    const { data: etapas } = await supabase
+      .from('implantacao_etapas')
+      .select('id, nome_etapa')
+      .eq('implantacao_id', implantacaoId)
+    const etapaMeli = (etapas || []).find(
+      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre'
+    )
+    if (etapaMeli) {
+      await supabase
+        .from('implantacao_etapas')
+        .update({ valor: completo ? 'OK' : 'PENDENTE' })
+        .eq('id', etapaMeli.id)
+    }
+    return { completo }
+  },
+
+  // Cria uma implantação mínima para um cliente que ainda não possui nenhuma,
+  // contendo apenas a etapa 'Mercado Livre'. O tipo_cliente e a base são
+  // DERIVADOS do próprio cliente (tabela clientes + bases), e não do que a UI
+  // passa — assim a implantação nasce com o tipo correto (NORMAL/SHOPEE) e a
+  // base já vinculada. Permite override opcional via params.
+  async createImplantacaoMeli(params: {
+    cliente_id: string
+    nome_empresa?: string
+    tipo_cliente?: string
+    base_id?: string | null
+    analista_responsavel_id?: string | null
+    analista_responsavel?: string | null
+  }) {
+    // 1. Busca dados do cliente (nome + tipo)
+    let nomeEmpresa = params.nome_empresa || ''
+    let tipoCliente = params.tipo_cliente || ''
+    try {
+      const { data: cli } = await supabase
+        .from('clientes')
+        .select('nome_empresa, tipo')
+        .eq('id', params.cliente_id)
+        .maybeSingle()
+      if (cli) {
+        if (!nomeEmpresa) nomeEmpresa = cli.nome_empresa || ''
+        if (!tipoCliente) tipoCliente = cli.tipo || ''
+      }
+    } catch (e) {
+      console.warn('Aviso ao buscar cliente para implantação MELI:', e)
+    }
+
+    // tipo_cliente só pode ser NORMAL ou SHOPEE (CHECK do banco). Qualquer
+    // outro valor (ex.: TESTE, COMMERSYS) cai para NORMAL.
+    const tipoNormalizado = (tipoCliente || '').toUpperCase() === 'SHOPEE' ? 'SHOPEE' : 'NORMAL'
+
+    // 2. Resolve a base do cliente (se não veio no override)
+    let baseId: string | null = params.base_id || null
+    if (!baseId) {
+      try {
+        const { data: base } = await supabase
+          .from('bases')
+          .select('id')
+          .eq('cliente_id', params.cliente_id)
+          .limit(1)
+          .maybeSingle()
+        if (base) baseId = base.id
+      } catch (e) {
+        console.warn('Aviso ao buscar base do cliente para implantação MELI:', e)
+      }
+    }
+
+    const { data: impl, error } = await supabase
+      .from('implantacoes')
+      .insert({
+        cliente_id: params.cliente_id,
+        base_id: baseId,
+        nome_empresa: nomeEmpresa,
+        tipo_cliente: tipoNormalizado,
+        operacoes_shopee: [],
+        modulos_normal: [],
+        analista_responsavel_id: params.analista_responsavel_id || null,
+        analista_responsavel: params.analista_responsavel || null
+      })
+      .select()
+      .single()
+    if (error) throw error
+
+    await supabase.from('implantacao_etapas').insert({
+      implantacao_id: impl.id,
+      nome_etapa: 'Mercado Livre',
+      valor: 'EM BRANCO',
+      ordem: 1
+    })
+    return impl
+  },
+
+  // Conta quantos clientes DISTINTOS têm o módulo/integração 'Mercado Livre' ativo.
+  async countClientesMeli(): Promise<number> {
+    const { data, error } = await supabase
+      .from('modulos')
+      .select('cliente_id, ativo')
+      .eq('nome_modulo', 'Mercado Livre')
+    if (error) throw error
+    const ids = new Set(
+      (data || [])
+        .filter((m: any) => m.ativo !== false && m.cliente_id)
+        .map((m: any) => m.cliente_id)
+    )
+    return ids.size
   },
 
   async updateImplantacaoStatus(id: string, status: string) {

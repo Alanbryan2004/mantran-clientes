@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Plus, Rocket, Trash2, Settings, ShoppingBag, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck, History, KeyRound, Calendar, Pencil } from 'lucide-react'
+import { Plus, Rocket, Trash2, Settings, ShoppingBag, ShoppingCart, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck, History, KeyRound, Calendar, Pencil, AlertTriangle } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser, getLoggedUser } from '../lib/auth'
 import { NovaImplantacaoModal } from '../components/NovaImplantacaoModal'
 import { AcessoClienteModal } from '../components/AcessoClienteModal'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
+import { calcularPrazoImplantacao } from '../lib/implantacaoPrazo'
 
 const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'checkpoint': 1,
@@ -25,7 +26,9 @@ const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'treinamento mobile hub': 9,
   'treinamento de mobile hub': 9,
   'treinamento fatura': 10,
-  'feedback': 11,
+  'nfse': 11,
+  'mercado livre': 12,
+  'feedback': 13,
 }
 
 const ETAPAS_FILTRO_OPTIONS = [
@@ -38,6 +41,8 @@ const ETAPAS_FILTRO_OPTIONS = [
   'Treinamento de Cadastros',
   'Treinamento de Line Haul',
   'Treinamento Fatura',
+  'NFSE',
+  'Mercado Livre',
   'Feedback',
 ]
 
@@ -157,6 +162,7 @@ const getUltimoStatusData = (impl: any) => {
 export function Implantacoes() {
   const [implantacoes, setImplantacoes] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<'EM_ANDAMENTO' | 'CONCLUIDOS'>('EM_ANDAMENTO')
+  const [filtroPrazo, setFiltroPrazo] = useState<'TODOS' | 'ESTOURADO' | 'ALERTA'>('TODOS')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedEtapa, setSelectedEtapa] = useState('')
   const [selectedAnalista, setSelectedAnalista] = useState('')
@@ -257,6 +263,10 @@ export function Implantacoes() {
     .filter(i => i.status === 'Concluído')
     .sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR', { sensitivity: 'base' }))
 
+  const emAndamentoPrazos = emAndamento.map(i => calcularPrazoImplantacao(i.created_at, false))
+  const countEstouradas = emAndamentoPrazos.filter(p => p.estourou).length
+  const countAlerta = emAndamentoPrazos.filter(p => p.status === 'alerta').length
+
   const analistasList = Array.from(
     new Set(implantacoes.map(i => i.analista_responsavel).filter(Boolean))
   ).sort()
@@ -285,13 +295,21 @@ export function Implantacoes() {
         if (impl.analista_responsavel !== selectedAnalista) return false
       }
 
+      if (filtroPrazo === 'ESTOURADO') {
+        const prazo = calcularPrazoImplantacao(impl.created_at, impl.status === 'Concluído')
+        if (!prazo.estourou) return false
+      } else if (filtroPrazo === 'ALERTA') {
+        const prazo = calcularPrazoImplantacao(impl.created_at, impl.status === 'Concluído')
+        if (prazo.status !== 'alerta') return false
+      }
+
       return true
     })
   }
 
   const filteredEmAndamento = filterList(emAndamento)
   const filteredConcluidos = filterList(concluidos)
-  const isFiltering = searchTerm.trim() !== '' || selectedEtapa !== '' || selectedAnalista !== ''
+  const isFiltering = searchTerm.trim() !== '' || selectedEtapa !== '' || selectedAnalista !== '' || filtroPrazo !== 'TODOS'
 
   if (isCliente) {
     return (
@@ -322,13 +340,15 @@ export function Implantacoes() {
       {/* Submenu / Abas de Navegação + Filtros */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-800 pb-4">
         {/* Abas */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setActiveTab('EM_ANDAMENTO')}
+            onClick={() => { setActiveTab('EM_ANDAMENTO'); setFiltroPrazo('TODOS'); }}
             className={clsx(
               "flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
-              activeTab === 'EM_ANDAMENTO'
+              activeTab === 'EM_ANDAMENTO' && filtroPrazo === 'TODOS'
                 ? "bg-brand-500/15 text-brand-400 border-brand-500/30 shadow-lg shadow-brand-500/10"
+                : activeTab === 'EM_ANDAMENTO'
+                ? "bg-slate-900/40 text-slate-300 border-slate-700"
                 : "bg-slate-900/40 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700"
             )}
           >
@@ -342,8 +362,48 @@ export function Implantacoes() {
             </span>
           </button>
 
+          {/* Chip de Prazo Estourado */}
+          {countEstouradas > 0 && activeTab === 'EM_ANDAMENTO' && (
+            <button
+              onClick={() => setFiltroPrazo(prev => prev === 'ESTOURADO' ? 'TODOS' : 'ESTOURADO')}
+              className={clsx(
+                "flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
+                filtroPrazo === 'ESTOURADO'
+                  ? "bg-red-500/25 text-red-200 border-red-500 shadow-lg shadow-red-500/20 ring-1 ring-red-400"
+                  : "bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20"
+              )}
+              title="Filtrar apenas implantações que ultrapassaram o prazo de 40 dias"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400 shrink-0" />
+              <span>Prazo Estourado</span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold bg-red-950/80 text-red-200 border border-red-500/40">
+                {countEstouradas}
+              </span>
+            </button>
+          )}
+
+          {/* Chip de Atenção (>30 dias) */}
+          {countAlerta > 0 && activeTab === 'EM_ANDAMENTO' && (
+            <button
+              onClick={() => setFiltroPrazo(prev => prev === 'ALERTA' ? 'TODOS' : 'ALERTA')}
+              className={clsx(
+                "flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
+                filtroPrazo === 'ALERTA'
+                  ? "bg-amber-500/25 text-amber-200 border-amber-500 shadow-lg shadow-amber-500/20 ring-1 ring-amber-400"
+                  : "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+              )}
+              title="Filtrar implantações em alerta (>30 dias)"
+            >
+              <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+              <span>Atenção (&gt;30d)</span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold bg-amber-950/80 text-amber-200 border border-amber-500/40">
+                {countAlerta}
+              </span>
+            </button>
+          )}
+
           <button
-            onClick={() => setActiveTab('CONCLUIDOS')}
+            onClick={() => { setActiveTab('CONCLUIDOS'); setFiltroPrazo('TODOS'); }}
             className={clsx(
               "flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
               activeTab === 'CONCLUIDOS'
@@ -496,21 +556,57 @@ export function Implantacoes() {
                       const proximaEtapa = getProximaEtapa(impl.implantacao_etapas, isShopee)
                       const progressColor = getProgressColor(progress)
                       const progressTextColor = getProgressTextColor(progress)
+                      const prazo = calcularPrazoImplantacao(impl.created_at, false)
 
                       return (
                         <div 
                           key={impl.id} 
-                          className="bg-dark-card border border-slate-800 rounded-xl p-4 hover:border-brand-500/50 transition-all duration-300 group cursor-pointer shadow-lg relative overflow-visible flex flex-col justify-between"
+                          className="rounded-xl p-4 transition-all duration-300 group cursor-pointer relative overflow-visible flex flex-col justify-between"
+                          style={{
+                            backgroundColor: '#0f172a',
+                            backgroundImage: prazo.bgGradient,
+                            border: `1px solid ${prazo.borderColor}`,
+                            boxShadow: prazo.boxShadow,
+                          }}
                           onClick={() => navigate(`/implantacoes/${impl.id}`)}
                         >
-                          <div className={`absolute top-0 left-0 w-1 h-full ${progressColor} rounded-l-xl`}></div>
+                          {/* Barra vertical indicadora com a cor do prazo (amarelo até vermelho estourado) */}
+                          <div 
+                            className="absolute top-0 left-0 w-1.5 h-full rounded-l-xl transition-colors duration-300"
+                            style={{ backgroundColor: prazo.accentColor }}
+                          ></div>
                           
                           <div>
                             <div className="flex justify-between items-start mb-2 relative">
-                              <div className="flex-1 min-w-0 pr-6">
-                                <h3 className="text-base font-bold text-white group-hover:text-brand-400 transition-colors truncate">
+                              <div className="flex-1 min-w-0 pr-6 flex items-center gap-1.5 flex-wrap">
+                                <h3 className="text-base font-bold text-white group-hover:text-brand-400 transition-colors truncate" title={impl.nome_empresa}>
                                   {impl.nome_empresa}
                                 </h3>
+
+                                {prazo.estourou && (
+                                  <span 
+                                    className="shrink-0 text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-500/25 text-red-300 border border-red-500/60 flex items-center gap-1 shadow-[0_0_8px_rgba(239,68,68,0.3)] animate-pulse"
+                                    title={`Prazo de 40 dias estourado há ${prazo.diasAtraso} dias! (Limite: ${prazo.dataLimiteStr})`}
+                                  >
+                                    <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />
+                                    <span>Prazo Estourado (+{prazo.diasAtraso}d)</span>
+                                  </span>
+                                )}
+
+                                {prazo.status === 'alerta' && (
+                                  <span 
+                                    className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1"
+                                    style={{
+                                      backgroundColor: prazo.badgeBg,
+                                      borderColor: prazo.badgeBorder,
+                                      color: prazo.badgeText
+                                    }}
+                                    title={`Atenção ao prazo de 40 dias: restam ${prazo.diasRestantes} dias`}
+                                  >
+                                    <Clock className="w-3 h-3 shrink-0" />
+                                    <span>Restam {prazo.diasRestantes}d</span>
+                                  </span>
+                                )}
                               </div>
                               
                               {!isReadOnlyUser() && (
@@ -548,7 +644,8 @@ export function Implantacoes() {
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+                            {/* Tags de Tipo de Cliente, Data de Criação e Data Limite */}
+                            <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
                               <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                                 impl.tipo_cliente === 'SHOPEE' 
                                   ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' 
@@ -557,6 +654,11 @@ export function Implantacoes() {
                                 {impl.tipo_cliente === 'SHOPEE' ? <ShoppingBag className="w-3 h-3" /> : <Building className="w-3 h-3" />}
                                 {impl.tipo_cliente}
                               </span>
+                              {(impl.implantacao_etapas || []).some((e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre') && (
+                                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/20 flex items-center gap-1">
+                                  <ShoppingCart className="w-3 h-3" /> MELI
+                                </span>
+                              )}
 
                               {editingDateImplId === impl.id && !isReadOnlyUser() ? (
                                 <div 
@@ -592,15 +694,29 @@ export function Implantacoes() {
                                   className="text-[11px] text-slate-400 hover:text-brand-300 hover:bg-slate-800/80 px-1.5 py-0.5 rounded transition-all flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-700 group/date"
                                 >
                                   <Calendar className="w-3 h-3 text-slate-500 group-hover/date:text-brand-400 transition-colors" />
-                                  <span>{new Date(impl.created_at).toLocaleDateString('pt-BR')}</span>
+                                  <span>{prazo.dataCriacaoStr}</span>
                                   <Pencil className="w-2.5 h-2.5 text-slate-500 opacity-0 group-hover/date:opacity-100 transition-opacity ml-0.5" />
                                 </button>
                               ) : (
                                 <span className="text-[11px] text-slate-500 flex items-center gap-1">
                                   <Calendar className="w-3 h-3 text-slate-600" />
-                                  {new Date(impl.created_at).toLocaleDateString('pt-BR')}
+                                  {prazo.dataCriacaoStr}
                                 </span>
                               )}
+
+                              {/* Data Limite adicionada do lado da Data de Criação */}
+                              <span 
+                                className="text-[11px] px-1.5 py-0.5 rounded border flex items-center gap-1 transition-colors"
+                                style={{
+                                  backgroundColor: prazo.badgeBg,
+                                  borderColor: prazo.badgeBorder,
+                                  color: prazo.badgeText
+                                }}
+                                title={`Prazo máximo de 40 dias para encerramento da implantação.\nCriado em: ${prazo.dataCriacaoStr}\nLimite: ${prazo.dataLimiteStr}\n${prazo.estourou ? `Estourado há ${prazo.diasAtraso} dias!` : `Restam ${prazo.diasRestantes} dias.`}`}
+                              >
+                                <Clock className="w-3 h-3 shrink-0" />
+                                <span>Limite: <strong className="font-semibold">{prazo.dataLimiteStr}</strong></span>
+                              </span>
                             </div>
 
                             {/* Próxima etapa a ser concluída */}
@@ -743,114 +859,130 @@ export function Implantacoes() {
                     </div>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {filteredConcluidos.map(impl => (
-                      <div 
-                        key={impl.id} 
-                        className="bg-dark-card border border-slate-800 rounded-xl p-4 hover:border-green-500/40 transition-all duration-300 group cursor-pointer shadow-lg relative flex flex-col justify-between"
-                        onClick={() => navigate(`/implantacoes/${impl.id}`)}
-                      >
-                        <div className="absolute top-0 left-0 w-1 h-full bg-green-500 rounded-l-xl"></div>
-                        
-                        <div>
-                          <div className="flex justify-between items-start mb-2 relative">
-                            <div className="flex-1 min-w-0 pr-6">
-                              <h3 className="text-base font-bold text-white group-hover:text-green-400 transition-colors truncate">
-                                {impl.nome_empresa}
-                              </h3>
+                    {filteredConcluidos.map(impl => {
+                      const prazo = calcularPrazoImplantacao(impl.created_at, true)
+                      return (
+                        <div 
+                          key={impl.id} 
+                          className="bg-dark-card border border-slate-800 rounded-xl p-4 hover:border-green-500/40 transition-all duration-300 group cursor-pointer shadow-lg relative flex flex-col justify-between"
+                          onClick={() => navigate(`/implantacoes/${impl.id}`)}
+                        >
+                          <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500 rounded-l-xl"></div>
+                          
+                          <div>
+                            <div className="flex justify-between items-start mb-2 relative">
+                              <div className="flex-1 min-w-0 pr-6">
+                                <h3 className="text-base font-bold text-white group-hover:text-green-400 transition-colors truncate">
+                                  {impl.nome_empresa}
+                                </h3>
+                              </div>
+                              
+                              {!isReadOnlyUser() && (
+                                <div className="absolute -top-1 -right-1">
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === impl.id ? null : impl.id) }}
+                                    className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors focus:outline-none"
+                                  >
+                                    <Settings className="w-4 h-4" />
+                                  </button>
+                                  
+                                  {openMenuId === impl.id && (
+                                    <div className="absolute right-0 mt-1 w-52 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50 divide-y divide-slate-700/50">
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setEditingDateImplId(impl.id) }}
+                                        className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-2 transition-colors font-medium"
+                                      >
+                                        <Calendar className="w-4 h-4 text-slate-400" /> Alterar Data de Criação
+                                      </button>
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setSelectedAcessoImpl(impl) }}
+                                        className="w-full text-left px-4 py-2.5 text-xs text-brand-300 hover:bg-brand-500/10 flex items-center gap-2 transition-colors font-semibold"
+                                      >
+                                        <KeyRound className="w-4 h-4 text-brand-400" /> Acesso do Cliente
+                                      </button>
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDelete(impl.id, impl.nome_empresa) }}
+                                        className="w-full text-left px-4 py-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
+                                      >
+                                        <Trash2 className="w-4 h-4" /> Excluir Implantação
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            
-                            {!isReadOnlyUser() && (
-                              <div className="absolute -top-1 -right-1">
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === impl.id ? null : impl.id) }}
-                                  className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors focus:outline-none"
-                                >
-                                  <Settings className="w-4 h-4" />
-                                </button>
-                                
-                                {openMenuId === impl.id && (
-                                  <div className="absolute right-0 mt-1 w-52 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden z-50 divide-y divide-slate-700/50">
-                                    <button 
-                                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setEditingDateImplId(impl.id) }}
-                                      className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-slate-700/50 flex items-center gap-2 transition-colors font-medium"
-                                    >
-                                      <Calendar className="w-4 h-4 text-slate-400" /> Alterar Data de Criação
-                                    </button>
-                                    <button 
-                                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setSelectedAcessoImpl(impl) }}
-                                      className="w-full text-left px-4 py-2.5 text-xs text-brand-300 hover:bg-brand-500/10 flex items-center gap-2 transition-colors font-semibold"
-                                    >
-                                      <KeyRound className="w-4 h-4 text-brand-400" /> Acesso do Cliente
-                                    </button>
-                                    <button 
-                                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleDelete(impl.id, impl.nome_empresa) }}
-                                      className="w-full text-left px-4 py-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-2 transition-colors"
-                                    >
-                                      <Trash2 className="w-4 h-4" /> Excluir Implantação
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
 
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                              impl.tipo_cliente === 'SHOPEE' 
-                                ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' 
-                                : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                            }`}>
-                              {impl.tipo_cliente === 'SHOPEE' ? <ShoppingBag className="w-3 h-3" /> : <Building className="w-3 h-3" />}
-                              {impl.tipo_cliente}
-                            </span>
-                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> Concluído
-                            </span>
-
-                            {editingDateImplId === impl.id && !isReadOnlyUser() ? (
-                              <div 
-                                className="flex items-center gap-1 z-20 ml-auto"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <input
-                                  type="date"
-                                  defaultValue={isoToDateInput(impl.created_at)}
-                                  autoFocus
-                                  onChange={async (e) => {
-                                    const val = e.target.value
-                                    if (val) {
-                                      await handleUpdateDataCriacao(impl.id, val)
-                                      setEditingDateImplId(null)
-                                    }
-                                  }}
-                                  onBlur={() => setEditingDateImplId(null)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Escape' || e.key === 'Enter') setEditingDateImplId(null)
-                                  }}
-                                  className="bg-slate-900 border border-brand-500 text-slate-200 text-xs font-mono rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-400 shadow-lg cursor-pointer"
-                                />
-                              </div>
-                            ) : !isReadOnlyUser() ? (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setEditingDateImplId(impl.id)
-                                }}
-                                title="Clique para editar a Data de Criação"
-                                className="text-[11px] text-slate-400 hover:text-brand-300 hover:bg-slate-800/80 px-1.5 py-0.5 rounded transition-all flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-700 group/date ml-auto"
-                              >
-                                <Calendar className="w-3 h-3 text-slate-500 group-hover/date:text-brand-400 transition-colors" />
-                                <span>{new Date(impl.created_at).toLocaleDateString('pt-BR')}</span>
-                                <Pencil className="w-2.5 h-2.5 text-slate-500 opacity-0 group-hover/date:opacity-100 transition-opacity ml-0.5" />
-                              </button>
-                            ) : (
-                              <span className="text-[11px] text-slate-500 flex items-center gap-1 ml-auto">
-                                <Calendar className="w-3 h-3 text-slate-600" />
-                                {new Date(impl.created_at).toLocaleDateString('pt-BR')}
+                            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                                impl.tipo_cliente === 'SHOPEE' 
+                                  ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' 
+                                  : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                              }`}>
+                                {impl.tipo_cliente === 'SHOPEE' ? <ShoppingBag className="w-3 h-3" /> : <Building className="w-3 h-3" />}
+                                {impl.tipo_cliente}
                               </span>
-                            )}
-                          </div>
+                              {(impl.implantacao_etapas || []).some((e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre') && (
+                                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/20 flex items-center gap-1">
+                                  <ShoppingCart className="w-3 h-3" /> MELI
+                                </span>
+                              )}
+                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Concluído
+                              </span>
+
+                              {editingDateImplId === impl.id && !isReadOnlyUser() ? (
+                                <div 
+                                  className="flex items-center gap-1 z-20"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <input
+                                    type="date"
+                                    defaultValue={isoToDateInput(impl.created_at)}
+                                    autoFocus
+                                    onChange={async (e) => {
+                                      const val = e.target.value
+                                      if (val) {
+                                        await handleUpdateDataCriacao(impl.id, val)
+                                        setEditingDateImplId(null)
+                                      }
+                                    }}
+                                    onBlur={() => setEditingDateImplId(null)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Escape' || e.key === 'Enter') setEditingDateImplId(null)
+                                    }}
+                                    className="bg-slate-900 border border-brand-500 text-slate-200 text-xs font-mono rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-400 shadow-lg cursor-pointer"
+                                  />
+                                </div>
+                              ) : !isReadOnlyUser() ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setEditingDateImplId(impl.id)
+                                  }}
+                                  title="Clique para editar a Data de Criação"
+                                  className="text-[11px] text-slate-400 hover:text-brand-300 hover:bg-slate-800/80 px-1.5 py-0.5 rounded transition-all flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-700 group/date"
+                                >
+                                  <Calendar className="w-3 h-3 text-slate-500 group-hover/date:text-brand-400 transition-colors" />
+                                  <span>{prazo.dataCriacaoStr}</span>
+                                  <Pencil className="w-2.5 h-2.5 text-slate-500 opacity-0 group-hover/date:opacity-100 transition-opacity ml-0.5" />
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                                  <Calendar className="w-3 h-3 text-slate-600" />
+                                  {prazo.dataCriacaoStr}
+                                </span>
+                              )}
+
+                              {/* Data Limite ao lado da Data de Criação */}
+                              <span 
+                                className="text-[11px] px-1.5 py-0.5 rounded border border-slate-700/60 bg-slate-800/50 text-slate-400 flex items-center gap-1"
+                                title={`Data Limite era: ${prazo.dataLimiteStr}`}
+                              >
+                                <Clock className="w-3 h-3 text-slate-500 shrink-0" />
+                                <span>Limite: <strong className="font-semibold text-slate-300">{prazo.dataLimiteStr}</strong></span>
+                              </span>
+                            </div>
 
                           {/* Último Status / Histórico (Concluídos) */}
                           {(() => {
@@ -911,8 +1043,9 @@ export function Implantacoes() {
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })}
+                </div>
                 </>
               )}
             </div>

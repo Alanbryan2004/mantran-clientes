@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { 
   X, ChevronRight, ChevronLeft, Check, ShoppingBag, Building, 
   Rocket, UserCheck, ShieldAlert, KeyRound, ShieldCheck, 
-  Layers, PackageCheck, Sparkles
+  Layers, PackageCheck, Sparkles, AlertCircle
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { getLoggedUser } from '../lib/auth'
@@ -188,6 +188,10 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
         etapas.push('Treinamento Mobile Hub')
       }
       etapas.push('Treinamento Fatura')
+      // Etapa NFSE: só quando o módulo NFSE foi contratado (passo 2). Sempre antes do Feedback.
+      if (selectedModulosContratados.includes('NFSE')) {
+        etapas.push('NFSE')
+      }
       etapas.push('Feedback')
       return etapas
     } else {
@@ -195,6 +199,10 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
       selectedModulosTreinamento.forEach(mod => {
         etapas.push(`Treinamento ${mod}`)
       })
+      // Etapa NFSE: só quando o módulo NFSE foi contratado (passo 2). Sempre antes do Feedback.
+      if (selectedModulosContratados.includes('NFSE')) {
+        etapas.push('NFSE')
+      }
       etapas.push('Feedback')
       return etapas
     }
@@ -203,8 +211,8 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
   const canProceed = () => {
     if (step === 1) return nomeEmpresa.trim() !== '' && selectedBase !== '' && tipoCliente !== ''
     if (step === 2) {
-      // Passo 2: Módulos contratados pode ser opcional ou exigir ao menos 1
-      return true
+      // Passo 2: Obrigatório selecionar ao menos um módulo contratado
+      return selectedModulosContratados.length > 0
     }
     if (step === 3) {
       if (tipoCliente === 'SHOPEE') return selectedOperacoes.length > 0
@@ -492,7 +500,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <Layers className="w-5 h-5 text-brand-400" />
-                    Módulos e Integrações Contratados
+                    Módulos e Integrações Contratados <span className="text-rose-400">*</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Selecione os módulos contratados pelo cliente ({nomeEmpresa}). Eles serão salvos no cadastro de Clientes.
@@ -500,11 +508,24 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                    {modulosCount} módulos • {integracoesCount} integrações
-                  </span>
+                  {selectedModulosContratados.length === 0 ? (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> Seleção obrigatória
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                      {modulosCount} módulos • {integracoesCount} integrações
+                    </span>
+                  )}
                 </div>
               </div>
+
+              {selectedModulosContratados.length === 0 && (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>Selecione ao menos um módulo ou integração contratada para avançar para a próxima etapa.</span>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
@@ -935,6 +956,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
               type="button" 
               onClick={() => setStep(step + 1)}
               disabled={!canProceed()}
+              title={!canProceed() && step === 2 ? 'Selecione ao menos um módulo contratado para avançar' : undefined}
               className="btn-primary flex items-center gap-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Próximo <ChevronRight className="w-4 h-4" />

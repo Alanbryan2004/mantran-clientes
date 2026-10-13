@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS implantacao_etapas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   implantacao_id UUID REFERENCES implantacoes(id) ON DELETE CASCADE,
   nome_etapa TEXT NOT NULL,
-  valor TEXT DEFAULT 'EM BRANCO' CHECK (valor IN ('OK', 'EM BRANCO', 'PENDENTE')),
+  valor TEXT DEFAULT 'EM BRANCO' CHECK (valor IN ('OK', 'EM BRANCO', 'PENDENTE', 'ERRO')),
   ordem INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now()
 );

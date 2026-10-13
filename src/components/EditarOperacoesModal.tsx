@@ -36,7 +36,8 @@ const SHOPEE_ORDER_MAP: Record<string, number> = {
   'treinamento mobile hub': 9,
   'treinamento de mobile hub': 9,
   'treinamento fatura': 10,
-  'feedback': 11,
+  'nfse': 11,
+  'feedback': 12,
 }
 
 const normalizeShopeeEtapaName = (nome: string): string => {
@@ -53,6 +54,8 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
   const [selectedOperacoes, setSelectedOperacoes] = useState<string[]>([])
   const [selectedModulos, setSelectedModulos] = useState<string[]>([])
   const [modulosDisponiveis, setModulosDisponiveis] = useState<any[]>([])
+  // Módulos contratados do cliente (tabela `modulos`) — define se a etapa NFSE se aplica.
+  const [modulosContratados, setModulosContratados] = useState<string[]>([])
   const [dataCriacao, setDataCriacao] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -81,8 +84,23 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
         setSelectedModulos(implantacao.modulos_normal || [])
         fetchModulos()
       }
+      fetchModulosContratados()
     }
   }, [isOpen, implantacao])
+
+  const fetchModulosContratados = async () => {
+    if (!implantacao?.cliente_id) {
+      setModulosContratados([])
+      return
+    }
+    try {
+      const nomes = await api.getModulosByCliente(implantacao.cliente_id)
+      setModulosContratados(nomes)
+    } catch (err) {
+      console.error('Erro ao buscar módulos contratados do cliente:', err)
+      setModulosContratados([])
+    }
+  }
 
   const fetchModulos = async () => {
     setLoading(true)
@@ -134,6 +152,10 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
         etapas.push('Treinamento Mobile Hub')
       }
       etapas.push('Treinamento Fatura')
+      // Etapa NFSE: só quando o módulo NFSE foi contratado pelo cliente. Sempre antes do Feedback.
+      if (modulosContratados.includes('NFSE')) {
+        etapas.push('NFSE')
+      }
       etapas.push('Feedback')
       return etapas
     } else {
@@ -141,6 +163,10 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
       selectedModulos.forEach(mod => {
         etapas.push(`Treinamento ${mod}`)
       })
+      // Etapa NFSE: só quando o módulo NFSE foi contratado pelo cliente. Sempre antes do Feedback.
+      if (modulosContratados.includes('NFSE')) {
+        etapas.push('NFSE')
+      }
       etapas.push('Feedback')
       return etapas
     }
