@@ -25,15 +25,31 @@ function autoVersionPlugin(): Plugin {
     apply: 'build',
     buildStart() {
       const versionPath = path.resolve(__dirname, 'public/version.json')
-      const tsVersionPath = path.resolve(__dirname, 'src/version.ts')
+      const apiVersionPath = path.resolve(__dirname, 'api/version.ts')
       const content = JSON.stringify({
         version: buildVersion,
         buildTime: now.toISOString()
       }, null, 2) + '\n'
 
       fs.writeFileSync(versionPath, content, 'utf-8')
-      fs.writeFileSync(tsVersionPath, `export const APP_VERSION = ${content};\n`, 'utf-8')
-      console.log(`\n🔄 [AutoVersion] version.json e src/version.ts atualizados → v${buildVersion}\n`)
+
+      const apiVersionContent = `import type { VercelRequest, VercelResponse } from '@vercel/node'
+
+const APP_VERSION = ${content.trim()}
+
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0')
+  res.setHeader('CDN-Cache-Control', 'no-store')
+  res.setHeader('Vercel-CDN-Cache-Control', 'no-store')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+
+  return res.status(200).json(APP_VERSION)
+}
+`
+      fs.writeFileSync(apiVersionPath, apiVersionContent, 'utf-8')
+      console.log(`\n🔄 [AutoVersion] version.json e api/version.ts atualizados → v${buildVersion}\n`)
     }
   }
 }

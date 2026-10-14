@@ -1,8 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { APP_VERSION } from '../src/version'
+
+const APP_VERSION = {
+  "version": "2026.10.14-162600",
+  "buildTime": "2026-10-14T19:26:00.816Z"
+}
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
-  // Impede qualquer tipo de cache na CDN/Edge da Vercel e no navegador
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0')
   res.setHeader('CDN-Cache-Control', 'no-store')
   res.setHeader('Vercel-CDN-Cache-Control', 'no-store')
