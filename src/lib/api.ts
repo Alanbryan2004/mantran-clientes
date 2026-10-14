@@ -810,9 +810,11 @@ export const api = {
     return data
   },
 
-  // Adiciona a etapa 'Mercado Livre' a uma implantação existente (idempotente).
+  // Adiciona uma etapa (card) a uma implantação existente (idempotente).
   // Insere logo antes do Feedback (ordem = ordem do feedback; feedback empurrado).
-  async addEtapaMeliToImplantacao(implantacaoId: string) {
+  // Retorna true se adicionou, false se a etapa já existia.
+  async addEtapaToImplantacao(implantacaoId: string, nomeEtapa: string) {
+    const alvo = (nomeEtapa || '').trim().toLowerCase()
     const { data: etapas, error: errSel } = await supabase
       .from('implantacao_etapas')
       .select('id, nome_etapa, ordem')
@@ -820,7 +822,7 @@ export const api = {
     if (errSel) throw errSel
 
     const jaTem = (etapas || []).some(
-      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre'
+      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === alvo
     )
     if (jaTem) return false
 
@@ -829,18 +831,23 @@ export const api = {
       (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'feedback'
     )
     const maxOrdem = (etapas || []).reduce((m: number, e: any) => Math.max(m, e.ordem || 0), 0)
-    const ordemMeli = feedback ? (feedback.ordem || maxOrdem) : (maxOrdem + 1)
+    const ordem = feedback ? (feedback.ordem || maxOrdem) : (maxOrdem + 1)
 
     const { error: errIns } = await supabase
       .from('implantacao_etapas')
       .insert({
         implantacao_id: implantacaoId,
-        nome_etapa: 'Mercado Livre',
+        nome_etapa: nomeEtapa,
         valor: 'EM BRANCO',
-        ordem: ordemMeli
+        ordem
       })
     if (errIns) throw errIns
     return true
+  },
+
+  // Wrapper específico MELI (mantido por compatibilidade).
+  async addEtapaMeliToImplantacao(implantacaoId: string) {
+    return api.addEtapaToImplantacao(implantacaoId, 'Mercado Livre')
   },
 
   // Lê o checkpoint MELI (Client ID / Client Secret) de uma implantação.
@@ -900,8 +907,10 @@ export const api = {
   // DERIVADOS do próprio cliente (tabela clientes + bases), e não do que a UI
   // passa — assim a implantação nasce com o tipo correto (NORMAL/SHOPEE) e a
   // base já vinculada. Permite override opcional via params.
-  async createImplantacaoMeli(params: {
+  // `cards` define as etapas iniciais (ex.: ['Mercado Livre', 'NFSE']).
+  async createImplantacaoComCards(params: {
     cliente_id: string
+    cards: string[]
     nome_empresa?: string
     tipo_cliente?: string
     base_id?: string | null
@@ -922,7 +931,7 @@ export const api = {
         if (!tipoCliente) tipoCliente = cli.tipo || ''
       }
     } catch (e) {
-      console.warn('Aviso ao buscar cliente para implantação MELI:', e)
+      console.warn('Aviso ao buscar cliente para implantação:', e)
     }
 
     // tipo_cliente só pode ser NORMAL ou SHOPEE (CHECK do banco). Qualquer
@@ -941,7 +950,7 @@ export const api = {
           .maybeSingle()
         if (base) baseId = base.id
       } catch (e) {
-        console.warn('Aviso ao buscar base do cliente para implantação MELI:', e)
+        console.warn('Aviso ao buscar base do cliente para implantação:', e)
       }
     }
 
@@ -961,13 +970,28 @@ export const api = {
       .single()
     if (error) throw error
 
-    await supabase.from('implantacao_etapas').insert({
-      implantacao_id: impl.id,
-      nome_etapa: 'Mercado Livre',
-      valor: 'EM BRANCO',
-      ordem: 1
-    })
+    // Semeia os cards (etapas) iniciais na ordem recebida.
+    const cards = (params.cards || []).filter(Boolean)
+    if (cards.length > 0) {
+      const etapasToInsert = cards.map((nome, i) => ({
+        implantacao_id: impl.id,
+        nome_etapa: nome,
+        valor: 'EM BRANCO',
+        ordem: i + 1
+      }))
+      await supabase.from('implantacao_etapas').insert(etapasToInsert)
+    }
     return impl
+  },
+
+  // Wrapper específico MELI (mantido por compatibilidade).
+  async createImplantacaoMeli(params: {
+    cliente_id: string
+    nome_empresa?: string
+    tipo_cliente?: string
+    base_id?: string | null
+  }) {
+    return api.createImplantacaoComCards({ ...params, cards: ['Mercado Livre'] })
   },
 
   // Conta quantos clientes DISTINTOS têm o módulo/integração 'Mercado Livre' ativo.
