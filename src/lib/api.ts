@@ -810,6 +810,19 @@ export const api = {
     return data
   },
 
+  // Retorna TODAS as implantações de um cliente (com etapas). Usado para saber
+  // se já existe implantação dedicada de NFSE/MELI (para esconder o botão de criar).
+  async getImplantacoesByClienteId(clienteId: string) {
+    if (!clienteId) return []
+    const { data, error } = await supabase
+      .from('implantacoes')
+      .select(`*, implantacao_etapas ( id, nome_etapa, valor, ordem )`)
+      .eq('cliente_id', clienteId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
   // Adiciona uma etapa (card) a uma implantação existente (idempotente).
   // Insere logo antes do Feedback (ordem = ordem do feedback; feedback empurrado).
   // Retorna true se adicionou, false se a etapa já existia.
@@ -890,14 +903,68 @@ export const api = {
       .from('implantacao_etapas')
       .select('id, nome_etapa')
       .eq('implantacao_id', implantacaoId)
-    const etapaMeli = (etapas || []).find(
-      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre'
-    )
+    const etapaMeli = (etapas || []).find((e: any) => {
+      const n = (e.nome_etapa || '').trim().toLowerCase()
+      return n === 'treinamento meli' || n === 'mercado livre'
+    })
     if (etapaMeli) {
       await supabase
         .from('implantacao_etapas')
         .update({ valor: completo ? 'OK' : 'PENDENTE' })
         .eq('id', etapaMeli.id)
+    }
+    return { completo }
+  },
+
+  // ===================== NFSE (checkpoint enxuto) =====================
+  // Em implantações dedicadas de NFSE, o Checkpoint é apenas a parte de NFSe
+  // (os parâmetros fiscais), e não o questionário completo. Guardado em
+  // implantacao_checkpoint.dados.nfse, com emitira_nfse = true.
+  async getNfseCheckpoint(implantacaoId: string): Promise<any | null> {
+    const cp = await api.getImplantacaoCheckpoint(implantacaoId)
+    return cp?.dados?.nfse || null
+  },
+
+  // Salva o checkpoint NFSE (merge em dados.nfse) e marca a etapa 'Checkpoint'
+  // como OK quando houver ao menos um parâmetro com os campos essenciais
+  // (inscrição municipal + município), senão PENDENTE.
+  async saveNfseCheckpoint(implantacaoId: string, parametros: any[]) {
+    const existing = await api.getImplantacaoCheckpoint(implantacaoId)
+    const dadosAtuais = existing?.dados || {}
+    const novosDados = {
+      ...dadosAtuais,
+      nfse: { emitira_nfse: true, parametros: parametros || [] }
+    }
+
+    if (existing) {
+      const { error } = await supabase
+        .from('implantacao_checkpoint')
+        .update({ dados: novosDados, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+      if (error) throw error
+    } else {
+      const { error } = await supabase
+        .from('implantacao_checkpoint')
+        .insert({ implantacao_id: implantacaoId, dados: novosDados, concluido: false })
+      if (error) throw error
+    }
+
+    // Considera preenchido se ao menos um parâmetro tem inscrição municipal e município.
+    const completo = (parametros || []).some(
+      (p: any) => (p?.inscricao_municipal || '').trim() && (p?.nome_municipio || '').trim()
+    )
+    const { data: etapas } = await supabase
+      .from('implantacao_etapas')
+      .select('id, nome_etapa')
+      .eq('implantacao_id', implantacaoId)
+    const etapaCheckpoint = (etapas || []).find(
+      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint'
+    )
+    if (etapaCheckpoint) {
+      await supabase
+        .from('implantacao_etapas')
+        .update({ valor: completo ? 'OK' : 'PENDENTE' })
+        .eq('id', etapaCheckpoint.id)
     }
     return { completo }
   },

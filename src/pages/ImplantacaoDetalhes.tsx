@@ -14,6 +14,7 @@ import { EnviarFeedbackModal } from '../components/EnviarFeedbackModal'
 import { VisualizarFeedbackModal } from '../components/VisualizarFeedbackModal'
 import { ModalErro4PL } from '../components/ModalErro4PL'
 import { MeliCheckpointModal } from '../components/MeliCheckpointModal'
+import { NfseCheckpointModal } from '../components/NfseCheckpointModal'
 import { EventoCalendarioModal } from '../components/EventoCalendarioModal'
 import clsx from 'clsx'
 import { calcularPrazoImplantacao } from '../lib/implantacaoPrazo'
@@ -38,7 +39,9 @@ const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'treinamento de mobile hub': 9,
   'treinamento fatura': 10,
   'nfse': 11,
+  'treinamento nfse': 11,
   'mercado livre': 12,
+  'treinamento meli': 12,
   'feedback': 13,
 }
 
@@ -92,6 +95,7 @@ export function ImplantacaoDetalhes() {
   const [isErro4PLModalOpen, setIsErro4PLModalOpen] = useState(false)
   const [selectedErroEtapa, setSelectedErroEtapa] = useState<any | null>(null)
   const [isMeliModalOpen, setIsMeliModalOpen] = useState(false)
+  const [isNfseModalOpen, setIsNfseModalOpen] = useState(false)
   // Agendamento de treinamento no calendário (a partir do relógio da etapa)
   const [isEventoModalOpen, setIsEventoModalOpen] = useState(false)
   const [etapaTreinamento, setEtapaTreinamento] = useState<any | null>(null)
@@ -331,8 +335,15 @@ export function ImplantacaoDetalhes() {
   const progress = calculateProgress()
   const isComplete = progress === 100
   const isShopee = implantacao.tipo_cliente === 'SHOPEE'
-  // Selo MELI: implantação possui a etapa 'Mercado Livre'
-  const hasMeli = etapas.some(e => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre')
+  // Selo MELI: implantação possui o card de MELI (novo: 'Treinamento MELI'; legado: 'Mercado Livre')
+  const isMeliEtapa = (nome: string) => {
+    const n = (nome || '').trim().toLowerCase()
+    return n === 'treinamento meli' || n === 'mercado livre'
+  }
+  const hasMeli = etapas.some(e => isMeliEtapa(e.nome_etapa))
+  // Implantação dedicada de NFSE: possui o card 'Treinamento NFSE'.
+  // Nela, o Checkpoint é o formulário enxuto de NFSe (não o questionário completo).
+  const isImplantacaoNfse = etapas.some(e => (e.nome_etapa || '').trim().toLowerCase() === 'treinamento nfse')
 
   const nonFeedbackEtapas = etapas.filter(e => (e.nome_etapa || '').trim().toLowerCase() !== 'feedback')
   const areAllNonFeedbackEtapasOk = nonFeedbackEtapas.length > 0 && nonFeedbackEtapas.every(e => e.valor === 'OK')
@@ -885,7 +896,25 @@ export function ImplantacaoDetalhes() {
                 </div>
               )}
 
-              {((etapa.nome_etapa || '').trim().toLowerCase() === 'checkpoint') && (
+              {((etapa.nome_etapa || '').trim().toLowerCase() === 'checkpoint') && isImplantacaoNfse && (
+                <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsNfseModalOpen(true)}
+                    className={clsx(
+                      "w-full text-xs font-bold py-1.5 px-3 rounded-lg border flex items-center justify-center gap-1.5 transition-colors cursor-pointer",
+                      etapa.valor === 'OK'
+                        ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border-emerald-500/30"
+                        : "bg-brand-500/15 text-brand-300 hover:bg-brand-500/25 border-brand-500/30"
+                    )}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>{etapa.valor === 'OK' ? 'Ver / Editar Checkpoint NFSe' : 'Preencher Checkpoint NFSe'}</span>
+                  </button>
+                </div>
+              )}
+
+              {((etapa.nome_etapa || '').trim().toLowerCase() === 'checkpoint') && !isImplantacaoNfse && (
                 <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
                   {isClienteUser() ? (
                     checkpointData?.concluido ? (
@@ -931,7 +960,7 @@ export function ImplantacaoDetalhes() {
                 </div>
               )}
 
-              {((etapa.nome_etapa || '').trim().toLowerCase() === 'mercado livre') && !isClienteUser() && (
+              {isMeliEtapa(etapa.nome_etapa) && !isClienteUser() && (
                 <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
                   <button
                     type="button"
@@ -1285,6 +1314,19 @@ export function ImplantacaoDetalhes() {
         nomeEmpresa={implantacao.nome_empresa}
         onSuccess={() => {
           fetchImplantacao()
+          fetchHistorico()
+        }}
+      />
+
+      {/* Modal de Checkpoint ENXUTO da NFSe (implantação dedicada de NFSE) */}
+      <NfseCheckpointModal
+        isOpen={isNfseModalOpen}
+        onClose={() => setIsNfseModalOpen(false)}
+        implantacaoId={implantacao.id}
+        nomeEmpresa={implantacao.nome_empresa}
+        onSuccess={() => {
+          fetchImplantacao()
+          fetchCheckpoint()
           fetchHistorico()
         }}
       />

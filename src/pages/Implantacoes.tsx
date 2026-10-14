@@ -27,7 +27,9 @@ const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'treinamento de mobile hub': 9,
   'treinamento fatura': 10,
   'nfse': 11,
+  'treinamento nfse': 11,
   'mercado livre': 12,
+  'treinamento meli': 12,
   'feedback': 13,
 }
 
@@ -41,8 +43,8 @@ const ETAPAS_FILTRO_OPTIONS = [
   'Treinamento de Cadastros',
   'Treinamento de Line Haul',
   'Treinamento Fatura',
-  'NFSE',
-  'Mercado Livre',
+  'Treinamento NFSE',
+  'Treinamento MELI',
   'Feedback',
 ]
 
@@ -55,6 +57,17 @@ const normalizeEtapaNome = (nome: string): string => {
   if (lower === 'treinamento mobile hub' || lower === 'treinamento de mobile hub') return 'Treinamento Mobile Hub'
   return nome
 }
+
+// Classificação de implantação por tipo (para o filtro Clientes/NFSE/MELI).
+// Implantações dedicadas têm o card de treinamento correspondente.
+const implTemCard = (impl: any, nomeLower: string) =>
+  (impl.implantacao_etapas || []).some(
+    (e: any) => (e.nome_etapa || '').trim().toLowerCase() === nomeLower
+  )
+const isImplNfse = (impl: any) => implTemCard(impl, 'treinamento nfse')
+const isImplMeli = (impl: any) => implTemCard(impl, 'treinamento meli') || implTemCard(impl, 'mercado livre')
+// "Cliente" = implantação normal (não é dedicada de NFSE nem de MELI)
+const isImplCliente = (impl: any) => !isImplNfse(impl) && !isImplMeli(impl)
 
 const getProximaEtapa = (etapas: any[], isShopee: boolean = false) => {
   if (!etapas || etapas.length === 0) return null
@@ -166,6 +179,8 @@ export function Implantacoes() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedEtapa, setSelectedEtapa] = useState('')
   const [selectedAnalista, setSelectedAnalista] = useState('')
+  // Filtro por tipo de implantação: CLIENTES (normais), NFSE ou MELI (dedicadas)
+  const [tipoImplantacao, setTipoImplantacao] = useState<'TODOS' | 'CLIENTES' | 'NFSE' | 'MELI'>('TODOS')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedAcessoImpl, setSelectedAcessoImpl] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
@@ -303,13 +318,18 @@ export function Implantacoes() {
         if (prazo.status !== 'alerta') return false
       }
 
+      // Filtro por tipo de implantação (Clientes / NFSE / MELI)
+      if (tipoImplantacao === 'NFSE' && !isImplNfse(impl)) return false
+      if (tipoImplantacao === 'MELI' && !isImplMeli(impl)) return false
+      if (tipoImplantacao === 'CLIENTES' && !isImplCliente(impl)) return false
+
       return true
     })
   }
 
   const filteredEmAndamento = filterList(emAndamento)
   const filteredConcluidos = filterList(concluidos)
-  const isFiltering = searchTerm.trim() !== '' || selectedEtapa !== '' || selectedAnalista !== '' || filtroPrazo !== 'TODOS'
+  const isFiltering = searchTerm.trim() !== '' || selectedEtapa !== '' || selectedAnalista !== '' || filtroPrazo !== 'TODOS' || tipoImplantacao !== 'TODOS'
 
   if (isCliente) {
     return (
@@ -445,6 +465,24 @@ export function Implantacoes() {
             )}
           </div>
 
+          {/* Filtro por Tipo de Implantação (Clientes / NFSE / MELI) */}
+          <div className="relative w-full sm:w-auto sm:min-w-[180px] flex-1 sm:flex-initial">
+            <ShoppingCart className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              value={tipoImplantacao}
+              onChange={(e) => setTipoImplantacao(e.target.value as 'TODOS' | 'CLIENTES' | 'NFSE' | 'MELI')}
+              className="w-full pl-8 pr-8 py-2 text-xs bg-slate-900/60 border border-slate-700/80 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all appearance-none cursor-pointer"
+            >
+              <option value="TODOS">Todos os Tipos</option>
+              <option value="CLIENTES">Novos Clientes</option>
+              <option value="NFSE">Apenas NFSE</option>
+              <option value="MELI">Apenas MELI</option>
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[10px]">
+              ▼
+            </div>
+          </div>
+
           {/* Filtro por Etapa */}
           <div className="relative w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-initial">
             <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -485,7 +523,7 @@ export function Implantacoes() {
           {/* Limpar filtros */}
           {isFiltering && (
             <button
-              onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); }}
+              onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); setTipoImplantacao('TODOS'); }}
               className="text-xs text-brand-400 hover:text-brand-300 underline font-semibold flex items-center gap-1 cursor-pointer py-1 px-2 rounded hover:bg-brand-500/10 transition-colors"
             >
               <X className="w-3 h-3" />
@@ -527,7 +565,7 @@ export function Implantacoes() {
                       <p className="text-base font-bold text-white mb-1">Nenhum cliente encontrado com os filtros aplicados</p>
                       <p className="text-xs text-slate-400 mb-4">Tente alterar o termo de busca ou selecionar outra etapa.</p>
                       <button
-                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); }}
+                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); setTipoImplantacao('TODOS'); }}
                         className="btn-primary text-xs py-1.5 px-3 inline-flex items-center gap-1.5"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -654,7 +692,7 @@ export function Implantacoes() {
                                 {impl.tipo_cliente === 'SHOPEE' ? <ShoppingBag className="w-3 h-3" /> : <Building className="w-3 h-3" />}
                                 {impl.tipo_cliente}
                               </span>
-                              {(impl.implantacao_etapas || []).some((e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre') && (
+                              {(impl.implantacao_etapas || []).some((e: any) => ['mercado livre','treinamento meli'].includes((e.nome_etapa || '').trim().toLowerCase())) && (
                                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/20 flex items-center gap-1">
                                   <ShoppingCart className="w-3 h-3" /> MELI
                                 </span>
@@ -836,7 +874,7 @@ export function Implantacoes() {
                       <p className="text-base font-bold text-white mb-1">Nenhuma implantação concluída encontrada com os filtros</p>
                       <p className="text-xs text-slate-400 mb-4">Tente alterar o termo de busca.</p>
                       <button
-                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); }}
+                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); setTipoImplantacao('TODOS'); }}
                         className="btn-primary text-xs py-1.5 px-3 inline-flex items-center gap-1.5"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -921,7 +959,7 @@ export function Implantacoes() {
                                 {impl.tipo_cliente === 'SHOPEE' ? <ShoppingBag className="w-3 h-3" /> : <Building className="w-3 h-3" />}
                                 {impl.tipo_cliente}
                               </span>
-                              {(impl.implantacao_etapas || []).some((e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'mercado livre') && (
+                              {(impl.implantacao_etapas || []).some((e: any) => ['mercado livre','treinamento meli'].includes((e.nome_etapa || '').trim().toLowerCase())) && (
                                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/20 flex items-center gap-1">
                                   <ShoppingCart className="w-3 h-3" /> MELI
                                 </span>

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Check, Rocket, ExternalLink } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { X, Check, Rocket } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
@@ -22,100 +21,85 @@ const MELI_NOME = 'Mercado Livre'
 const NFSE_NOME = 'NFSE'
 
 export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: ModulosModalProps) {
-  const navigate = useNavigate()
   const [modulosDisponiveis, setModulosDisponiveis] = useState<ModuloMantran[]>([])
   const [clienteModulos, setClienteModulos] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
-  // Implantação atual do cliente (se houver) — define o comportamento do botão de implantação.
-  const [implantacaoCliente, setImplantacaoCliente] = useState<any | null>(null)
   const [implBusy, setImplBusy] = useState(false)
   const [implMsg, setImplMsg] = useState('')
+  // Implantações já existentes do cliente — para esconder o botão se já criada.
+  const [implantacoesCliente, setImplantacoesCliente] = useState<any[]>([])
 
   const temMeli = clienteModulos.includes(MELI_NOME)
   const temNfse = clienteModulos.includes(NFSE_NOME)
-  // Habilita o fluxo de implantação se NFSE ou MELI estiver ativo.
-  const habilitaImplantacao = temMeli || temNfse
+
+  // Já existe implantação dedicada daquele módulo? (pelo card de treinamento)
+  const temCard = (nomeCard: string) =>
+    implantacoesCliente.some(impl =>
+      (impl.implantacao_etapas || []).some(
+        (e: any) => (e.nome_etapa || '').trim().toLowerCase() === nomeCard
+      )
+    )
+  const jaTemImplNfse = temCard('treinamento nfse')
+  const jaTemImplMeli = temCard('treinamento meli') || temCard('mercado livre')
+
+  // Cards de cada implantação dedicada (sempre os 4, variando só o treinamento)
+  const CARDS_BASE = ['Checkpoint', 'Configurar Base', 'Testes']
+  const CARDS_NFSE = [...CARDS_BASE, 'Treinamento NFSE']
+  const CARDS_MELI = [...CARDS_BASE, 'Treinamento MELI']
 
   useEffect(() => {
     if (isOpen) {
       fetchDados()
     } else {
       setClienteModulos([])
-      setImplantacaoCliente(null)
       setImplMsg('')
+      setImplantacoesCliente([])
     }
   }, [isOpen, clienteId])
 
-  const fetchImplantacaoCliente = async () => {
-    if (!clienteId) { setImplantacaoCliente(null); return }
+  const fetchImplantacoesCliente = async () => {
+    if (!clienteId) { setImplantacoesCliente([]); return }
     try {
-      const impl = await api.getImplantacaoByClienteId(clienteId)
-      setImplantacaoCliente(impl)
+      const lista = await api.getImplantacoesByClienteId(clienteId)
+      setImplantacoesCliente(lista || [])
     } catch (err) {
-      console.error('Erro ao buscar implantação do cliente:', err)
-      setImplantacaoCliente(null)
+      console.error('Erro ao buscar implantações do cliente:', err)
+      setImplantacoesCliente([])
     }
   }
 
-  const handleCriarImplantacao = async () => {
+  // Cria uma implantação DEDICADA para um módulo (NFSE ou MELI) com os 4 cards.
+  // Cada clique cria uma nova implantação (sem travar duplicação), conforme pedido.
+  const criarImplantacaoDedicada = async (modulo: 'NFSE' | 'MELI') => {
     if (!clienteId || isReadOnlyUser()) return
-    // Cards a incluir conforme os módulos ativos (MELI e/ou NFSE)
-    const cards: string[] = []
-    if (temMeli) cards.push(MELI_NOME)
-    if (temNfse) cards.push(NFSE_NOME)
-    if (cards.length === 0) return
-
+    const cards = modulo === 'MELI' ? CARDS_MELI : CARDS_NFSE
     setImplBusy(true)
     setImplMsg('')
     try {
-      if (implantacaoCliente) {
-        // Já existe implantação → adiciona apenas os cards que faltam
-        const adicionados: string[] = []
-        for (const card of cards) {
-          const ok = await api.addEtapaToImplantacao(implantacaoCliente.id, card)
-          if (ok) adicionados.push(card)
-        }
-        if (adicionados.length > 0) {
-          setImplMsg(`Card(s) adicionado(s): ${adicionados.join(', ')}.`)
-          await api.createNotificacao({
-            titulo: `➕ Cards adicionados: ${clienteNome}`,
-            mensagem: `Novo(s) card(s) adicionado(s) à implantação da empresa "${clienteNome}": ${adicionados.join(', ')}.`,
-            tipo: 'nova_implantacao',
-            implantacao_id: implantacaoCliente.id,
-            cliente_id: clienteId,
-            dados_extras: { nome_empresa: clienteNome, origem: 'modulos_cliente', cards: adicionados }
-          }).catch(err => console.warn('Aviso ao notificar cards:', err))
-        } else {
-          setImplMsg('A implantação já possui esse(s) card(s).')
-        }
-        await fetchImplantacaoCliente()
-      } else {
-        // Sem implantação → cria uma com os cards marcados
-        const nova = await api.createImplantacaoComCards({
-          cliente_id: clienteId,
+      const nova = await api.createImplantacaoComCards({
+        cliente_id: clienteId,
+        nome_empresa: clienteNome,
+        cards
+      })
+      setImplMsg(`Implantação de ${modulo} criada com sucesso.`)
+      await fetchImplantacoesCliente()
+      const tipoLabel = (nova?.tipo_cliente || '').toUpperCase() === 'SHOPEE' ? 'Shopee' : 'Padrão'
+      await api.createNotificacao({
+        titulo: `🚀 Nova Implantação (${modulo}): ${clienteNome}`,
+        mensagem: `A implantação de ${modulo} da empresa "${clienteNome}" (${tipoLabel}) foi iniciada. Cards: ${cards.join(', ')}.`,
+        tipo: 'nova_implantacao',
+        implantacao_id: nova?.id || null,
+        cliente_id: clienteId,
+        dados_extras: {
           nome_empresa: clienteNome,
+          tipo_cliente: nova?.tipo_cliente || null,
+          origem: 'modulos_cliente',
+          modulo,
           cards
-        })
-        setImplantacaoCliente({ ...nova, implantacao_etapas: cards.map(c => ({ nome_etapa: c })) })
-        setImplMsg('Implantação criada com sucesso.')
-        // Notifica a equipe de Suporte sobre a NOVA implantação ativada pelo Comercial
-        const tipoLabel = (nova?.tipo_cliente || '').toUpperCase() === 'SHOPEE' ? 'Shopee' : 'Padrão'
-        await api.createNotificacao({
-          titulo: `🚀 Nova Implantação: ${clienteNome}`,
-          mensagem: `A implantação da empresa "${clienteNome}" (${tipoLabel}) foi iniciada. Cards: ${cards.join(', ')}.`,
-          tipo: 'nova_implantacao',
-          implantacao_id: nova?.id || null,
-          cliente_id: clienteId,
-          dados_extras: {
-            nome_empresa: clienteNome,
-            tipo_cliente: nova?.tipo_cliente || null,
-            origem: 'modulos_cliente',
-            cards
-          }
-        }).catch(err => console.warn('Aviso ao notificar nova implantação:', err))
-      }
+        }
+      }).catch(err => console.warn('Aviso ao notificar nova implantação:', err))
     } catch (err: any) {
-      console.error('Erro ao criar/atualizar implantação:', err)
+      console.error('Erro ao criar implantação dedicada:', err)
       setImplMsg('Erro: ' + (err?.message || 'Falha na operação'))
     } finally {
       setImplBusy(false)
@@ -125,29 +109,25 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: Modulo
   const fetchDados = async () => {
     setLoading(true)
     try {
-      // 1. Fetch all available modules
+      // 1. Todos os módulos/integrações disponíveis
       const { data: mantranData, error: err1 } = await supabase
         .from('modulos_mantran')
         .select('*')
         .order('nome', { ascending: true })
-      
       if (err1) throw err1
       setModulosDisponiveis(mantranData || [])
 
-      // 2. Fetch current client's modules
+      // 2. Módulos já marcados do cliente
       if (clienteId) {
         const { data: clientData, error: err2 } = await supabase
           .from('modulos')
           .select('nome_modulo')
           .eq('cliente_id', clienteId)
-        
         if (err2) throw err2
-        
         setClienteModulos(clientData ? clientData.map(m => m.nome_modulo) : [])
       }
 
-      // Carrega a implantação do cliente (para o fluxo MELI)
-      await fetchImplantacaoCliente()
+      await fetchImplantacoesCliente()
     } catch (err) {
       console.error('Erro ao carregar dados:', err)
     } finally {
@@ -203,42 +183,41 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: Modulo
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
-          {/* Faixa de ação: aparece quando NFSE ou MELI está marcado */}
-          {!loading && habilitaImplantacao && !isReadOnlyUser() && (
-            <div className="mb-6 p-4 rounded-xl bg-brand-500/10 border border-brand-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Faixa de ação: aparece quando NFSE/MELI marcado E ainda não existe
+              implantação dedicada daquele módulo. Some após criar. */}
+          {!loading && ((temNfse && !jaTemImplNfse) || (temMeli && !jaTemImplMeli)) && !isReadOnlyUser() && (
+            <div className="mb-6 p-4 rounded-xl bg-brand-500/10 border border-brand-500/30 flex flex-col gap-3">
               <div className="flex items-start gap-2.5">
                 <Rocket className="w-5 h-5 text-brand-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-bold text-brand-200">
-                    {[temMeli && 'Mercado Livre (MELI)', temNfse && 'NFSE'].filter(Boolean).join(' + ')} marcado(s)
-                  </p>
+                  <p className="text-sm font-bold text-brand-200">Criar implantação dedicada</p>
                   <p className="text-xs text-brand-200/70">
-                    {implantacaoCliente
-                      ? 'O cliente já possui uma implantação.'
-                      : 'O cliente ainda não tem implantação. Crie uma com os cards correspondentes.'}
+                    Cada módulo gera uma implantação própria com os cards: Checkpoint, Configurar Base, Testes e o treinamento correspondente.
                   </p>
                   {implMsg && <p className="text-[11px] text-brand-300 mt-1 font-semibold">{implMsg}</p>}
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {implantacaoCliente ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {temNfse && !jaTemImplNfse && (
                   <button
                     type="button"
-                    onClick={() => navigate(`/implantacoes/${implantacaoCliente.id}`)}
-                    className="px-4 py-2 text-xs font-bold text-brand-300 bg-brand-500/15 hover:bg-brand-500/25 border border-brand-500/40 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Abrir Implantação</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleCriarImplantacao}
+                    onClick={() => criarImplantacaoDedicada('NFSE')}
                     disabled={implBusy}
                     className="px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 rounded-lg shadow-lg shadow-brand-600/25 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
                   >
                     <Rocket className="w-3.5 h-3.5" />
-                    <span>{implBusy ? 'Processando...' : 'Criar Implantação'}</span>
+                    <span>{implBusy ? 'Processando...' : 'Criar Implantação NFSE'}</span>
+                  </button>
+                )}
+                {temMeli && !jaTemImplMeli && (
+                  <button
+                    type="button"
+                    onClick={() => criarImplantacaoDedicada('MELI')}
+                    disabled={implBusy}
+                    className="px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 rounded-lg shadow-lg shadow-amber-600/25 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Rocket className="w-3.5 h-3.5" />
+                    <span>{implBusy ? 'Processando...' : 'Criar Implantação MELI'}</span>
                   </button>
                 )}
               </div>
