@@ -19,6 +19,7 @@ import { useState, useEffect } from 'react'
 import { permissionsApi } from './lib/permissions'
 import { getLoggedUser, isClienteUser } from './lib/auth'
 import { api } from './lib/api'
+import { VersionGuard } from './components/VersionGuard'
 
 function RootRoute() {
   const isCliente = isClienteUser()
@@ -94,31 +95,34 @@ function App() {
     return <div className="min-h-screen bg-[#0f111a] flex items-center justify-center text-white">Carregando...</div>
   }
 
-  if (!isAuthenticated) {
-    return <Login />
-  }
-
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<RootRoute />} />
-          <Route path="tickets" element={<Tickets />} />
-          <Route path="tickets/:numero" element={<Tickets />} />
-          <Route path="calendario" element={<Calendario />} />
-          <Route path="comercial" element={<Comercial />} />
-          <Route path="clientes" element={<Clientes />} />
-          <Route path="implantacoes" element={<ImplantacoesRoute />} />
-          <Route path="implantacoes/:id" element={<ImplantacaoDetalhes />} />
-          <Route path="bases" element={<Bases />} />
-          <Route path="bases/:id" element={<ProjetoDetalhes />} />
-          <Route path="processamento-shopee" element={<ProcessamentoShopee />} />
-          <Route path="leo-madeiras" element={<LeoMadeiras />} />
-          <Route path="usuarios" element={<Usuarios />} />
-          <Route path="rh" element={<RH />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <>
+      <VersionGuard />
+      {!isAuthenticated ? (
+        <Login />
+      ) : (
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<RootRoute />} />
+              <Route path="tickets" element={<Tickets />} />
+              <Route path="tickets/:numero" element={<Tickets />} />
+              <Route path="calendario" element={<Calendario />} />
+              <Route path="comercial" element={<Comercial />} />
+              <Route path="clientes" element={<Clientes />} />
+              <Route path="implantacoes" element={<ImplantacoesRoute />} />
+              <Route path="implantacoes/:id" element={<ImplantacaoDetalhes />} />
+              <Route path="bases" element={<Bases />} />
+              <Route path="bases/:id" element={<ProjetoDetalhes />} />
+              <Route path="processamento-shopee" element={<ProcessamentoShopee />} />
+              <Route path="leo-madeiras" element={<LeoMadeiras />} />
+              <Route path="usuarios" element={<Usuarios />} />
+              <Route path="rh" element={<RH />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      )}
+    </>
   )
 }
 

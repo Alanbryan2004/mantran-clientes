@@ -1,8 +1,45 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import type { Plugin } from 'vite'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+function autoVersionPlugin(): Plugin {
+  return {
+    name: 'auto-version',
+    apply: 'build',
+    buildStart() {
+      const versionPath = path.resolve(__dirname, 'public/version.json')
+      const now = new Date()
+
+      // Formato: AAAA.M.D-HHMMSS (Ex: 2026.10.13-221500)
+      const version = [
+        now.getFullYear(),
+        now.getMonth() + 1,
+        now.getDate()
+      ].join('.') + '-' + [
+        String(now.getHours()).padStart(2, '0'),
+        String(now.getMinutes()).padStart(2, '0'),
+        String(now.getSeconds()).padStart(2, '0')
+      ].join('')
+
+      const content = JSON.stringify({
+        version,
+        buildTime: now.toISOString()
+      }, null, 2) + '\n'
+
+      fs.writeFileSync(versionPath, content, 'utf-8')
+      console.log(`\n🔄 [AutoVersion] version.json atualizado → v${version}\n`)
+    }
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), autoVersionPlugin()],
 })
+
