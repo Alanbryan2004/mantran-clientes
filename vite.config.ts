@@ -25,13 +25,15 @@ function autoVersionPlugin(): Plugin {
     apply: 'build',
     buildStart() {
       const versionPath = path.resolve(__dirname, 'public/version.json')
+      const tsVersionPath = path.resolve(__dirname, 'src/version.ts')
       const content = JSON.stringify({
         version: buildVersion,
         buildTime: now.toISOString()
       }, null, 2) + '\n'
 
       fs.writeFileSync(versionPath, content, 'utf-8')
-      console.log(`\n🔄 [AutoVersion] version.json atualizado → v${buildVersion}\n`)
+      fs.writeFileSync(tsVersionPath, `export const APP_VERSION = ${content};\n`, 'utf-8')
+      console.log(`\n🔄 [AutoVersion] version.json e src/version.ts atualizados → v${buildVersion}\n`)
     }
   }
 }

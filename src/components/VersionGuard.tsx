@@ -13,28 +13,53 @@ export function VersionGuard() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    // 1. Função para buscar a versão no servidor sem risco de cache
+    // Limpa o parâmetro _v da barra de endereço silenciosamente se veio de um reload anterior
+    if (typeof window !== 'undefined' && window.location.search.includes('_v=')) {
+      try {
+        const clean = new URL(window.location.href)
+        clean.searchParams.delete('_v')
+        window.history.replaceState({}, '', clean.pathname + clean.search + clean.hash)
+      } catch {}
+    }
+
+    // 1. Busca a versão remota no servidor.
+    // Tenta primeiro /api/version (serverless function Vercel — SEMPRE ignora cache de edge).
+    // Se falhar ou estiver em dev local, usa /version.json como fallback.
     async function fetchVersion(): Promise<string | null> {
+      // Tentativa 1: API Serverless da Vercel (bypassa 100% o Edge CDN Cache)
+      try {
+        const res = await fetch(`/api/version?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.version) return String(data.version)
+        }
+      } catch {}
+
+      // Tentativa 2: Fallback estático
       try {
         const res = await fetch(`/version.json?t=${Date.now()}`, {
           cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
+          headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
         })
-        if (!res.ok) return null
-        const data = await res.json()
-        return data.version || null
-      } catch {
-        return null
-      }
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.version) return String(data.version)
+        }
+      } catch {}
+
+      return null
     }
 
-    // 2. Checagem de mudança
+    // 2. Checagem de versão
     const checkVersion = async () => {
       if (isReloading.current) return
       const latest = await fetchVersion()
       if (!latest) return
 
-      // Se não tínhamos versão inicial gravada (ex.: ambiente dev), grava a primeira
+      // Se não tínhamos versão inicial gravada (ex.: ambiente dev local sem build), grava a primeira
       if (!currentVersion.current) {
         currentVersion.current = latest
         return
@@ -46,23 +71,32 @@ export function VersionGuard() {
         console.log(`[VersionGuard] Nova versão detectada: ${currentVersion.current} → ${latest}. Recarregando...`)
         setShowBanner(true)
 
-        // Limpa caches do navegador e recarrega após 2s
-        setTimeout(() => {
+        // Limpa caches locais e força reload limpo do documento
+        setTimeout(async () => {
           if ('caches' in window) {
-            caches.keys().then((keys) => {
-              keys.forEach((k) => caches.delete(k))
-            }).catch(() => {})
+            try {
+              const keys = await caches.keys()
+              await Promise.all(keys.map((k) => caches.delete(k)))
+            } catch {}
           }
-          window.location.reload()
-        }, 2000)
+
+          // Redireciona com parâmetro de versão único para anular o cache de disco do navegador do index.html
+          try {
+            const target = new URL(window.location.href)
+            target.searchParams.set('_v', latest)
+            window.location.replace(target.toString())
+          } catch {
+            window.location.reload()
+          }
+        }, 1800)
       }
     }
 
     // Checagem imediata ao montar (se o bundle carregado era de versão antiga em cache, já detecta e recarrega na hora)
     checkVersion()
 
-    // Gatilho A: Polling a cada 15 segundos
-    intervalRef.current = setInterval(checkVersion, 15 * 1000)
+    // Gatilho A: Polling contínuo a cada 10 segundos
+    intervalRef.current = setInterval(checkVersion, 10 * 1000)
 
     // Gatilho B: Usuário volta para a aba ou desbloqueia o dispositivo
     const handleVisibilityChange = () => {

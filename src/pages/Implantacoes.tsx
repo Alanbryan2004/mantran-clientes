@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Rocket, Trash2, Settings, ShoppingBag, ShoppingCart, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck, History, KeyRound, Calendar, Pencil, AlertTriangle } from 'lucide-react'
+import { Plus, Rocket, Trash2, Settings, ShoppingBag, ShoppingCart, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck, History, KeyRound, Calendar, Pencil, AlertTriangle, FileText } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser, getLoggedUser } from '../lib/auth'
 import { NovaImplantacaoModal } from '../components/NovaImplantacaoModal'
@@ -175,12 +175,12 @@ const getUltimoStatusData = (impl: any) => {
 export function Implantacoes() {
   const [implantacoes, setImplantacoes] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<'EM_ANDAMENTO' | 'CONCLUIDOS'>('EM_ANDAMENTO')
-  const [filtroPrazo, setFiltroPrazo] = useState<'TODOS' | 'ESTOURADO' | 'ALERTA'>('TODOS')
+  const [filtroPrazo, setFiltroPrazo] = useState<'TODOS' | 'ESTOURADO' | 'ALERTA' | 'NO_PRAZO'>('TODOS')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedEtapa, setSelectedEtapa] = useState('')
   const [selectedAnalista, setSelectedAnalista] = useState('')
-  // Filtro por tipo de implantação: CLIENTES (normais), NFSE ou MELI (dedicadas)
-  const [tipoImplantacao, setTipoImplantacao] = useState<'TODOS' | 'CLIENTES' | 'NFSE' | 'MELI'>('TODOS')
+  // Aba de tipo de implantação (topo): CLIENTES (default), MELI ou NFSE
+  const [tipoImplantacao, setTipoImplantacao] = useState<'CLIENTES' | 'NFSE' | 'MELI'>('CLIENTES')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedAcessoImpl, setSelectedAcessoImpl] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
@@ -278,9 +278,16 @@ export function Implantacoes() {
     .filter(i => i.status === 'Concluído')
     .sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR', { sensitivity: 'base' }))
 
-  const emAndamentoPrazos = emAndamento.map(i => calcularPrazoImplantacao(i.created_at, false))
+  // Contagens de prazo respeitam a aba de TIPO ativa (Clientes / MELI / NFSE)
+  const emAndamentoDoTipo = emAndamento.filter(i =>
+    tipoImplantacao === 'NFSE' ? isImplNfse(i)
+    : tipoImplantacao === 'MELI' ? isImplMeli(i)
+    : isImplCliente(i)
+  )
+  const emAndamentoPrazos = emAndamentoDoTipo.map(i => calcularPrazoImplantacao(i.created_at, false))
   const countEstouradas = emAndamentoPrazos.filter(p => p.estourou).length
   const countAlerta = emAndamentoPrazos.filter(p => p.status === 'alerta').length
+  const countNoPrazo = emAndamentoPrazos.filter(p => !p.estourou && p.status !== 'alerta').length
 
   const analistasList = Array.from(
     new Set(implantacoes.map(i => i.analista_responsavel).filter(Boolean))
@@ -316,12 +323,15 @@ export function Implantacoes() {
       } else if (filtroPrazo === 'ALERTA') {
         const prazo = calcularPrazoImplantacao(impl.created_at, impl.status === 'Concluído')
         if (prazo.status !== 'alerta') return false
+      } else if (filtroPrazo === 'NO_PRAZO') {
+        const prazo = calcularPrazoImplantacao(impl.created_at, impl.status === 'Concluído')
+        if (prazo.estourou || prazo.status === 'alerta') return false
       }
 
-      // Filtro por tipo de implantação (Clientes / NFSE / MELI)
+      // Aba de tipo de implantação (Clientes / NFSE / MELI) — sempre ativa
       if (tipoImplantacao === 'NFSE' && !isImplNfse(impl)) return false
-      if (tipoImplantacao === 'MELI' && !isImplMeli(impl)) return false
-      if (tipoImplantacao === 'CLIENTES' && !isImplCliente(impl)) return false
+      else if (tipoImplantacao === 'MELI' && !isImplMeli(impl)) return false
+      else if (tipoImplantacao === 'CLIENTES' && !isImplCliente(impl)) return false
 
       return true
     })
@@ -329,7 +339,7 @@ export function Implantacoes() {
 
   const filteredEmAndamento = filterList(emAndamento)
   const filteredConcluidos = filterList(concluidos)
-  const isFiltering = searchTerm.trim() !== '' || selectedEtapa !== '' || selectedAnalista !== '' || filtroPrazo !== 'TODOS' || tipoImplantacao !== 'TODOS'
+  const isFiltering = searchTerm.trim() !== '' || selectedEtapa !== '' || selectedAnalista !== '' || filtroPrazo !== 'TODOS'
 
   if (isCliente) {
     return (
@@ -357,6 +367,91 @@ export function Implantacoes() {
         )}
       </div>
 
+      {/* Abas de TIPO (Clientes / MELI / NFSE) + chips de prazo no final da mesma linha */}
+      <div className="flex items-center gap-2 flex-wrap border-b border-slate-800 pb-3">
+        {([
+          { key: 'CLIENTES', label: 'Clientes', icon: Building },
+          { key: 'MELI', label: 'MELI', icon: ShoppingCart },
+          { key: 'NFSE', label: 'NFSE', icon: FileText },
+        ] as { key: 'CLIENTES' | 'MELI' | 'NFSE'; label: string; icon: typeof Building }[]).map(aba => {
+          const ativo = tipoImplantacao === aba.key
+          const Icon = aba.icon
+          return (
+            <button
+              key={aba.key}
+              onClick={() => setTipoImplantacao(aba.key)}
+              className={clsx(
+                "flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
+                ativo
+                  ? aba.key === 'MELI'
+                    ? "bg-amber-500/15 text-amber-400 border-amber-500/40 shadow-lg shadow-amber-500/10"
+                    : "bg-brand-500/15 text-brand-400 border-brand-500/30 shadow-lg shadow-brand-500/10"
+                  : "bg-slate-900/40 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700"
+              )}
+            >
+              <Icon className={clsx("w-4 h-4 shrink-0", ativo && aba.key === 'MELI' ? "text-amber-400" : ativo ? "text-brand-400" : "text-slate-400")} />
+              <span>{aba.label}</span>
+            </button>
+          )
+        })}
+
+        {/* Chips de prazo (só na aba Em Andamento), no final da linha: No Prazo → Atenção → Prazo Estourado */}
+        {activeTab === 'EM_ANDAMENTO' && (
+          <div className="flex items-center gap-2 flex-wrap ml-auto">
+            <button
+              onClick={() => setFiltroPrazo(prev => prev === 'NO_PRAZO' ? 'TODOS' : 'NO_PRAZO')}
+              className={clsx(
+                "flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
+                filtroPrazo === 'NO_PRAZO'
+                  ? "bg-emerald-500/25 text-emerald-200 border-emerald-500 shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-400"
+                  : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+              )}
+              title="Implantações dentro do prazo"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
+              <span>No Prazo</span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold bg-emerald-950/80 text-emerald-200 border border-emerald-500/40">
+                {countNoPrazo}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFiltroPrazo(prev => prev === 'ALERTA' ? 'TODOS' : 'ALERTA')}
+              className={clsx(
+                "flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
+                filtroPrazo === 'ALERTA'
+                  ? "bg-amber-500/25 text-amber-200 border-amber-500 shadow-lg shadow-amber-500/20 ring-1 ring-amber-400"
+                  : "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+              )}
+              title="Implantações em alerta (>30 dias)"
+            >
+              <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
+              <span>Atenção (&gt;30d)</span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold bg-amber-950/80 text-amber-200 border border-amber-500/40">
+                {countAlerta}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFiltroPrazo(prev => prev === 'ESTOURADO' ? 'TODOS' : 'ESTOURADO')}
+              className={clsx(
+                "flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
+                filtroPrazo === 'ESTOURADO'
+                  ? "bg-red-500/25 text-red-200 border-red-500 shadow-lg shadow-red-500/20 ring-1 ring-red-400"
+                  : "bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20"
+              )}
+              title="Implantações que ultrapassaram o prazo de 40 dias"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400 shrink-0" />
+              <span>Prazo Estourado</span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold bg-red-950/80 text-red-200 border border-red-500/40">
+                {countEstouradas}
+              </span>
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Submenu / Abas de Navegação + Filtros */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-800 pb-4">
         {/* Abas */}
@@ -381,46 +476,6 @@ export function Implantacoes() {
               {emAndamento.length}
             </span>
           </button>
-
-          {/* Chip de Prazo Estourado */}
-          {countEstouradas > 0 && activeTab === 'EM_ANDAMENTO' && (
-            <button
-              onClick={() => setFiltroPrazo(prev => prev === 'ESTOURADO' ? 'TODOS' : 'ESTOURADO')}
-              className={clsx(
-                "flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
-                filtroPrazo === 'ESTOURADO'
-                  ? "bg-red-500/25 text-red-200 border-red-500 shadow-lg shadow-red-500/20 ring-1 ring-red-400"
-                  : "bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20"
-              )}
-              title="Filtrar apenas implantações que ultrapassaram o prazo de 40 dias"
-            >
-              <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400 shrink-0" />
-              <span>Prazo Estourado</span>
-              <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold bg-red-950/80 text-red-200 border border-red-500/40">
-                {countEstouradas}
-              </span>
-            </button>
-          )}
-
-          {/* Chip de Atenção (>30 dias) */}
-          {countAlerta > 0 && activeTab === 'EM_ANDAMENTO' && (
-            <button
-              onClick={() => setFiltroPrazo(prev => prev === 'ALERTA' ? 'TODOS' : 'ALERTA')}
-              className={clsx(
-                "flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer border",
-                filtroPrazo === 'ALERTA'
-                  ? "bg-amber-500/25 text-amber-200 border-amber-500 shadow-lg shadow-amber-500/20 ring-1 ring-amber-400"
-                  : "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
-              )}
-              title="Filtrar implantações em alerta (>30 dias)"
-            >
-              <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
-              <span>Atenção (&gt;30d)</span>
-              <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold bg-amber-950/80 text-amber-200 border border-amber-500/40">
-                {countAlerta}
-              </span>
-            </button>
-          )}
 
           <button
             onClick={() => { setActiveTab('CONCLUIDOS'); setFiltroPrazo('TODOS'); }}
@@ -465,24 +520,6 @@ export function Implantacoes() {
             )}
           </div>
 
-          {/* Filtro por Tipo de Implantação (Clientes / NFSE / MELI) */}
-          <div className="relative w-full sm:w-auto sm:min-w-[180px] flex-1 sm:flex-initial">
-            <ShoppingCart className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <select
-              value={tipoImplantacao}
-              onChange={(e) => setTipoImplantacao(e.target.value as 'TODOS' | 'CLIENTES' | 'NFSE' | 'MELI')}
-              className="w-full pl-8 pr-8 py-2 text-xs bg-slate-900/60 border border-slate-700/80 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all appearance-none cursor-pointer"
-            >
-              <option value="TODOS">Todos os Tipos</option>
-              <option value="CLIENTES">Novos Clientes</option>
-              <option value="NFSE">Apenas NFSE</option>
-              <option value="MELI">Apenas MELI</option>
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[10px]">
-              ▼
-            </div>
-          </div>
-
           {/* Filtro por Etapa */}
           <div className="relative w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-initial">
             <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -523,7 +560,7 @@ export function Implantacoes() {
           {/* Limpar filtros */}
           {isFiltering && (
             <button
-              onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); setTipoImplantacao('TODOS'); }}
+              onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); }}
               className="text-xs text-brand-400 hover:text-brand-300 underline font-semibold flex items-center gap-1 cursor-pointer py-1 px-2 rounded hover:bg-brand-500/10 transition-colors"
             >
               <X className="w-3 h-3" />
@@ -565,7 +602,7 @@ export function Implantacoes() {
                       <p className="text-base font-bold text-white mb-1">Nenhum cliente encontrado com os filtros aplicados</p>
                       <p className="text-xs text-slate-400 mb-4">Tente alterar o termo de busca ou selecionar outra etapa.</p>
                       <button
-                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); setTipoImplantacao('TODOS'); }}
+                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); }}
                         className="btn-primary text-xs py-1.5 px-3 inline-flex items-center gap-1.5"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -874,7 +911,7 @@ export function Implantacoes() {
                       <p className="text-base font-bold text-white mb-1">Nenhuma implantação concluída encontrada com os filtros</p>
                       <p className="text-xs text-slate-400 mb-4">Tente alterar o termo de busca.</p>
                       <button
-                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); setTipoImplantacao('TODOS'); }}
+                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); }}
                         className="btn-primary text-xs py-1.5 px-3 inline-flex items-center gap-1.5"
                       >
                         <X className="w-3.5 h-3.5" />
