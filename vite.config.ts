@@ -8,38 +8,42 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+const now = new Date()
+const buildVersion = [
+  now.getFullYear(),
+  now.getMonth() + 1,
+  now.getDate()
+].join('.') + '-' + [
+  String(now.getHours()).padStart(2, '0'),
+  String(now.getMinutes()).padStart(2, '0'),
+  String(now.getSeconds()).padStart(2, '0')
+].join('')
+
 function autoVersionPlugin(): Plugin {
   return {
     name: 'auto-version',
     apply: 'build',
     buildStart() {
       const versionPath = path.resolve(__dirname, 'public/version.json')
-      const now = new Date()
-
-      // Formato: AAAA.M.D-HHMMSS (Ex: 2026.10.13-221500)
-      const version = [
-        now.getFullYear(),
-        now.getMonth() + 1,
-        now.getDate()
-      ].join('.') + '-' + [
-        String(now.getHours()).padStart(2, '0'),
-        String(now.getMinutes()).padStart(2, '0'),
-        String(now.getSeconds()).padStart(2, '0')
-      ].join('')
-
       const content = JSON.stringify({
-        version,
+        version: buildVersion,
         buildTime: now.toISOString()
       }, null, 2) + '\n'
 
       fs.writeFileSync(versionPath, content, 'utf-8')
-      console.log(`\n🔄 [AutoVersion] version.json atualizado → v${version}\n`)
+      console.log(`\n🔄 [AutoVersion] version.json atualizado → v${buildVersion}\n`)
     }
   }
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), tailwindcss(), autoVersionPlugin()],
+export default defineConfig(({ command }) => {
+  const isBuild = command === 'build'
+  return {
+    define: {
+      __APP_BUILD_VERSION__: JSON.stringify(isBuild ? buildVersion : 'dev')
+    },
+    plugins: [react(), tailwindcss(), autoVersionPlugin()],
+  }
 })
 

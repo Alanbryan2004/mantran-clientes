@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 
+declare const __APP_BUILD_VERSION__: string | undefined
+
 export function VersionGuard() {
-  const currentVersion = useRef<string | null>(null)
+  const localBuildVersion = typeof __APP_BUILD_VERSION__ === 'string' && __APP_BUILD_VERSION__ !== 'dev'
+    ? __APP_BUILD_VERSION__
+    : null
+  const currentVersion = useRef<string | null>(localBuildVersion)
   const [showBanner, setShowBanner] = useState(false)
   const isReloading = useRef(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -23,29 +28,38 @@ export function VersionGuard() {
       }
     }
 
-    // 2. Grava a versão inicial na montagem do app
-    fetchVersion().then((v) => {
-      if (v) currentVersion.current = v
-    })
-
-    // 3. Checagem de mudança
+    // 2. Checagem de mudança
     const checkVersion = async () => {
       if (isReloading.current) return
       const latest = await fetchVersion()
-      if (!latest || !currentVersion.current) return
+      if (!latest) return
 
-      // Se a versão do servidor for diferente da que está em execução
+      // Se não tínhamos versão inicial gravada (ex.: ambiente dev), grava a primeira
+      if (!currentVersion.current) {
+        currentVersion.current = latest
+        return
+      }
+
+      // Se a versão do servidor for diferente da que está em execução no bundle
       if (latest !== currentVersion.current) {
         isReloading.current = true
         console.log(`[VersionGuard] Nova versão detectada: ${currentVersion.current} → ${latest}. Recarregando...`)
         setShowBanner(true)
 
-        // Aguarda 2.5s para o usuário visualizar o aviso e recarrega a página
+        // Limpa caches do navegador e recarrega após 2s
         setTimeout(() => {
+          if ('caches' in window) {
+            caches.keys().then((keys) => {
+              keys.forEach((k) => caches.delete(k))
+            }).catch(() => {})
+          }
           window.location.reload()
-        }, 2500)
+        }, 2000)
       }
     }
+
+    // Checagem imediata ao montar (se o bundle carregado era de versão antiga em cache, já detecta e recarrega na hora)
+    checkVersion()
 
     // Gatilho A: Polling a cada 15 segundos
     intervalRef.current = setInterval(checkVersion, 15 * 1000)
