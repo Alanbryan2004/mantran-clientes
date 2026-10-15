@@ -861,11 +861,11 @@ export function ImplantacaoDetalhes() {
                 <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status:</span>
                 <select
                   value={etapa.valor}
-                  disabled={isReadOnlyUser()}
+                  disabled={isReadOnlyUser() || isClienteUser()}
                   onChange={(e) => handleEtapaSelectChange(etapa, e.target.value)}
                   className={clsx(
                     "text-xs font-bold py-1.5 px-3 rounded-lg border transition-all appearance-none text-center min-w-[120px]",
-                    isReadOnlyUser() ? "cursor-default opacity-90" : "cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/50",
+                    (isReadOnlyUser() || isClienteUser()) ? "cursor-default opacity-90" : "cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/50",
                     getStatusStyle(etapa.valor)
                   )}
                 >
@@ -880,7 +880,7 @@ export function ImplantacaoDetalhes() {
                 </select>
               </div>
 
-              {is4PLEtapa && etapa.valor === 'ERRO' && (
+              {is4PLEtapa && etapa.valor === 'ERRO' && !isClienteUser() && (
                 <div className="mt-3 pt-2.5 border-t border-red-500/20 flex flex-col gap-1.5">
                   <button
                     type="button"
