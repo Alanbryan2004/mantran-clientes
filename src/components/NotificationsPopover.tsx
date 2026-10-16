@@ -128,19 +128,39 @@ export function NotificationsPopover() {
         .filter((n: any) => {
           if (deletedIds.has(n.id)) return false
 
-          // 0. Notificação direcionada a um único usuário: só o destinatário vê
+          // 0. Notificação direcionada: se for direcionada a usuário específico
           const destinatario = n.dados_extras?.destinatario_usuario_id
-          if (destinatario && destinatario !== currentUser?.id) {
-            return false
+          const destinatarioNome = n.dados_extras?.tecnico_nome || n.dados_extras?.qa_nome
+          const isQa = n.tipo?.startsWith('qa_') || n.dados_extras?.modulo === 'qa'
+
+          if (destinatario) {
+            const currentNome = (currentUser?.nome || currentUser?.login || '').trim().toLowerCase()
+            const targetNome = (destinatarioNome || '').trim().toLowerCase()
+
+            const matchId = destinatario === currentUser?.id ||
+              n.dados_extras?.tecnico_id === currentUser?.id ||
+              n.dados_extras?.qa_id === currentUser?.id
+
+            const matchNome = currentNome && targetNome &&
+              (currentNome.includes(targetNome) || targetNome.includes(currentNome))
+
+            // Administradores veem as notificações de QA para supervisão e testes
+            // Demais perfis só veem se forem o destinatário ou técnico/QA envolvido
+            if (!matchId && !matchNome && !isAdmin) {
+              return false
+            }
           }
 
-          // Se for perfil Técnico, filtra apenas notificações pertinentes a ele (direcionadas ou de QA)
+          // Se for perfil Técnico (não Admin), filtra apenas notificações pertinentes a ele
           if (isTecnico) {
-            const isDirecionada = (destinatario && destinatario === currentUser?.id) ||
+            const currentNome = (currentUser?.nome || currentUser?.login || '').trim().toLowerCase()
+            const tecNome = (n.dados_extras?.tecnico_nome || '').trim().toLowerCase()
+
+            const isParaMim = (destinatario && destinatario === currentUser?.id) ||
               n.dados_extras?.tecnico_id === currentUser?.id ||
-              (n.dados_extras?.tecnico_nome && currentUser?.nome && n.dados_extras.tecnico_nome.toLowerCase().includes(currentUser.nome.toLowerCase()))
-            const isQa = n.tipo?.startsWith('qa_') || n.dados_extras?.modulo === 'qa'
-            if (!isDirecionada && !isQa) {
+              (tecNome && currentNome && (currentNome.includes(tecNome) || tecNome.includes(currentNome)))
+
+            if (!isParaMim && !isQa) {
               return false
             }
           }
