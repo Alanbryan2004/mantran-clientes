@@ -128,41 +128,62 @@ export function NotificationsPopover() {
         .filter((n: any) => {
           if (deletedIds.has(n.id)) return false
 
-          // 0. Notificação direcionada: se for direcionada a usuário específico
-          const destinatario = n.dados_extras?.destinatario_usuario_id
-          const destinatarioNome = n.dados_extras?.tecnico_nome || n.dados_extras?.qa_nome
+          // 0. Notificações do Módulo de QA (Reprovações e Retornos para Validação)
           const isQa = n.tipo?.startsWith('qa_') || n.dados_extras?.modulo === 'qa'
+          if (isQa) {
+            // Administradores veem todas as notificações de QA para acompanhamento geral e testes
+            if (isAdmin) return true
 
-          if (destinatario) {
             const currentNome = (currentUser?.nome || currentUser?.login || '').trim().toLowerCase()
-            const targetNome = (destinatarioNome || '').trim().toLowerCase()
+            const currentLogin = (currentUser?.login || '').trim().toLowerCase()
+            const currentId = currentUser?.id
 
-            const matchId = destinatario === currentUser?.id ||
-              n.dados_extras?.tecnico_id === currentUser?.id ||
-              n.dados_extras?.qa_id === currentUser?.id
+            const isReprovado = n.tipo === 'qa_reprovado' || n.dados_extras?.acao === 'reprovacao'
+            const isCorrigido = n.tipo === 'qa_corrigido' || n.dados_extras?.acao === 'correcao_retorno'
 
-            const matchNome = currentNome && targetNome &&
-              (currentNome.includes(targetNome) || targetNome.includes(currentNome))
+            if (isReprovado) {
+              // Notificação de tela reprovada: destinada ao técnico responsável pela tela
+              const tecId = n.dados_extras?.destinatario_usuario_id || n.dados_extras?.tecnico_id
+              const tecNome = (n.dados_extras?.tecnico_nome || '').trim().toLowerCase()
 
-            // Administradores veem as notificações de QA para supervisão e testes
-            // Demais perfis só veem se forem o destinatário ou técnico/QA envolvido
-            if (!matchId && !matchNome && !isAdmin) {
-              return false
+              const matchId = currentId && (currentId === tecId || currentId === n.dados_extras?.tecnico_id)
+              const matchNome = tecNome && (
+                currentNome.includes(tecNome) ||
+                tecNome.includes(currentNome) ||
+                currentLogin === tecNome
+              )
+
+              return !!(matchId || matchNome)
             }
+
+            if (isCorrigido) {
+              // Notificação de tela corrigida: destinada ao usuário QA que apontou o erro
+              const qaId = n.dados_extras?.destinatario_usuario_id || n.dados_extras?.qa_id
+              const qaNome = (n.dados_extras?.qa_nome || '').trim().toLowerCase()
+
+              const matchId = currentId && (currentId === qaId || currentId === n.dados_extras?.qa_id)
+              const matchNome = qaNome && (
+                currentNome.includes(qaNome) ||
+                qaNome.includes(currentNome) ||
+                currentLogin === qaNome
+              )
+
+              return !!(matchId || matchNome)
+            }
+
+            return false
+          }
+
+          // Notificação direcionada a usuário específico (outros módulos)
+          const destinatario = n.dados_extras?.destinatario_usuario_id
+          if (destinatario && destinatario !== currentUser?.id && !isAdmin) {
+            return false
           }
 
           // Se for perfil Técnico (não Admin), filtra apenas notificações pertinentes a ele
           if (isTecnico) {
-            const currentNome = (currentUser?.nome || currentUser?.login || '').trim().toLowerCase()
-            const tecNome = (n.dados_extras?.tecnico_nome || '').trim().toLowerCase()
-
-            const isParaMim = (destinatario && destinatario === currentUser?.id) ||
-              n.dados_extras?.tecnico_id === currentUser?.id ||
-              (tecNome && currentNome && (currentNome.includes(tecNome) || tecNome.includes(currentNome)))
-
-            if (!isParaMim && !isQa) {
-              return false
-            }
+            const isParaMim = destinatario && destinatario === currentUser?.id
+            if (!isParaMim) return false
           }
 
           // 1. Notificações de RH são restritas exclusivamente a Administradores / Gestão RH
