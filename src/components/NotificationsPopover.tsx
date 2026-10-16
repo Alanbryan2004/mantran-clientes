@@ -16,7 +16,9 @@ import {
   PhoneCall,
   Gift,
   CalendarClock,
-  Ticket as TicketIcon
+  Ticket as TicketIcon,
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
@@ -32,6 +34,7 @@ export function NotificationsPopover() {
   const [notificacoes, setNotificacoes] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const [modalQaDetalhes, setModalQaDetalhes] = useState<any | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -108,9 +111,9 @@ export function NotificationsPopover() {
   const fetchNotificacoes = async (showLoading = false) => {
     if (showLoading) setLoading(true)
     try {
-      // Regra geral: apenas FUNCIONÁRIOS recebem notificações, EXCETO o perfil Técnico.
-      // Não-funcionário (Cliente, Parceiro, Usuário, Consulta) e Técnico não recebem nada.
-      if (!isFuncionario || isTecnico) {
+      // Regra geral: apenas FUNCIONÁRIOS recebem notificações internas.
+      // Clientes não recebem notificações internas.
+      if (!isFuncionario) {
         setNotificacoes([])
         return
       }
@@ -129,6 +132,17 @@ export function NotificationsPopover() {
           const destinatario = n.dados_extras?.destinatario_usuario_id
           if (destinatario && destinatario !== currentUser?.id) {
             return false
+          }
+
+          // Se for perfil Técnico, filtra apenas notificações pertinentes a ele (direcionadas ou de QA)
+          if (isTecnico) {
+            const isDirecionada = (destinatario && destinatario === currentUser?.id) ||
+              n.dados_extras?.tecnico_id === currentUser?.id ||
+              (n.dados_extras?.tecnico_nome && currentUser?.nome && n.dados_extras.tecnico_nome.toLowerCase().includes(currentUser.nome.toLowerCase()))
+            const isQa = n.tipo?.startsWith('qa_') || n.dados_extras?.modulo === 'qa'
+            if (!isDirecionada && !isQa) {
+              return false
+            }
           }
 
           // 1. Notificações de RH são restritas exclusivamente a Administradores / Gestão RH
@@ -419,7 +433,11 @@ export function NotificationsPopover() {
     }
     setIsOpen(false)
 
-    if (item.tipo === 'ponto_lembrete') {
+    if (item.tipo?.startsWith('qa_') || item.dados_extras?.modulo === 'qa') {
+      // Notificação de QA: abre o modal com todos os detalhes do apontamento ou correção
+      setModalQaDetalhes(item)
+      return
+    } else if (item.tipo === 'ponto_lembrete') {
       // Lembrete de ponto: abre o modal de Controle de Ponto (montado no Header)
       window.dispatchEvent(new CustomEvent('mantran:abrir-controle-ponto'))
       return
@@ -655,6 +673,8 @@ export function NotificationsPopover() {
                 const isAniversario = item.tipo === 'aniversario_dayoff' || item.tipo === 'aniversario_felicitacao' || item.tipo === 'aniversario_aviso'
                 const isCalendario = item.tipo === 'calendario_lembrete' || item.tipo === 'calendario_convite' || item.dados_extras?.modulo === 'calendario'
                 const isRhNotification = isFerias || isFalta || isPlantao || item.dados_extras?.modulo === 'rh'
+                const isQaReprovado = item.tipo === 'qa_reprovado' || item.dados_extras?.acao === 'reprovacao'
+                const isQaCorrigido = item.tipo === 'qa_corrigido' || item.dados_extras?.acao === 'correcao_retorno'
                 const isConcluido = item.titulo?.includes('Concluído') || item.dados_extras?.isCompleto
                 const nomeCliente = item.dados_extras?.nome_empresa || 'Cliente'
                 const colaboradorNome = item.dados_extras?.usuario_nome || 'Colaborador'
@@ -666,7 +686,11 @@ export function NotificationsPopover() {
                     className={clsx(
                       "p-3.5 transition-all duration-150 cursor-pointer group flex items-start gap-3 relative hover:bg-slate-800/60",
                       !item.lida
-                        ? isCalendario
+                        ? isQaReprovado
+                          ? "bg-rose-500/10 border-l-2 border-rose-500"
+                          : isQaCorrigido
+                          ? "bg-emerald-500/10 border-l-2 border-emerald-400"
+                          : isCalendario
                           ? "bg-teal-500/5 border-l-2 border-teal-400"
                           : isAniversario
                           ? "bg-pink-500/5 border-l-2 border-pink-400"
@@ -689,7 +713,11 @@ export function NotificationsPopover() {
                     {/* Status Icon */}
                     <div className={clsx(
                       "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5 shadow-sm",
-                      isCalendario
+                      isQaReprovado
+                        ? "bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-rose-500/10"
+                        : isQaCorrigido
+                        ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
+                        : isCalendario
                         ? "bg-teal-500/15 border-teal-500/30 text-teal-400 shadow-teal-500/10"
                         : isAniversario
                         ? "bg-pink-500/15 border-pink-500/30 text-pink-400 shadow-pink-500/10"
@@ -709,7 +737,11 @@ export function NotificationsPopover() {
                         ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
                         : "bg-blue-500/15 border-blue-500/30 text-blue-400 shadow-blue-500/10"
                     )}>
-                      {isCalendario ? (
+                      {isQaReprovado ? (
+                        <AlertTriangle className="w-4 h-4 text-rose-400" />
+                      ) : isQaCorrigido ? (
+                        <RotateCcw className="w-4 h-4 text-emerald-400" />
+                      ) : isCalendario ? (
                         <CalendarClock className="w-4 h-4" />
                       ) : isAniversario ? (
                         <Gift className="w-4 h-4" />
@@ -738,7 +770,11 @@ export function NotificationsPopover() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={clsx(
                             "text-[11px] font-bold px-2 py-0.5 rounded-md border",
-                            isCalendario
+                            isQaReprovado
+                              ? "bg-rose-950/40 text-rose-300 border-rose-500/30"
+                              : isQaCorrigido
+                              ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
+                              : isCalendario
                               ? "bg-teal-950/40 text-teal-300 border-teal-500/30"
                               : isAniversario
                               ? "bg-pink-950/40 text-pink-300 border-pink-500/30"
@@ -758,7 +794,21 @@ export function NotificationsPopover() {
                               ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
                               : "bg-blue-950/40 text-blue-300 border-blue-500/30"
                           )}>
-                            {isCalendario ? '📅 Calendário' : isAniversario ? '🎂 Aniversário' : isPontoLembrete ? '⏰ Ponto' : isRhNotification ? `👤 ${colaboradorNome}` : isTicket ? '🎫 Chamado' : `🏢 ${nomeCliente}`}
+                            {isQaReprovado
+                              ? '❌ QA Reprovado'
+                              : isQaCorrigido
+                              ? '🔁 QA Validação'
+                              : isCalendario
+                              ? '📅 Calendário'
+                              : isAniversario
+                              ? '🎂 Aniversário'
+                              : isPontoLembrete
+                              ? '⏰ Ponto'
+                              : isRhNotification
+                              ? `👤 ${colaboradorNome}`
+                              : isTicket
+                              ? '🎫 Chamado'
+                              : `🏢 ${nomeCliente}`}
                           </span>
 
                           <span className="text-xs font-bold text-white truncate">
@@ -770,7 +820,11 @@ export function NotificationsPopover() {
                         {!item.lida && (
                           <span className={clsx(
                             "w-2 h-2 rounded-full shrink-0",
-                            isFerias
+                            isQaReprovado
+                              ? "bg-rose-500 shadow-[0_0_6px_#f43f5e]"
+                              : isQaCorrigido
+                              ? "bg-emerald-400 shadow-[0_0_6px_#34d399]"
+                              : isFerias
                               ? "bg-amber-400 shadow-[0_0_6px_#fbbf24]"
                               : isFalta
                               ? "bg-emerald-400 shadow-[0_0_6px_#34d399]"
@@ -802,7 +856,11 @@ export function NotificationsPopover() {
                             }}
                             className={clsx(
                               "inline-flex items-center gap-1 px-2.5 py-1 rounded border text-[11px] font-semibold transition-all cursor-pointer",
-                              isPontoLembrete
+                              isQaReprovado
+                                ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/30"
+                                : isQaCorrigido
+                                ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                : isPontoLembrete
                                 ? "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
                                 : isFerias
                                 ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30"
@@ -818,7 +876,19 @@ export function NotificationsPopover() {
                             )}
                           >
                             <ExternalLink className="w-3 h-3" />
-                            {isPontoLembrete ? 'Visualizar Ponto' : isRhNotification ? 'Abrir RH' : isNovaImplantacao ? 'Abrir Implantação' : isTicket ? 'Visualizar Ticket' : 'Visualizar Formulário'}
+                            {isQaReprovado
+                              ? 'Ver Apontamento'
+                              : isQaCorrigido
+                              ? 'Validar Tela'
+                              : isPontoLembrete
+                              ? 'Visualizar Ponto'
+                              : isRhNotification
+                              ? 'Abrir RH'
+                              : isNovaImplantacao
+                              ? 'Abrir Implantação'
+                              : isTicket
+                              ? 'Visualizar Ticket'
+                              : 'Visualizar Formulário'}
                           </button>
 
                           <button
@@ -852,6 +922,125 @@ export function NotificationsPopover() {
             </div>
           )}
 
+        </div>,
+        document.body
+      )}
+
+      {/* Modal de Detalhes de QA (Tela Reprovada / Correção Disponível) */}
+      {modalQaDetalhes && createPortal(
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-[#111420] border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className={clsx(
+              "px-5 py-4 border-b flex items-center justify-between",
+              modalQaDetalhes.tipo === 'qa_reprovado'
+                ? "bg-rose-500/10 border-rose-500/30"
+                : "bg-emerald-500/10 border-emerald-500/30"
+            )}>
+              <div className="flex items-center gap-2.5">
+                {modalQaDetalhes.tipo === 'qa_reprovado' ? (
+                  <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <RotateCcw className="w-4 h-4" />
+                  </div>
+                )}
+                <div>
+                  <h4 className="text-sm font-bold text-white">
+                    {modalQaDetalhes.tipo === 'qa_reprovado' ? 'Tela Reprovada no QA' : 'Tela Pronta para Nova Validação'}
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    {formatRelativeTime(modalQaDetalhes.created_at)}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalQaDetalhes(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 text-xs text-slate-300">
+              <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-semibold">Tela:</span>
+                  <span className="font-bold text-white text-sm">
+                    {modalQaDetalhes.dados_extras?.tela || modalQaDetalhes.titulo}
+                  </span>
+                </div>
+                {modalQaDetalhes.dados_extras?.cenario_titulo && (
+                  <div className="flex items-center justify-between border-t border-slate-800/80 pt-2">
+                    <span className="text-slate-400 font-semibold">Cenário:</span>
+                    <span className="font-semibold text-slate-200">
+                      {modalQaDetalhes.dados_extras.cenario_titulo}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-slate-800/80 pt-2">
+                  <span className="text-slate-400 font-semibold">
+                    {modalQaDetalhes.tipo === 'qa_reprovado' ? 'Reprovado por (QA):' : 'Validador (QA):'}
+                  </span>
+                  <span className="font-semibold text-amber-300">
+                    {modalQaDetalhes.dados_extras?.qa_nome || 'Equipe de QA'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-slate-800/80 pt-2">
+                  <span className="text-slate-400 font-semibold">Técnico Responsável:</span>
+                  <span className="font-semibold text-sky-300">
+                    {modalQaDetalhes.dados_extras?.tecnico_nome || 'Técnico'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Mensagem oficial */}
+              <div className="p-3 rounded-xl bg-slate-900/40 border border-slate-800/60 text-slate-200">
+                <p className="font-medium text-xs leading-relaxed">
+                  {modalQaDetalhes.mensagem}
+                </p>
+              </div>
+
+              {/* Motivo do Erro apontado */}
+              {modalQaDetalhes.dados_extras?.motivo_erro && (
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-rose-400 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Detalhes do erro apontado pelo QA:
+                  </label>
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-200 whitespace-pre-wrap leading-relaxed text-xs">
+                    {modalQaDetalhes.dados_extras.motivo_erro}
+                  </div>
+                </div>
+              )}
+
+              {/* Nota de Correção do Técnico */}
+              {modalQaDetalhes.dados_extras?.nota_correcao && (
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Descrição da correção realizada pelo Técnico:
+                  </label>
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 whitespace-pre-wrap leading-relaxed text-xs">
+                    {modalQaDetalhes.dados_extras.nota_correcao}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-900/80 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setModalQaDetalhes(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
         </div>,
         document.body
       )}

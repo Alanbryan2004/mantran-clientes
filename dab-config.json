@@ -438,6 +438,106 @@
           ]
         }
       ]
+    },
+    "implantacoes": {
+      "source": {
+        "object": "dbo.implantacoes",
+        "type": "table"
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "implantacao",
+          "plural": "implantacoes"
+        }
+      },
+      "rest": {
+        "enabled": true
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "*"
+            }
+          ]
+        }
+      ],
+      "relationships": {
+        "etapas": {
+          "cardinality": "many",
+          "target.entity": "implantacao_etapas",
+          "source.fields": [
+            "id"
+          ],
+          "target.fields": [
+            "implantacao_id"
+          ]
+        },
+        "historico": {
+          "cardinality": "many",
+          "target.entity": "implantacao_historico",
+          "source.fields": [
+            "id"
+          ],
+          "target.fields": [
+            "implantacao_id"
+          ]
+        }
+      }
+    },
+    "implantacao_etapas": {
+      "source": {
+        "object": "dbo.implantacao_etapas",
+        "type": "table"
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "implantacao_etapa",
+          "plural": "implantacao_etapas"
+        }
+      },
+      "rest": {
+        "enabled": true
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "*"
+            }
+          ]
+        }
+      ]
+    },
+    "implantacao_historico": {
+      "source": {
+        "object": "dbo.implantacao_historico",
+        "type": "table"
+      },
+      "graphql": {
+        "enabled": true,
+        "type": {
+          "singular": "implantacao_historico",
+          "plural": "implantacao_historicos"
+        }
+      },
+      "rest": {
+        "enabled": true
+      },
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": [
+            {
+              "action": "*"
+            }
+          ]
+        }
+      ]
     }
   }
 }
