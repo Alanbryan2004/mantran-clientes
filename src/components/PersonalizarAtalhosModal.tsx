@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { 
   X, 
   Search, 
@@ -120,8 +121,8 @@ export function PersonalizarAtalhosModal({
     return ALL_SHORTCUT_OPTIONS.find(opt => opt.id === id) || null
   })
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150 select-none overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150 select-none overflow-y-auto">
       <div 
         className="w-full max-w-2xl bg-[#111422] border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] my-auto animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
@@ -352,6 +353,7 @@ export function PersonalizarAtalhosModal({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

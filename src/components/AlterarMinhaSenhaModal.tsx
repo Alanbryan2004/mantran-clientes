@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Lock, KeyRound, Eye, EyeOff, Check, AlertCircle } from 'lucide-react'
 import { api } from '../lib/api'
 import { getLoggedUser } from '../lib/auth'
@@ -106,7 +107,7 @@ export function AlterarMinhaSenhaModal({ isOpen, onClose, onSuccess }: AlterarMi
     }
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
       <div className="bg-dark-card border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         
@@ -253,6 +254,7 @@ export function AlterarMinhaSenhaModal({ isOpen, onClose, onSuccess }: AlterarMi
         </form>
 
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
