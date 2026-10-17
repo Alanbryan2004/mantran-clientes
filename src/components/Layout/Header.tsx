@@ -1,10 +1,17 @@
-import { useState, useEffect, useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { useLocation, useNavigate, NavLink } from 'react-router-dom'
 import { getLoggedUser, isFuncionarioUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
 import { NotificationsPopover } from '../NotificationsPopover'
 import { AlterarMinhaSenhaModal } from '../AlterarMinhaSenhaModal'
 import { ControlePontoModal } from '../ControlePontoModal'
+import { PersonalizarAtalhosModal } from '../PersonalizarAtalhosModal'
+import { 
+  loadUserShortcutIds, 
+  ALL_SHORTCUT_OPTIONS, 
+  type ShortcutDefinition, 
+  isShortcutPermitted 
+} from '../../lib/headerShortcuts'
 import { 
   Sparkles, 
   Rocket, 
@@ -16,10 +23,12 @@ import {
   Palmtree, 
   KeyRound, 
   LogOut, 
-  ChevronDown,
-  UserCheck,
-  Clock,
-  CalendarDays
+  ChevronDown, 
+  UserCheck, 
+  Clock, 
+  CalendarDays,
+  Plus,
+  SlidersHorizontal
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -31,7 +40,27 @@ export function Header() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isAlterarSenhaModalOpen, setIsAlterarSenhaModalOpen] = useState(false)
   const [isPontoModalOpen, setIsPontoModalOpen] = useState(false)
+  const [isAtalhosModalOpen, setIsAtalhosModalOpen] = useState(false)
+  const [shortcutIds, setShortcutIds] = useState<string[]>(() => loadUserShortcutIds(user))
   const userMenuRef = useRef<HTMLDivElement>(null)
+
+  // Atualiza atalhos quando o usuário logado muda ou evento é disparado
+  useEffect(() => {
+    const handleUpdate = () => {
+      setShortcutIds(loadUserShortcutIds(user))
+    }
+    handleUpdate()
+    window.addEventListener('mantran:shortcuts-updated', handleUpdate)
+    return () => window.removeEventListener('mantran:shortcuts-updated', handleUpdate)
+  }, [user?.id])
+
+  // Resolve as definições completas dos atalhos configurados e permitidos
+  const activeShortcuts = useMemo(() => {
+    return shortcutIds
+      .map(id => ALL_SHORTCUT_OPTIONS.find(opt => opt.id === id))
+      .filter((opt): opt is ShortcutDefinition => !!opt && isShortcutPermitted(opt, user))
+      .slice(0, 4)
+  }, [shortcutIds, user])
 
   // Fechar dropdown ao clicar fora
   useEffect(() => {
@@ -100,10 +129,64 @@ export function Header() {
   return (
     <header className="h-16 border-b border-slate-800/80 bg-[#0f111a]/80 backdrop-blur-md px-6 flex items-center justify-between relative z-40 shrink-0 select-none">
       
-      {/* Page Context Icon (título fica na própria página) */}
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 shrink-0">
+      {/* Page Context Icon + Atalhos Rápidos (Até 4) */}
+      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+        <div 
+          className="w-9 h-9 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 shrink-0 shadow-sm"
+          title={`Tela Atual: ${pageInfo.title}`}
+        >
           <PageIcon className="w-5 h-5" />
+        </div>
+
+        {/* Separador vertical sutil */}
+        <div className="h-5 w-[1px] bg-slate-800 shrink-0 mx-0.5 sm:mx-1" />
+
+        {/* Atalhos Rápidos do Topo */}
+        <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
+          {activeShortcuts.map((shortcut) => {
+            const Icon = shortcut.icon
+            const isActive = location.pathname === shortcut.path || 
+              (shortcut.path !== '/' && location.pathname.startsWith(shortcut.path))
+            return (
+              <NavLink
+                key={shortcut.id}
+                id={`shortcut-header-${shortcut.id}`}
+                to={shortcut.path}
+                title={`Atalho: ${shortcut.name}`}
+                className={clsx(
+                  "w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 relative group cursor-pointer shrink-0",
+                  isActive
+                    ? "bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm shadow-brand-500/10"
+                    : "bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700"
+                )}
+              >
+                <Icon className={clsx("w-4 h-4 transition-transform group-hover:scale-110", shortcut.color)} />
+                {isActive && (
+                  <span className="absolute -bottom-1 w-1.5 h-1.5 rounded-full bg-brand-400 shadow-sm shadow-brand-400" />
+                )}
+              </NavLink>
+            )
+          })}
+
+          {/* Botão para Adicionar / Personalizar Atalhos */}
+          <button
+            type="button"
+            id="btn-personalizar-atalhos-header"
+            onClick={() => setIsAtalhosModalOpen(true)}
+            title={activeShortcuts.length < 4 ? `Adicionar Atalho no Topo (${activeShortcuts.length}/4)` : "Personalizar Atalhos do Topo"}
+            className={clsx(
+              "h-9 rounded-xl flex items-center justify-center transition-all duration-150 border cursor-pointer group shrink-0",
+              activeShortcuts.length < 4
+                ? "w-9 border-dashed border-slate-700/80 hover:border-brand-500/50 hover:bg-brand-500/10 text-slate-500 hover:text-brand-300"
+                : "w-8 border-transparent hover:border-slate-700 hover:bg-slate-800/60 text-slate-500 hover:text-slate-300 ml-0.5"
+            )}
+          >
+            {activeShortcuts.length < 4 ? (
+              <Plus className="w-4 h-4 transition-transform group-hover:rotate-90 duration-200" />
+            ) : (
+              <SlidersHorizontal className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+            )}
+          </button>
         </div>
       </div>
 
@@ -259,6 +342,15 @@ export function Header() {
       <ControlePontoModal
         isOpen={isPontoModalOpen}
         onClose={() => setIsPontoModalOpen(false)}
+      />
+
+      {/* Modal de Personalização de Atalhos do Topo */}
+      <PersonalizarAtalhosModal
+        isOpen={isAtalhosModalOpen}
+        onClose={() => setIsAtalhosModalOpen(false)}
+        user={user}
+        currentShortcutIds={shortcutIds}
+        onSaved={(newIds) => setShortcutIds(newIds)}
       />
     </header>
   )
