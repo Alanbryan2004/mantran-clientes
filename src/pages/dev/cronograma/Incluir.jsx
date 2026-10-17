@@ -7,6 +7,7 @@ import {
 import AppShell from "../components/AppShell";
 import { apiGet, apiPost, apiPatch, apiDelete } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import CronogramaTabs from "./CronogramaTabs";
 
 const PAGE_SIZE = 20;
 
@@ -268,6 +269,7 @@ export default function Incluir() {
             }
         >
             <div className="space-y-6">
+                <CronogramaTabs />
                 {/* ── Formulário Dados do Cronograma ── */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                     <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-100">

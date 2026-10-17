@@ -24,14 +24,39 @@ const allNavItems = [
   { name: 'Gestão de RH', path: '/rh', icon: Users2 },
 ]
 
-const devNavItems = [
+interface DevSubItem {
+  name: string
+  path: string
+  adminOnly?: boolean
+  tecnicoOrAdminOnly?: boolean
+}
+
+interface DevNavItem {
+  name: string
+  path: string
+  icon: any
+  color?: string
+  subitems?: DevSubItem[]
+}
+
+const devNavItems: DevNavItem[] = [
   { name: 'Minhas Tarefas', path: '/dev/tarefas', icon: Clock, color: 'text-amber-400' },
   { name: 'QA & Testes', path: '/dev/qa', icon: FlaskConical, color: 'text-purple-400' },
   { name: 'Dashboard Dev', path: '/dev/dashboard', icon: LayoutDashboard, color: 'text-blue-400' },
   { name: 'Telas Pendentes', path: '/dev/pendentes', icon: ListFilter, color: 'text-cyan-400' },
   { name: 'Telas Finalizadas', path: '/dev/finalizadas', icon: CheckCircle2, color: 'text-emerald-400' },
   { name: 'Cadastro de Telas', path: '/dev/cadastro-telas', icon: PlusCircle, color: 'text-rose-400' },
-  { name: 'Cronograma', path: '/dev/cronograma/visualizar', icon: Calendar, color: 'text-indigo-400' },
+  { 
+    name: 'Cronograma', 
+    path: '/dev/cronograma', 
+    icon: Calendar, 
+    color: 'text-indigo-400',
+    subitems: [
+      { name: 'Incluir', path: '/dev/cronograma/incluir', adminOnly: true },
+      { name: 'Visualizar', path: '/dev/cronograma/visualizar' },
+      { name: 'Arquitetura', path: '/dev/cronograma/arquitetura', tecnicoOrAdminOnly: true },
+    ]
+  },
 ]
 
 export function Sidebar() {
@@ -48,7 +73,7 @@ export function Sidebar() {
 
   const location = useLocation()
   const isTecnico = user?.perfil?.toLowerCase().includes('tecnico') || false
-  const [allowedDevItems, setAllowedDevItems] = useState(devNavItems)
+  const [allowedDevItems, setAllowedDevItems] = useState<DevNavItem[]>(devNavItems)
   const isDevActive = location.pathname.startsWith('/dev') || 
                       location.pathname.startsWith('/minhas-tarefas') || 
                       location.pathname.startsWith('/qa-testes') || 
@@ -56,6 +81,16 @@ export function Sidebar() {
   const [isDevDropdownOpen, setIsDevDropdownOpen] = useState(isDevActive || isTecnico)
   const [isCollapsedDevMenuOpen, setIsCollapsedDevMenuOpen] = useState(false)
   const collapsedDevMenuRef = useRef<HTMLDivElement>(null)
+
+  const isCronogramaActive = location.pathname.startsWith('/dev/cronograma') || 
+                             location.pathname.startsWith('/cronograma')
+  const [isCronogramaOpen, setIsCronogramaOpen] = useState(isCronogramaActive)
+
+  useEffect(() => {
+    if (isCronogramaActive) {
+      setIsCronogramaOpen(true)
+    }
+  }, [isCronogramaActive])
 
   const isUsuariosActive = location.pathname.startsWith('/usuarios')
   const [isUsuariosDropdownOpen, setIsUsuariosDropdownOpen] = useState(isUsuariosActive)
@@ -300,6 +335,65 @@ export function Sidebar() {
                 <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-800 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
                   {allowedDevItems.map((item) => {
                     const ItemIcon = item.icon
+                    const hasSubitems = Array.isArray(item.subitems) && item.subitems.length > 0
+
+                    if (hasSubitems) {
+                      const isItemActive = location.pathname.startsWith(item.path) || (item.path === '/dev/cronograma' && location.pathname.startsWith('/cronograma'))
+                      const filteredSub = (item.subitems || []).filter(sub => {
+                        if (sub.adminOnly && !isAdmin) return false
+                        if (sub.tecnicoOrAdminOnly && !isAdmin && !isTecnico) return false
+                        return true
+                      })
+
+                      return (
+                        <div key={item.name} className="space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => setIsCronogramaOpen(!isCronogramaOpen)}
+                            className={clsx(
+                              'w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all group cursor-pointer text-left',
+                              isItemActive
+                                ? 'bg-brand-500/15 text-brand-300 font-semibold border border-brand-500/25'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
+                            )}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <ItemIcon className={clsx("w-4 h-4 shrink-0 transition-transform group-hover:scale-110", item.color)} />
+                              <span className="truncate">{item.name}</span>
+                            </div>
+                            <ChevronDown
+                              className={clsx(
+                                'w-3.5 h-3.5 transition-transform duration-200 shrink-0 text-slate-400',
+                                isCronogramaOpen && 'rotate-180 text-brand-400'
+                              )}
+                            />
+                          </button>
+
+                          {isCronogramaOpen && (
+                            <div className="ml-4 pl-2.5 border-l border-slate-700/80 space-y-1 mt-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                              {filteredSub.map((sub) => (
+                                <NavLink
+                                  key={sub.path}
+                                  to={sub.path}
+                                  className={({ isActive }) =>
+                                    clsx(
+                                      'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors',
+                                      isActive
+                                        ? 'bg-brand-500/20 text-brand-300 font-bold border border-brand-500/30'
+                                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 font-medium'
+                                    )
+                                  }
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                                  <span className="truncate">{sub.name}</span>
+                                </NavLink>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+
                     return (
                       <NavLink
                         key={item.path}
@@ -323,13 +417,49 @@ export function Sidebar() {
 
               {/* Menu Flutuante Popover quando sidebar recolhida (!isExpanded) */}
               {!isExpanded && isCollapsedDevMenuOpen && (
-                <div className="absolute left-full top-0 ml-3 w-56 bg-[#131622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1">
+                <div className="absolute left-full top-0 ml-3 w-56 bg-[#131622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1 max-h-[calc(100vh-80px)] overflow-y-auto">
                   <div className="px-3 py-1.5 border-b border-slate-800/80 text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
                     <Code2 className="w-3.5 h-3.5" />
                     <span>Dev & QA</span>
                   </div>
                   {allowedDevItems.map((item) => {
                     const ItemIcon = item.icon
+                    const hasSubitems = Array.isArray(item.subitems) && item.subitems.length > 0
+
+                    if (hasSubitems) {
+                      const filteredSub = (item.subitems || []).filter(sub => {
+                        if (sub.adminOnly && !isAdmin) return false
+                        if (sub.tecnicoOrAdminOnly && !isAdmin && !isTecnico) return false
+                        return true
+                      })
+                      return (
+                        <div key={item.name} className="pt-1.5 mt-1.5 border-t border-slate-800/80 space-y-1">
+                          <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                            <ItemIcon className="w-3.5 h-3.5" />
+                            <span>{item.name}</span>
+                          </div>
+                          {filteredSub.map(sub => (
+                            <NavLink
+                              key={sub.path}
+                              to={sub.path}
+                              onClick={() => setIsCollapsedDevMenuOpen(false)}
+                              className={({ isActive }) =>
+                                clsx(
+                                  'flex items-center gap-2 pl-5 pr-3 py-1.5 rounded-xl text-xs font-medium transition-colors',
+                                  isActive
+                                    ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30 font-bold'
+                                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                                )
+                              }
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                              <span>{sub.name}</span>
+                            </NavLink>
+                          ))}
+                        </div>
+                      )
+                    }
+
                     return (
                       <NavLink
                         key={item.path}
@@ -339,7 +469,7 @@ export function Sidebar() {
                           clsx(
                             'flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors',
                             isActive
-                              ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
+                              ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30 font-semibold'
                               : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                           )
                         }

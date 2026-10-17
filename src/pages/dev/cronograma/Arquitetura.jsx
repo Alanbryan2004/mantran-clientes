@@ -3,6 +3,7 @@ import AppShell from "../components/AppShell";
 import { apiGet, rpc } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { AlertCircle, Cpu } from "lucide-react";
+import CronogramaTabs from "./CronogramaTabs";
 
 function formatarHHMM(horasDecimais) {
     if (!horasDecimais) return "0h 0m";
@@ -205,6 +206,7 @@ export default function Arquitetura() {
             icon={Cpu}
         >
             <div className="space-y-6">
+                <CronogramaTabs />
                 {loading ? (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 text-center text-slate-500 font-medium">
                         Carregando cronograma de arquitetura...
