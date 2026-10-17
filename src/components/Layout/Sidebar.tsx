@@ -67,9 +67,7 @@ export function Sidebar() {
   const user = getLoggedUser()
   const isAdmin = isAdminUser()
   const isParceiro = user?.perfil?.toLowerCase() === 'parceiro'
-  const isUsuario = user?.perfil?.toLowerCase() === 'usuario'
   const isCliente = user?.perfil?.toLowerCase() === 'cliente'
-  const isComercial = user?.perfil?.toLowerCase() === 'comercial'
 
   const location = useLocation()
   const isTecnico = user?.perfil?.toLowerCase().includes('tecnico') || false
@@ -252,7 +250,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 py-4 space-y-1.5 overflow-y-auto overflow-x-hidden px-3 mt-2">
+      <nav className="flex-1 py-3 space-y-1 overflow-y-auto overflow-x-hidden px-3 mt-1">
         {allowedNavItems.map((item) => {
           const Icon = item.icon
           return (
@@ -263,22 +261,22 @@ export function Sidebar() {
               className={({ isActive }) =>
                 clsx(
                   'flex items-center rounded-xl transition-all duration-200',
-                  isExpanded ? 'px-4 py-2.5 space-x-3' : 'p-3 justify-center',
+                  isExpanded ? 'px-3.5 py-2 space-x-3' : 'p-2.5 justify-center',
                   isActive 
                     ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20' 
                     : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'
                 )
               }
             >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {isExpanded && <span className="font-medium whitespace-nowrap text-sm">{item.name}</span>}
+              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+              {isExpanded && <span className="font-medium whitespace-nowrap text-[13px]">{item.name}</span>}
             </NavLink>
           )
         })}
 
         {/* Módulo Desenvolvimento & QA */}
         {allowedDevItems.length > 0 && (
-          <div className="pt-3 mt-3 border-t border-slate-800/80 space-y-1">
+          <div className="pt-2.5 mt-2.5 border-t border-slate-800/80 space-y-1">
             <div className="relative" ref={collapsedDevMenuRef}>
               <div
                 className={clsx(
@@ -294,10 +292,10 @@ export function Sidebar() {
                     <button
                       type="button"
                       onClick={() => setIsDevDropdownOpen(!isDevDropdownOpen)}
-                      className="flex items-center flex-1 px-4 py-2.5 space-x-3 min-w-0 text-left cursor-pointer"
+                      className="flex items-center flex-1 px-3.5 py-2 space-x-3 min-w-0 text-left cursor-pointer"
                     >
-                      <Code2 className="w-5 h-5 flex-shrink-0 text-amber-400" />
-                      <span className="font-medium whitespace-nowrap text-sm truncate">Desenvolvimento & QA</span>
+                      <Code2 className="w-[18px] h-[18px] flex-shrink-0 text-amber-400" />
+                      <span className="font-medium whitespace-nowrap text-[13px] truncate">Desenvolvimento & QA</span>
                     </button>
 
                     <button
@@ -312,7 +310,7 @@ export function Sidebar() {
                     >
                       <ChevronDown
                         className={clsx(
-                          'w-4 h-4 transition-transform duration-200',
+                          'w-3.5 h-3.5 transition-transform duration-200',
                           isDevDropdownOpen && 'rotate-180 text-brand-400'
                         )}
                       />
@@ -323,16 +321,16 @@ export function Sidebar() {
                     type="button"
                     onClick={() => setIsCollapsedDevMenuOpen(!isCollapsedDevMenuOpen)}
                     title="Desenvolvimento & QA"
-                    className="p-3 flex items-center justify-center cursor-pointer focus:outline-none w-full"
+                    className="p-2.5 flex items-center justify-center cursor-pointer focus:outline-none w-full"
                   >
-                    <Code2 className={clsx("w-5 h-5 flex-shrink-0", isDevActive ? "text-brand-400" : "text-amber-400")} />
+                    <Code2 className={clsx("w-[18px] h-[18px] flex-shrink-0", isDevActive ? "text-brand-400" : "text-amber-400")} />
                   </button>
                 )}
               </div>
 
               {/* Submenu inline quando expandido */}
               {isExpanded && isDevDropdownOpen && (
-                <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-800 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-800 space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
                   {allowedDevItems.map((item) => {
                     const ItemIcon = item.icon
                     const hasSubitems = Array.isArray(item.subitems) && item.subitems.length > 0
@@ -346,19 +344,19 @@ export function Sidebar() {
                       })
 
                       return (
-                        <div key={item.name} className="space-y-1">
+                        <div key={item.name} className="space-y-0.5">
                           <button
                             type="button"
                             onClick={() => setIsCronogramaOpen(!isCronogramaOpen)}
                             className={clsx(
-                              'w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all group cursor-pointer text-left',
+                              'w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-[12px] font-medium transition-all group cursor-pointer text-left',
                               isItemActive
                                 ? 'bg-brand-500/15 text-brand-300 font-semibold border border-brand-500/25'
                                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
                             )}
                           >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <ItemIcon className={clsx("w-4 h-4 shrink-0 transition-transform group-hover:scale-110", item.color)} />
+                            <div className="flex items-center gap-2 min-w-0">
+                              <ItemIcon className={clsx("w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110", item.color)} />
                               <span className="truncate">{item.name}</span>
                             </div>
                             <ChevronDown
@@ -370,14 +368,14 @@ export function Sidebar() {
                           </button>
 
                           {isCronogramaOpen && (
-                            <div className="ml-4 pl-2.5 border-l border-slate-700/80 space-y-1 mt-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                            <div className="ml-3 pl-2 border-l border-slate-700/80 space-y-0.5 mt-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
                               {filteredSub.map((sub) => (
                                 <NavLink
                                   key={sub.path}
                                   to={sub.path}
                                   className={({ isActive }) =>
                                     clsx(
-                                      'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors',
+                                      'flex items-center gap-2 px-2 py-1 rounded-lg text-[11px] transition-colors',
                                       isActive
                                         ? 'bg-brand-500/20 text-brand-300 font-bold border border-brand-500/30'
                                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 font-medium'
@@ -400,14 +398,14 @@ export function Sidebar() {
                         to={item.path}
                         className={({ isActive }) =>
                           clsx(
-                            'flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all group',
+                            'flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-[12px] font-medium transition-all group',
                             isActive
                               ? 'bg-brand-500/15 text-brand-300 font-semibold border border-brand-500/25'
                               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
                           )
                         }
                       >
-                        <ItemIcon className={clsx("w-4 h-4 shrink-0 transition-transform group-hover:scale-110", item.color)} />
+                        <ItemIcon className={clsx("w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110", item.color)} />
                         <span className="truncate">{item.name}</span>
                       </NavLink>
                     )
@@ -487,7 +485,7 @@ export function Sidebar() {
 
         {/* Admin only: Usuários com Dropdown de Permissões */}
         {isAdmin && (
-          <div className="pt-3 mt-3 border-t border-slate-800/80 space-y-1">
+          <div className="pt-2.5 mt-2.5 border-t border-slate-800/80 space-y-1">
             <div className="relative" ref={collapsedMenuRef}>
               <div
                 className={clsx(
@@ -503,10 +501,10 @@ export function Sidebar() {
                     <NavLink
                       to="/usuarios"
                       onClick={() => setIsUsuariosDropdownOpen(true)}
-                      className="flex items-center flex-1 px-4 py-2.5 space-x-3 min-w-0"
+                      className="flex items-center flex-1 px-3.5 py-2 space-x-3 min-w-0"
                     >
-                      <UserCog className="w-5 h-5 flex-shrink-0 text-cyan-400" />
-                      <span className="font-medium whitespace-nowrap text-sm truncate">Usuários</span>
+                      <UserCog className="w-[18px] h-[18px] flex-shrink-0 text-cyan-400" />
+                      <span className="font-medium whitespace-nowrap text-[13px] truncate">Usuários</span>
                     </NavLink>
 
                     <button
@@ -517,11 +515,11 @@ export function Sidebar() {
                         setIsUsuariosDropdownOpen(!isUsuariosDropdownOpen)
                       }}
                       title={isUsuariosDropdownOpen ? 'Recolher Permissões' : 'Ver Permissões de Acesso'}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors cursor-pointer"
+                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors cursor-pointer"
                     >
                       <ChevronDown
                         className={clsx(
-                          'w-4 h-4 transition-transform duration-200',
+                          'w-3.5 h-3.5 transition-transform duration-200',
                           isUsuariosDropdownOpen && 'rotate-180 text-brand-400'
                         )}
                       />
@@ -532,9 +530,9 @@ export function Sidebar() {
                     type="button"
                     onClick={() => setIsCollapsedMenuOpen(!isCollapsedMenuOpen)}
                     title="Usuários & Permissões"
-                    className="p-3 flex items-center justify-center cursor-pointer focus:outline-none w-full"
+                    className="p-2.5 flex items-center justify-center cursor-pointer focus:outline-none w-full"
                   >
-                    <UserCog className="w-5 h-5 flex-shrink-0 text-cyan-400" />
+                    <UserCog className="w-[18px] h-[18px] flex-shrink-0 text-cyan-400" />
                   </button>
                 )}
               </div>
@@ -545,9 +543,9 @@ export function Sidebar() {
                   <button
                     type="button"
                     onClick={() => setIsPermissoesModalOpen(true)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-brand-300 hover:bg-brand-500/10 border border-transparent hover:border-brand-500/20 transition-all w-full text-left cursor-pointer group"
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-[12px] font-medium text-slate-400 hover:text-brand-300 hover:bg-brand-500/10 border border-transparent hover:border-brand-500/20 transition-all w-full text-left cursor-pointer group"
                   >
-                    <Shield className="w-4 h-4 text-brand-400 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                    <Shield className="w-3.5 h-3.5 text-brand-400 flex-shrink-0 group-hover:scale-110 transition-transform" />
                     <span className="truncate">Permissões de Acesso</span>
                   </button>
                 </div>
@@ -592,54 +590,7 @@ export function Sidebar() {
         )}
       </nav>
 
-      <div className="p-4 border-t border-slate-800 space-y-2">
-        {isExpanded && (
-          <div className="px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center gap-2.5">
-            <div className={clsx(
-              "w-8 h-8 rounded-full border font-bold flex items-center justify-center text-xs uppercase shrink-0",
-              isParceiro
-                ? "bg-orange-500/20 border-orange-500/30 text-orange-400"
-                : isComercial
-                ? "bg-cyan-500/20 border-cyan-500/30 text-cyan-400"
-                : isUsuario
-                ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
-                : isCliente
-                ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
-                : "bg-brand-500/20 border-brand-500/30 text-brand-400"
-            )}>
-              {(user?.nome || user?.login || 'U').charAt(0)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-white truncate">
-                {user?.nome || user?.login || 'Usuário'}
-              </p>
-              <span className={clsx(
-                "text-[10px] font-semibold px-1.5 py-0.5 rounded inline-block mt-0.5 border",
-                isParceiro
-                  ? "bg-orange-500/15 text-orange-300 border-orange-500/30"
-                  : isComercial
-                  ? "bg-cyan-500/15 text-cyan-300 border-cyan-500/30"
-                  : isUsuario
-                  ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
-                  : isCliente
-                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
-                  : "bg-brand-500/10 text-brand-400 border-brand-500/20"
-              )}>
-                {isParceiro 
-                  ? '🤝 Parceiro' 
-                  : isComercial
-                  ? '💼 Comercial'
-                  : isUsuario 
-                  ? '🔒 Consulta' 
-                  : isCliente
-                  ? '🏢 Cliente'
-                  : user?.perfil || 'Acesso Total'}
-              </span>
-            </div>
-          </div>
-        )}
-
-
+      <div className={clsx("border-t border-slate-800/80", isExpanded ? "p-3" : "p-2")}>
         <button 
           onClick={() => {
             localStorage.removeItem('@Mantran:user')
@@ -647,12 +598,12 @@ export function Sidebar() {
           }}
           title={!isExpanded ? 'Sair' : undefined}
           className={clsx(
-            "flex items-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all duration-200 w-full",
-            isExpanded ? "px-4 py-2.5 space-x-3" : "p-3 justify-center"
+            "flex items-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all duration-200 w-full cursor-pointer",
+            isExpanded ? "px-3.5 py-2 space-x-3" : "p-2.5 justify-center"
           )}
         >
-          <LogOut className="w-4 h-4 flex-shrink-0" />
-          {isExpanded && <span className="text-sm font-medium">Sair</span>}
+          <LogOut className="w-[18px] h-[18px] flex-shrink-0" />
+          {isExpanded && <span className="text-[13px] font-medium">Sair</span>}
         </button>
       </div>
 
