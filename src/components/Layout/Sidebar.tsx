@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { 
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
-  Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Users2, Ticket 
+  Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Users2, Ticket,
+  ChevronDown
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
@@ -33,6 +34,41 @@ export function Sidebar() {
   const isUsuario = user?.perfil?.toLowerCase() === 'usuario'
   const isCliente = user?.perfil?.toLowerCase() === 'cliente'
   const isComercial = user?.perfil?.toLowerCase() === 'comercial'
+
+  const location = useLocation()
+  const isUsuariosActive = location.pathname.startsWith('/usuarios')
+  const [isUsuariosDropdownOpen, setIsUsuariosDropdownOpen] = useState(isUsuariosActive)
+  const [isCollapsedMenuOpen, setIsCollapsedMenuOpen] = useState(false)
+  const collapsedMenuRef = useRef<HTMLDivElement>(null)
+
+  // Auto-abre o dropdown quando estiver na rota /usuarios
+  useEffect(() => {
+    if (isUsuariosActive) {
+      setIsUsuariosDropdownOpen(true)
+    }
+  }, [isUsuariosActive])
+
+  // Fecha o menu flutuante colapsado ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (collapsedMenuRef.current && !collapsedMenuRef.current.contains(event.target as Node)) {
+        setIsCollapsedMenuOpen(false)
+      }
+    }
+    if (isCollapsedMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isCollapsedMenuOpen])
+
+  // Fecha o menu flutuante quando a sidebar se expande
+  useEffect(() => {
+    if (isExpanded) {
+      setIsCollapsedMenuOpen(false)
+    }
+  }, [isExpanded])
 
   useEffect(() => {
     let isMounted = true
@@ -163,37 +199,109 @@ export function Sidebar() {
           )
         })}
 
-        {/* Admin only: Usuários & Permissões */}
+        {/* Admin only: Usuários com Dropdown de Permissões */}
         {isAdmin && (
-          <div className="pt-3 mt-3 border-t border-slate-800/80 space-y-1.5">
-            <NavLink
-              to="/usuarios"
-              title={!isExpanded ? 'Usuários do Sistema' : undefined}
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center rounded-xl transition-all duration-200',
-                  isExpanded ? 'px-4 py-2.5 space-x-3' : 'p-3 justify-center',
-                  isActive 
-                    ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'
-                )
-              }
-            >
-              <UserCog className="w-5 h-5 flex-shrink-0 text-cyan-400" />
-              {isExpanded && <span className="font-medium whitespace-nowrap text-sm">Usuários</span>}
-            </NavLink>
+          <div className="pt-3 mt-3 border-t border-slate-800/80 space-y-1">
+            <div className="relative" ref={collapsedMenuRef}>
+              <div
+                className={clsx(
+                  'flex items-center rounded-xl transition-all duration-200 group',
+                  isUsuariosActive
+                    ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent',
+                  isExpanded ? 'pr-2' : 'justify-center'
+                )}
+              >
+                {isExpanded ? (
+                  <>
+                    <NavLink
+                      to="/usuarios"
+                      onClick={() => setIsUsuariosDropdownOpen(true)}
+                      className="flex items-center flex-1 px-4 py-2.5 space-x-3 min-w-0"
+                    >
+                      <UserCog className="w-5 h-5 flex-shrink-0 text-cyan-400" />
+                      <span className="font-medium whitespace-nowrap text-sm truncate">Usuários</span>
+                    </NavLink>
 
-            <button
-              onClick={() => setIsPermissoesModalOpen(true)}
-              title={!isExpanded ? 'Permissões por Perfil' : undefined}
-              className={clsx(
-                'flex items-center rounded-xl transition-all duration-200 w-full text-slate-400 hover:bg-brand-500/10 hover:text-brand-300 border border-transparent hover:border-brand-500/20',
-                isExpanded ? 'px-4 py-2.5 space-x-3' : 'p-3 justify-center'
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setIsUsuariosDropdownOpen(!isUsuariosDropdownOpen)
+                      }}
+                      title={isUsuariosDropdownOpen ? 'Recolher Permissões' : 'Ver Permissões de Acesso'}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors cursor-pointer"
+                    >
+                      <ChevronDown
+                        className={clsx(
+                          'w-4 h-4 transition-transform duration-200',
+                          isUsuariosDropdownOpen && 'rotate-180 text-brand-400'
+                        )}
+                      />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsCollapsedMenuOpen(!isCollapsedMenuOpen)}
+                    title="Usuários & Permissões"
+                    className="p-3 flex items-center justify-center cursor-pointer focus:outline-none w-full"
+                  >
+                    <UserCog className="w-5 h-5 flex-shrink-0 text-cyan-400" />
+                  </button>
+                )}
+              </div>
+
+              {/* Submenu inline quando expandido */}
+              {isExpanded && isUsuariosDropdownOpen && (
+                <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-800 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <button
+                    type="button"
+                    onClick={() => setIsPermissoesModalOpen(true)}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-brand-300 hover:bg-brand-500/10 border border-transparent hover:border-brand-500/20 transition-all w-full text-left cursor-pointer group"
+                  >
+                    <Shield className="w-4 h-4 text-brand-400 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                    <span className="truncate">Permissões de Acesso</span>
+                  </button>
+                </div>
               )}
-            >
-              <Shield className="w-5 h-5 text-brand-400 flex-shrink-0" />
-              {isExpanded && <span className="font-medium whitespace-nowrap text-sm text-brand-300">Permissões de Acesso</span>}
-            </button>
+
+              {/* Menu Flutuante Popover quando sidebar recolhida (!isExpanded) */}
+              {!isExpanded && isCollapsedMenuOpen && (
+                <div className="absolute left-full top-0 ml-3 w-52 bg-[#131622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1">
+                  <div className="px-3 py-1.5 border-b border-slate-800/80 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Usuários
+                  </div>
+                  <NavLink
+                    to="/usuarios"
+                    onClick={() => setIsCollapsedMenuOpen(false)}
+                    className={({ isActive }) =>
+                      clsx(
+                        "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors",
+                        isActive
+                          ? "bg-brand-500/20 text-brand-300 border border-brand-500/30"
+                          : "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                      )
+                    }
+                  >
+                    <UserCog className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <span>Usuários do Sistema</span>
+                  </NavLink>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCollapsedMenuOpen(false)
+                      setIsPermissoesModalOpen(true)
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors w-full text-left cursor-pointer"
+                  >
+                    <Shield className="w-4 h-4 text-brand-400 shrink-0" />
+                    <span>Permissões de Acesso</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </nav>
