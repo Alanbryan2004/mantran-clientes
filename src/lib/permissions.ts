@@ -12,19 +12,19 @@ export interface PerfilPermissao {
 export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Administrador: {
     perfil: 'Administrador',
-    rotas: ['/', '/tickets', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh'],
+    rotas: ['/', '/tickets', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Tecnico: {
     perfil: 'Tecnico',
-    rotas: ['/', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh'],
+    rotas: ['/', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Suporte: {
     perfil: 'Suporte',
-    rotas: ['/', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh'],
+    rotas: ['/', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa'],
     projeto_especifico_id: null,
     read_only: false
   },
@@ -86,6 +86,20 @@ export const permissionsApi = {
           // Garante que funcionários internos (Suporte, Tecnico, Comercial, etc.) sempre tenham acesso à rota /rh
           if (isFuncionario && !rotas.includes('/rh')) {
             rotas.push('/rh')
+          }
+
+          // Garante que Técnicos tenham acesso às rotas de Desenvolvimento
+          if (p.includes('tecnico')) {
+            if (!rotas.includes('/dev/tarefas')) rotas.push('/dev/tarefas')
+            if (!rotas.includes('/dev/qa')) rotas.push('/dev/qa')
+            if (!rotas.includes('/dev/dashboard')) rotas.push('/dev/dashboard')
+            if (!rotas.includes('/dev/pendentes')) rotas.push('/dev/pendentes')
+            if (!rotas.includes('/dev/finalizadas')) rotas.push('/dev/finalizadas')
+            if (!rotas.includes('/dev/cadastro-telas')) rotas.push('/dev/cadastro-telas')
+            if (!rotas.includes('/dev/cronograma')) rotas.push('/dev/cronograma')
+          }
+          if (p.includes('suporte')) {
+            if (!rotas.includes('/dev/qa')) rotas.push('/dev/qa')
           }
 
           // Lista de projetos: usa a coluna nova (array/JSONB); se vazia, cai no campo singular legado
@@ -170,6 +184,16 @@ export const permissionsApi = {
         return false
       }
       return true
+    }
+
+    // Rotas de Desenvolvimento / Dev
+    if (cleanPath.startsWith('/dev/tarefas')) {
+      const p = perfilName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      if (p.includes('tecnico') || p === 'administrador') return true
+    }
+    if (cleanPath.startsWith('/dev/qa')) {
+      const p = perfilName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      if (p.includes('tecnico') || p.includes('suporte') || p === 'administrador') return true
     }
 
     const perms = this.getStoredPermissions()

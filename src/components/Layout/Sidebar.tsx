@@ -3,7 +3,8 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { 
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
   Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Users2, Ticket,
-  ChevronDown
+  ChevronDown, Code2, Clock, FlaskConical, ListFilter, CheckCircle2,
+  Calendar, PlusCircle
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
@@ -23,6 +24,16 @@ const allNavItems = [
   { name: 'Gestão de RH', path: '/rh', icon: Users2 },
 ]
 
+const devNavItems = [
+  { name: 'Minhas Tarefas', path: '/dev/tarefas', icon: Clock, color: 'text-amber-400' },
+  { name: 'QA & Testes', path: '/dev/qa', icon: FlaskConical, color: 'text-purple-400' },
+  { name: 'Dashboard Dev', path: '/dev/dashboard', icon: LayoutDashboard, color: 'text-blue-400' },
+  { name: 'Telas Pendentes', path: '/dev/pendentes', icon: ListFilter, color: 'text-cyan-400' },
+  { name: 'Telas Finalizadas', path: '/dev/finalizadas', icon: CheckCircle2, color: 'text-emerald-400' },
+  { name: 'Cadastro de Telas', path: '/dev/cadastro-telas', icon: PlusCircle, color: 'text-rose-400' },
+  { name: 'Cronograma', path: '/dev/cronograma/visualizar', icon: Calendar, color: 'text-indigo-400' },
+]
+
 export function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isPermissoesModalOpen, setIsPermissoesModalOpen] = useState(false)
@@ -36,17 +47,33 @@ export function Sidebar() {
   const isComercial = user?.perfil?.toLowerCase() === 'comercial'
 
   const location = useLocation()
+  const isTecnico = user?.perfil?.toLowerCase().includes('tecnico') || false
+  const [allowedDevItems, setAllowedDevItems] = useState(devNavItems)
+  const isDevActive = location.pathname.startsWith('/dev') || 
+                      location.pathname.startsWith('/minhas-tarefas') || 
+                      location.pathname.startsWith('/qa-testes') || 
+                      location.pathname.startsWith('/cronograma')
+  const [isDevDropdownOpen, setIsDevDropdownOpen] = useState(isDevActive || isTecnico)
+  const [isCollapsedDevMenuOpen, setIsCollapsedDevMenuOpen] = useState(false)
+  const collapsedDevMenuRef = useRef<HTMLDivElement>(null)
+
   const isUsuariosActive = location.pathname.startsWith('/usuarios')
   const [isUsuariosDropdownOpen, setIsUsuariosDropdownOpen] = useState(isUsuariosActive)
   const [isCollapsedMenuOpen, setIsCollapsedMenuOpen] = useState(false)
   const collapsedMenuRef = useRef<HTMLDivElement>(null)
 
-  // Auto-abre o dropdown quando estiver na rota /usuarios
+  // Auto-abre o dropdown quando estiver na rota /usuarios ou /dev
   useEffect(() => {
     if (isUsuariosActive) {
       setIsUsuariosDropdownOpen(true)
     }
   }, [isUsuariosActive])
+
+  useEffect(() => {
+    if (isDevActive) {
+      setIsDevDropdownOpen(true)
+    }
+  }, [isDevActive])
 
   // Fecha o menu flutuante colapsado ao clicar fora
   useEffect(() => {
@@ -54,19 +81,23 @@ export function Sidebar() {
       if (collapsedMenuRef.current && !collapsedMenuRef.current.contains(event.target as Node)) {
         setIsCollapsedMenuOpen(false)
       }
+      if (collapsedDevMenuRef.current && !collapsedDevMenuRef.current.contains(event.target as Node)) {
+        setIsCollapsedDevMenuOpen(false)
+      }
     }
-    if (isCollapsedMenuOpen) {
+    if (isCollapsedMenuOpen || isCollapsedDevMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isCollapsedMenuOpen])
+  }, [isCollapsedMenuOpen, isCollapsedDevMenuOpen])
 
-  // Fecha o menu flutuante quando a sidebar se expande
+  // Fecha os menus flutuantes quando a sidebar se expande
   useEffect(() => {
     if (isExpanded) {
       setIsCollapsedMenuOpen(false)
+      setIsCollapsedDevMenuOpen(false)
     }
   }, [isExpanded])
 
@@ -132,6 +163,17 @@ export function Sidebar() {
       })
 
       setAllowedNavItems(mapped)
+
+      // Filter accessible dev navigation items
+      if (isParceiro || isCliente) {
+        setAllowedDevItems([])
+      } else {
+        const filteredDev = devNavItems.filter(item => {
+          if (isAdmin) return true
+          return permissionsApi.canAccessRoute(item.path)
+        })
+        setAllowedDevItems(filteredDev)
+      }
     }
 
     updateNav()
@@ -198,6 +240,120 @@ export function Sidebar() {
             </NavLink>
           )
         })}
+
+        {/* Módulo Desenvolvimento & QA */}
+        {allowedDevItems.length > 0 && (
+          <div className="pt-3 mt-3 border-t border-slate-800/80 space-y-1">
+            <div className="relative" ref={collapsedDevMenuRef}>
+              <div
+                className={clsx(
+                  'flex items-center rounded-xl transition-all duration-200 group',
+                  isDevActive
+                    ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent',
+                  isExpanded ? 'pr-2' : 'justify-center'
+                )}
+              >
+                {isExpanded ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsDevDropdownOpen(!isDevDropdownOpen)}
+                      className="flex items-center flex-1 px-4 py-2.5 space-x-3 min-w-0 text-left cursor-pointer"
+                    >
+                      <Code2 className="w-5 h-5 flex-shrink-0 text-amber-400" />
+                      <span className="font-medium whitespace-nowrap text-sm truncate">Desenvolvimento & QA</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setIsDevDropdownOpen(!isDevDropdownOpen)
+                      }}
+                      title={isDevDropdownOpen ? 'Recolher Desenvolvimento' : 'Expandir Desenvolvimento'}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors cursor-pointer"
+                    >
+                      <ChevronDown
+                        className={clsx(
+                          'w-4 h-4 transition-transform duration-200',
+                          isDevDropdownOpen && 'rotate-180 text-brand-400'
+                        )}
+                      />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsCollapsedDevMenuOpen(!isCollapsedDevMenuOpen)}
+                    title="Desenvolvimento & QA"
+                    className="p-3 flex items-center justify-center cursor-pointer focus:outline-none w-full"
+                  >
+                    <Code2 className={clsx("w-5 h-5 flex-shrink-0", isDevActive ? "text-brand-400" : "text-amber-400")} />
+                  </button>
+                )}
+              </div>
+
+              {/* Submenu inline quando expandido */}
+              {isExpanded && isDevDropdownOpen && (
+                <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-800 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                  {allowedDevItems.map((item) => {
+                    const ItemIcon = item.icon
+                    return (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        className={({ isActive }) =>
+                          clsx(
+                            'flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all group',
+                            isActive
+                              ? 'bg-brand-500/15 text-brand-300 font-semibold border border-brand-500/25'
+                              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
+                          )
+                        }
+                      >
+                        <ItemIcon className={clsx("w-4 h-4 shrink-0 transition-transform group-hover:scale-110", item.color)} />
+                        <span className="truncate">{item.name}</span>
+                      </NavLink>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Menu Flutuante Popover quando sidebar recolhida (!isExpanded) */}
+              {!isExpanded && isCollapsedDevMenuOpen && (
+                <div className="absolute left-full top-0 ml-3 w-56 bg-[#131622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1">
+                  <div className="px-3 py-1.5 border-b border-slate-800/80 text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                    <Code2 className="w-3.5 h-3.5" />
+                    <span>Dev & QA</span>
+                  </div>
+                  {allowedDevItems.map((item) => {
+                    const ItemIcon = item.icon
+                    return (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setIsCollapsedDevMenuOpen(false)}
+                        className={({ isActive }) =>
+                          clsx(
+                            'flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors',
+                            isActive
+                              ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
+                              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                          )
+                        }
+                      >
+                        <ItemIcon className={clsx("w-4 h-4 shrink-0", item.color)} />
+                        <span>{item.name}</span>
+                      </NavLink>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Admin only: Usuários com Dropdown de Permissões */}
         {isAdmin && (

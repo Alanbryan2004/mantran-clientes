@@ -14,6 +14,15 @@ import { Tickets } from './pages/Tickets'
 import { Calendario } from './pages/Calendario'
 import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
 import { Login } from './pages/Login'
+import MinhasTarefas from './pages/dev/MinhasTarefas'
+import QATestes from './pages/dev/QATestes'
+import DevDashboard from './pages/dev/DevDashboard'
+import Pendentes from './pages/dev/Pendentes'
+import Finalizadas from './pages/dev/Finalizadas'
+import CadastroTelas from './pages/dev/CadastroTelas'
+import CronogramaVisualizar from './pages/dev/cronograma/Visualizar'
+import CronogramaIncluir from './pages/dev/cronograma/Incluir'
+import CronogramaArquitetura from './pages/dev/cronograma/Arquitetura'
 
 import { useState, useEffect } from 'react'
 import { permissionsApi } from './lib/permissions'
@@ -118,6 +127,26 @@ function App() {
               <Route path="leo-madeiras" element={<LeoMadeiras />} />
               <Route path="usuarios" element={<Usuarios />} />
               <Route path="rh" element={<RH />} />
+
+              {/* Módulos de Desenvolvimento & QA (Mantran Web API Integrado) */}
+              <Route path="dev/tarefas" element={<MinhasTarefas />} />
+              <Route path="dev/qa" element={<QATestes />} />
+              <Route path="dev/dashboard" element={<DevDashboard />} />
+              <Route path="dev/pendentes" element={<Pendentes />} />
+              <Route path="dev/finalizadas" element={<Finalizadas />} />
+              <Route path="dev/cadastro-telas" element={<CadastroTelas />} />
+              <Route path="dev/cronograma" element={<Navigate to="/dev/cronograma/visualizar" replace />} />
+              <Route path="dev/cronograma/visualizar" element={<CronogramaVisualizar />} />
+              <Route path="dev/cronograma/incluir" element={<CronogramaIncluir />} />
+              <Route path="dev/cronograma/arquitetura" element={<CronogramaArquitetura />} />
+
+              {/* Aliases diretos para máxima compatibilidade */}
+              <Route path="minhas-tarefas" element={<Navigate to="/dev/tarefas" replace />} />
+              <Route path="qa-testes" element={<Navigate to="/dev/qa" replace />} />
+              <Route path="cronograma" element={<Navigate to="/dev/cronograma/visualizar" replace />} />
+              <Route path="cronograma/visualizar" element={<Navigate to="/dev/cronograma/visualizar" replace />} />
+              <Route path="cronograma/incluir" element={<Navigate to="/dev/cronograma/incluir" replace />} />
+              <Route path="cronograma/arquitetura" element={<Navigate to="/dev/cronograma/arquitetura" replace />} />
             </Route>
           </Routes>
         </BrowserRouter>
