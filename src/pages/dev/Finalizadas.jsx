@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AppShell from "./components/AppShell";
 import { apiGet, apiPatch } from "./services/api";
+import { CheckCircle2 } from "lucide-react";
 
 export default function Finalizadas() {
   const [telas, setTelas] = useState([]);
@@ -174,7 +175,11 @@ export default function Finalizadas() {
   }
 
   return (
-    <AppShell title="Finalizadas">
+    <AppShell 
+      title="Telas Finalizadas" 
+      subtitle="Histórico de desenvolvimento, endpoints e métricas de telas entregues"
+      icon={CheckCircle2}
+    >
       {loading && <div>Carregando...</div>}
       {erro && <div style={styles.err}>{erro}</div>}
 
@@ -374,12 +379,13 @@ const styles = {
 
   card: {
     background: "#fff",
-    border: "1px solid #eee",
-    borderRadius: 14,
-    padding: 16,
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    padding: "16px 20px",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
-  cardTitle: { fontSize: 12, color: "#6b7280" },
-  cardValue: { fontSize: 26, fontWeight: 900 },
+  cardTitle: { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" },
+  cardValue: { fontSize: 26, fontWeight: 900, color: "#0f172a", marginTop: 4 },
 
   wrapper: {
     display: "flex",
@@ -388,17 +394,18 @@ const styles = {
   },
 
   fieldset: {
-    border: "1px solid #e5e7eb",
-    borderRadius: 14,
-    padding: "14px 16px 16px",
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    padding: "18px 20px",
     background: "#fff",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
 
   legend: {
     padding: "0 8px",
     fontWeight: 800,
-    color: "#b91c1c", // vermelho-700
-    fontSize: 14,
+    color: "#dc2626",
+    fontSize: 15,
   },
 
   innerCard: {
@@ -525,42 +532,46 @@ const styles = {
     gap: 12,
     marginBottom: 20,
     background: "#fff",
-    padding: 16,
-    borderRadius: 14,
-    border: "1px solid #e5e7eb",
+    padding: "14px 18px",
+    borderRadius: 16,
+    border: "1px solid #e2e8f0",
     alignItems: "center",
     flexWrap: "wrap",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
 
   filterInput: {
     flex: 1,
     minWidth: 200,
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid #d1d5db",
-    fontSize: 14,
+    padding: "8px 14px",
+    borderRadius: 12,
+    border: "1px solid #cbd5e1",
+    fontSize: 13,
+    color: "#1e293b",
     outline: "none",
     transition: "border-color 0.2s",
   },
 
   filterSelect: {
     minWidth: 200,
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "1px solid #d1d5db",
-    fontSize: 14,
+    padding: "8px 14px",
+    borderRadius: 12,
+    border: "1px solid #cbd5e1",
+    fontSize: 13,
+    color: "#1e293b",
     background: "#fff",
     outline: "none",
     cursor: "pointer",
+    fontWeight: 500
   },
 
   clearBtn: {
-    padding: "10px 16px",
-    borderRadius: 10,
-    border: "1px solid #d1d5db",
-    background: "#f3f4f6",
-    color: "#4b5563",
-    fontSize: 14,
+    padding: "8px 16px",
+    borderRadius: 12,
+    border: "1px solid #cbd5e1",
+    background: "#fff",
+    color: "#64748b",
+    fontSize: 13,
     fontWeight: 600,
     cursor: "pointer",
     transition: "background 0.2s",

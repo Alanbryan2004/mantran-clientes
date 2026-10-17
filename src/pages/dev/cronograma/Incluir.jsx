@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-    XCircle, RotateCcw, PlusCircle, Pencil, Trash2,
-    ChevronLeft, ChevronRight, RefreshCw
+    RotateCcw, PlusCircle, Pencil, Trash2,
+    ChevronLeft, ChevronRight, RefreshCw, CalendarPlus,
 } from "lucide-react";
 import AppShell from "../components/AppShell";
 import { apiGet, apiPost, apiPatch, apiDelete } from "../services/api";
@@ -253,329 +253,305 @@ export default function Incluir() {
     );
 
     return (
-        <AppShell>
-            <div style={{ margin: -16, display: "flex", flexDirection: "column", minHeight: "calc(100vh - 56px)" }}>
-                <div style={s.titulo}>INCLUIR CRONOGRAMA</div>
-
-                <div style={{ flex: 1, padding: "12px 16px 70px" }}>
-                    <fieldset style={s.fieldset}>
-                        <legend style={s.legend}>Dados do Cronograma</legend>
-
-                        <div style={s.grid2}>
-                            <Campo label="Tela">
-                                <select
-                                    value={dados.controle_api_id}
-                                    onChange={(e) => setDados({ ...dados, controle_api_id: e.target.value })}
-                                    style={s.input}
-                                >
-                                    <option value="">-- Selecione a Tela --</option>
-                                    {telasDisponiveis.map(t => (
-                                        <option key={t.id} value={t.id}>{t.nome_tabela} ({t.tela})</option>
-                                    ))}
-                                </select>
-                            </Campo>
-
-                            <Campo label="Técnico">
-                                <select
-                                    value={dados.tecnico_id}
-                                    onChange={(e) => setDados({ ...dados, tecnico_id: e.target.value })}
-                                    style={s.input}
-                                >
-                                    <option value="">-- Selecione o Técnico --</option>
-                                    {dados.tecnico_id && !tecnicos.some(t => t.id === dados.tecnico_id) && (
-                                        <option value={dados.tecnico_id}>{getNomeTecnico(dados.tecnico_id)}</option>
-                                    )}
-                                    {tecnicos.map(t => (
-                                        <option key={t.id} value={t.id}>{t.nome}</option>
-                                    ))}
-                                </select>
-                            </Campo>
-
-                            <Campo label="Início">
-                                <input
-                                    type="date"
-                                    value={dados.inicio}
-                                    onChange={(e) => setDados({ ...dados, inicio: e.target.value })}
-                                    style={s.input}
-                                />
-                            </Campo>
-
-                            <Campo label="Término">
-                                <input
-                                    type="date"
-                                    value={dados.termino}
-                                    onChange={(e) => setDados({ ...dados, termino: e.target.value })}
-                                    style={s.input}
-                                />
-                            </Campo>
-
-                            <Campo label="Carga Horária">
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={dados.carga_horaria}
-                                    onChange={(e) => setDados({ ...dados, carga_horaria: e.target.value })}
-                                    style={{ ...s.input, width: 100 }}
-                                    placeholder="Horas"
-                                />
-                            </Campo>
-                            
-                            {originalItem && originalItem.termino !== dados.termino && (
-                                <Campo label="Justificativa (Alteração de Data)">
-                                    <input
-                                        type="text"
-                                        value={dados.justificativa}
-                                        onChange={(e) => setDados({ ...dados, justificativa: e.target.value })}
-                                        style={{ ...s.input, borderColor: "#b91c1c" }}
-                                        placeholder="Motivo da alteração..."
-                                    />
-                                </Campo>
-                            )}
+        <AppShell
+            title="Incluir Cronograma"
+            subtitle="Agendamento e atribuição de técnicos para desenvolvimento"
+            icon={CalendarPlus}
+            actions={
+                <button
+                    onClick={sincronizarTudo}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer"
+                >
+                    <RefreshCw size={15} />
+                    Sincronizar Técnicos
+                </button>
+            }
+        >
+            <div className="space-y-6">
+                {/* ── Formulário Dados do Cronograma ── */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                    <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-100">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">Dados do Agendamento</h2>
+                            <p className="text-xs text-slate-500 mt-0.5">Selecione a tela, técnico responsável e período previsto</p>
                         </div>
-                    </fieldset>
+                        {editId && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                Editando Registro #{editId}
+                            </span>
+                        )}
+                    </div>
 
-                    <fieldset style={{ ...s.fieldset, marginTop: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #d1d5db", paddingBottom: 8, marginBottom: 8, marginTop: 8 }}>
-                            <legend style={{ ...s.legend, padding: 0 }}>Cronogramas Cadastrados</legend>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>Filtrar Técnico:</span>
-                                <select
-                                    value={filtroTecnico}
-                                    onChange={(e) => {
-                                        setFiltroTecnico(e.target.value);
-                                        setPagina(1);
-                                    }}
-                                    style={{ ...s.input, width: 180, height: 26 }}
-                                >
-                                    <option value="">-- Todos --</option>
-                                    {tecnicos.map(t => (
-                                        <option key={t.id} value={t.id}>{t.nome}</option>
-                                    ))}
-                                </select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                                Tela / Objeto
+                            </label>
+                            <select
+                                value={dados.controle_api_id}
+                                onChange={(e) => setDados({ ...dados, controle_api_id: e.target.value })}
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
+                            >
+                                <option value="">-- Selecione a Tela --</option>
+                                {telasDisponiveis.map(t => (
+                                    <option key={t.id} value={t.id}>{t.nome_tabela} ({t.tela})</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                                Técnico Responsável
+                            </label>
+                            <select
+                                value={dados.tecnico_id}
+                                onChange={(e) => setDados({ ...dados, tecnico_id: e.target.value })}
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
+                            >
+                                <option value="">-- Selecione o Técnico --</option>
+                                {dados.tecnico_id && !tecnicos.some(t => t.id === dados.tecnico_id) && (
+                                    <option value={dados.tecnico_id}>{getNomeTecnico(dados.tecnico_id)}</option>
+                                )}
+                                {tecnicos.map(t => (
+                                    <option key={t.id} value={t.id}>{t.nome}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                                Carga Horária Prevista (Horas)
+                            </label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={dados.carga_horaria}
+                                onChange={(e) => setDados({ ...dados, carga_horaria: e.target.value })}
+                                placeholder="Ex: 8"
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                                Data Início
+                            </label>
+                            <input
+                                type="date"
+                                value={dados.inicio}
+                                onChange={(e) => setDados({ ...dados, inicio: e.target.value })}
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                                Data Término
+                            </label>
+                            <input
+                                type="date"
+                                value={dados.termino}
+                                onChange={(e) => setDados({ ...dados, termino: e.target.value })}
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
+                            />
+                        </div>
+
+                        {originalItem && originalItem.termino !== dados.termino && (
+                            <div className="lg:col-span-3">
+                                <label className="block text-xs font-bold text-rose-700 mb-1.5 uppercase tracking-wide">
+                                    Justificativa da Alteração de Data
+                                </label>
+                                <input
+                                    type="text"
+                                    value={dados.justificativa}
+                                    onChange={(e) => setDados({ ...dados, justificativa: e.target.value })}
+                                    placeholder="Informe o motivo da alteração de prazo..."
+                                    className="w-full bg-rose-50/50 border border-rose-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                                />
                             </div>
-                        </div>
+                        )}
+                    </div>
 
-                        <table style={s.table}>
+                    {/* Botões de Ação */}
+                    <div className="flex flex-wrap items-center gap-3 mt-6 pt-5 border-t border-slate-100">
+                        <button
+                            onClick={incluir}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-sm transition-all cursor-pointer"
+                        >
+                            <PlusCircle size={16} />
+                            Incluir no Cronograma
+                        </button>
+
+                        <button
+                            onClick={alterar}
+                            disabled={!editId}
+                            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-all cursor-pointer ${
+                                editId 
+                                    ? "bg-amber-600 hover:bg-amber-700 text-white" 
+                                    : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                            }`}
+                        >
+                            <Pencil size={16} />
+                            Alterar
+                        </button>
+
+                        <button
+                            onClick={excluir}
+                            disabled={!editId}
+                            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-all cursor-pointer ${
+                                editId 
+                                    ? "bg-rose-600 hover:bg-rose-700 text-white" 
+                                    : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                            }`}
+                        >
+                            <Trash2 size={16} />
+                            Excluir
+                        </button>
+
+                        <button
+                            onClick={limpar}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-sm shadow-sm transition-all cursor-pointer ml-auto"
+                        >
+                            <RotateCcw size={16} />
+                            Limpar
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── Tabela Cronogramas Cadastrados ── */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">Cronogramas Cadastrados</h2>
+                            <p className="text-xs text-slate-500 mt-0.5">Selecione para editar ou excluir</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap">
+                                Filtrar Técnico:
+                            </span>
+                            <select
+                                value={filtroTecnico}
+                                onChange={(e) => {
+                                    setFiltroTecnico(e.target.value);
+                                    setPagina(1);
+                                }}
+                                className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 cursor-pointer min-w-[160px]"
+                            >
+                                <option value="">-- Todos os Técnicos --</option>
+                                {tecnicos.map(t => (
+                                    <option key={t.id} value={t.id}>{t.nome}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-slate-700">
                             <thead>
-                                <tr>
-                                    {["Tela", "Início", "Término", "Técnico", "Carga Horária"].map((h, i) => (
-                                        <th key={h} style={{ ...s.th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
-                                    ))}
+                                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                    <th className="py-3.5 px-6">Tela</th>
+                                    <th className="py-3.5 px-4 text-center">Início</th>
+                                    <th className="py-3.5 px-4 text-center">Término</th>
+                                    <th className="py-3.5 px-4 text-center">Técnico</th>
+                                    <th className="py-3.5 px-4 text-center">Carga Horária</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-slate-100">
                                 {listaExibida.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} style={{ ...s.td, textAlign: "center", color: "#9ca3af", padding: 16 }}>
+                                        <td colSpan={5} className="py-8 text-center text-slate-400 text-sm">
                                             Nenhum cronograma cadastrado
                                         </td>
                                     </tr>
                                 )}
-                                {listaExibida.map((item) => (
-                                    <tr
-                                        key={item.id}
-                                        onClick={() => selecionar(item)}
-                                        style={{
-                                            cursor: "pointer",
-                                            background: editId === item.id ? "#fefce8" : "#fff",
-                                        }}
-                                        onMouseEnter={e => e.currentTarget.style.background = editId === item.id ? "#fef9c3" : "#fff1f2"}
-                                        onMouseLeave={e => e.currentTarget.style.background = editId === item.id ? "#fefce8" : "#fff"}
-                                    >
-                                        <td style={{ ...s.td, color: "#1d4ed8", fontWeight: 600 }}>{item.controle_api?.nome_tabela}</td>
-                                        <td style={{ ...s.td, textAlign: "center" }}>{new Date(item.inicio).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</td>
-                                        <td style={{ ...s.td, textAlign: "center" }}>
-                                            {new Date(item.termino).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
-                                            {item.justificativa && <span title={item.justificativa}> ⚠️</span>}
-                                        </td>
-                                        <td style={{ ...s.td, textAlign: "center", color: "#374151" }}>{getNomeTecnico(item.tecnico_id)}</td>
-                                        <td style={{ ...s.td, textAlign: "center", color: "#4f46e5", fontWeight: 700 }}>{item.carga_horaria}h</td>
-                                    </tr>
-                                ))}
+                                {listaExibida.map((item) => {
+                                    const isSelected = editId === item.id;
+                                    return (
+                                        <tr
+                                            key={item.id}
+                                            onClick={() => selecionar(item)}
+                                            className={`transition-colors cursor-pointer ${
+                                                isSelected 
+                                                    ? "bg-brand-50/60 font-semibold" 
+                                                    : "hover:bg-slate-50/80"
+                                            }`}
+                                        >
+                                            <td className="py-3.5 px-6 font-semibold text-slate-900 flex items-center gap-2">
+                                                {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-brand-600" />}
+                                                {item.controle_api?.nome_tabela}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-center text-xs font-medium text-slate-600">
+                                                {new Date(item.inicio).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-center text-xs font-medium text-slate-600">
+                                                <div className="inline-flex items-center justify-center gap-1">
+                                                    {new Date(item.termino).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                                                    {item.justificativa && <span title={item.justificativa}>⚠️</span>}
+                                                </div>
+                                            </td>
+                                            <td className="py-3.5 px-4 text-center">
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                                    {getNomeTecnico(item.tecnico_id)}
+                                                </span>
+                                            </td>
+                                            <td className="py-3.5 px-4 text-center">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                    {item.carga_horaria}h
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
+                    </div>
 
-                        <div style={s.paginacao}>
-                            <span style={s.paginacaoInfo}>
-                                {listaFiltrada.length === 0
-                                    ? "0 registros"
-                                    : `Exibindo ${inicioOffset + 1}–${Math.min(inicioOffset + PAGE_SIZE, listaFiltrada.length)} de ${listaFiltrada.length} registros`}
-                            </span>
+                    {/* Paginação */}
+                    <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-xs text-slate-500 font-medium">
+                            {listaFiltrada.length === 0
+                                ? "0 registros"
+                                : `Exibindo ${inicioOffset + 1}–${Math.min(inicioOffset + PAGE_SIZE, listaFiltrada.length)} de ${listaFiltrada.length} registros`}
+                        </span>
 
-                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                <BtnPag onClick={() => setPagina(p => p - 1)} disabled={pagina === 1}>
-                                    <ChevronLeft size={12} /> Ant
-                                </BtnPag>
-                                {paginas(pagina, totalPaginas).map((item, i) =>
-                                    item === "..." ? (
-                                        <span key={`e${i}`} style={{ fontSize: 11, color: "#9ca3af", padding: "0 2px" }}>…</span>
-                                    ) : (
-                                        <BtnPag key={item} onClick={() => setPagina(item)} ativo={pagina === item}>
-                                            {item}
-                                        </BtnPag>
-                                    )
-                                )}
-                                <BtnPag onClick={() => setPagina(p => p + 1)} disabled={pagina === totalPaginas}>
-                                    Próx <ChevronRight size={12} />
-                                </BtnPag>
-                            </div>
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                onClick={() => setPagina(p => p - 1)}
+                                disabled={pagina === 1}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                            >
+                                <ChevronLeft size={14} /> Ant
+                            </button>
+
+                            {paginas(pagina, totalPaginas).map((item, i) =>
+                                item === "..." ? (
+                                    <span key={`e${i}`} className="text-xs text-slate-400 px-1">…</span>
+                                ) : (
+                                    <button
+                                        key={item}
+                                        onClick={() => setPagina(item)}
+                                        className={`w-7 h-7 text-xs rounded-lg font-bold flex items-center justify-center transition-all ${
+                                            pagina === item
+                                                ? "bg-brand-600 text-white shadow-sm"
+                                                : "border border-slate-300 text-slate-700 hover:bg-slate-50"
+                                        }`}
+                                    >
+                                        {item}
+                                    </button>
+                                )
+                            )}
+
+                            <button
+                                onClick={() => setPagina(p => p + 1)}
+                                disabled={pagina === totalPaginas}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                            >
+                                Próx <ChevronRight size={14} />
+                            </button>
                         </div>
-                    </fieldset>
-                </div>
-
-                <div style={s.rodape}>
-                    <BtnRodape icon={<XCircle size={22} />} label="Fechar" onClick={() => navigate(-1)} />
-                    <BtnRodape icon={<RotateCcw size={22} />} label="Limpar" onClick={limpar} />
-                    <BtnRodape icon={<RefreshCw size={22} />} label="Sincronizar" onClick={sincronizarTudo} />
-                    <BtnRodape icon={<PlusCircle size={22} />} label="Incluir" onClick={incluir} />
-                    <BtnRodape icon={<Pencil size={22} />} label="Alterar" onClick={alterar} />
-                    <BtnRodape icon={<Trash2 size={22} />} label="Excluir" onClick={excluir} />
+                    </div>
                 </div>
             </div>
         </AppShell>
     );
 }
-
-function Campo({ label, children }) {
-    return (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={s.label}>{label}</span>
-            <div style={{ flex: 1 }}>{children}</div>
-        </div>
-    );
-}
-
-function BtnRodape({ icon, label, onClick }) {
-    return (
-        <button onClick={onClick} style={s.btnRodape}
-            onMouseEnter={e => { e.currentTarget.style.color = "#991b1b"; }}
-            onMouseLeave={e => { e.currentTarget.style.color = "#b91c1c"; }}
-        >
-            {icon}
-            <span style={{ fontSize: 11, fontWeight: 500 }}>{label}</span>
-        </button>
-    );
-}
-
-function BtnPag({ onClick, disabled, ativo, children }) {
-    return (
-        <button
-            onClick={onClick}
-            disabled={disabled}
-            style={{
-                display: "flex", alignItems: "center", gap: 2,
-                padding: "2px 6px", fontSize: 11, borderRadius: 4, cursor: disabled ? "not-allowed" : "pointer",
-                border: "1px solid",
-                borderColor: ativo ? "#b91c1c" : "#d1d5db",
-                background: ativo ? "#b91c1c" : "#fff",
-                color: ativo ? "#fff" : disabled ? "#d1d5db" : "#374151",
-                minWidth: 24, justifyContent: "center",
-            }}
-        >
-            {children}
-        </button>
-    );
-}
-
-const s = {
-    titulo: {
-        textAlign: "center",
-        color: "#b91c1c",
-        fontWeight: 600,
-        fontSize: 13,
-        padding: "8px 0",
-        borderBottom: "1px solid #d1d5db",
-        letterSpacing: "0.08em",
-        background: "#fff",
-    },
-    fieldset: {
-        border: "1px solid #d1d5db",
-        borderRadius: 6,
-        padding: "4px 16px 12px",
-        background: "#fff",
-    },
-    legend: {
-        color: "#b91c1c",
-        fontWeight: 600,
-        fontSize: 12,
-        padding: "0 6px",
-    },
-    grid2: {
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: "8px 32px",
-        marginTop: 4,
-    },
-    label: {
-        fontSize: 12,
-        color: "#374151",
-        width: 140,
-        flexShrink: 0,
-    },
-    input: {
-        width: "100%",
-        border: "1px solid #d1d5db",
-        borderRadius: 4,
-        padding: "2px 8px",
-        height: 26,
-        fontSize: 12,
-        color: "#111827",
-        background: "#fff",
-        boxSizing: "border-box",
-        outline: "none",
-    },
-    table: {
-        width: "100%",
-        borderCollapse: "collapse",
-        fontSize: 12,
-        marginTop: 4,
-    },
-    th: {
-        background: "#6b7280",
-        color: "#fff",
-        border: "1px solid #9ca3af",
-        padding: "5px 10px",
-        fontWeight: 600,
-        fontSize: 12,
-    },
-    td: {
-        border: "1px solid #e5e7eb",
-        padding: "4px 10px",
-        fontSize: 12,
-    },
-    paginacao: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginTop: 8,
-    },
-    paginacaoInfo: {
-        fontSize: 11,
-        color: "#6b7280",
-    },
-    rodape: {
-        position: "fixed",
-        bottom: 0,
-        left: 220,
-        right: 0,
-        background: "#fff",
-        borderTop: "1px solid #d1d5db",
-        display: "flex",
-        alignItems: "center",
-        gap: 28,
-        padding: "6px 24px",
-        zIndex: 50,
-    },
-    btnRodape: {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 2,
-        color: "#b91c1c",
-        background: "none",
-        border: "none",
-        cursor: "pointer",
-        padding: "2px 4px",
-        transition: "color 0.15s",
-    },
-};

@@ -25,7 +25,8 @@ import {
   Camera,
   Image as ImageIcon,
   Maximize2,
-  X
+  X,
+  FlaskConical
 } from "lucide-react";
 
 // Função para processar e comprimir imagem do print
@@ -596,17 +597,12 @@ GRANT ALL ON TABLE public.qa_cenarios TO service_role;`;
   }
 
   return (
-    <AppShell title="QA Testes">
+    <AppShell 
+      title="QA Testes" 
+      subtitle="Processo de QA & Validação de Telas — Gestão de testes funcionais e homologação de regras de negócio"
+      icon={FlaskConical}
+    >
       <div style={styles.container}>
-        {/* TÍTULO */}
-        <div style={styles.headerTitleRow}>
-          <div>
-            <h1 style={styles.headerTitle}>PROCESSO DE QA & VALIDAÇÃO DE TELAS</h1>
-            <p style={styles.headerSubtitle}>
-              Gestão de testes funcionais e regras de negócio para homologação de telas finalizadas.
-            </p>
-          </div>
-        </div>
 
         {/* ALERTA SE TABELA ESTIVER AUSENTE */}
         {tableMissing && (
@@ -748,9 +744,9 @@ GRANT ALL ON TABLE public.qa_cenarios TO service_role;`;
                 title="Mostrar apenas as telas em que você é o QA responsável"
                 style={{
                   ...styles.toggleQaBtn,
-                  background: apenasMinhasHomologacoes ? "#7f1d1d" : "#fff",
-                  color: apenasMinhasHomologacoes ? "#fff" : "#4b5563",
-                  borderColor: apenasMinhasHomologacoes ? "#7f1d1d" : "#d1d5db"
+                  background: apenasMinhasHomologacoes ? "#dc2626" : "#fff",
+                  color: apenasMinhasHomologacoes ? "#fff" : "#475569",
+                  borderColor: apenasMinhasHomologacoes ? "#dc2626" : "#cbd5e1"
                 }}
               >
                 <ShieldCheck size={15} />
@@ -1413,78 +1409,86 @@ const styles = {
   },
   statCard: {
     background: "#fff",
-    borderRadius: 10,
-    border: "1px solid #e5e7eb",
-    padding: "12px 16px",
-    boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)"
+    borderRadius: 16,
+    border: "1px solid #e2e8f0",
+    padding: "16px 20px",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
   statLabel: {
     fontSize: 11,
-    fontWeight: 600,
-    color: "#6b7280",
-    textTransform: "uppercase"
+    fontWeight: 700,
+    color: "#64748b",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em"
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: 900,
-    color: "#111827",
+    color: "#0f172a",
     marginTop: 4
   },
   filterBar: {
     background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 10,
-    padding: "12px 16px",
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    padding: "14px 18px",
     display: "flex",
     gap: 12,
     alignItems: "center",
-    flexWrap: "wrap"
+    flexWrap: "wrap",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
   filterGroup: {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    border: "1px solid #d1d5db",
-    borderRadius: 8,
-    padding: "6px 10px",
+    border: "1px solid #cbd5e1",
+    borderRadius: 12,
+    padding: "8px 12px",
     background: "#fff",
-    flex: "1 1 200px"
+    flex: "1 1 200px",
+    boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.02)"
   },
   inputSearch: {
     border: "none",
     outline: "none",
     width: "100%",
-    fontSize: 13
+    fontSize: 13,
+    color: "#1e293b"
   },
   selectFilter: {
     border: "none",
     outline: "none",
     width: "100%",
     fontSize: 13,
+    color: "#1e293b",
     background: "transparent",
-    cursor: "pointer"
+    cursor: "pointer",
+    fontWeight: 500
   },
   clearBtn: {
-    background: "#f3f4f6",
-    border: "1px solid #d1d5db",
-    color: "#4b5563",
-    borderRadius: 8,
-    padding: "6px 12px",
+    background: "#fff",
+    border: "1px solid #cbd5e1",
+    color: "#64748b",
+    borderRadius: 12,
+    padding: "8px 14px",
     fontSize: 12,
     fontWeight: 600,
-    cursor: "pointer"
+    cursor: "pointer",
+    transition: "all 0.15s ease"
   },
   toggleQaBtn: {
     display: "flex",
     alignItems: "center",
     gap: 6,
-    border: "1px solid #d1d5db",
-    borderRadius: 8,
-    padding: "7px 14px",
+    border: "1px solid #cbd5e1",
+    borderRadius: 12,
+    padding: "8px 16px",
     fontSize: 12,
     fontWeight: 700,
     cursor: "pointer",
-    transition: "all 0.15s ease"
+    transition: "all 0.15s ease",
+    boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.04)"
   },
   screenList: {
     display: "flex",
@@ -1494,20 +1498,22 @@ const styles = {
   empty: {
     background: "#fff",
     padding: 30,
-    borderRadius: 10,
+    borderRadius: 16,
     textAlign: "center",
-    color: "#6b7280",
-    border: "1px solid #e5e7eb"
+    color: "#64748b",
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
   screenCard: {
     background: "#fff",
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
+    borderRadius: 16,
+    border: "1px solid #e2e8f0",
     overflow: "hidden",
-    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
+    transition: "all 0.15s ease"
   },
   screenHeader: {
-    padding: "14px 18px",
+    padding: "16px 20px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
@@ -1518,12 +1524,13 @@ const styles = {
   screenTitle: {
     fontSize: 15,
     fontWeight: 800,
-    color: "#111827"
+    color: "#0f172a"
   },
   moduleTag: {
     fontSize: 11,
     background: "#f1f5f9",
     color: "#475569",
+    border: "1px solid #e2e8f0",
     padding: "2px 8px",
     borderRadius: 6,
     fontWeight: 600

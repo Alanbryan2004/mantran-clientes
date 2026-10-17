@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import AppShell from "./components/AppShell";
 import { apiGet, apiPatch } from "./services/api";
 import { useAuth } from "./contexts/AuthContext";
+import { ListFilter } from "lucide-react";
 
 const TIPOS = ["Cadastro", "Documento", "Arquitetura"];
 const NIVEIS = ["Facil", "Medio", "Dificil", "Senior"];
@@ -107,7 +108,11 @@ export default function Pendentes() {
   }
 
   return (
-    <AppShell title="Pendentes">
+    <AppShell 
+      title="Telas Pendentes" 
+      subtitle="Fila de desenvolvimento de APIs e telas aguardando atribuição de técnico"
+      icon={ListFilter}
+    >
       {/* FILTROS */}
       <div style={styles.filters}>
         <input
@@ -220,54 +225,69 @@ export default function Pendentes() {
 
 const styles = {
   filters: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 8,
-    marginBottom: 14,
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    marginBottom: 16,
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    padding: "14px 18px",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
   input: {
-    padding: 8,
-    borderRadius: 8,
-    border: "1px solid #d1d5db",
+    padding: "8px 12px",
+    borderRadius: 10,
+    border: "1px solid #cbd5e1",
     fontSize: 13,
+    color: "#1e293b",
+    background: "#fff"
   },
   filterBtn: {
-    background: "#111827",
+    background: "#dc2626",
     color: "#fff",
     border: "none",
-    borderRadius: 8,
+    borderRadius: 10,
+    padding: "8px 18px",
     cursor: "pointer",
-    fontWeight: 600,
+    fontWeight: 700,
+    boxShadow: "0 1px 2px 0 rgba(0,0,0,0.05)"
   },
   list: { display: "grid", gap: 12 },
   card: {
     background: "#fff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 14,
-    padding: 14,
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    padding: 18,
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
-  title: { fontSize: 16, fontWeight: 800, marginBottom: 6 },
+  title: { fontSize: 16, fontWeight: 800, color: "#0f172a", marginBottom: 6 },
   meta: {
     display: "flex",
     gap: 14,
-    fontSize: 13,
-    color: "#374151",
+    fontSize: 12,
+    color: "#64748b",
     flexWrap: "wrap",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   btn: {
     background: "#16a34a",
     color: "#fff",
     border: "none",
     borderRadius: 10,
-    padding: "8px 14px",
+    padding: "8px 16px",
     cursor: "pointer",
-    fontWeight: 600,
+    fontWeight: 700,
+    boxShadow: "0 1px 2px 0 rgba(0,0,0,0.05)"
   },
   empty: {
-    padding: 20,
+    background: "#fff",
+    padding: 30,
+    borderRadius: 16,
     textAlign: "center",
-    color: "#6b7280",
+    color: "#64748b",
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
   err: {
     background: "#fee2e2",

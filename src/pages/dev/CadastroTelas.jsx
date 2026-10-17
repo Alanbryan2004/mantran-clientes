@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-    XCircle, RotateCcw, PlusCircle, Pencil, Trash2,
-    ChevronLeft, ChevronRight,
+    RotateCcw, PlusCircle, Pencil, Trash2,
+    ChevronLeft, ChevronRight, Layers,
 } from "lucide-react";
 import AppShell from "./components/AppShell";
 import { apiGet, apiPost, apiPatch, apiDelete } from "./services/api";
@@ -123,322 +123,265 @@ export default function CadastroTelas() {
     };
 
     return (
-        <AppShell>
-            {/* margin: -16 cancela o padding do AppShell e deixa a tela edge-to-edge */}
-            <div style={{ margin: -16, display: "flex", flexDirection: "column", minHeight: "calc(100vh - 56px)" }}>
-
-                {/* ── Título ── */}
-                <div style={s.titulo}>CADASTRO DE TELAS</div>
-
-                {/* ── Corpo ── */}
-                <div style={{ flex: 1, padding: "12px 16px 70px" }}>
-
-                    {/* Fieldset Parâmetros */}
-                    <fieldset style={s.fieldset}>
-                        <legend style={s.legend}>Parâmetros</legend>
-
-                        <div style={s.grid2}>
-                            <Campo label="Tela">
-                                <input
-                                    value={dados.nome_tabela}
-                                    onChange={(e) => setDados({ ...dados, nome_tabela: e.target.value })}
-                                    style={s.input}
-                                />
-                            </Campo>
-
-                            <Campo label="Tipo">
-                                <select
-                                    value={dados.tipo_tabela}
-                                    onChange={(e) => {
-                                        const novoTipo = e.target.value;
-                                        let novoModulo = dados.modulo;
-                                        if (novoTipo === "Arquitetura") {
-                                            novoModulo = "Mantran.API";
-                                        } else if (dados.tipo_tabela === "Arquitetura") {
-                                            novoModulo = "Operacao";
-                                        }
-                                        setDados({ ...dados, tipo_tabela: novoTipo, modulo: novoModulo });
-                                    }}
-                                    style={s.input}
-                                >
-                                    <option>Cadastro</option>
-                                    <option>Documento</option>
-                                    <option>Arquitetura</option>
-                                </select>
-                            </Campo>
-
-                            <Campo label="Qtd. Campos">
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={dados.qtd_campos}
-                                    onChange={(e) => setDados({ ...dados, qtd_campos: e.target.value })}
-                                    style={{ ...s.input, width: 100 }}
-                                />
-                            </Campo>
-
-                            <Campo label="Módulo">
-                                <select
-                                    value={dados.modulo}
-                                    onChange={(e) => setDados({ ...dados, modulo: e.target.value })}
-                                    style={s.input}
-                                >
-                                    {dados.tipo_tabela === "Arquitetura" ? (
-                                        <>
-                                            <option>Mantran.API</option>
-                                            <option>Mantran.Web.React</option>
-                                            <option>IA</option>
-                                            <option>Organização</option>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <option>Operacao</option>
-                                            <option>Financeiro</option>
-                                            <option>WMS</option>
-                                            <option>Seguranca</option>
-                                            <option>Oficina</option>
-                                        </>
-                                    )}
-                                </select>
-                            </Campo>
+        <AppShell
+            title="Cadastro de Telas"
+            subtitle="Gerencie e parametrize as telas e APIs do sistema"
+            icon={Layers}
+        >
+            <div className="space-y-6">
+                {/* ── Parâmetros Card ── */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                    <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-100">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">Parâmetros da Tela</h2>
+                            <p className="text-xs text-slate-500 mt-0.5">Preencha os dados abaixo para cadastrar ou editar</p>
                         </div>
-                    </fieldset>
+                        {editId && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                Editando ID #{editId}
+                            </span>
+                        )}
+                    </div>
 
-                    {/* Fieldset Registros */}
-                    <fieldset style={{ ...s.fieldset, marginTop: 12 }}>
-                        <legend style={s.legend}>Registros Cadastrados</legend>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                                Nome da Tela / Tabela
+                            </label>
+                            <input
+                                type="text"
+                                value={dados.nome_tabela}
+                                onChange={(e) => setDados({ ...dados, nome_tabela: e.target.value })}
+                                placeholder="Ex: Pedidos, Clientes..."
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all placeholder:text-slate-400"
+                            />
+                        </div>
 
-                        <table style={s.table}>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                                Tipo
+                            </label>
+                            <select
+                                value={dados.tipo_tabela}
+                                onChange={(e) => {
+                                    const novoTipo = e.target.value;
+                                    let novoModulo = dados.modulo;
+                                    if (novoTipo === "Arquitetura") {
+                                        novoModulo = "Mantran.API";
+                                    } else if (dados.tipo_tabela === "Arquitetura") {
+                                        novoModulo = "Operacao";
+                                    }
+                                    setDados({ ...dados, tipo_tabela: novoTipo, modulo: novoModulo });
+                                }}
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
+                            >
+                                <option>Cadastro</option>
+                                <option>Documento</option>
+                                <option>Arquitetura</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                                Qtd. Campos
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={dados.qtd_campos}
+                                onChange={(e) => setDados({ ...dados, qtd_campos: e.target.value })}
+                                placeholder="0"
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                                Módulo
+                            </label>
+                            <select
+                                value={dados.modulo}
+                                onChange={(e) => setDados({ ...dados, modulo: e.target.value })}
+                                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all cursor-pointer"
+                            >
+                                {dados.tipo_tabela === "Arquitetura" ? (
+                                    <>
+                                        <option>Mantran.API</option>
+                                        <option>Mantran.Web.React</option>
+                                        <option>IA</option>
+                                        <option>Organização</option>
+                                    </>
+                                ) : (
+                                    <>
+                                        <option>Operacao</option>
+                                        <option>Financeiro</option>
+                                        <option>WMS</option>
+                                        <option>Seguranca</option>
+                                        <option>Oficina</option>
+                                    </>
+                                )}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Botões de Ação */}
+                    <div className="flex flex-wrap items-center gap-3 mt-6 pt-5 border-t border-slate-100">
+                        <button
+                            onClick={incluir}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-sm transition-all cursor-pointer"
+                        >
+                            <PlusCircle size={16} />
+                            Incluir Tela
+                        </button>
+
+                        <button
+                            onClick={alterar}
+                            disabled={!editId}
+                            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-all cursor-pointer ${
+                                editId 
+                                    ? "bg-amber-600 hover:bg-amber-700 text-white" 
+                                    : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                            }`}
+                        >
+                            <Pencil size={16} />
+                            Alterar
+                        </button>
+
+                        <button
+                            onClick={excluir}
+                            disabled={!editId}
+                            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm shadow-sm transition-all cursor-pointer ${
+                                editId 
+                                    ? "bg-rose-600 hover:bg-rose-700 text-white" 
+                                    : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                            }`}
+                        >
+                            <Trash2 size={16} />
+                            Excluir
+                        </button>
+
+                        <button
+                            onClick={limpar}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-sm shadow-sm transition-all cursor-pointer ml-auto"
+                        >
+                            <RotateCcw size={16} />
+                            Limpar
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── Registros Cadastrados Card ── */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">Registros Cadastrados</h2>
+                            <p className="text-xs text-slate-500 mt-0.5">Clique em uma linha para editar ou excluir</p>
+                        </div>
+                        <span className="text-xs font-semibold text-slate-500">
+                            Total: <strong className="text-slate-800">{lista.length}</strong> telas
+                        </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-slate-700">
                             <thead>
-                                <tr>
-                                    {["Tela", "Tipo", "Módulo", "Qtd. Campos", "Nível"].map((h, i) => (
-                                        <th key={h} style={{ ...s.th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
-                                    ))}
+                                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                    <th className="py-3.5 px-6">Tela</th>
+                                    <th className="py-3.5 px-4 text-center">Tipo</th>
+                                    <th className="py-3.5 px-4 text-center">Módulo</th>
+                                    <th className="py-3.5 px-4 text-center">Qtd. Campos</th>
+                                    <th className="py-3.5 px-4 text-center">Nível API</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-slate-100">
                                 {listaExibida.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} style={{ ...s.td, textAlign: "center", color: "#9ca3af", padding: 16 }}>
+                                        <td colSpan={5} className="py-8 text-center text-slate-400 text-sm">
                                             Nenhum registro encontrado
                                         </td>
                                     </tr>
                                 )}
-                                {listaExibida.map((item) => (
-                                    <tr
-                                        key={item.id}
-                                        onClick={() => selecionar(item)}
-                                        style={{
-                                            cursor: "pointer",
-                                            background: editId === item.id ? "#fefce8" : "#fff",
-                                        }}
-                                        onMouseEnter={e => e.currentTarget.style.background = editId === item.id ? "#fef9c3" : "#fff1f2"}
-                                        onMouseLeave={e => e.currentTarget.style.background = editId === item.id ? "#fefce8" : "#fff"}
-                                    >
-                                        <td style={{ ...s.td, color: "#1d4ed8" }}>{item.tela}</td>
-                                        <td style={{ ...s.td, textAlign: "center", color: "#1d4ed8" }}>{item.tipo_tabela}</td>
-                                        <td style={{ ...s.td, textAlign: "center", color: "#1d4ed8" }}>{item.modulo}</td>
-                                        <td style={{ ...s.td, textAlign: "center", color: "#1d4ed8" }}>{item.qtd_campos}</td>
-                                        <td style={{ ...s.td, textAlign: "center", color: "#1d4ed8" }}>{item.nivel_api}</td>
-                                    </tr>
-                                ))}
+                                {listaExibida.map((item) => {
+                                    const isSelected = editId === item.id;
+                                    return (
+                                        <tr
+                                            key={item.id}
+                                            onClick={() => selecionar(item)}
+                                            className={`transition-colors cursor-pointer ${
+                                                isSelected 
+                                                    ? "bg-brand-50/60 font-semibold" 
+                                                    : "hover:bg-slate-50/80"
+                                            }`}
+                                        >
+                                            <td className="py-3.5 px-6 font-semibold text-slate-900 flex items-center gap-2">
+                                                {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-brand-600" />}
+                                                {item.tela}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-center">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                                    {item.tipo_tabela}
+                                                </span>
+                                            </td>
+                                            <td className="py-3.5 px-4 text-center text-slate-600 font-medium">{item.modulo}</td>
+                                            <td className="py-3.5 px-4 text-center text-slate-600">{item.qtd_campos}</td>
+                                            <td className="py-3.5 px-4 text-center">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    {item.nivel_api || "N/D"}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
+                    </div>
 
-                        {/* Paginação */}
-                        <div style={s.paginacao}>
-                            <span style={s.paginacaoInfo}>
-                                {lista.length === 0
-                                    ? "0 registros"
-                                    : `Exibindo ${inicio + 1}–${Math.min(inicio + PAGE_SIZE, lista.length)} de ${lista.length} registros`}
-                            </span>
+                    {/* Paginação */}
+                    <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-xs text-slate-500 font-medium">
+                            {lista.length === 0
+                                ? "0 registros"
+                                : `Exibindo ${inicio + 1}–${Math.min(inicio + PAGE_SIZE, lista.length)} de ${lista.length} registros`}
+                        </span>
 
-                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                <BtnPag
-                                    onClick={() => setPagina(p => p - 1)}
-                                    disabled={pagina === 1}
-                                >
-                                    <ChevronLeft size={12} /> Ant
-                                </BtnPag>
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                onClick={() => setPagina(p => p - 1)}
+                                disabled={pagina === 1}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                            >
+                                <ChevronLeft size={14} /> Ant
+                            </button>
 
-                                {paginas(pagina, totalPaginas).map((item, i) =>
-                                    item === "..." ? (
-                                        <span key={`e${i}`} style={{ fontSize: 11, color: "#9ca3af", padding: "0 2px" }}>…</span>
-                                    ) : (
-                                        <BtnPag
-                                            key={item}
-                                            onClick={() => setPagina(item)}
-                                            ativo={pagina === item}
-                                        >
-                                            {item}
-                                        </BtnPag>
-                                    )
-                                )}
+                            {paginas(pagina, totalPaginas).map((item, i) =>
+                                item === "..." ? (
+                                    <span key={`e${i}`} className="text-xs text-slate-400 px-1">…</span>
+                                ) : (
+                                    <button
+                                        key={item}
+                                        onClick={() => setPagina(item)}
+                                        className={`w-7 h-7 text-xs rounded-lg font-bold flex items-center justify-center transition-all ${
+                                            pagina === item
+                                                ? "bg-brand-600 text-white shadow-sm"
+                                                : "border border-slate-300 text-slate-700 hover:bg-slate-50"
+                                        }`}
+                                    >
+                                        {item}
+                                    </button>
+                                )
+                            )}
 
-                                <BtnPag
-                                    onClick={() => setPagina(p => p + 1)}
-                                    disabled={pagina === totalPaginas}
-                                >
-                                    Próx <ChevronRight size={12} />
-                                </BtnPag>
-                            </div>
+                            <button
+                                onClick={() => setPagina(p => p + 1)}
+                                disabled={pagina === totalPaginas}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                            >
+                                Próx <ChevronRight size={14} />
+                            </button>
                         </div>
-                    </fieldset>
-                </div>
-
-                {/* ── Rodapé ── */}
-                <div style={s.rodape}>
-                    <BtnRodape icon={<XCircle size={22} />} label="Fechar"  onClick={() => navigate(-1)} />
-                    <BtnRodape icon={<RotateCcw size={22} />} label="Limpar"  onClick={limpar} />
-                    <BtnRodape icon={<PlusCircle size={22} />} label="Incluir" onClick={incluir} />
-                    <BtnRodape icon={<Pencil size={22} />} label="Alterar" onClick={alterar} />
-                    <BtnRodape icon={<Trash2 size={22} />} label="Excluir" onClick={excluir} />
+                    </div>
                 </div>
             </div>
         </AppShell>
     );
 }
-
-function Campo({ label, children }) {
-    return (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={s.label}>{label}</span>
-            <div style={{ flex: 1 }}>{children}</div>
-        </div>
-    );
-}
-
-function BtnRodape({ icon, label, onClick }) {
-    return (
-        <button onClick={onClick} style={s.btnRodape}
-            onMouseEnter={e => { e.currentTarget.style.color = "#991b1b"; }}
-            onMouseLeave={e => { e.currentTarget.style.color = "#b91c1c"; }}
-        >
-            {icon}
-            <span style={{ fontSize: 11, fontWeight: 500 }}>{label}</span>
-        </button>
-    );
-}
-
-function BtnPag({ onClick, disabled, ativo, children }) {
-    return (
-        <button
-            onClick={onClick}
-            disabled={disabled}
-            style={{
-                display: "flex", alignItems: "center", gap: 2,
-                padding: "2px 6px", fontSize: 11, borderRadius: 4, cursor: disabled ? "not-allowed" : "pointer",
-                border: "1px solid",
-                borderColor: ativo ? "#b91c1c" : "#d1d5db",
-                background: ativo ? "#b91c1c" : "#fff",
-                color: ativo ? "#fff" : disabled ? "#d1d5db" : "#374151",
-                minWidth: 24, justifyContent: "center",
-            }}
-        >
-            {children}
-        </button>
-    );
-}
-
-const s = {
-    titulo: {
-        textAlign: "center",
-        color: "#b91c1c",
-        fontWeight: 600,
-        fontSize: 13,
-        padding: "8px 0",
-        borderBottom: "1px solid #d1d5db",
-        letterSpacing: "0.08em",
-        background: "#fff",
-    },
-    fieldset: {
-        border: "1px solid #d1d5db",
-        borderRadius: 6,
-        padding: "4px 16px 12px",
-        background: "#fff",
-    },
-    legend: {
-        color: "#b91c1c",
-        fontWeight: 600,
-        fontSize: 12,
-        padding: "0 6px",
-    },
-    grid2: {
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: "8px 32px",
-        marginTop: 4,
-    },
-    label: {
-        fontSize: 12,
-        color: "#374151",
-        width: 110,
-        flexShrink: 0,
-    },
-    input: {
-        width: "100%",
-        border: "1px solid #d1d5db",
-        borderRadius: 4,
-        padding: "2px 8px",
-        height: 26,
-        fontSize: 12,
-        color: "#111827",
-        background: "#fff",
-        boxSizing: "border-box",
-        outline: "none",
-    },
-    table: {
-        width: "100%",
-        borderCollapse: "collapse",
-        fontSize: 12,
-        marginTop: 4,
-    },
-    th: {
-        background: "#6b7280",
-        color: "#fff",
-        border: "1px solid #9ca3af",
-        padding: "5px 10px",
-        fontWeight: 600,
-        fontSize: 12,
-    },
-    td: {
-        border: "1px solid #e5e7eb",
-        padding: "4px 10px",
-        fontSize: 12,
-    },
-    paginacao: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginTop: 8,
-    },
-    paginacaoInfo: {
-        fontSize: 11,
-        color: "#6b7280",
-    },
-    rodape: {
-        position: "fixed",
-        bottom: 0,
-        left: 220,
-        right: 0,
-        background: "#fff",
-        borderTop: "1px solid #d1d5db",
-        display: "flex",
-        alignItems: "center",
-        gap: 28,
-        padding: "6px 24px",
-        zIndex: 50,
-    },
-    btnRodape: {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 2,
-        color: "#b91c1c",
-        background: "none",
-        border: "none",
-        cursor: "pointer",
-        padding: "2px 4px",
-        transition: "color 0.15s",
-    },
-};

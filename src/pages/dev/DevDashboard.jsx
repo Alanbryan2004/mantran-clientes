@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import AppShell from "./components/AppShell";
 import { apiGet, limparApontamentosAntigos } from "./services/api";
 import { useAuth } from "./contexts/AuthContext";
+import { LayoutDashboard } from "lucide-react";
 
 const CORES = [
   "#ef4444", // Vermelho
@@ -399,7 +400,11 @@ export default function Dashboard() {
   }, [maxValor]);
 
   return (
-    <AppShell>
+    <AppShell
+      title="Dashboard de Desenvolvimento"
+      subtitle="Métricas de produtividade, status de APIs e acompanhamento semanal"
+      icon={LayoutDashboard}
+    >
       {loading && <div>Carregando...</div>}
       {erro && <div style={styles.err}>{erro}</div>}
 
@@ -778,36 +783,38 @@ function Badge({ label, style = {} }) {
 const styles = {
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
     gap: 12,
   },
   card: {
     background: "#fff",
-    border: "1px solid #eee",
-    borderRadius: 14,
-    padding: 14,
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    padding: "16px 20px",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
-  cardTitle: { fontSize: 12, color: "#6b7280" },
+  cardTitle: { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" },
   cardValue: {
     fontSize: 26,
     fontWeight: 900,
-    color: "#111827",
-    marginTop: 6,
+    color: "#0f172a",
+    marginTop: 4,
   },
-  h3: { marginTop: 22, marginBottom: 10 },
+  h3: { marginTop: 24, marginBottom: 12, fontSize: 16, fontWeight: 800, color: "#0f172a" },
   list: {
     background: "#fff",
-    border: "1px solid #eee",
-    borderRadius: 14,
-    padding: 10,
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    padding: "12px 16px",
     marginBottom: 16,
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
   row: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "10px 8px",
-    borderBottom: "1px solid #f3f4f6",
+    padding: "12px 8px",
+    borderBottom: "1px solid #f1f5f9",
   },
   badges: {
     display: "flex",
@@ -817,16 +824,18 @@ const styles = {
     alignItems: "center",
   },
   badge: {
-    fontSize: 12,
-    border: "1px solid #e5e7eb",
-    background: "#f9fafb",
+    fontSize: 11,
+    fontWeight: 600,
+    border: "1px solid #e2e8f0",
+    background: "#f8fafc",
+    color: "#475569",
     borderRadius: 999,
-    padding: "6px 10px",
+    padding: "4px 10px",
   },
   percentual: {
     fontSize: 12,
     borderRadius: 999,
-    padding: "6px 12px",
+    padding: "5px 12px",
     fontWeight: 700,
   },
   err: {
@@ -839,16 +848,17 @@ const styles = {
   },
   chartCard: {
     background: "#fff",
-    border: "1px solid #eee",
-    borderRadius: 14,
-    padding: 16,
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    padding: 20,
     marginTop: 16,
     position: "relative",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)"
   },
   chartTitle: {
     fontSize: 16,
     fontWeight: 800,
-    color: "#111827",
+    color: "#0f172a",
     marginBottom: 12,
   },
   legendContainer: {

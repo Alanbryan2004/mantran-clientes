@@ -3,7 +3,7 @@ import AppShell from "./components/AppShell";
 import { apiGet, rpc, apiPatch, limparApontamentosAntigos, criarNotificacao } from "./services/api";
 import { useAuth } from "./contexts/AuthContext";
 import { getImagensCenario } from "./QATestes";
-import { ChevronLeft, ChevronRight, X, Image as ImageIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Image as ImageIcon, Clock } from "lucide-react";
 
 export default function MinhasTarefas() {
   const { user } = useAuth();
@@ -385,7 +385,11 @@ export default function MinhasTarefas() {
   }
 
   return (
-    <AppShell title="Minhas Tarefas">
+    <AppShell 
+      title="Minhas Tarefas" 
+      subtitle="Apontamento de horas, execução de tarefas e análise de homologação"
+      icon={Clock}
+    >
       {loading && <div>Carregando...</div>}
       {erro && <div style={styles.err}>{erro}</div>}
 
@@ -894,65 +898,75 @@ function formatarHHMM(horasDecimais) {
 }
 
 const styles = {
-  grid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 },
-  card: { background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: 14 },
-  cardTitle: { fontSize: 12, color: "#6b7280" },
-  cardValue: { fontSize: 26, fontWeight: 900 },
+  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 },
+  card: { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "16px 20px", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)" },
+  cardTitle: { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" },
+  cardValue: { fontSize: 26, fontWeight: 900, color: "#0f172a", marginTop: 4 },
 
   list: { display: "flex", flexDirection: "column", gap: 12 },
 
   taskCard: {
-    border: "1px solid #eee",
-    borderRadius: 14,
-    padding: 14,
+    border: "1px solid #e2e8f0",
+    borderRadius: 16,
+    padding: 18,
     background: "#fff",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
+    transition: "all 0.15s ease"
   },
 
-  taskTop: { display: "flex", justifyContent: "space-between" },
-  taskTitle: { fontSize: 16, fontWeight: 900 },
-  taskSub: { fontSize: 13, color: "#374151" },
+  taskTop: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" },
+  taskTitle: { fontSize: 16, fontWeight: 800, color: "#0f172a" },
+  taskSub: { fontSize: 12, color: "#64748b", marginTop: 2 },
 
   statePill: {
-    fontSize: 12,
-    padding: "6px 10px",
+    fontSize: 11,
+    fontWeight: 700,
+    padding: "4px 10px",
     borderRadius: 999,
-    background: "#f9fafb",
-    border: "1px solid #e5e7eb",
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    color: "#475569"
   },
 
   timeSpent: {
     fontSize: 13,
     fontWeight: 700,
     fontFamily: "monospace",
-    color: "#374151",
-    background: "#f3f4f6",
-    padding: "6px 10px",
-    borderRadius: 8,
+    color: "#0f172a",
+    background: "#f1f5f9",
+    border: "1px solid #e2e8f0",
+    padding: "6px 12px",
+    borderRadius: 10,
   },
 
-  actions: { display: "flex", gap: 8, marginTop: 12 },
+  actions: { display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" },
   btn: {
-    border: "1px solid #e5e7eb",
+    border: "1px solid #cbd5e1",
     borderRadius: 10,
-    padding: "8px 10px",
+    padding: "8px 14px",
     cursor: "pointer",
     background: "#fff",
+    color: "#334155",
+    fontWeight: 700,
+    fontSize: 12,
+    boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.04)",
+    transition: "all 0.15s ease"
   },
 
-  statusRow: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 12 },
-  statusBox: { background: "#fafafa", padding: 10, borderRadius: 12 },
-  statusLabel: { fontSize: 12, fontWeight: 700, marginBottom: 6 },
-  select: { width: "100%", padding: 8 },
+  statusRow: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 14 },
+  statusBox: { background: "#f8fafc", padding: 12, borderRadius: 12, border: "1px solid #e2e8f0" },
+  statusLabel: { fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 },
+  select: { width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", fontSize: 13, color: "#1e293b", fontWeight: 600 },
 
-  obsWrap: { marginTop: 12 },
-  textarea: { width: "100%", minHeight: 70, padding: 10 },
+  obsWrap: { marginTop: 14 },
+  textarea: { width: "100%", minHeight: 70, padding: "10px 12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", fontSize: 13, color: "#1e293b" },
 
-  endpointsWrap: { marginTop: 16, background: "#f9fafb", padding: 12, borderRadius: 12, border: "1px dashed #d1d5db" },
-  endpointsTitle: { fontSize: 13, fontWeight: 800, marginBottom: 10, color: "#374151" },
+  endpointsWrap: { marginTop: 16, background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px dashed #cbd5e1" },
+  endpointsTitle: { fontSize: 12, fontWeight: 800, marginBottom: 10, color: "#334155", textTransform: "uppercase", letterSpacing: "0.05em" },
   endpointRow: { display: "flex", gap: 8, marginBottom: 8 },
-  endpointInput: { flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 },
-  btnRemoveEp: { background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 8, padding: "0 12px", cursor: "pointer", fontWeight: "bold" },
-  btnAddEp: { background: "#fff", border: "1px solid #d1d5db", borderRadius: 8, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600, color: "#374151", marginTop: 4 },
+  endpointInput: { flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", fontSize: 13, color: "#1e293b" },
+  btnRemoveEp: { background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca", borderRadius: 8, padding: "0 12px", cursor: "pointer", fontWeight: "bold" },
+  btnAddEp: { background: "#fff", border: "1px solid #cbd5e1", borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontWeight: 700, color: "#334155", marginTop: 4, boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.04)" },
 
   err: {
     marginTop: 10,

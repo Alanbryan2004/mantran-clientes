@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import AppShell from "../components/AppShell";
 import { apiGet, rpc } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Cpu } from "lucide-react";
 
 function formatarHHMM(horasDecimais) {
     if (!horasDecimais) return "0h 0m";
@@ -111,7 +111,7 @@ export default function Arquitetura() {
 
     useEffect(() => {
         carregar();
-    }, [user]);
+    }, [user?.id]);
 
     const getNomeTecnico = (id) => {
         const tec = (todosUsuarios || []).find(t => t.id === id) || tecnicos.find(t => t.id === id);
@@ -199,169 +199,184 @@ export default function Arquitetura() {
     const percentualTotal = totalCargaHoraria > 0 ? (totalHorasTrabalhadas / totalCargaHoraria) * 100 : 0;
 
     return (
-        <AppShell>
-            <div style={{ margin: -16, display: "flex", flexDirection: "column", minHeight: "calc(100vh - 56px)" }}>
-                <div style={s.titulo}>VISUALIZAR ARQUITETURA</div>
-
-                <div style={{ flex: 1, padding: "12px 16px" }}>
-                    {loading ? (
-                        <div style={{ textAlign: "center", padding: 20, color: "#6b7280" }}>Carregando cronograma...</div>
-                    ) : (
-                        <>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, background: "#fff", padding: "12px 16px", borderRadius: 8, border: "1px solid #d1d5db" }}>
-                                <div>
-                                    <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase" }}>Previsão de Fim do Projeto</div>
-                                    <div style={{ fontSize: 18, color: "#b91c1c", fontWeight: 800 }}>
-                                        {dataFinalProjeto ? dataFinalProjeto.toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : "-"}
-                                    </div>
-                                </div>
-
-                                <div style={{ flex: 1, padding: "0 40px", maxWidth: 450 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                                        <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase" }}>Progresso Geral</span>
-                                        <span style={{ fontSize: 11, color: "#4b5563", fontWeight: 700 }}>
-                                            {formatarHHMM(totalHorasTrabalhadas)} / {formatarHHMM(totalCargaHoraria)} ({percentualTotal.toFixed(0)}%)
-                                        </span>
-                                    </div>
-                                    <div style={{ width: "100%", height: 8, background: "#e5e7eb", borderRadius: 999, overflow: "hidden" }}>
-                                        <div style={{ 
-                                            height: "100%", 
-                                            background: percentualTotal >= 100 ? "#10b981" : "#3b82f6", 
-                                            width: `${percentualTotal}%`,
-                                            transition: "width 0.5s ease"
-                                        }} />
-                                    </div>
-                                </div>
-
-                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                    <span style={{ fontSize: 12, color: "#374151", fontWeight: 600 }}>Filtrar Técnico:</span>
-                                    <select
-                                        value={filtroTecnico}
-                                        onChange={(e) => setFiltroTecnico(e.target.value)}
-                                        style={{ border: "1px solid #d1d5db", borderRadius: 4, padding: "6px 8px", fontSize: 12, outline: "none", width: 200 }}
-                                    >
-                                        <option value="">-- Todos --</option>
-                                        {tecnicos.map(t => (
-                                            <option key={t.id} value={t.id}>{t.nome}</option>
-                                        ))}
-                                    </select>
+        <AppShell
+            title="Cronograma de Arquitetura"
+            subtitle="Acompanhamento e evolução técnica da infraestrutura e APIs"
+            icon={Cpu}
+        >
+            <div className="space-y-6">
+                {loading ? (
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 text-center text-slate-500 font-medium">
+                        Carregando cronograma de arquitetura...
+                    </div>
+                ) : (
+                    <>
+                        {/* ── KPI & Filtro Card ── */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-6">
+                            <div>
+                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                    Previsão de Fim do Projeto
+                                </span>
+                                <div className="text-2xl font-black text-brand-600 tracking-tight">
+                                    {dataFinalProjeto ? dataFinalProjeto.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : "-"}
                                 </div>
                             </div>
 
-                            <div style={s.gridContainer}>
-                            <table style={s.table}>
-                                <thead>
-                                    <tr>
-                                        {["Tarefa", "Início", "Término", "Técnico", "Progresso"].map((h, i) => (
-                                            <th key={h} style={{ ...s.th, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {listaFiltrada.length === 0 && (
-                                        <tr>
-                                            <td colSpan={5} style={{ ...s.td, textAlign: "center", color: "#9ca3af", padding: 16 }}>
-                                                Nenhum cronograma cadastrado.
-                                            </td>
+                            <div className="flex-1 lg:max-w-md">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Progresso Geral</span>
+                                    <span className="text-xs font-black text-slate-800">
+                                        {formatarHHMM(totalHorasTrabalhadas)} / {formatarHHMM(totalCargaHoraria)} ({percentualTotal.toFixed(0)}%)
+                                    </span>
+                                </div>
+                                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-500 ${
+                                            percentualTotal >= 100 ? "bg-emerald-500" : "bg-brand-600"
+                                        }`}
+                                        style={{ width: `${Math.min(percentualTotal, 100)}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-bold text-slate-700 whitespace-nowrap uppercase tracking-wider">
+                                    Técnico:
+                                </span>
+                                <select
+                                    value={filtroTecnico}
+                                    onChange={(e) => setFiltroTecnico(e.target.value)}
+                                    className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all font-medium cursor-pointer min-w-[180px]"
+                                >
+                                    <option value="">-- Todos os Técnicos --</option>
+                                    {tecnicos.map(t => (
+                                        <option key={t.id} value={t.id}>{t.nome}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* ── Tabela Tarefas de Arquitetura ── */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">Tarefas de Arquitetura</h2>
+                                    <p className="text-xs text-slate-500 mt-0.5">Componentes centrais de backend, microsserviços e frontend</p>
+                                </div>
+                                <span className="text-xs font-semibold text-slate-500">
+                                    Total: <strong className="text-slate-800">{listaFiltrada.length}</strong> itens
+                                </span>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm text-slate-700">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                            <th className="py-3.5 px-6">Tarefa / Módulo</th>
+                                            <th className="py-3.5 px-4 text-center">Início</th>
+                                            <th className="py-3.5 px-4 text-center">Término</th>
+                                            <th className="py-3.5 px-4 text-center">Técnico</th>
+                                            <th className="py-3.5 px-6 text-center w-48">Progresso</th>
                                         </tr>
-                                    )}
-                                    {listaFiltrada.map((item) => {
-                                        // Tarefas de Arquitetura só precisam do status_api Finalizado
-                                        const isFinished = item.controle_api?.status_api === "Finalizado";
-
-                                        const horasTrab = calcularHorasTrabalhadas(item.controle_api_id);
-                                        let percent = item.carga_horaria > 0 ? (horasTrab / item.carga_horaria) * 100 : 0;
-
-                                        let barColor = "#3b82f6";
-                                        if (isFinished) {
-                                            barColor = "#10b981"; // Concluído (Verde)
-                                        } else if (percent > 100) {
-                                            barColor = "#ef4444"; // Estourado (Vermelho)
-                                        }
-                                        
-                                        const widthPercent = isFinished ? 100 : Math.min(percent, 100);
-                                        const displayPercent = isFinished ? 100 : percent;
-                                        
-                                        const hasAlteration = !!item.justificativa;
-
-                                        return (
-                                            <tr key={item.id} style={{ background: "#fff" }}>
-                                                <td style={{ ...s.td, color: "#111827", fontWeight: 600 }}>
-                                                    {item.controle_api?.nome_tabela}
-                                                    <div style={{ fontSize: 10, color: "#6b7280", fontWeight: "normal" }}>
-                                                        {item.controle_api?.tela}
-                                                    </div>
-                                                </td>
-                                                <td style={{ ...s.td, textAlign: "center" }}>
-                                                    {new Date(item.inicio).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
-                                                </td>
-                                                <td style={{ ...s.td, textAlign: "center" }}>
-                                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                                                        {new Date(item.termino).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
-                                                        {hasAlteration && (
-                                                            <AlertCircle 
-                                                                size={16} 
-                                                                color="#f59e0b" 
-                                                                style={{ cursor: "pointer" }}
-                                                                onMouseEnter={(e) => exibirTooltip(item, e)}
-                                                                onMouseLeave={ocultarTooltip}
-                                                            />
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td style={{ ...s.td, textAlign: "center", color: "#374151" }}>
-                                                    {getNomeTecnico(item.tecnico_id)}
-                                                </td>
-                                                <td style={{ ...s.td, textAlign: "center", width: 150 }}>
-                                                    <div style={s.progressContainer}>
-                                                        <div style={s.progressText}>
-                                                            {formatarHHMM(horasTrab)} / {item.carga_horaria}h ({displayPercent.toFixed(0)}%)
-                                                        </div>
-                                                        <div style={s.progressBarBg}>
-                                                            <div 
-                                                                style={{ 
-                                                                    ...s.progressBarFill, 
-                                                                    width: `${widthPercent}%`,
-                                                                    background: barColor 
-                                                                }} 
-                                                            />
-                                                        </div>
-                                                    </div>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {listaFiltrada.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} className="py-10 text-center text-slate-400 text-sm">
+                                                    Nenhum cronograma cadastrado.
                                                 </td>
                                             </tr>
-                                        );
-                                    })}
-                                </tbody>
-                             </table>
+                                        )}
+                                        {listaFiltrada.map((item) => {
+                                            // Tarefas de Arquitetura só precisam do status_api Finalizado
+                                            const isFinished = item.controle_api?.status_api === "Finalizado";
+
+                                            const horasTrab = calcularHorasTrabalhadas(item.controle_api_id);
+                                            let percent = item.carga_horaria > 0 ? (horasTrab / item.carga_horaria) * 100 : 0;
+
+                                            let barClass = "bg-blue-600";
+                                            if (isFinished) {
+                                                barClass = "bg-emerald-500";
+                                            } else if (percent > 100) {
+                                                barClass = "bg-rose-500";
+                                            }
+                                            
+                                            const widthPercent = isFinished ? 100 : Math.min(percent, 100);
+                                            const displayPercent = isFinished ? 100 : percent;
+                                            
+                                            const hasAlteration = !!item.justificativa;
+
+                                            return (
+                                                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                                    <td className="py-3.5 px-6">
+                                                        <div className="font-bold text-slate-900">{item.controle_api?.nome_tabela}</div>
+                                                        <div className="text-xs text-slate-500 font-medium">{item.controle_api?.tela}</div>
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center text-xs font-semibold text-slate-600">
+                                                        {new Date(item.inicio).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <div className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-600">
+                                                            {new Date(item.termino).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                                                            {hasAlteration && (
+                                                                <AlertCircle 
+                                                                    size={15} 
+                                                                    className="text-amber-500 cursor-pointer inline"
+                                                                    onMouseEnter={(e) => exibirTooltip(item, e)}
+                                                                    onMouseLeave={ocultarTooltip}
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                                            {getNomeTecnico(item.tecnico_id)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3.5 px-6 text-center">
+                                                        <div className="flex flex-col gap-1 items-center">
+                                                            <span className="text-[11px] font-bold text-slate-700">
+                                                                {formatarHHMM(horasTrab)} / {item.carga_horaria}h ({displayPercent.toFixed(0)}%)
+                                                            </span>
+                                                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
+                                                                <div 
+                                                                    className={`h-full rounded-full transition-all duration-300 ${barClass}`}
+                                                                    style={{ width: `${widthPercent}%` }} 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                        </>
-                    )}
-                </div>
-                
+                    </>
+                )}
+
                 {/* Tooltip para justificativa */}
                 {tooltipContent && (
-                    <div style={{
-                        position: "fixed",
-                        top: tooltipContent.y + 10,
-                        left: tooltipContent.x + 10,
-                        background: "#fff",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: 8,
-                        padding: 12,
-                        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                        zIndex: 9999,
-                        width: 250,
-                        pointerEvents: "none"
-                    }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", marginBottom: 4 }}>Alteração de Prazo</div>
+                    <div 
+                        style={{
+                            position: "fixed",
+                            top: tooltipContent.y + 10,
+                            left: tooltipContent.x + 10,
+                            zIndex: 9999,
+                            pointerEvents: "none"
+                        }}
+                        className="bg-white border border-slate-200 rounded-xl p-3 shadow-lg w-64 text-left"
+                    >
+                        <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Alteração de Prazo</div>
                         {tooltipContent.termino_original && (
-                            <div style={{ fontSize: 12, marginBottom: 8 }}>
-                                <strong>Data Inicial:</strong> {new Date(tooltipContent.termino_original).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}
+                            <div className="text-xs text-slate-700 mb-1.5">
+                                <strong>Data Inicial:</strong> {new Date(tooltipContent.termino_original).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                             </div>
                         )}
-                        <div style={{ fontSize: 12 }}>
+                        <div className="text-xs text-slate-800">
                             <strong>Justificativa:</strong><br />
-                            <span style={{ color: "#374151" }}>{tooltipContent.justificativa}</span>
+                            <span className="text-slate-600">{tooltipContent.justificativa}</span>
                         </div>
                     </div>
                 )}
@@ -369,63 +384,3 @@ export default function Arquitetura() {
         </AppShell>
     );
 }
-
-const s = {
-    titulo: {
-        textAlign: "center",
-        color: "#b91c1c",
-        fontWeight: 600,
-        fontSize: 13,
-        padding: "8px 0",
-        borderBottom: "1px solid #d1d5db",
-        letterSpacing: "0.08em",
-        background: "#fff",
-    },
-    gridContainer: {
-        background: "#fff",
-        borderRadius: 8,
-        border: "1px solid #d1d5db",
-        overflow: "hidden"
-    },
-    table: {
-        width: "100%",
-        borderCollapse: "collapse",
-        fontSize: 12,
-    },
-    th: {
-        background: "#f9fafb",
-        color: "#374151",
-        borderBottom: "1px solid #e5e7eb",
-        padding: "10px",
-        fontWeight: 700,
-        fontSize: 12,
-    },
-    td: {
-        borderBottom: "1px solid #e5e7eb",
-        padding: "10px",
-        fontSize: 12,
-    },
-    progressContainer: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        alignItems: "center"
-    },
-    progressText: {
-        fontSize: 11,
-        fontWeight: 600,
-        color: "#4b5563"
-    },
-    progressBarBg: {
-        width: "100%",
-        height: 6,
-        background: "#e5e7eb",
-        borderRadius: 999,
-        overflow: "hidden"
-    },
-    progressBarFill: {
-        height: "100%",
-        borderRadius: 999,
-        transition: "width 0.3s ease"
-    }
-};
