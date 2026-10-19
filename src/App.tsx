@@ -29,6 +29,7 @@ import { permissionsApi } from './lib/permissions'
 import { getLoggedUser, isClienteUser } from './lib/auth'
 import { api } from './lib/api'
 import { VersionGuard } from './components/VersionGuard'
+import { CalendarioToast } from './components/CalendarioToast'
 
 function RootRoute() {
   const isCliente = isClienteUser()
@@ -111,6 +112,7 @@ function App() {
         <Login />
       ) : (
         <BrowserRouter>
+          <CalendarioToast />
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<RootRoute />} />

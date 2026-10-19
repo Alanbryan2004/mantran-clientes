@@ -3526,7 +3526,9 @@ export const api = {
   // Usado para avaliar os lembretes in-app.
   async getEventosFuturosDoUsuario(usuarioId: string, aPartirDeISO?: string): Promise<EventoCalendario[]> {
     if (!usuarioId) return []
-    const desde = aPartirDeISO || new Date().toISOString()
+    // Inclui eventos que começaram há poucos minutos (janela de graça), para que
+    // lembretes "Na hora" e os que caem logo após o início ainda sejam avaliados.
+    const desde = aPartirDeISO || new Date(Date.now() - 5 * 60000).toISOString()
     try {
       const { data, error } = await supabase
         .from('calendario_eventos')

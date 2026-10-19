@@ -26,6 +26,7 @@ import { getLoggedUser, isClienteUser, isAdminUser, isTecnicoUser, isFuncionario
 import { avaliarLembretesPonto } from '../lib/lembretesPonto'
 import { avaliarAniversarios } from '../lib/aniversarios'
 import { avaliarLembretesCalendario } from '../lib/lembretesCalendario'
+import { dispararAviso, solicitarPermissaoNotificacao } from '../lib/avisoPopup'
 import clsx from 'clsx'
 
 export function NotificationsPopover() {
@@ -354,6 +355,9 @@ export function NotificationsPopover() {
 
     let ativo = true
 
+    // Pede permissão de notificação do navegador uma vez (para avisos em 2º plano).
+    solicitarPermissaoNotificacao()
+
     const avaliar = async () => {
       try {
         const eventos = await api.getEventosFuturosDoUsuario(uid).catch(() => [])
@@ -363,19 +367,30 @@ export function NotificationsPopover() {
         const dispensados = getDeletedIds()
         const readIds = getReadIds()
 
-        const itens = lembretes
-          .filter(l => !dispensados.has(l.id))
-          .map(l => ({
+        const ativos = lembretes.filter(l => !dispensados.has(l.id))
+
+        const itens = ativos.map(l => ({
+          id: l.id,
+          titulo: l.titulo,
+          mensagem: l.mensagem,
+          tipo: 'calendario_lembrete',
+          lida: readIds.has(l.id),
+          created_at: new Date().toISOString(),
+          dados_extras: { modulo: 'calendario', local: true, evento_id: l.eventoId }
+        }))
+
+        setLembretesCalendario(itens)
+
+        // Dispara o popup/notificação para cada lembrete NOVO (dedupe por id na sessão).
+        // Toast se a aba estiver visível; notificação nativa do SO se estiver em 2º plano.
+        ativos.forEach(l => {
+          dispararAviso({
             id: l.id,
             titulo: l.titulo,
             mensagem: l.mensagem,
-            tipo: 'calendario_lembrete',
-            lida: readIds.has(l.id),
-            created_at: new Date().toISOString(),
-            dados_extras: { modulo: 'calendario', local: true, evento_id: l.eventoId }
-          }))
-
-        setLembretesCalendario(itens)
+            url: '/calendario'
+          })
+        })
       } catch (_) {
         // silencioso
       }
@@ -564,6 +579,8 @@ export function NotificationsPopover() {
       <button
         type="button"
         onClick={() => {
+          // Gesto do usuário: bom momento para garantir a permissão de notificação.
+          solicitarPermissaoNotificacao()
           setIsOpen(!isOpen)
           if (!isOpen) fetchNotificacoes()
         }}

@@ -62,9 +62,6 @@ export function avaliarLembretesCalendario(
     const inicioMs = new Date(ev.inicio).getTime()
     if (isNaN(inicioMs)) continue
 
-    // Já começou? então não é mais "lembrete" (deixa o evento acontecer)
-    if (inicioMs <= agoraMs) continue
-
     // Antecedência deste usuário (convidado) — default 30 min; criador sem registro usa 30
     const convidado = (ev.convidados || []).find(c => c.usuario_id === usuarioId)
     const souOrganizador = ev.criado_por_id === usuarioId
@@ -75,9 +72,13 @@ export function avaliarLembretesCalendario(
 
     const antecedenciaMin = convidado ? (convidado.antecedencia_min ?? 30) : 30
     const janelaInicioMs = inicioMs - antecedenciaMin * 60000
+    // Tolerância APÓS o início: cobre "Na hora" (antecedência 0) e o caso do tick de
+    // 1 min cair alguns minutos depois do horário — assim o aviso não se perde.
+    const GRACA_POS_INICIO_MS = 5 * 60000
+    const janelaFimMs = inicioMs + GRACA_POS_INICIO_MS
 
-    // Dentro da janela de lembrete?
-    if (agoraMs >= janelaInicioMs && agoraMs < inicioMs) {
+    // Dentro da janela de lembrete? [inicio - antecedencia, inicio + graça]
+    if (agoraMs >= janelaInicioMs && agoraMs <= janelaFimMs) {
       const minutosRestantes = (inicioMs - agoraMs) / 60000
       itens.push({
         id: `cal_${ev.id}_${usuarioId}`,

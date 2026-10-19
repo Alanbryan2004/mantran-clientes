@@ -64,7 +64,7 @@ const implTemCard = (impl: any, nomeLower: string) =>
   (impl.implantacao_etapas || []).some(
     (e: any) => (e.nome_etapa || '').trim().toLowerCase() === nomeLower
   )
-const isImplNfse = (impl: any) => implTemCard(impl, 'treinamento nfse')
+const isImplNfse = (impl: any) => implTemCard(impl, 'treinamento nfse') || implTemCard(impl, 'nfse')
 const isImplMeli = (impl: any) => implTemCard(impl, 'treinamento meli') || implTemCard(impl, 'mercado livre')
 // "Cliente" = implantação normal (não é dedicada de NFSE nem de MELI)
 const isImplCliente = (impl: any) => !isImplNfse(impl) && !isImplMeli(impl)
@@ -278,8 +278,13 @@ export function Implantacoes() {
     .filter(i => i.status === 'Concluído')
     .sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR', { sensitivity: 'base' }))
 
-  // Contagens de prazo respeitam a aba de TIPO ativa (Clientes / MELI / NFSE)
+  // Contagens e dados respeitam a aba de TIPO ativa (Clientes / MELI / NFSE)
   const emAndamentoDoTipo = emAndamento.filter(i =>
+    tipoImplantacao === 'NFSE' ? isImplNfse(i)
+    : tipoImplantacao === 'MELI' ? isImplMeli(i)
+    : isImplCliente(i)
+  )
+  const concluidosDoTipo = concluidos.filter(i =>
     tipoImplantacao === 'NFSE' ? isImplNfse(i)
     : tipoImplantacao === 'MELI' ? isImplMeli(i)
     : isImplCliente(i)
@@ -473,7 +478,7 @@ export function Implantacoes() {
               "text-xs px-2 py-0.5 rounded-full font-mono font-bold transition-colors",
               activeTab === 'EM_ANDAMENTO' ? "bg-brand-500/20 text-brand-300" : "bg-slate-800 text-slate-400"
             )}>
-              {emAndamento.length}
+              {emAndamentoDoTipo.length}
             </span>
           </button>
 
@@ -492,7 +497,7 @@ export function Implantacoes() {
               "text-xs px-2 py-0.5 rounded-full font-mono font-bold transition-colors",
               activeTab === 'CONCLUIDOS' ? "bg-green-500/20 text-green-300" : "bg-slate-800 text-slate-400"
             )}>
-              {concluidos.length}
+              {concluidosDoTipo.length}
             </span>
           </button>
         </div>
@@ -621,7 +626,7 @@ export function Implantacoes() {
                 <>
                   {isFiltering && (
                     <div className="text-xs text-slate-400 mb-3 flex items-center justify-between">
-                      <span>Exibindo <strong>{filteredEmAndamento.length}</strong> de <strong>{emAndamento.length}</strong> clientes em andamento</span>
+                      <span>Exibindo <strong>{filteredEmAndamento.length}</strong> de <strong>{emAndamentoDoTipo.length}</strong> clientes em andamento</span>
                     </div>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -930,7 +935,7 @@ export function Implantacoes() {
                 <>
                   {isFiltering && (
                     <div className="text-xs text-slate-400 mb-3">
-                      <span>Exibindo <strong>{filteredConcluidos.length}</strong> de <strong>{concluidos.length}</strong> clientes concluídos</span>
+                      <span>Exibindo <strong>{filteredConcluidos.length}</strong> de <strong>{concluidosDoTipo.length}</strong> clientes concluídos</span>
                     </div>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
