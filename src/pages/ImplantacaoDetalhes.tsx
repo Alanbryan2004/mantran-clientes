@@ -45,6 +45,13 @@ const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'feedback': 13,
 }
 
+// Uma etapa conta como "concluída" para fins de encerramento quando está OK
+// OU em ERRO (erro documentado com justificativa). PENDENTE e EM BRANCO bloqueiam.
+const etapaConcluida = (valor: string): boolean => {
+  const v = (valor || '').trim().toUpperCase()
+  return v === 'OK' || v === 'ERRO'
+}
+
 export const normalizeEtapaNome = (nome: string): string => {
   const lower = (nome || '').trim().toLowerCase()
   if (lower === 'ativo 4pl' || lower === 'ativo 4pi') return 'Ativo 4PL'
@@ -267,9 +274,9 @@ export function ImplantacaoDetalhes() {
     try {
       await api.updateImplantacaoEtapa(etapaId, novoValor)
       
-      // Check if all etapas are OK -> auto-complete
+      // Auto-complete: concluída quando todas as etapas estão OK ou ERRO (não PENDENTE)
       const updatedEtapas = etapas.map(e => e.id === etapaId ? { ...e, valor: novoValor } : e)
-      const allOk = updatedEtapas.every(e => e.valor === 'OK')
+      const allOk = updatedEtapas.every(e => etapaConcluida(e.valor))
       
       if (allOk && implantacao.status !== 'Concluído') {
         await api.updateImplantacaoStatus(id!, 'Concluído')
@@ -333,7 +340,10 @@ export function ImplantacaoDetalhes() {
   if (!implantacao) return <div className="text-slate-400 p-8 text-center">Implantação não encontrada.</div>
 
   const progress = calculateProgress()
-  const isComplete = progress === 100
+  // Concluída quando o status já é 'Concluído' OU todas as etapas estão
+  // concluídas (OK ou ERRO) — alinhado à regra de encerramento.
+  const isComplete = implantacao.status === 'Concluído' ||
+    (etapas.length > 0 && etapas.every(e => etapaConcluida(e.valor)))
   const isShopee = implantacao.tipo_cliente === 'SHOPEE'
   // Selo MELI: implantação possui o card de MELI (novo: 'Treinamento MELI'; legado: 'Mercado Livre')
   const isMeliEtapa = (nome: string) => {
@@ -346,7 +356,7 @@ export function ImplantacaoDetalhes() {
   const isImplantacaoNfse = etapas.some(e => (e.nome_etapa || '').trim().toLowerCase() === 'treinamento nfse')
 
   const nonFeedbackEtapas = etapas.filter(e => (e.nome_etapa || '').trim().toLowerCase() !== 'feedback')
-  const areAllNonFeedbackEtapasOk = nonFeedbackEtapas.length > 0 && nonFeedbackEtapas.every(e => e.valor === 'OK')
+  const areAllNonFeedbackEtapasOk = nonFeedbackEtapas.length > 0 && nonFeedbackEtapas.every(e => etapaConcluida(e.valor))
   const feedbackEtapa = etapas.find(e => (e.nome_etapa || '').trim().toLowerCase() === 'feedback')
   const isFeedbackOk = feedbackEtapa?.valor === 'OK'
 

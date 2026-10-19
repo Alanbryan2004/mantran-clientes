@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, KeyRound, Copy, Check, Eye, EyeOff, ShieldCheck, UserCheck, AlertCircle, Save, Send, Sparkles, UserPlus, MessageSquare } from 'lucide-react'
+import { X, KeyRound, Copy, Check, Eye, EyeOff, ShieldCheck, UserCheck, AlertCircle, Save, Send, Sparkles, UserPlus, MessageSquare, PartyPopper } from 'lucide-react'
 import { api } from '../lib/api'
 import clsx from 'clsx'
 
@@ -32,6 +32,7 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
   const [copiedSenha, setCopiedSenha] = useState(false)
   const [copiedMessage, setCopiedMessage] = useState(false)
   const [copiedBoasVindas, setCopiedBoasVindas] = useState(false)
+  const [copiedFeedback, setCopiedFeedback] = useState(false)
 
   // Extrair número da base (ex: dbMantran010 -> 010, dbMantran120 -> 120)
   const getBaseNumero = (baseName?: string) => {
@@ -114,7 +115,7 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
     }
   }
 
-  const handleCopy = (text: string, type: 'login' | 'senha' | 'message' | 'boasVindas') => {
+  const handleCopy = (text: string, type: 'login' | 'senha' | 'message' | 'boasVindas' | 'feedback') => {
     navigator.clipboard.writeText(text)
     if (type === 'login') {
       setCopiedLogin(true)
@@ -128,6 +129,9 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
     } else if (type === 'boasVindas') {
       setCopiedBoasVindas(true)
       setTimeout(() => setCopiedBoasVindas(false), 2500)
+    } else if (type === 'feedback') {
+      setCopiedFeedback(true)
+      setTimeout(() => setCopiedFeedback(false), 2500)
     }
   }
 
@@ -161,6 +165,24 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
       `👤 *Usuário:* ${login}\n` +
       `🔑 *Senha:* ${senha}\n\n` +
       `_Acompanhe em tempo real todas as etapas do processo de implantação._`
+  }
+
+  const getFeedbackMessage = () => {
+    const isLocalhost = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+    const origin = isLocalhost ? 'https://mantran-clientes-five.vercel.app' : window.location.origin
+    const nomeEmpresa = implantacao?.nome_empresa || 'Cliente'
+    const hora = new Date().getHours()
+    const saudacao = hora >= 12 && hora < 18 ? 'Boa tarde' : hora >= 18 ? 'Boa noite' : 'Bom dia'
+
+    return `${saudacao}, pessoal.\n\n` +
+      `Concluímos todas as etapas da implantação. Agradecemos muito pela parceria e dedicação de vocês ao longo de todo o processo! 🎉\n\n` +
+      `Agora gostaríamos de ouvir vocês: preparamos um espaço para que possam avaliar a experiência e deixar seu feedback sobre a implantação.\n\n` +
+      `🏢 *Empresa:* ${nomeEmpresa}\n` +
+      `🌐 *Link de Acesso:* ${origin}\n` +
+      `👤 *Usuário:* ${login}\n` +
+      `🔑 *Senha:* ${senha}\n\n` +
+      `Sua opinião é fundamental para continuarmos aprimorando nossos processos. Leva só alguns minutinhos e faz toda a diferença!\n\n` +
+      `Contamos com a participação de vocês!`
   }
 
   if (!isOpen || !implantacao) return null
@@ -394,6 +416,25 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
                           <>
                             <MessageSquare className="w-4 h-4 text-emerald-400 shrink-0" />
                             <span>Copiar Boas-Vindas + Acesso (WhatsApp)</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Botão Mensagem Feedback + Acesso */}
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(getFeedbackMessage(), 'feedback')}
+                        className="w-full py-2.5 px-4 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-purple-500/10 active:scale-[0.99]"
+                      >
+                        {copiedFeedback ? (
+                          <>
+                            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>Mensagem de Feedback Copiada!</span>
+                          </>
+                        ) : (
+                          <>
+                            <PartyPopper className="w-4 h-4 text-purple-400 shrink-0" />
+                            <span>Copiar Feedback + Acesso (WhatsApp)</span>
                           </>
                         )}
                       </button>
