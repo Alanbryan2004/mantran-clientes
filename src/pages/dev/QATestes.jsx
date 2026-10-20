@@ -522,10 +522,9 @@ export default function QATestes() {
         const qaNome = user?.nome || user?.login || "QA";
         const qaId = user?.id || null;
 
-        // Regra de negócio: Apenas dispara notificação para o técnico no PRIMEIRO cenário que acusar erro nesta tela nesta rodada.
-        // Consultamos a última notificação desta tela no banco:
-        // Se a última notificação da tela já foi 'qa_reprovado' enviada recentemente (há menos de 10 min),
-        // significa que o técnico já foi avisado nesta sessão de testes e não devemos duplicar.
+        // Regra de negócio: A notificação de reprovação é POR TELA (e não por cenário individual).
+        // Se a tela já possui uma notificação 'qa_reprovado' ativa (ou seja, já está reprovada e o técnico já foi avisado),
+        // NÃO criamos outra notificação no painel do usuário. Apenas atualizamos a notificação existente com os detalhes adicionais.
         let jaNotificadoNestaRodada = false;
         try {
           const ultimasNotifs = await apiGet(
@@ -533,10 +532,25 @@ export default function QATestes() {
           );
           const ultimaNotif = ultimasNotifs?.[0];
           if (ultimaNotif && ultimaNotif.tipo === "qa_reprovado") {
-            const tempoDesdeUltima = Date.now() - new Date(ultimaNotif.created_at).getTime();
-            // Se foi enviada há menos de 10 minutos (mesma sessão contínua de QA na tela), não duplica
-            if (tempoDesdeUltima < 10 * 60 * 1000) {
-              jaNotificadoNestaRodada = true;
+            jaNotificadoNestaRodada = true;
+
+            // Atualiza a notificação existente da tela com o novo apontamento sem duplicar no painel
+            try {
+              const motivoAntigo = ultimaNotif.dados_extras?.motivo_erro || "";
+              const novoApontamento = `• [${cenario.titulo}]: ${textoErro.trim()}`;
+              const motivoCombinado = motivoAntigo
+                ? (motivoAntigo.includes(cenario.titulo) ? motivoAntigo : `${motivoAntigo}\n\n${novoApontamento}`)
+                : novoApontamento;
+
+              await apiPatch(`/rest/v1/notificacoes?id=eq.${ultimaNotif.id}`, {
+                dados_extras: {
+                  ...ultimaNotif.dados_extras,
+                  motivo_erro: motivoCombinado,
+                  cenario_titulo: "Múltiplos cenários apontados"
+                }
+              });
+            } catch (updErr) {
+              console.warn("[QA Testes] Aviso ao atualizar dados da notificação existente da tela:", updErr);
             }
           }
         } catch (checkErr) {
@@ -544,7 +558,7 @@ export default function QATestes() {
         }
 
         if (jaNotificadoNestaRodada) {
-          console.log(`[QA Testes] Tela "${nomeTela}" já possui notificação de reprovação recente. Não duplicando para o técnico.`);
+          console.log(`[QA Testes] Tela "${nomeTela}" já possui notificação de reprovação ativa. Registro existente atualizado sem duplicar.`);
         } else {
           const telaObj = (telas || []).find((t) => t.tela === nomeTela);
 
@@ -586,7 +600,9 @@ export default function QATestes() {
             }
           }
 
-          // Envia notificação para cada técnico responsável
+          const motivoFormatado = `• [${cenario.titulo}]: ${textoErro.trim()}`;
+
+          // Envia notificação única da tela para cada técnico responsável
           if (tecnicosMap.size > 0) {
             for (const [tId, tNome] of tecnicosMap.entries()) {
               await criarNotificacao({
@@ -600,7 +616,7 @@ export default function QATestes() {
                   tela: nomeTela,
                   cenario_id: cenario.id,
                   cenario_titulo: cenario.titulo,
-                  motivo_erro: textoErro.trim(),
+                  motivo_erro: motivoFormatado,
                   qa_id: qaId,
                   qa_nome: qaNome,
                   tecnico_id: tId,
@@ -621,7 +637,7 @@ export default function QATestes() {
                 tela: nomeTela,
                 cenario_id: cenario.id,
                 cenario_titulo: cenario.titulo,
-                motivo_erro: textoErro.trim(),
+                motivo_erro: motivoFormatado,
                 qa_id: qaId,
                 qa_nome: qaNome
               }

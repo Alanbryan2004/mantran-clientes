@@ -200,7 +200,24 @@ export function NotificationsPopover() {
           lida: readIds.has(n.id) // O status de lida é estritamente pessoal deste usuário
         }))
 
-      setNotificacoes(userList)
+      // Agrupamento/Deduplicação de QA por Tela:
+      // A notificação de QA Reprovado deve ser UMA por Tela no painel, mantendo a mais recente
+      const telasQaVistas = new Set<string>()
+      const userListDeduplicada = userList.filter((n: any) => {
+        const isQaReprovado = n.tipo === 'qa_reprovado' || n.dados_extras?.acao === 'reprovacao'
+        if (isQaReprovado) {
+          const telaKey = (n.dados_extras?.tela || n.titulo?.replace('❌ Tela Reprovada no QA: ', '') || '').trim().toLowerCase()
+          if (telaKey) {
+            if (telasQaVistas.has(telaKey)) {
+              return false // Descarta repetições anteriores da mesma tela
+            }
+            telasQaVistas.add(telaKey)
+          }
+        }
+        return true
+      })
+
+      setNotificacoes(userListDeduplicada)
     } catch (err) {
       console.warn('Erro ao carregar notificações:', err)
     } finally {
@@ -1096,6 +1113,22 @@ export function NotificationsPopover() {
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 Fechar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalQaDetalhes(null)
+                  setIsOpen(false)
+                  if (modalQaDetalhes.tipo === 'qa_reprovado') {
+                    navigate('/dev/tarefas')
+                  } else {
+                    navigate('/dev/qa')
+                  }
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                {modalQaDetalhes.tipo === 'qa_reprovado' ? 'Ir para Minhas Tarefas' : 'Ir para QA & Testes'}
               </button>
             </div>
           </div>
