@@ -83,6 +83,22 @@ export function getImagensCenario(cenario) {
   return [];
 }
 
+// Prints anexados pelo técnico na correção (coluna evidencia_correcao).
+function getImagensCorrecaoLocal(cenario) {
+  if (!cenario || !cenario.evidencia_correcao) return [];
+  if (Array.isArray(cenario.evidencia_correcao)) return cenario.evidencia_correcao;
+  try {
+    const parsed = JSON.parse(cenario.evidencia_correcao);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean);
+    if (typeof parsed === "string" && parsed.trim()) return [parsed];
+  } catch {
+    if (typeof cenario.evidencia_correcao === "string" && cenario.evidencia_correcao.trim()) {
+      return [cenario.evidencia_correcao];
+    }
+  }
+  return [];
+}
+
 export default function QATestes() {
   const { user } = useAuth();
 
@@ -353,6 +369,13 @@ export default function QATestes() {
       return matchTela && matchTecnico && matchStatus && matchQa && matchMeuTecnico;
     });
   }, [telas, cenarios, buscaTela, buscaTecnico, filtroStatus, apenasMinhasHomologacoes, apenasMinhasTelasTecnico, user]);
+
+  // Tela atualmente selecionada para a VISÃO DE DETALHE (separada da lista).
+  // telaExpandida guarda o NOME da tela; aqui resolvemos o objeto completo.
+  const telaSelecionadaObj = useMemo(
+    () => (telaExpandida ? telas.find((t) => t.tela === telaExpandida) || null : null),
+    [telaExpandida, telas]
+  );
 
   // Ações de Cenário
   function abrirModalNovoCenario(t) {
@@ -666,7 +689,7 @@ GRANT ALL ON TABLE public.qa_cenarios TO service_role;`;
         {loading && <div style={styles.loading}>Carregando telas e cenários de QA...</div>}
         {erro && <div style={styles.err}>{erro}</div>}
 
-        {!loading && (
+        {!loading && !telaSelecionadaObj && (
           <>
             {/* CARDS DE RESUMO */}
             <div style={styles.gridStats}>
@@ -864,10 +887,10 @@ GRANT ALL ON TABLE public.qa_cenarios TO service_role;`;
 
                   return (
                     <div key={t.tela} style={styles.screenCard}>
-                      {/* CABEÇALHO DO CARD DA TELA */}
+                      {/* CABEÇALHO DO CARD DA TELA — clique abre a VISÃO DE DETALHE */}
                       <div
                         style={styles.screenHeader}
-                        onClick={() => setTelaExpandida(isExpandido ? null : t.tela)}
+                        onClick={() => setTelaExpandida(t.tela)}
                       >
                         <div style={{ flex: 1 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -919,14 +942,14 @@ GRANT ALL ON TABLE public.qa_cenarios TO service_role;`;
                               <span style={{ color: "#2563eb", fontWeight: 700 }}>{totalPendente} Pend</span>
                             </div>
                           )}
-                          <button style={styles.btnExpand}>
-                            {isExpandido ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                          <button style={styles.btnExpand} title="Abrir detalhes da tela">
+                            <ChevronRight size={20} />
                           </button>
                         </div>
                       </div>
 
-                      {/* CONTEÚDO EXPANDIDO - CENÁRIOS DE TESTE */}
-                      {isExpandido && (
+                      {/* (Removido) O conteúdo de cenários agora abre em visão de detalhe separada */}
+                      {false && (
                         <div style={styles.screenBody}>
                           <div style={styles.bodyTopRow}>
                             <div>
@@ -1124,6 +1147,219 @@ GRANT ALL ON TABLE public.qa_cenarios TO service_role;`;
           </>
         )}
 
+        {/* ===================== VISÃO DE DETALHE (TELA SELECIONADA) ===================== */}
+        {!loading && telaSelecionadaObj && (() => {
+          const t = telaSelecionadaObj;
+          const infoStatus = calcularStatusTela(t.tela);
+          const IconStatus = infoStatus.icon;
+          const cenariosDaTela = cenarios.filter((c) => c.tela === t.tela);
+          const totalCenarios = cenariosDaTela.length;
+          const totalOk = cenariosDaTela.filter((c) => c.status === "OK").length;
+          const totalErro = cenariosDaTela.filter((c) => c.status === "ERRO").length;
+          const totalPendente = cenariosDaTela.filter((c) => c.status === "PENDENTE").length;
+
+          return (
+            <div style={styles.detailWrap}>
+              {/* Barra superior: voltar + título + status */}
+              <div style={styles.detailTopBar}>
+                <button style={styles.btnBackDetail} onClick={() => setTelaExpandida(null)}>
+                  <ChevronLeft size={18} /> Voltar para a lista
+                </button>
+                <div style={styles.detailCounters}>
+                  <span style={{ color: "#16a34a", fontWeight: 700 }}>{totalOk} OK</span>
+                  <span style={{ color: "#6b7280" }}>•</span>
+                  <span style={{ color: "#dc2626", fontWeight: 700 }}>{totalErro} Erro</span>
+                  <span style={{ color: "#6b7280" }}>•</span>
+                  <span style={{ color: "#2563eb", fontWeight: 700 }}>{totalPendente} Pend</span>
+                </div>
+              </div>
+
+              {/* Cabeçalho da tela */}
+              <div style={styles.detailHeaderCard}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={styles.screenTitle}>{t.tela}</span>
+                  <span style={styles.moduleTag}>{t.modulo}</span>
+                  <div style={{ ...styles.statusBadge, background: infoStatus.bg, color: infoStatus.cor, borderColor: infoStatus.cor }}>
+                    <IconStatus size={14} />
+                    {infoStatus.label}
+                  </div>
+                </div>
+                <div style={styles.screenMeta}>
+                  <span>👤 Desenvolvido por: <strong>{t.tecnico}</strong></span>
+                  <span>•</span>
+                  <span>📋 Tabelas: <strong>{t.tabelas.length}</strong></span>
+                  {t.endpoints.length > 0 && (
+                    <>
+                      <span>•</span>
+                      <span>🔗 Endpoints: <strong>{t.endpoints.length}</strong></span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Corpo: cenários de teste */}
+              <div style={styles.screenBody}>
+                <div style={styles.bodyTopRow}>
+                  <div>
+                    <h3 style={styles.cenariosTitle}>
+                      Cenários de Teste & Regras de Negócio ({totalCenarios})
+                    </h3>
+                    <p style={styles.cenariosSub}>
+                      Cada cenário deve cobrir um caso de uso ou regra de negócio da tela.
+                    </p>
+                  </div>
+                  <button onClick={() => abrirModalNovoCenario(t)} style={styles.btnAddCenario}>
+                    <PlusCircle size={16} />
+                    Adicionar Cenário de Teste
+                  </button>
+                </div>
+
+                {cenariosDaTela.length === 0 ? (
+                  <div style={styles.emptyCenarios}>
+                    <HelpCircle size={32} color="#9ca3af" />
+                    <div>Nenhum cenário de teste cadastrado para esta tela ainda.</div>
+                    <button onClick={() => abrirModalNovoCenario(t)} style={styles.btnStartTesting}>
+                      ✍️ Definir o que será testado antes de Iniciar
+                    </button>
+                  </div>
+                ) : (
+                  <div style={styles.cenariosList}>
+                    {cenariosDaTela.map((c, idx) => {
+                      const isOk = c.status === "OK";
+                      const isErro = c.status === "ERRO";
+                      const isPendente = c.status === "PENDENTE";
+                      return (
+                        <div
+                          key={c.id}
+                          style={{
+                            ...styles.cenarioCard,
+                            borderLeft: isErro ? "4px solid #dc2626" : isOk ? "4px solid #16a34a" : "4px solid #2563eb"
+                          }}
+                        >
+                          <div style={styles.cenarioMain}>
+                            <div style={{ flex: 1 }}>
+                              <div style={styles.cenarioHeader}>
+                                <span style={styles.cenarioIndex}>#{idx + 1}</span>
+                                <strong style={styles.cenarioTitulo}>{c.titulo}</strong>
+                              </div>
+                              {c.descricao && <div style={styles.cenarioDesc}>{c.descricao}</div>}
+
+                              {c.observacao_erro && (
+                                <div style={styles.erroBox}>
+                                  <div style={styles.erroBoxTitle}>
+                                    <AlertTriangle size={14} /> Detalhe do Erro Apontado pelo QA ({c.qa_nome || "QA"}):
+                                  </div>
+                                  <div style={styles.erroBoxContent}>{c.observacao_erro}</div>
+                                  {(() => {
+                                    const cImgs = getImagensCenario(c);
+                                    if (cImgs.length === 0) return null;
+                                    return (
+                                      <div style={styles.printPreviewWrap}>
+                                        <div style={styles.printHeader}>
+                                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                            <Camera size={13} color="#b91c1c" />
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: "#991b1b" }}>
+                                              Prints / Evidências ({cImgs.length}):
+                                            </span>
+                                          </div>
+                                          <button type="button" style={styles.btnVerPrint} onClick={() => setModalZoomImagem({ imagens: cImgs, index: 0 })}>
+                                            <Maximize2 size={12} /> Ver em Tela Cheia
+                                          </button>
+                                        </div>
+                                        <div style={styles.galleryGrid}>
+                                          {cImgs.map((img, imgIdx) => (
+                                            <div key={imgIdx} style={styles.galleryItem} onClick={() => setModalZoomImagem({ imagens: cImgs, index: imgIdx })}>
+                                              <img src={img} alt={`Print ${imgIdx + 1}`} style={styles.galleryThumb} title={`Print #${imgIdx + 1} - Clique para ampliar`} />
+                                              <span style={styles.galleryBadge}>#{imgIdx + 1}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+
+                              {c.observacao_correcao && (
+                                <div style={styles.correcaoBox}>
+                                  <div style={styles.correcaoBoxTitle}>
+                                    <MessageSquare size={14} /> Retorno / Correção do Técnico ({c.tecnico_nome || "Técnico"}):
+                                    {c.status === "CORRIGIDO" && (
+                                      <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, color: "#15803d", background: "#dcfce7", border: "1px solid #86efac", borderRadius: 6, padding: "1px 6px" }}>
+                                        CORRIGIDO — revalide
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={styles.correcaoBoxContent}>{c.observacao_correcao}</div>
+                                  {(() => {
+                                    const cImgs = getImagensCorrecaoLocal(c);
+                                    if (cImgs.length === 0) return null;
+                                    return (
+                                      <div style={{ marginTop: 8 }}>
+                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                                          <span style={{ fontSize: 11, fontWeight: 700, color: "#166534", display: "flex", alignItems: "center", gap: 6 }}>
+                                            <Camera size={13} /> Prints da Correção ({cImgs.length}):
+                                          </span>
+                                          <button type="button" style={styles.btnVerPrint} onClick={() => setModalZoomImagem({ imagens: cImgs, index: 0 })}>
+                                            <Maximize2 size={12} /> Ver em Tela Cheia
+                                          </button>
+                                        </div>
+                                        <div style={styles.galleryGrid}>
+                                          {cImgs.map((img, imgIdx) => (
+                                            <div key={imgIdx} style={styles.galleryItem} onClick={() => setModalZoomImagem({ imagens: cImgs, index: imgIdx })}>
+                                              <img src={img} alt={`Correção ${imgIdx + 1}`} style={styles.galleryThumb} title={`Print #${imgIdx + 1} - Clique para ampliar`} />
+                                              <span style={styles.galleryBadge}>#{imgIdx + 1}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+
+                            <div style={styles.cenarioActions}>
+                              <div style={styles.statusButtonsGroup}>
+                                <button
+                                  onClick={() => mudarStatusCenario(c, "PENDENTE")}
+                                  style={{ ...styles.btnStatusOpt, background: isPendente ? "#dbeafe" : "#f3f4f6", color: isPendente ? "#1d4ed8" : "#4b5563", borderColor: isPendente ? "#93c5fd" : "#d1d5db", fontWeight: isPendente ? 800 : 500 }}
+                                >
+                                  <Clock size={14} /> PENDENTE
+                                </button>
+                                <button
+                                  onClick={() => mudarStatusCenario(c, "OK")}
+                                  style={{ ...styles.btnStatusOpt, background: isOk ? "#dcfce7" : "#f3f4f6", color: isOk ? "#15803d" : "#4b5563", borderColor: isOk ? "#86efac" : "#d1d5db", fontWeight: isOk ? 800 : 500 }}
+                                >
+                                  <CheckCircle2 size={14} /> OK
+                                </button>
+                                <button
+                                  onClick={() => mudarStatusCenario(c, "ERRO")}
+                                  style={{ ...styles.btnStatusOpt, background: isErro ? "#fee2e2" : "#f3f4f6", color: isErro ? "#b91c1c" : "#4b5563", borderColor: isErro ? "#fca5a5" : "#d1d5db", fontWeight: isErro ? 800 : 500 }}
+                                >
+                                  <XCircle size={14} /> ERRO
+                                </button>
+                              </div>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <button onClick={() => abrirModalEditarCenario(c)} style={styles.btnIconAction} title="Editar Cenário">
+                                  <Edit3 size={15} color="#4b5563" />
+                                </button>
+                                <button onClick={() => excluirCenario(c.id)} style={styles.btnIconActionDanger} title="Excluir Cenário">
+                                  <Trash2 size={15} color="#dc2626" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* MODAL ADICIONAR / EDITAR CENÁRIO */}
         {modalCenario && (
           <div style={styles.modalOverlay}>
@@ -1216,20 +1452,6 @@ GRANT ALL ON TABLE public.qa_cenarios TO service_role;`;
                     placeholder="Ex: Ao clicar no botão Salvar com os campos obrigatórios preenchidos, a requisição retornou status 500 no endpoint /rest/v1/cliente e não gravou o registro. Dica: você pode colar um print aqui direto usando Ctrl+V!"
                     value={textoErro}
                     onChange={(e) => setTextoErro(e.target.value)}
-                    onPaste={(e) => {
-                      const items = (e.clipboardData || window.clipboardData)?.items;
-                      if (items) {
-                        for (let item of items) {
-                          if (item.type && item.type.indexOf("image") === 0) {
-                            const file = item.getAsFile();
-                            processarImagem(file, (dataUrl) => {
-                              setImagensErro((prev) => [...prev, dataUrl]);
-                            });
-                            break;
-                          }
-                        }
-                      }
-                    }}
                     rows={4}
                     autoFocus
                   />
@@ -1579,7 +1801,54 @@ const styles = {
     border: "1px solid #e2e8f0",
     overflow: "hidden",
     boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
-    transition: "all 0.15s ease"
+    transition: "all 0.15s ease",
+    cursor: "pointer"
+  },
+  // --- Visão de Detalhe (tela selecionada) ---
+  detailWrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 14
+  },
+  detailTopBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap"
+  },
+  btnBackDetail: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    background: "#fff",
+    border: "1px solid #cbd5e1",
+    color: "#334155",
+    fontWeight: 700,
+    fontSize: 13,
+    padding: "8px 14px",
+    borderRadius: 10,
+    cursor: "pointer"
+  },
+  detailCounters: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: 10,
+    padding: "6px 12px"
+  },
+  detailHeaderCard: {
+    background: "#fff",
+    borderRadius: 16,
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
+    padding: "16px 20px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8
   },
   screenHeader: {
     padding: "16px 20px",

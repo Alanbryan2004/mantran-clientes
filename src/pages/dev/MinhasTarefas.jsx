@@ -17,10 +17,15 @@ export default function MinhasTarefas() {
   const [now, setNow] = useState(Date.now());
 
   // Modal de Análise e Correção de Erros de QA
-  const [modalQa, setModalQa] = useState(null); // { tela, tarefa, cenariosErro }
-  const [notaCorrecao, setNotaCorrecao] = useState("");
+  const [modalQa, setModalQa] = useState(null); // { tela, tarefa }
   const [salvandoCorrecao, setSalvandoCorrecao] = useState(false);
   const [modalZoomImagem, setModalZoomImagem] = useState(null); // { imagens: [], index: 0 }
+
+  // Sub-modal: correção de UM cenário (print + descrição)
+  const [modalCorrecao, setModalCorrecao] = useState(null); // { cenario }
+  const [textoCorrecao, setTextoCorrecao] = useState("");
+  const [imagensCorrecao, setImagensCorrecao] = useState([]); // array de data URLs
+  const [salvandoCorrecaoCenario, setSalvandoCorrecaoCenario] = useState(false);
 
   const tecnicoId = user?.id;
   const tecnicoNome = user?.nome;
@@ -82,6 +87,24 @@ export default function MinhasTarefas() {
     return () => clearInterval(timer);
   }, [apontamentos, tarefas, busyId]);
 
+  // Colar (Ctrl+V) imagem no sub-modal de correção do cenário
+  useEffect(() => {
+    if (!modalCorrecao) return;
+    const handleGlobalPaste = (e) => {
+      const items = (e.clipboardData || window.clipboardData)?.items;
+      if (!items) return;
+      for (let item of items) {
+        if (item.type && item.type.indexOf("image") === 0) {
+          const file = item.getAsFile();
+          processarImagem(file, (dataUrl) => setImagensCorrecao((prev) => [...prev, dataUrl]));
+          break;
+        }
+      }
+    };
+    window.addEventListener("paste", handleGlobalPaste);
+    return () => window.removeEventListener("paste", handleGlobalPaste);
+  }, [modalCorrecao]);
+
   const apontAbertos = useMemo(() => {
     return (apontamentos || []).filter(a => !a.fim).map(a => a.controle_api_id);
   }, [apontamentos]);
@@ -107,8 +130,14 @@ export default function MinhasTarefas() {
   }, [tarefas, apontAbertos, cenariosQa]);
 
   // 👉 MOSTRAR SOMENTE TAREFAS NÃO CONCLUÍDAS OU REPROVADAS NO QA
+  // Reprovadas (com apontamento de erro do QA) sempre no TOPO da lista.
   const tarefasVisiveis = useMemo(() => {
-    return tarefas.filter((t) => !isConcluida(t) || isReprovadaQa(t));
+    const lista = tarefas.filter((t) => !isConcluida(t) || isReprovadaQa(t));
+    return lista.sort((a, b) => {
+      const ra = isReprovadaQa(a) ? 1 : 0;
+      const rb = isReprovadaQa(b) ? 1 : 0;
+      return rb - ra; // reprovadas (1) antes das demais (0)
+    });
   }, [tarefas, cenariosQa]);
 
   async function iniciar(tarefa) {
@@ -279,27 +308,70 @@ export default function MinhasTarefas() {
     }
   }
 
-  function abrirModalQa(tarefa, erros) {
+  function abrirModalQa(tarefa) {
     setModalQa({
       tarefa,
-      tela: tarefa.tela || tarefa.nome_tabela,
-      cenariosErro: erros
+      tela: tarefa.tela || tarefa.nome_tabela
     });
-    setNotaCorrecao("");
+  }
+
+  // Abre o sub-modal de correção de UM cenário (print + descrição)
+  function abrirModalCorrecao(cenario) {
+    setModalCorrecao({ cenario });
+    setTextoCorrecao(cenario.observacao_correcao || "");
+    setImagensCorrecao(getImagensCorrecao(cenario));
+  }
+
+  // Salva a correção do cenário: status CORRIGIDO + texto + print(s).
+  async function salvarCorrecaoCenario() {
+    if (!textoCorrecao.trim()) {
+      alert("Descreva a correção efetuada neste cenário.");
+      return;
+    }
+    setSalvandoCorrecaoCenario(true);
+    try {
+      const payloadImagem =
+        imagensCorrecao.length === 0
+          ? null
+          : imagensCorrecao.length === 1
+          ? imagensCorrecao[0]
+          : JSON.stringify(imagensCorrecao);
+
+      await apiPatch(`/rest/v1/qa_cenarios?id=eq.${modalCorrecao.cenario.id}`, {
+        status: "CORRIGIDO",
+        observacao_correcao: textoCorrecao.trim(),
+        evidencia_correcao: payloadImagem,
+        updated_at: new Date().toISOString()
+      });
+
+      setModalCorrecao(null);
+      setTextoCorrecao("");
+      setImagensCorrecao([]);
+      await carregar();
+    } catch (e) {
+      alert("Erro ao salvar correção: " + (e.message || String(e)));
+    } finally {
+      setSalvandoCorrecaoCenario(false);
+    }
   }
 
   async function retornarParaValidacao() {
-    if (!notaCorrecao.trim()) {
-      alert("Por favor, informe a correção realizada antes de retornar para validação.");
+    // Só retorna quando não há mais cenários em ERRO (todos foram corrigidos).
+    const errosRestantes = modalQa ? getErrosQaDaTarefa(modalQa.tarefa) : [];
+    if (errosRestantes.length > 0) {
+      alert("Ainda há cenários pendentes de correção. Corrija todos antes de retornar para validação.");
       return;
     }
 
     setSalvandoCorrecao(true);
     try {
-      for (const cenario of modalQa.cenariosErro) {
+      // Os cenários corrigidos (status CORRIGIDO) voltam para PENDENTE para o QA revalidar.
+      const corrigidos = (cenariosQa || []).filter(
+        (c) => (c.tela === modalQa.tela || c.tela === modalQa.tarefa?.tela || c.tela === modalQa.tarefa?.nome_tabela) && c.status === "CORRIGIDO"
+      );
+      for (const cenario of corrigidos) {
         await apiPatch(`/rest/v1/qa_cenarios?id=eq.${cenario.id}`, {
           status: "PENDENTE",
-          observacao_correcao: notaCorrecao.trim(),
           updated_at: new Date().toISOString()
         });
       }
@@ -316,7 +388,7 @@ export default function MinhasTarefas() {
         let usuariosSistema = null;
         const qasMap = new Map(); // id -> nome
 
-        for (const cenario of modalQa.cenariosErro || []) {
+        for (const cenario of corrigidos) {
           if (cenario.qa_id) {
             qasMap.set(cenario.qa_id, cenario.qa_nome || "QA");
           } else if (cenario.qa_nome) {
@@ -348,7 +420,6 @@ export default function MinhasTarefas() {
                 tela: nomeTela,
                 tecnico_id: idTecnico,
                 tecnico_nome: nomeTecnico,
-                nota_correcao: notaCorrecao.trim(),
                 qa_id: qaId,
                 qa_nome: qaNome
               }
@@ -366,8 +437,7 @@ export default function MinhasTarefas() {
               acao: "correcao_retorno",
               tela: nomeTela,
               tecnico_id: idTecnico,
-              tecnico_nome: nomeTecnico,
-              nota_correcao: notaCorrecao.trim()
+              tecnico_nome: nomeTecnico
             }
           });
         }
@@ -459,7 +529,7 @@ export default function MinhasTarefas() {
                             );
                           })()}
                           <button
-                            onClick={() => abrirModalQa(t, errosQa)}
+                            onClick={() => abrirModalQa(t)}
                             style={styles.btnVerErroQa}
                           >
                             ⚠️ Reprovado - Ver Erro e Revalidar
@@ -503,100 +573,82 @@ export default function MinhasTarefas() {
                       </div>
                     </div>
 
-                    <div style={styles.actions}>
-                      <button
-                        style={btn(!aberto)}
-                        disabled={busyId === t.id || aberto}
-                        onClick={() => iniciar(t)}
-                      >
-                        ▶ Iniciar
-                      </button>
-
-                      <button
-                        style={btn(aberto)}
-                        disabled={busyId === t.id || !aberto}
-                        onClick={() => pausar(t)}
-                      >
-                        ⏸ Pausar
-                      </button>
-
-                      <button
-                        style={btnDanger(podeFinalizar && !aberto)}
-                        disabled={busyId === t.id || aberto || !podeFinalizar}
-                        onClick={() => finalizar(t)}
-                      >
-                        ⏹ Finalizar
-                      </button>
-
-                      {!concl && (
-                        <button
-                          style={btnWarning(!aberto)}
-                          disabled={busyId === t.id || aberto}
-                          onClick={() => devolver(t)}
-                          title="Devolver para Pendentes"
-                        >
-                          ↩ Devolver
-                        </button>
-                      )}
-
-                      {isReprovada && (
-                        <>
+                    {/* Quando REPROVADA pelo QA (devolução de erro), ocultamos os
+                        controles de produção (ações, status API/Teste/Doc, observações
+                        e endpoints). O técnico age pelo banner "Ver Erro e Revalidar". */}
+                    {!isReprovada && (
+                      <>
+                        <div style={styles.actions}>
                           <button
-                            style={styles.btnReprovadoAction}
-                            onClick={() => abrirModalQa(t, errosQa)}
+                            style={btn(!aberto)}
+                            disabled={busyId === t.id || aberto}
+                            onClick={() => iniciar(t)}
                           >
-                            🚨 Reprovado
+                            ▶ Iniciar
                           </button>
-                          {(() => {
-                            const todasImagens = errosQa.flatMap(c => getImagensCenario(c));
-                            if (todasImagens.length === 0) return null;
-                            return (
-                              <button
-                                type="button"
-                                style={styles.btnVerPrintAction}
-                                onClick={() => setModalZoomImagem({ imagens: todasImagens, index: 0 })}
-                                title="Visualizar prints do erro anexados pelo QA"
-                              >
-                                📸 Prints ({todasImagens.length})
-                              </button>
-                            );
-                          })()}
-                        </>
-                      )}
-                    </div>
 
-                    <div style={styles.statusRow}>
-                      <StatusSelect
-                        label="API"
-                        value={t.status_api}
-                        onChange={(v) => mudarStatus(t, "status_api", v)}
-                      />
-                      <StatusSelect
-                        label="Teste"
-                        value={t.status_teste}
-                        onChange={(v) => mudarStatus(t, "status_teste", v)}
-                      />
-                      <StatusSelect
-                        label="Doc"
-                        value={t.status_documentacao}
-                        onChange={(v) =>
-                          mudarStatus(t, "status_documentacao", v)
-                        }
-                      />
-                    </div>
+                          <button
+                            style={btn(aberto)}
+                            disabled={busyId === t.id || !aberto}
+                            onClick={() => pausar(t)}
+                          >
+                            ⏸ Pausar
+                          </button>
 
-                    <div style={styles.obsWrap}>
-                      <textarea
-                        style={styles.textarea}
-                        defaultValue={t.observacoes || ""}
-                        placeholder="Observações…"
-                        onBlur={(e) =>
-                          salvarObs(t, e.target.value || null)
-                        }
-                      />
-                    </div>
+                          <button
+                            style={btnDanger(podeFinalizar && !aberto)}
+                            disabled={busyId === t.id || aberto || !podeFinalizar}
+                            onClick={() => finalizar(t)}
+                          >
+                            ⏹ Finalizar
+                          </button>
 
-                    <EndpointsEditor tarefa={t} setErro={setErro} />
+                          {!concl && (
+                            <button
+                              style={btnWarning(!aberto)}
+                              disabled={busyId === t.id || aberto}
+                              onClick={() => devolver(t)}
+                              title="Devolver para Pendentes"
+                            >
+                              ↩ Devolver
+                            </button>
+                          )}
+                        </div>
+
+                        <div style={styles.statusRow}>
+                          <StatusSelect
+                            label="API"
+                            value={t.status_api}
+                            onChange={(v) => mudarStatus(t, "status_api", v)}
+                          />
+                          <StatusSelect
+                            label="Teste"
+                            value={t.status_teste}
+                            onChange={(v) => mudarStatus(t, "status_teste", v)}
+                          />
+                          <StatusSelect
+                            label="Doc"
+                            value={t.status_documentacao}
+                            onChange={(v) =>
+                              mudarStatus(t, "status_documentacao", v)
+                            }
+                          />
+                        </div>
+
+                        <div style={styles.obsWrap}>
+                          <textarea
+                            style={styles.textarea}
+                            defaultValue={t.observacoes || ""}
+                            placeholder="Observações…"
+                            onBlur={(e) =>
+                              salvarObs(t, e.target.value || null)
+                            }
+                          />
+                        </div>
+
+                        <EndpointsEditor tarefa={t} setErro={setErro} />
+                      </>
+                    )}
                   </div>
                 );
               })
@@ -620,17 +672,49 @@ export default function MinhasTarefas() {
             </div>
 
             <div style={styles.modalBody}>
-              <div style={{ fontSize: 13, color: "#374151" }}>
-                Abaixo estão os cenários de teste reprovados pelo QA para esta tela:
-              </div>
+              {(() => {
+                // Lista AO VIVO de cenários em ERRO (os corrigidos somem da lista).
+                const errosAtuais = getErrosQaDaTarefa(modalQa.tarefa);
+                const corrigidosCount = (cenariosQa || []).filter(
+                  (c) => (c.tela === modalQa.tela || c.tela === modalQa.tarefa?.tela || c.tela === modalQa.tarefa?.nome_tabela) && c.status === "CORRIGIDO"
+                ).length;
 
-              <div style={styles.qaErrorsList}>
-                {modalQa.cenariosErro.map((c, i) => (
-                  <div key={c.id} style={styles.qaErrorCard}>
-                    <div style={styles.qaErrorHeader}>
-                      <span style={styles.qaErrorBadge}>Cenário #{i + 1}</span>
-                      <strong style={{ fontSize: 13, color: "#111827" }}>{c.titulo}</strong>
+                if (errosAtuais.length === 0) {
+                  return (
+                    <div style={styles.todosCorrigidosBox}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "#15803d" }}>
+                        ✅ Todos os cenários foram corrigidos
+                      </div>
+                      <div style={{ fontSize: 13, color: "#166534", marginTop: 4 }}>
+                        {corrigidosCount} cenário(s) corrigido(s). Clique em "Retornar para Nova Validação" para enviar ao QA.
+                      </div>
                     </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <div style={{ fontSize: 13, color: "#374151" }}>
+                      {errosAtuais.length} cenário(s) a corrigir{corrigidosCount > 0 ? ` • ${corrigidosCount} já corrigido(s)` : ""}:
+                    </div>
+
+                    <div style={styles.qaErrorsList}>
+                      {errosAtuais.map((c, i) => (
+                        <div key={c.id} style={styles.qaErrorCard}>
+                          <div style={styles.qaErrorHeaderRow}>
+                            <div style={styles.qaErrorHeader}>
+                              <span style={styles.qaErrorBadge}>Cenário #{i + 1}</span>
+                              <strong style={{ fontSize: 14, color: "#111827" }}>{c.titulo}</strong>
+                            </div>
+                            <button
+                              type="button"
+                              style={styles.btnCorrigidoCenario}
+                              onClick={() => abrirModalCorrecao(c)}
+                              title="Marcar este cenário como corrigido (anexar print e descrever a correção)"
+                            >
+                              ✔ Corrigido
+                            </button>
+                          </div>
 
                     {c.descricao && (
                       <div style={styles.qaErrorDesc}>
@@ -682,22 +766,11 @@ export default function MinhasTarefas() {
                       })()}
                     </div>
                   </div>
-                ))}
-              </div>
-
-              <div style={styles.correcaoField}>
-                <label style={styles.correcaoLabel}>
-                  Descreva a correção efetuada: <span style={{ color: "red" }}>*</span>
-                </label>
-                <textarea
-                  style={styles.correcaoTextarea}
-                  placeholder="Ex: Corrigido tratamento de validação de duplicidade e ajustado status retornado para 400."
-                  value={notaCorrecao}
-                  onChange={(e) => setNotaCorrecao(e.target.value)}
-                  rows={4}
-                  autoFocus
-                />
-              </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div style={styles.modalFooter}>
@@ -708,12 +781,126 @@ export default function MinhasTarefas() {
               >
                 Fechar
               </button>
+              {(() => {
+                const errosAtuais = getErrosQaDaTarefa(modalQa.tarefa);
+                const tudoCorrigido = errosAtuais.length === 0;
+                return (
+                  <button
+                    style={{
+                      ...styles.btnModalReturnQa,
+                      opacity: tudoCorrigido ? 1 : 0.5,
+                      cursor: tudoCorrigido ? "pointer" : "not-allowed"
+                    }}
+                    onClick={retornarParaValidacao}
+                    disabled={salvandoCorrecao || !tudoCorrigido}
+                    title={tudoCorrigido ? "Enviar para nova validação do QA" : "Corrija todos os cenários antes de retornar"}
+                  >
+                    {salvandoCorrecao ? "Enviando..." : "🔁 Retornar para Nova Validação"}
+                  </button>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL: CORREÇÃO DE UM CENÁRIO (print + descrição) */}
+      {modalCorrecao && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.correcaoModalCard}>
+            <div style={styles.modalHeader}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 20 }}>🛠️</span>
+                <div>
+                  <h3 style={styles.modalTitle}>Registrar Correção do Cenário</h3>
+                  <span style={styles.modalSubHeader}>
+                    Cenário: <strong>{modalCorrecao.cenario.titulo}</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.modalBody}>
+              <div style={styles.qaErrorObs}>
+                <strong style={{ color: "#991b1b" }}>Erro apontado pelo QA:</strong>
+                <div style={{ marginTop: 4, color: "#7f1d1d", whiteSpace: "pre-wrap" }}>
+                  {modalCorrecao.cenario.observacao_erro || "Nenhum detalhe adicional informado."}
+                </div>
+              </div>
+
+              <div style={styles.correcaoField}>
+                <label style={styles.correcaoLabel}>
+                  Descreva a correção efetuada: <span style={{ color: "red" }}>*</span>
+                </label>
+                <textarea
+                  style={styles.correcaoTextarea}
+                  placeholder="Ex: Corrigido o tratamento de validação e ajustado o status retornado."
+                  value={textoCorrecao}
+                  onChange={(e) => setTextoCorrecao(e.target.value)}
+                  rows={4}
+                  autoFocus
+                />
+              </div>
+
+              <div style={styles.correcaoField}>
+                <label style={styles.correcaoLabel}>
+                  📸 Prints da correção ({imagensCorrecao.length}) — cole com Ctrl+V ou selecione abaixo
+                </label>
+                {imagensCorrecao.length > 0 && (
+                  <div style={styles.galleryGridTech}>
+                    {imagensCorrecao.map((img, i) => (
+                      <div key={i} style={styles.galleryItemTech}>
+                        <img
+                          src={img}
+                          alt={`Correção ${i + 1}`}
+                          style={styles.printThumbTech}
+                          onClick={() => setModalZoomImagem({ imagens: imagensCorrecao, index: i })}
+                          title="Clique para ampliar"
+                        />
+                        <button
+                          type="button"
+                          style={styles.btnRemoveImgCorrecao}
+                          onClick={() => setImagensCorrecao((prev) => prev.filter((_, idx) => idx !== i))}
+                          title="Remover este print"
+                        >
+                          ✖
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <label style={styles.uploadCorrecaoBtn}>
+                  📁 Selecionar imagens do computador
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      for (const file of files) {
+                        processarImagem(file, (dataUrl) => setImagensCorrecao((prev) => [...prev, dataUrl]));
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div style={styles.modalFooter}>
               <button
-                style={styles.btnModalReturnQa}
-                onClick={retornarParaValidacao}
-                disabled={salvandoCorrecao}
+                style={styles.btnModalCancel}
+                onClick={() => { setModalCorrecao(null); setTextoCorrecao(""); setImagensCorrecao([]); }}
+                disabled={salvandoCorrecaoCenario}
               >
-                {salvandoCorrecao ? "Enviando..." : "🔁 Retornar para Nova Validação"}
+                Cancelar
+              </button>
+              <button
+                style={styles.btnSalvarCorrecao}
+                onClick={salvarCorrecaoCenario}
+                disabled={salvandoCorrecaoCenario}
+              >
+                {salvandoCorrecaoCenario ? "Salvando..." : "✔ Marcar como Corrigido"}
               </button>
             </div>
           </div>
@@ -829,6 +1016,48 @@ function EndpointsEditor({ tarefa, setErro }) {
       </button>
     </div>
   );
+}
+
+// Processa/comprime imagem (igual ao QATestes) para anexar a correção.
+function processarImagem(file, callback) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let width = img.width;
+      let height = img.height;
+      const MAX = 1200;
+      if (width > height) {
+        if (width > MAX) { height = Math.round((height * MAX) / width); width = MAX; }
+      } else {
+        if (height > MAX) { width = Math.round((width * MAX) / height); height = MAX; }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      callback(canvas.toDataURL("image/jpeg", 0.75));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Extrai as imagens da correção (mesmo formato de evidencia_imagem).
+function getImagensCorrecao(cenario) {
+  if (!cenario || !cenario.evidencia_correcao) return [];
+  if (Array.isArray(cenario.evidencia_correcao)) return cenario.evidencia_correcao;
+  try {
+    const parsed = JSON.parse(cenario.evidencia_correcao);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean);
+    if (typeof parsed === "string" && parsed.trim()) return [parsed];
+  } catch {
+    if (typeof cenario.evidencia_correcao === "string" && cenario.evidencia_correcao.trim()) {
+      return [cenario.evidencia_correcao];
+    }
+  }
+  return [];
 }
 
 function isConcluida(t) {
@@ -1063,11 +1292,85 @@ const styles = {
     background: "#fff",
     borderRadius: 14,
     width: "100%",
-    maxWidth: 580,
+    maxWidth: 920,
     boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden"
+  },
+  correcaoModalCard: {
+    background: "#fff",
+    borderRadius: 14,
+    width: "100%",
+    maxWidth: 640,
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden"
+  },
+  qaErrorHeaderRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 6
+  },
+  btnCorrigidoCenario: {
+    background: "#16a34a",
+    color: "#fff",
+    border: "none",
+    borderRadius: 8,
+    padding: "7px 14px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+    whiteSpace: "nowrap"
+  },
+  todosCorrigidosBox: {
+    background: "#f0fdf4",
+    border: "1px solid #bbf7d0",
+    borderRadius: 10,
+    padding: "16px 18px",
+    textAlign: "center"
+  },
+  btnRemoveImgCorrecao: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    background: "rgba(220,38,38,0.9)",
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    width: 20,
+    height: 20,
+    fontSize: 11,
+    cursor: "pointer",
+    lineHeight: 1
+  },
+  uploadCorrecaoBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    padding: "8px 14px",
+    border: "1px dashed #cbd5e1",
+    borderRadius: 8,
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#475569",
+    cursor: "pointer",
+    background: "#f8fafc",
+    width: "fit-content"
+  },
+  btnSalvarCorrecao: {
+    background: "#16a34a",
+    color: "#fff",
+    border: "none",
+    borderRadius: 8,
+    padding: "10px 18px",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer"
   },
   modalHeader: {
     padding: "16px 20px",
