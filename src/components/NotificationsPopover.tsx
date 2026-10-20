@@ -140,10 +140,11 @@ export function NotificationsPopover() {
             const currentId = currentUser?.id
 
             const isReprovado = n.tipo === 'qa_reprovado' || n.dados_extras?.acao === 'reprovacao'
+            const isAprovado = n.tipo === 'qa_aprovado' || n.dados_extras?.acao === 'aprovacao'
             const isCorrigido = n.tipo === 'qa_corrigido' || n.dados_extras?.acao === 'correcao_retorno'
 
-            if (isReprovado) {
-              // Notificação de tela reprovada: destinada ao técnico responsável pela tela
+            if (isReprovado || isAprovado) {
+              // Notificação de tela reprovada ou aprovada: destinada ao técnico responsável pela tela
               const tecId = n.dados_extras?.destinatario_usuario_id || n.dados_extras?.tecnico_id
               const tecNome = (n.dados_extras?.tecnico_nome || '').trim().toLowerCase()
 
@@ -201,10 +202,13 @@ export function NotificationsPopover() {
         }))
 
       // Agrupamento/Deduplicação de QA por Tela:
-      // A notificação de QA Reprovado deve ser UMA por Tela no painel, mantendo a mais recente
+      // A notificação de QA Reprovado/Aprovado deve ser UMA por Tela no painel, mantendo a mais recente
       const telasQaVistas = new Set<string>()
+      const telasQaAprovadasVistas = new Set<string>()
       const userListDeduplicada = userList.filter((n: any) => {
         const isQaReprovado = n.tipo === 'qa_reprovado' || n.dados_extras?.acao === 'reprovacao'
+        const isQaAprovado = n.tipo === 'qa_aprovado' || n.dados_extras?.acao === 'aprovacao'
+
         if (isQaReprovado) {
           const telaKey = (n.dados_extras?.tela || n.titulo?.replace('❌ Tela Reprovada no QA: ', '') || '').trim().toLowerCase()
           if (telaKey) {
@@ -214,6 +218,17 @@ export function NotificationsPopover() {
             telasQaVistas.add(telaKey)
           }
         }
+
+        if (isQaAprovado) {
+          const telaKey = (n.dados_extras?.tela || n.titulo?.replace('🎉 Tela Aprovada no QA: ', '') || '').trim().toLowerCase()
+          if (telaKey) {
+            if (telasQaAprovadasVistas.has(telaKey)) {
+              return false // Descarta repetições anteriores da mesma tela
+            }
+            telasQaAprovadasVistas.add(telaKey)
+          }
+        }
+
         return true
       })
 
@@ -749,6 +764,7 @@ export function NotificationsPopover() {
                 const isCalendario = item.tipo === 'calendario_lembrete' || item.tipo === 'calendario_convite' || item.dados_extras?.modulo === 'calendario'
                 const isRhNotification = isFerias || isFalta || isPlantao || item.dados_extras?.modulo === 'rh'
                 const isQaReprovado = item.tipo === 'qa_reprovado' || item.dados_extras?.acao === 'reprovacao'
+                const isQaAprovado = item.tipo === 'qa_aprovado' || item.dados_extras?.acao === 'aprovacao'
                 const isQaCorrigido = item.tipo === 'qa_corrigido' || item.dados_extras?.acao === 'correcao_retorno'
                 const isConcluido = item.titulo?.includes('Concluído') || item.dados_extras?.isCompleto
                 const nomeCliente = item.dados_extras?.nome_empresa || 'Cliente'
@@ -763,6 +779,8 @@ export function NotificationsPopover() {
                       !item.lida
                         ? isQaReprovado
                           ? "bg-rose-500/10 border-l-2 border-rose-500"
+                          : isQaAprovado
+                          ? "bg-emerald-500/10 border-l-2 border-emerald-400"
                           : isQaCorrigido
                           ? "bg-emerald-500/10 border-l-2 border-emerald-400"
                           : isCalendario
@@ -790,6 +808,8 @@ export function NotificationsPopover() {
                       "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5 shadow-sm",
                       isQaReprovado
                         ? "bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-rose-500/10"
+                        : isQaAprovado
+                        ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
                         : isQaCorrigido
                         ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-emerald-500/10"
                         : isCalendario
@@ -814,6 +834,8 @@ export function NotificationsPopover() {
                     )}>
                       {isQaReprovado ? (
                         <AlertTriangle className="w-4 h-4 text-rose-400" />
+                      ) : isQaAprovado ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                       ) : isQaCorrigido ? (
                         <RotateCcw className="w-4 h-4 text-emerald-400" />
                       ) : isCalendario ? (
@@ -847,6 +869,8 @@ export function NotificationsPopover() {
                             "text-[11px] font-bold px-2 py-0.5 rounded-md border",
                             isQaReprovado
                               ? "bg-rose-950/40 text-rose-300 border-rose-500/30"
+                              : isQaAprovado
+                              ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
                               : isQaCorrigido
                               ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
                               : isCalendario
@@ -871,6 +895,8 @@ export function NotificationsPopover() {
                           )}>
                             {isQaReprovado
                               ? '❌ QA Reprovado'
+                              : isQaAprovado
+                              ? '🎉 QA Aprovado'
                               : isQaCorrigido
                               ? '🔁 QA Validação'
                               : isCalendario
@@ -897,6 +923,8 @@ export function NotificationsPopover() {
                             "w-2 h-2 rounded-full shrink-0",
                             isQaReprovado
                               ? "bg-rose-500 shadow-[0_0_6px_#f43f5e]"
+                              : isQaAprovado
+                              ? "bg-emerald-400 shadow-[0_0_6px_#34d399]"
                               : isQaCorrigido
                               ? "bg-emerald-400 shadow-[0_0_6px_#34d399]"
                               : isFerias
@@ -933,6 +961,8 @@ export function NotificationsPopover() {
                               "inline-flex items-center gap-1 px-2.5 py-1 rounded border text-[11px] font-semibold transition-all cursor-pointer",
                               isQaReprovado
                                 ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/30"
+                                : isQaAprovado
+                                ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
                                 : isQaCorrigido
                                 ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
                                 : isPontoLembrete
@@ -953,6 +983,8 @@ export function NotificationsPopover() {
                             <ExternalLink className="w-3 h-3" />
                             {isQaReprovado
                               ? 'Ver Apontamento'
+                              : isQaAprovado
+                              ? 'Ver Aprovação'
                               : isQaCorrigido
                               ? 'Validar Tela'
                               : isPontoLembrete
@@ -1010,21 +1042,31 @@ export function NotificationsPopover() {
               "px-5 py-4 border-b flex items-center justify-between",
               modalQaDetalhes.tipo === 'qa_reprovado'
                 ? "bg-rose-500/10 border-rose-500/30"
-                : "bg-emerald-500/10 border-emerald-500/30"
+                : modalQaDetalhes.tipo === 'qa_aprovado'
+                  ? "bg-emerald-500/10 border-emerald-500/30"
+                  : "bg-teal-500/10 border-teal-500/30"
             )}>
               <div className="flex items-center gap-2.5">
                 {modalQaDetalhes.tipo === 'qa_reprovado' ? (
                   <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
                     <AlertTriangle className="w-4 h-4" />
                   </div>
-                ) : (
+                ) : modalQaDetalhes.tipo === 'qa_aprovado' ? (
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-teal-500/20 text-teal-400 flex items-center justify-center border border-teal-500/30">
                     <RotateCcw className="w-4 h-4" />
                   </div>
                 )}
                 <div>
                   <h4 className="text-sm font-bold text-white">
-                    {modalQaDetalhes.tipo === 'qa_reprovado' ? 'Tela Reprovada no QA' : 'Tela Pronta para Nova Validação'}
+                    {modalQaDetalhes.tipo === 'qa_reprovado'
+                      ? 'Tela Reprovada no QA'
+                      : modalQaDetalhes.tipo === 'qa_aprovado'
+                        ? '🎉 Tela Aprovada no QA (100% OK)'
+                        : 'Tela Pronta para Nova Validação'}
                   </h4>
                   <p className="text-[11px] text-slate-400">
                     {formatRelativeTime(modalQaDetalhes.created_at)}
@@ -1057,9 +1099,21 @@ export function NotificationsPopover() {
                     </span>
                   </div>
                 )}
+                {modalQaDetalhes.dados_extras?.total_cenarios && (
+                  <div className="flex items-center justify-between border-t border-slate-800/80 pt-2">
+                    <span className="text-slate-400 font-semibold">Status Geral:</span>
+                    <span className="font-semibold text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 inline" /> {modalQaDetalhes.dados_extras.total_cenarios} cenários 100% Aprovados
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between border-t border-slate-800/80 pt-2">
                   <span className="text-slate-400 font-semibold">
-                    {modalQaDetalhes.tipo === 'qa_reprovado' ? 'Reprovado por (QA):' : 'Validador (QA):'}
+                    {modalQaDetalhes.tipo === 'qa_reprovado'
+                      ? 'Reprovado por (QA):'
+                      : modalQaDetalhes.tipo === 'qa_aprovado'
+                        ? 'Aprovado por (QA):'
+                        : 'Validador (QA):'}
                   </span>
                   <span className="font-semibold text-amber-300">
                     {modalQaDetalhes.dados_extras?.qa_nome || 'Equipe de QA'}
@@ -1121,6 +1175,12 @@ export function NotificationsPopover() {
                   setIsOpen(false)
                   if (modalQaDetalhes.tipo === 'qa_reprovado') {
                     navigate('/dev/tarefas')
+                  } else if (modalQaDetalhes.tipo === 'qa_aprovado') {
+                    if (isTecnico) {
+                      navigate('/dev/tarefas')
+                    } else {
+                      navigate('/dev/qa')
+                    }
                   } else {
                     navigate('/dev/qa')
                   }
@@ -1128,7 +1188,11 @@ export function NotificationsPopover() {
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                {modalQaDetalhes.tipo === 'qa_reprovado' ? 'Ir para Minhas Tarefas' : 'Ir para QA & Testes'}
+                {modalQaDetalhes.tipo === 'qa_reprovado'
+                  ? 'Ir para Minhas Tarefas'
+                  : modalQaDetalhes.tipo === 'qa_aprovado'
+                    ? (isTecnico ? 'Ver em Minhas Tarefas' : 'Ir para QA & Testes')
+                    : 'Ir para QA & Testes'}
               </button>
             </div>
           </div>

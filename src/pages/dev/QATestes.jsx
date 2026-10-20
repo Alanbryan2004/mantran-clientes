@@ -468,6 +468,8 @@ export default function QATestes() {
   }
 
   async function mudarStatusCenario(cenario, novoStatus) {
+    if (cenario.status === novoStatus) return;
+
     if (novoStatus === "ERRO") {
       const imgsExistentes = getImagensCenario(cenario);
       setModalErro({ cenario, erroTexto: cenario.observacao_erro || "", imagens: imgsExistentes });
@@ -483,6 +485,113 @@ export default function QATestes() {
         qa_nome: user?.nome || user?.login || "QA",
         updated_at: new Date().toISOString()
       });
+
+      // Se o status alterado foi "OK", verifica se com esta aprovação TODOS os cenários da tela ficaram "OK" (100% Aprovada!)
+      if (novoStatus === "OK") {
+        try {
+          const nomeTela = cenario.tela;
+          const cenariosDaTela = (cenarios || []).filter((c) => c.tela === nomeTela);
+          const todosDemaisOk = cenariosDaTela.filter((c) => c.id !== cenario.id).every((c) => c.status === "OK");
+          const todosAprovados = cenariosDaTela.length > 0 && todosDemaisOk;
+
+          if (todosAprovados) {
+            // Verifica se a tela já foi notificada como aprovada nesta rodada
+            let jaNotificadoAprovado = false;
+            try {
+              const ultimas = await apiGet(
+                `/rest/v1/notificacoes?dados_extras->>tela=eq.${encodeURIComponent(nomeTela)}&order=created_at.desc&limit=1`
+              );
+              if (ultimas?.[0]?.tipo === "qa_aprovado") {
+                jaNotificadoAprovado = true;
+              }
+            } catch (errCheck) {
+              console.warn("[QA Testes] Aviso ao checar última notificação:", errCheck);
+            }
+
+            if (!jaNotificadoAprovado) {
+              const qaNome = user?.nome || user?.login || "QA";
+              const qaId = user?.id || null;
+              const telaObj = (telas || []).find((t) => t.tela === nomeTela);
+
+              // Mapeia técnicos responsáveis por esta tela
+              const tecnicosMap = new Map();
+              const tecIdDireto = cenario.tecnico_id || telaObj?.tecnico_id;
+              const tecNomeDireto = cenario.tecnico_nome || telaObj?.tecnico_nome || telaObj?.tecnico;
+              if (tecIdDireto) {
+                tecnicosMap.set(tecIdDireto, tecNomeDireto || "Técnico");
+              }
+
+              if (telaObj?.tabelas) {
+                for (const tab of telaObj.tabelas) {
+                  if (tab.tecnico_id) {
+                    tecnicosMap.set(tab.tecnico_id, tab.tecnico_nome || tecNomeDireto || "Técnico");
+                  }
+                }
+              }
+
+              if (tecnicosMap.size === 0 && tecNomeDireto) {
+                const cleanNome = tecNomeDireto.trim().toLowerCase();
+                const tecUser = (usuarios || []).find((u) => {
+                  const uNome = (u.nome || "").trim().toLowerCase();
+                  const uLogin = (u.login || "").trim().toLowerCase();
+                  return (
+                    uNome === cleanNome ||
+                    uLogin === cleanNome ||
+                    uNome.startsWith(cleanNome) ||
+                    cleanNome.startsWith(uNome) ||
+                    uNome.includes(cleanNome)
+                  );
+                });
+                if (tecUser) {
+                  tecnicosMap.set(tecUser.id, tecUser.nome || tecNomeDireto);
+                }
+              }
+
+              const titulo = `🎉 Tela Aprovada no QA: ${nomeTela}`;
+              const mensagem = `A Tela "${nomeTela}" foi 100% aprovada nos testes de QA pelo validador "${qaNome}". Parabéns!`;
+
+              if (tecnicosMap.size > 0) {
+                for (const [tId, tNome] of tecnicosMap.entries()) {
+                  await criarNotificacao({
+                    titulo,
+                    mensagem,
+                    tipo: "qa_aprovado",
+                    destinatario_usuario_id: tId,
+                    dados_extras: {
+                      modulo: "qa",
+                      acao: "aprovacao",
+                      tela: nomeTela,
+                      total_cenarios: cenariosDaTela.length,
+                      qa_id: qaId,
+                      qa_nome: qaNome,
+                      tecnico_id: tId,
+                      tecnico_nome: tNome
+                    }
+                  });
+                }
+              } else {
+                await criarNotificacao({
+                  titulo,
+                  mensagem,
+                  tipo: "qa_aprovado",
+                  destinatario_usuario_id: null,
+                  dados_extras: {
+                    modulo: "qa",
+                    acao: "aprovacao",
+                    tela: nomeTela,
+                    total_cenarios: cenariosDaTela.length,
+                    qa_id: qaId,
+                    qa_nome: qaNome
+                  }
+                });
+              }
+            }
+          }
+        } catch (notifErr) {
+          console.warn("[QA Testes] Erro ao disparar notificação de tela aprovada:", notifErr);
+        }
+      }
+
       await carregar();
     } catch (e) {
       alert("Erro ao atualizar status: " + (e.message || String(e)));
