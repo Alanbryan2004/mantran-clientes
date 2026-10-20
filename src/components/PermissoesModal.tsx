@@ -84,9 +84,20 @@ export function PermissoesModal({ isOpen, onClose }: PermissoesModalProps) {
     if (selectedPerfil === 'Administrador') return // Admin has all routes
     const currentRotas = currentPerm.rotas || []
     const exists = currentRotas.includes(path)
-    const newRotas = exists 
-      ? currentRotas.filter(r => r !== path)
-      : [...currentRotas, path]
+
+    let newRotas: string[]
+    if (path === '/dev/dashboard') {
+      const devSubRoutes = ['/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma']
+      if (exists) {
+        newRotas = currentRotas.filter(r => !devSubRoutes.includes(r))
+      } else {
+        newRotas = Array.from(new Set([...currentRotas, ...devSubRoutes]))
+      }
+    } else {
+      newRotas = exists 
+        ? currentRotas.filter(r => r !== path)
+        : [...currentRotas, path]
+    }
 
     setPermissions({
       ...permissions,

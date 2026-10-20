@@ -51,7 +51,11 @@ export function Header() {
     }
     handleUpdate()
     window.addEventListener('mantran:shortcuts-updated', handleUpdate)
-    return () => window.removeEventListener('mantran:shortcuts-updated', handleUpdate)
+    window.addEventListener('mantran:permissions-updated', handleUpdate)
+    return () => {
+      window.removeEventListener('mantran:shortcuts-updated', handleUpdate)
+      window.removeEventListener('mantran:permissions-updated', handleUpdate)
+    }
   }, [user?.id])
 
   // Resolve as definições completas dos atalhos configurados e permitidos

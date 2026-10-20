@@ -218,8 +218,16 @@ export function Sidebar() {
       console.error('Erro ao atualizar permissões:', err)
     })
 
+    const handlePermissionsUpdated = () => {
+      if (isMounted) {
+        updateNav()
+      }
+    }
+    window.addEventListener('mantran:permissions-updated', handlePermissionsUpdated)
+
     return () => {
       isMounted = false
+      window.removeEventListener('mantran:permissions-updated', handlePermissionsUpdated)
     }
   }, [user?.perfil, isParceiro, isCliente])
 

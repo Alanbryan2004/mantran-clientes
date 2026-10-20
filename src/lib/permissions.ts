@@ -88,20 +88,6 @@ export const permissionsApi = {
             rotas.push('/rh')
           }
 
-          // Garante que Técnicos tenham acesso às rotas de Desenvolvimento
-          if (p.includes('tecnico')) {
-            if (!rotas.includes('/dev/tarefas')) rotas.push('/dev/tarefas')
-            if (!rotas.includes('/dev/qa')) rotas.push('/dev/qa')
-            if (!rotas.includes('/dev/dashboard')) rotas.push('/dev/dashboard')
-            if (!rotas.includes('/dev/pendentes')) rotas.push('/dev/pendentes')
-            if (!rotas.includes('/dev/finalizadas')) rotas.push('/dev/finalizadas')
-            if (!rotas.includes('/dev/cadastro-telas')) rotas.push('/dev/cadastro-telas')
-            if (!rotas.includes('/dev/cronograma')) rotas.push('/dev/cronograma')
-          }
-          if (p.includes('suporte')) {
-            if (!rotas.includes('/dev/qa')) rotas.push('/dev/qa')
-          }
-
           // Lista de projetos: usa a coluna nova (array/JSONB); se vazia, cai no campo singular legado
           let projetosIds: string[] = []
           const brutaLista = row.projetos_ids_permitidos
@@ -134,6 +120,10 @@ export const permissionsApi = {
     const current = this.getStoredPermissions()
     current[perm.perfil] = perm
     localStorage.setItem(STORAGE_KEY, JSON.stringify(current))
+
+    try {
+      window.dispatchEvent(new CustomEvent('mantran:permissions-updated', { detail: { perfil: perm.perfil } }))
+    } catch (_) {}
 
     const lista = (perm.projetos_especificos_ids && perm.projetos_especificos_ids.length)
       ? perm.projetos_especificos_ids
@@ -176,9 +166,15 @@ export const permissionsApi = {
     // Normalize path
     const cleanPath = path.split('?')[0].split('#')[0]
 
+    // Normaliza aliases
+    let normPath = cleanPath
+    if (normPath === '/qa-testes' || normPath.startsWith('/qa-testes/')) normPath = '/dev/qa'
+    if (normPath === '/minhas-tarefas' || normPath.startsWith('/minhas-tarefas/')) normPath = '/dev/tarefas'
+    if (normPath === '/cronograma' || normPath.startsWith('/cronograma/')) normPath = '/dev/cronograma'
+
     // Rotas /rh e /calendario: permitidas para todos os funcionários internos
     // (Suporte, Tecnico, Comercial, etc.), independentemente das permissões salvas.
-    if (cleanPath.startsWith('/rh') || cleanPath.startsWith('/calendario')) {
+    if (normPath.startsWith('/rh') || normPath.startsWith('/calendario')) {
       const p = perfilName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       if (p === 'cliente' || p === 'parceiro' || p === 'usuario' || p.includes('consulta')) {
         return false
@@ -186,22 +182,12 @@ export const permissionsApi = {
       return true
     }
 
-    // Rotas de Desenvolvimento / Dev
-    if (cleanPath.startsWith('/dev/tarefas')) {
-      const p = perfilName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      if (p.includes('tecnico') || p === 'administrador') return true
-    }
-    if (cleanPath.startsWith('/dev/qa')) {
-      const p = perfilName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      if (p.includes('tecnico') || p.includes('suporte') || p === 'administrador') return true
-    }
-
     const perms = this.getStoredPermissions()
     const userPerm = perms[perfilName] || DEFAULT_PERMISSOES[perfilName]
     if (!userPerm) return true
 
     // Special case for bases / project details
-    if (cleanPath.startsWith('/bases')) {
+    if (normPath.startsWith('/bases')) {
       if (!userPerm.rotas.includes('/bases')) return false
 
       // Lista de projetos permitidos (nova) com fallback ao campo singular (legado)
@@ -210,8 +196,8 @@ export const permissionsApi = {
         : (userPerm.projeto_especifico_id ? [userPerm.projeto_especifico_id] : [])
 
       // Se há restrição e está em /bases/:id, o id tem que estar na lista permitida
-      if (projetosPermitidos.length > 0 && cleanPath.startsWith('/bases/')) {
-        const projId = cleanPath.replace('/bases/', '').split('/')[0]
+      if (projetosPermitidos.length > 0 && normPath.startsWith('/bases/')) {
+        const projId = normPath.replace('/bases/', '').split('/')[0]
         if (projId && !projetosPermitidos.includes(projId)) {
           return false
         }
@@ -219,11 +205,21 @@ export const permissionsApi = {
       return true
     }
 
-    if (cleanPath === '/' || cleanPath === '') {
+    if (normPath === '/' || normPath === '') {
       return userPerm.rotas.includes('/')
     }
 
-    return userPerm.rotas.some(r => r !== '/' && cleanPath.startsWith(r))
+    // Sub-rotas vinculadas ao "Controle de APIs / Dev" (/dev/dashboard)
+    if (
+      normPath.startsWith('/dev/pendentes') ||
+      normPath.startsWith('/dev/finalizadas') ||
+      normPath.startsWith('/dev/cadastro-telas') ||
+      normPath.startsWith('/dev/cronograma')
+    ) {
+      if (userPerm.rotas.includes('/dev/dashboard')) return true
+    }
+
+    return userPerm.rotas.some(r => r !== '/' && normPath.startsWith(r))
   },
 
   // Lista de projetos permitidos para o usuário logado (vazia = sem restrição)
