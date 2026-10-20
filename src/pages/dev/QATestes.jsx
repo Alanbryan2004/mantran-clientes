@@ -120,6 +120,25 @@ export default function QATestes() {
   // Tela selecionada / expandida
   const [telaExpandida, setTelaExpandida] = useState(null);
 
+  // Cenários expandidos na visão de detalhe (Set de ids). Retraídos por padrão.
+  const [cenariosExpandidos, setCenariosExpandidos] = useState(() => new Set());
+  const toggleCenario = (id) =>
+    setCenariosExpandidos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
+  // Prioridade de ordenação dos cenários: PENDENTE < ERRO < CORRIGIDO < OK
+  const ordemStatusCenario = (s) => {
+    const v = (s || "").toUpperCase();
+    if (v === "PENDENTE") return 0;
+    if (v === "ERRO") return 1;
+    if (v === "CORRIGIDO") return 2;
+    if (v === "OK") return 3;
+    return 4;
+  };
+
   // Modal de Adicionar/Editar Cenário
   const [modalCenario, setModalCenario] = useState(null); // { tela, cenarioId, titulo, descricao, tecnico_id, tecnico_nome }
   const [tituloCenario, setTituloCenario] = useState("");
@@ -1224,10 +1243,14 @@ GRANT ALL ON TABLE public.qa_cenarios TO service_role;`;
                   </div>
                 ) : (
                   <div style={styles.cenariosList}>
-                    {cenariosDaTela.map((c, idx) => {
+                    {[...cenariosDaTela]
+                      .sort((a, b) => ordemStatusCenario(a.status) - ordemStatusCenario(b.status))
+                      .map((c, idx) => {
                       const isOk = c.status === "OK";
                       const isErro = c.status === "ERRO";
                       const isPendente = c.status === "PENDENTE";
+                      const expandido = cenariosExpandidos.has(c.id);
+                      const temDetalhe = !!c.descricao || !!c.observacao_erro || !!c.observacao_correcao;
                       return (
                         <div
                           key={c.id}
@@ -1238,10 +1261,22 @@ GRANT ALL ON TABLE public.qa_cenarios TO service_role;`;
                         >
                           <div style={styles.cenarioMain}>
                             <div style={{ flex: 1 }}>
-                              <div style={styles.cenarioHeader}>
+                              <div
+                                style={{ ...styles.cenarioHeader, cursor: "pointer" }}
+                                onClick={() => toggleCenario(c.id)}
+                                title={expandido ? "Recolher cenário" : "Expandir cenário"}
+                              >
                                 <span style={styles.cenarioIndex}>#{idx + 1}</span>
                                 <strong style={styles.cenarioTitulo}>{c.titulo}</strong>
+                                {temDetalhe && (
+                                  <span style={{ marginLeft: "auto", color: "#94a3b8", display: "inline-flex", alignItems: "center" }}>
+                                    {expandido ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                  </span>
+                                )}
                               </div>
+
+                              {expandido && (
+                              <>
                               {c.descricao && <div style={styles.cenarioDesc}>{c.descricao}</div>}
 
                               {c.observacao_erro && (
@@ -1316,6 +1351,8 @@ GRANT ALL ON TABLE public.qa_cenarios TO service_role;`;
                                     );
                                   })()}
                                 </div>
+                              )}
+                              </>
                               )}
                             </div>
 
