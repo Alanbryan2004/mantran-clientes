@@ -39,12 +39,14 @@ export function VisualizarCheckpointModal({
     ? nfse.parametros
     : [{
         id: '1',
+        cnpj_emissao: nfse.cnpj_emissao,
         nome_municipio: nfse.nome_municipio,
         inscricao_municipal: nfse.inscricao_municipal,
         aliquota_iss: nfse.aliquota_iss,
         codigo_servico: nfse.codigo_servico,
         codigo_tributacao: nfse.codigo_tributacao,
         cnae: nfse.cnae,
+        codigo_nbs: nfse.codigo_nbs,
         emitia_rps: nfse.emitia_rps
       }]
   const certificado = dados.certificado_digital || { arquivo_nome: '', arquivo_base64: '', senha: '' }
@@ -336,8 +338,8 @@ export function VisualizarCheckpointModal({
                       )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
                         <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">Município de Emissão</p>
-                          <p className="font-bold text-slate-200">{item.nome_municipio || 'Não informado'}</p>
+                          <p className="text-slate-400 text-[11px] mb-0.5">CNPJ</p>
+                          <p className="font-mono font-bold text-slate-200">{item.cnpj_emissao || 'Não informado'}</p>
                         </div>
 
                         <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
@@ -346,25 +348,35 @@ export function VisualizarCheckpointModal({
                         </div>
 
                         <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">Alíquota ISS</p>
-                          <p className="font-bold text-emerald-400">{item.aliquota_iss || 'Não informado'}</p>
+                          <p className="text-slate-400 text-[11px] mb-0.5">Município de Emissão</p>
+                          <p className="font-bold text-slate-200">{item.nome_municipio || 'Não informado'}</p>
                         </div>
 
                         <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">Código do Serviço</p>
-                          <p className="font-mono font-semibold text-slate-200">{item.codigo_servico || 'Não informado'}</p>
+                          <p className="text-slate-400 text-[11px] mb-0.5">Alíquota ISS</p>
+                          <p className="font-bold text-emerald-400">{item.aliquota_iss || 'Não informado'}</p>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
                         <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
                           <p className="text-slate-400 text-[11px] mb-0.5">Código de Tributação</p>
                           <p className="font-mono text-slate-200">{item.codigo_tributacao || 'Não informado'}</p>
                         </div>
 
                         <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                          <p className="text-slate-400 text-[11px] mb-0.5">Código do Serviço</p>
+                          <p className="font-mono font-semibold text-slate-200">{item.codigo_servico || 'Não informado'}</p>
+                        </div>
+
+                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
                           <p className="text-slate-400 text-[11px] mb-0.5">CNAE</p>
                           <p className="font-mono text-slate-200">{item.cnae || 'Não informado'}</p>
+                        </div>
+
+                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                          <p className="text-slate-400 text-[11px] mb-0.5">Código NBS</p>
+                          <p className="font-mono text-slate-200">{item.codigo_nbs || 'Não informado'}</p>
                         </div>
 
                         <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">

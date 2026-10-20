@@ -12,16 +12,26 @@ interface NfseCheckpointModalProps {
   onSuccess: () => void
 }
 
+const formatCNPJ = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 14)
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2')
+}
+
 const novoParametro = (): NfseItem => ({
   id: String(Date.now()),
+  cnpj_emissao: '',
   inscricao_municipal: '',
   nome_municipio: '',
   codigo_tributacao: '',
   codigo_servico: '',
   cnae: '',
   aliquota_iss: '',
-  emitia_rps: null,
-  cnpj_emissao: ''
+  codigo_nbs: '',
+  emitia_rps: null
 })
 
 /**
@@ -164,7 +174,18 @@ export function NfseCheckpointModal({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">CNPJ</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 00.000.000/0000-00"
+                        value={n.cnpj_emissao || ''}
+                        onChange={(e) => atualizar(index, 'cnpj_emissao', formatCNPJ(e.target.value))}
+                        disabled={readOnly}
+                        className="input-field text-sm"
+                      />
+                    </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">Inscrição Municipal</label>
                       <input
@@ -225,7 +246,7 @@ export function NfseCheckpointModal({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">Alíquota ISS do Município (%)</label>
                       <input
@@ -233,6 +254,17 @@ export function NfseCheckpointModal({
                         placeholder="Ex: 2.5% ou 5%"
                         value={n.aliquota_iss}
                         onChange={(e) => atualizar(index, 'aliquota_iss', e.target.value)}
+                        disabled={readOnly}
+                        className="input-field text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Código NBS</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 1.0101.10.00"
+                        value={n.codigo_nbs || ''}
+                        onChange={(e) => atualizar(index, 'codigo_nbs', e.target.value)}
                         disabled={readOnly}
                         className="input-field text-sm"
                       />
