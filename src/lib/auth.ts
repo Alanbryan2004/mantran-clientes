@@ -144,3 +144,28 @@ export function isFuncionarioUser(): boolean {
   return p !== 'cliente' && p !== 'parceiro' && p !== 'usuario' && !p.includes('consulta')
 }
 
+/**
+ * Retorna true se o usuário logado possui perfil 'Suporte'.
+ */
+export function isSuporteUser(): boolean {
+  const user = getLoggedUser()
+  if (!user || !user.perfil) return false
+  return user.perfil.trim().toLowerCase() === 'suporte'
+}
+
+/**
+ * Retorna true se o usuário pode VER o FAQ: todos os perfis, exceto Parceiro.
+ */
+export function canViewFaq(): boolean {
+  const user = getLoggedUser()
+  if (!user || !user.perfil) return false
+  return user.perfil.trim().toLowerCase() !== 'parceiro'
+}
+
+/**
+ * Retorna true se o usuário pode EDITAR o FAQ: apenas Suporte e Administrador.
+ */
+export function canEditFaq(): boolean {
+  return isAdminUser() || isSuporteUser()
+}
+

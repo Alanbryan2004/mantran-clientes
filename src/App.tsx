@@ -12,6 +12,7 @@ import { Implantacoes } from './pages/Implantacoes'
 import { ImplantacaoDetalhes } from './pages/ImplantacaoDetalhes'
 import { Tickets } from './pages/Tickets'
 import { Calendario } from './pages/Calendario'
+import { FAQ } from './pages/FAQ'
 import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
 import { Login } from './pages/Login'
 import MinhasTarefas from './pages/dev/MinhasTarefas'
@@ -129,6 +130,7 @@ function App() {
               <Route path="leo-madeiras" element={<LeoMadeiras />} />
               <Route path="usuarios" element={<Usuarios />} />
               <Route path="rh" element={<RH />} />
+              <Route path="faq" element={<FAQ />} />
 
               {/* Módulos de Desenvolvimento & QA (Mantran Web API Integrado) */}
               <Route path="dev/tarefas" element={<MinhasTarefas />} />

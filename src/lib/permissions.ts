@@ -182,6 +182,12 @@ export const permissionsApi = {
       return true
     }
 
+    // FAQ: liberado para TODOS os perfis, exceto Parceiro.
+    if (normPath.startsWith('/faq')) {
+      const p = perfilName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      return p !== 'parceiro'
+    }
+
     const perms = this.getStoredPermissions()
     const userPerm = perms[perfilName] || DEFAULT_PERMISSOES[perfilName]
     if (!userPerm) return true

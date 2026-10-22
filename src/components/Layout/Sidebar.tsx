@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
   Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Users2, Ticket,
   ChevronDown, Code2, Clock, FlaskConical, ListFilter, CheckCircle2,
-  Calendar, PlusCircle
+  Calendar, PlusCircle, BookOpen
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
@@ -22,6 +22,7 @@ const allNavItems = [
   { name: 'Processamento Shopee', path: '/processamento-shopee', icon: ShoppingBag },
   { name: 'Léo Madeiras', path: '/leo-madeiras', icon: Cloud },
   { name: 'Gestão de RH', path: '/rh', icon: Users2 },
+  { name: 'FAQ', path: '/faq', icon: BookOpen },
 ]
 
 interface DevSubItem {
@@ -140,19 +141,21 @@ export function Sidebar() {
     const updateNav = () => {
       if (!isMounted) return
       
-      // Cliente do portal de tickets (logou com o próprio e-mail): só "Meus Chamados"
+      // Cliente do portal de tickets (logou com o próprio e-mail): "Meus Chamados" + FAQ
       if (isCliente && user?.cliente_email) {
         setAllowedNavItems([
-          { name: 'Meus Chamados', path: '/tickets', icon: Ticket }
+          { name: 'Meus Chamados', path: '/tickets', icon: Ticket },
+          { name: 'FAQ', path: '/faq', icon: BookOpen }
         ])
         return
       }
 
-      // Se for perfil Cliente (legado por implantação), exibir apenas "Minha Implantação"
+      // Se for perfil Cliente (legado por implantação): "Minha Implantação" + FAQ
       if (isCliente) {
         const directPath = user?.implantacao_id ? `/implantacoes/${user.implantacao_id}` : '/implantacoes'
         setAllowedNavItems([
-          { name: 'Minha Implantação', path: directPath, icon: Rocket }
+          { name: 'Minha Implantação', path: directPath, icon: Rocket },
+          { name: 'FAQ', path: '/faq', icon: BookOpen }
         ])
 
         if (!user?.implantacao_id) {
@@ -163,7 +166,8 @@ export function Sidebar() {
                 localStorage.setItem('@Mantran:user', JSON.stringify(user))
               }
               setAllowedNavItems([
-                { name: 'Minha Implantação', path: `/implantacoes/${impl.id}`, icon: Rocket }
+                { name: 'Minha Implantação', path: `/implantacoes/${impl.id}`, icon: Rocket },
+                { name: 'FAQ', path: '/faq', icon: BookOpen }
               ])
             }
           }).catch(console.error)

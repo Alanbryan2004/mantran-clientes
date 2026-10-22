@@ -36,7 +36,8 @@ export function Layout() {
                        location.pathname.startsWith('/dev') || 
                        location.pathname.startsWith('/minhas-tarefas') || 
                        location.pathname.startsWith('/qa-testes') || 
-                       location.pathname.startsWith('/cronograma')
+                       location.pathname.startsWith('/cronograma') || 
+                       location.pathname.startsWith('/faq')
 
   return (
     <div className="flex h-screen bg-dark-bg text-dark-text overflow-hidden">

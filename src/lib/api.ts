@@ -3826,7 +3826,198 @@ export const api = {
     } catch (err) {
       console.warn('Aviso ao notificar convite:', err)
     }
+  },
+
+  // ===================== FAQ / Wiki de Procedimentos =====================
+
+  // Carrega o FAQ inteiro: categorias (ordenadas) com seus procedimentos,
+  // e cada procedimento com seus passos ordenados.
+  async getFaqCompleto(): Promise<FaqCategoria[]> {
+    const { data: categorias, error: errCat } = await supabase
+      .from('faq_categorias')
+      .select('*')
+      .eq('ativo', true)
+      .order('ordem', { ascending: true })
+    if (errCat) throw errCat
+
+    const { data: procedimentos, error: errProc } = await supabase
+      .from('faq_procedimentos')
+      .select('*')
+      .eq('ativo', true)
+      .order('ordem', { ascending: true })
+    if (errProc) throw errProc
+
+    const { data: passos, error: errPassos } = await supabase
+      .from('faq_passos')
+      .select('*')
+      .order('ordem', { ascending: true })
+    if (errPassos) throw errPassos
+
+    const passosPorProc = new Map<string, FaqPasso[]>()
+    ;(passos || []).forEach((p: any) => {
+      const arr = passosPorProc.get(p.procedimento_id) || []
+      arr.push(p)
+      passosPorProc.set(p.procedimento_id, arr)
+    })
+
+    const procPorCat = new Map<string, FaqProcedimento[]>()
+    ;(procedimentos || []).forEach((pr: any) => {
+      const comPassos = { ...pr, passos: passosPorProc.get(pr.id) || [] }
+      const arr = procPorCat.get(pr.categoria_id) || []
+      arr.push(comPassos)
+      procPorCat.set(pr.categoria_id, arr)
+    })
+
+    return (categorias || []).map((c: any) => ({
+      ...c,
+      procedimentos: procPorCat.get(c.id) || []
+    }))
+  },
+
+  // --- Categorias ---
+  async createFaqCategoria(payload: { nome: string; modulo?: string | null; ordem?: number }): Promise<FaqCategoria> {
+    const insert: any = { nome: payload.nome.trim(), ordem: payload.ordem ?? 0 }
+    if (payload.modulo !== undefined) insert.modulo = payload.modulo?.trim() || null
+    const { data, error } = await supabase
+      .from('faq_categorias')
+      .insert(insert)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+
+  async updateFaqCategoria(id: string, payload: { nome?: string; modulo?: string | null; ordem?: number; ativo?: boolean }): Promise<void> {
+    const patch: any = { updated_at: new Date().toISOString() }
+    if (payload.nome !== undefined) patch.nome = payload.nome.trim()
+    if (payload.modulo !== undefined) patch.modulo = payload.modulo?.trim() || null
+    if (payload.ordem !== undefined) patch.ordem = payload.ordem
+    if (payload.ativo !== undefined) patch.ativo = payload.ativo
+    const { error } = await supabase.from('faq_categorias').update(patch).eq('id', id)
+    if (error) throw error
+  },
+
+  async deleteFaqCategoria(id: string): Promise<void> {
+    const { error } = await supabase.from('faq_categorias').delete().eq('id', id)
+    if (error) throw error
+  },
+
+  // --- Procedimentos ---
+  async createFaqProcedimento(payload: {
+    categoria_id: string
+    titulo: string
+    descricao?: string | null
+    caminho_menu?: string | null
+    ordem?: number
+    criado_por_id?: string | null
+    criado_por_nome?: string | null
+  }): Promise<FaqProcedimento> {
+    const { data, error } = await supabase
+      .from('faq_procedimentos')
+      .insert({
+        categoria_id: payload.categoria_id,
+        titulo: payload.titulo.trim(),
+        descricao: payload.descricao || null,
+        caminho_menu: payload.caminho_menu || null,
+        ordem: payload.ordem ?? 0,
+        criado_por_id: payload.criado_por_id || null,
+        criado_por_nome: payload.criado_por_nome || null
+      })
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+
+  async updateFaqProcedimento(id: string, payload: {
+    categoria_id?: string
+    titulo?: string
+    descricao?: string | null
+    caminho_menu?: string | null
+    ordem?: number
+    ativo?: boolean
+  }): Promise<void> {
+    const patch: any = { updated_at: new Date().toISOString() }
+    if (payload.categoria_id !== undefined) patch.categoria_id = payload.categoria_id
+    if (payload.titulo !== undefined) patch.titulo = payload.titulo.trim()
+    if (payload.descricao !== undefined) patch.descricao = payload.descricao
+    if (payload.caminho_menu !== undefined) patch.caminho_menu = payload.caminho_menu
+    if (payload.ordem !== undefined) patch.ordem = payload.ordem
+    if (payload.ativo !== undefined) patch.ativo = payload.ativo
+    const { error } = await supabase.from('faq_procedimentos').update(patch).eq('id', id)
+    if (error) throw error
+  },
+
+  async deleteFaqProcedimento(id: string): Promise<void> {
+    const { error } = await supabase.from('faq_procedimentos').delete().eq('id', id)
+    if (error) throw error
+  },
+
+  // --- Passos ---
+  // Substitui todos os passos de um procedimento pela lista informada (abordagem simples
+  // para o editor: apaga os existentes e reinsere na ordem atual).
+  async salvarFaqPassos(procedimentoId: string, passos: { texto: string; imagem_url: string | null }[]): Promise<void> {
+    const { error: errDel } = await supabase.from('faq_passos').delete().eq('procedimento_id', procedimentoId)
+    if (errDel) throw errDel
+    if (!passos || passos.length === 0) return
+    const linhas = passos.map((p, i) => ({
+      procedimento_id: procedimentoId,
+      ordem: i + 1,
+      texto: p.texto || null,
+      imagem_url: p.imagem_url || null
+    }))
+    const { error: errIns } = await supabase.from('faq_passos').insert(linhas)
+    if (errIns) throw errIns
+  },
+
+  // Upload de imagem do passo no Supabase Storage (bucket "faq"). Retorna a URL pública.
+  async uploadFaqImagem(file: File | Blob, nomeSugerido?: string): Promise<string> {
+    const ext = (nomeSugerido && nomeSugerido.includes('.')) ? nomeSugerido.split('.').pop() : 'png'
+    const path = `passos/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const { error } = await supabase.storage.from('faq').upload(path, file, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: (file as File).type || 'image/png'
+    })
+    if (error) throw error
+    const { data } = supabase.storage.from('faq').getPublicUrl(path)
+    return data.publicUrl
   }
+}
+
+export interface FaqPasso {
+  id?: string
+  procedimento_id?: string
+  ordem: number
+  texto: string | null
+  imagem_url: string | null
+  created_at?: string
+}
+
+export interface FaqProcedimento {
+  id: string
+  categoria_id: string
+  titulo: string
+  descricao?: string | null
+  caminho_menu?: string | null
+  ordem: number
+  ativo?: boolean
+  criado_por_id?: string | null
+  criado_por_nome?: string | null
+  passos?: FaqPasso[]
+  created_at?: string
+  updated_at?: string
+}
+
+export interface FaqCategoria {
+  id: string
+  nome: string
+  modulo?: string | null
+  ordem: number
+  ativo?: boolean
+  procedimentos?: FaqProcedimento[]
+  created_at?: string
+  updated_at?: string
 }
 
 export interface ConvidadoCalendario {
