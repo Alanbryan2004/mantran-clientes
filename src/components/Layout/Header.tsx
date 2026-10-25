@@ -142,17 +142,35 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
   return (
     <header className="h-16 border-b border-slate-800/80 bg-[#0f111a]/80 backdrop-blur-md px-6 flex items-center justify-between relative z-40 shrink-0 select-none">
       
-      {/* Page Context Icon + Atalhos Rápidos (Até 4) */}
+      {/* Page Context Icon + Atalhos Rápidos (Até 4) OU Logo Mantran para visitantes */}
       <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-        <div 
-          className="w-9 h-9 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 shrink-0 shadow-sm"
-          title={`Tela Atual: ${pageInfo.title}`}
-        >
-          <PageIcon className="w-5 h-5" />
-        </div>
-
-        {user ? (
+        {!user ? (
+          <div className="flex items-center gap-3">
+            <img 
+              src="/Logo_Mantran_Branco.png" 
+              onError={(e) => { e.currentTarget.src = '/Logo_Mantran.png' }}
+              alt="Mantran Tecnologias" 
+              className="h-7 sm:h-8 w-auto object-contain select-none shrink-0"
+            />
+            <div className="h-5 w-[1px] bg-slate-800 shrink-0 hidden sm:block" />
+            <div className="hidden sm:flex flex-col">
+              <span className="text-xs sm:text-sm font-semibold text-white tracking-wide">
+                FAQ & Procedimentos Mantran
+              </span>
+              <span className="text-[10px] text-slate-400">
+                Base de conhecimento e autoatendimento
+              </span>
+            </div>
+          </div>
+        ) : (
           <>
+            <div 
+              className="w-9 h-9 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 shrink-0 shadow-sm"
+              title={`Tela Atual: ${pageInfo.title}`}
+            >
+              <PageIcon className="w-5 h-5" />
+            </div>
+
             {/* Separador vertical sutil */}
             <div className="h-5 w-[1px] bg-slate-800 shrink-0 mx-0.5 sm:mx-1" />
 
@@ -204,15 +222,6 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
               </button>
             </div>
           </>
-        ) : (
-          <div className="hidden sm:flex flex-col ml-1 sm:ml-2">
-            <span className="text-xs sm:text-sm font-semibold text-white tracking-wide">
-              FAQ & Procedimentos Mantran
-            </span>
-            <span className="text-[10px] text-slate-400">
-              Base de conhecimento e autoatendimento
-            </span>
-          </div>
         )}
       </div>
 

@@ -117,9 +117,13 @@ export function FAQ() {
     <div className="max-w-none w-full min-w-0 bg-slate-50 rounded-2xl p-4 sm:p-6 min-h-full">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-600 shrink-0">
-            <BookOpen className="w-5 h-5" />
+        <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+          <div className="h-10 sm:h-11 px-2.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-center shrink-0">
+            <img 
+              src="/Logo_Mantran.png" 
+              alt="Mantran" 
+              className="h-6 sm:h-7 w-auto object-contain select-none"
+            />
           </div>
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">FAQ — Como fazer no Mantran</h1>
@@ -207,72 +211,107 @@ export function FAQ() {
         </aside>
 
         {/* CONTEÚDO */}
-        <main className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 sm:p-7 min-h-[60vh]">
+        <main className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 sm:p-7 min-h-[60vh] relative overflow-hidden flex flex-col justify-between">
+          {/* Marca d'água do Logo da Mantran */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0 overflow-hidden">
+            <img 
+              src="/Logo_Mantran.png" 
+              alt="" 
+              aria-hidden="true"
+              className={clsx(
+                "w-[420px] max-w-[75%] object-contain select-none transition-all duration-300 pointer-events-none",
+                !procSelecionado 
+                  ? "opacity-[0.10] scale-100" 
+                  : "opacity-[0.035] scale-95"
+              )}
+            />
+          </div>
+
           {!procSelecionado ? (
-            <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 py-20">
-              <BookOpen className="w-12 h-12 mb-3 opacity-40" />
-              <p className="text-sm font-semibold text-slate-500">Selecione um procedimento ao lado</p>
-              <p className="text-xs mt-1">para ver o passo a passo.</p>
+            <div className="h-full flex-1 flex flex-col items-center justify-center text-center py-20 relative z-10 select-none">
+              <div className="w-16 h-16 rounded-2xl bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-600 mb-4 shadow-sm">
+                <BookOpen className="w-8 h-8 opacity-80" />
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-700">Selecione um procedimento ao lado</h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1.5 max-w-sm">
+                Escolha um item no menu à esquerda para visualizar o passo a passo com telas e instruções.
+              </p>
+              
+              <div className="mt-8 flex items-center gap-2 text-[11px] text-slate-400 font-medium bg-slate-50/80 px-3.5 py-1.5 rounded-full border border-slate-200/60 shadow-2xs">
+                <img src="/Logo_Mantran.png" alt="Mantran" className="h-3.5 w-auto object-contain opacity-60" />
+                <span>Base de Conhecimento Mantran</span>
+              </div>
             </div>
           ) : (
-            <div>
-              <button onClick={() => setProcSelecionadoId(null)} className="lg:hidden flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 mb-3">
-                <ArrowLeft className="w-3.5 h-3.5" /> Voltar
-              </button>
+            <div className="relative z-10 flex flex-col justify-between flex-1">
+              <div>
+                <button onClick={() => setProcSelecionadoId(null)} className="lg:hidden flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 mb-3">
+                  <ArrowLeft className="w-3.5 h-3.5" /> Voltar
+                </button>
 
-              <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4 mb-5">
-                <div className="min-w-0">
-                  <h2 className="text-2xl font-black text-slate-900">{procSelecionado.titulo}</h2>
-                  {procSelecionado.descricao && <p className="text-sm text-slate-500 mt-1">{procSelecionado.descricao}</p>}
-                  {procSelecionado.caminho_menu && (
-                    <div className="mt-3 flex items-center gap-1.5 flex-wrap text-[11px]">
-                      {procSelecionado.caminho_menu.split(/›|>/).map((parte, i, arr) => (
-                        <span key={i} className="flex items-center gap-1.5">
-                          <span className={clsx(
-                            'px-2 py-0.5 rounded-md border',
-                            i === arr.length - 1
-                              ? 'bg-brand-50 text-brand-700 border-brand-200 font-bold'
-                              : 'bg-slate-100 text-slate-600 border-slate-200'
-                          )}>
-                            {parte.trim()}
+                <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4 mb-5">
+                  <div className="min-w-0">
+                    <h2 className="text-2xl font-black text-slate-900">{procSelecionado.titulo}</h2>
+                    {procSelecionado.descricao && <p className="text-sm text-slate-500 mt-1">{procSelecionado.descricao}</p>}
+                    {procSelecionado.caminho_menu && (
+                      <div className="mt-3 flex items-center gap-1.5 flex-wrap text-[11px]">
+                        {procSelecionado.caminho_menu.split(/›|>/).map((parte, i, arr) => (
+                          <span key={i} className="flex items-center gap-1.5">
+                            <span className={clsx(
+                              'px-2 py-0.5 rounded-md border',
+                              i === arr.length - 1
+                                ? 'bg-brand-50 text-brand-700 border-brand-200 font-bold'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            )}>
+                              {parte.trim()}
+                            </span>
+                            {i < arr.length - 1 && <ChevronRight className="w-3 h-3 text-slate-400" />}
                           </span>
-                          {i < arr.length - 1 && <ChevronRight className="w-3 h-3 text-slate-400" />}
-                        </span>
-                      ))}
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {podeEditar && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button onClick={() => setModalProc(procSelecionado)} className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold rounded-lg bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors">
+                        <Pencil className="w-3.5 h-3.5" /> Editar
+                      </button>
+                      <button onClick={() => handleExcluirProc(procSelecionado)} className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50" title="Excluir procedimento">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   )}
                 </div>
-                {podeEditar && (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button onClick={() => setModalProc(procSelecionado)} className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold rounded-lg bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors">
-                      <Pencil className="w-3.5 h-3.5" /> Editar
-                    </button>
-                    <button onClick={() => handleExcluirProc(procSelecionado)} className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50" title="Excluir procedimento">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+
+                {(procSelecionado.passos || []).length === 0 ? (
+                  <div className="text-sm text-slate-400 italic py-8 text-center">Este procedimento ainda não tem passos cadastrados.</div>
+                ) : (
+                  <ol className="space-y-6">
+                    {(procSelecionado.passos || []).map((passo, idx) => (
+                      <li key={passo.id || idx} className="flex gap-4">
+                        <span className="shrink-0 w-7 h-7 rounded-full border-2 border-brand-500 text-brand-600 font-black text-xs flex items-center justify-center mt-0.5">{idx + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          {passo.texto && (
+                            <div className="text-sm text-slate-700 leading-relaxed [&_b]:text-slate-900 [&_b]:font-bold" dangerouslySetInnerHTML={renderTextoPasso(passo.texto)} />
+                          )}
+                          {passo.imagem_url && (
+                            <img src={passo.imagem_url} alt={`Passo ${idx + 1}`} onClick={() => setImgZoom(passo.imagem_url!)} className="mt-3 rounded-lg border border-slate-200 max-w-full cursor-zoom-in hover:border-brand-400 transition-colors shadow-sm" />
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
                 )}
               </div>
 
-              {(procSelecionado.passos || []).length === 0 ? (
-                <div className="text-sm text-slate-400 italic py-8 text-center">Este procedimento ainda não tem passos cadastrados.</div>
-              ) : (
-                <ol className="space-y-6">
-                  {(procSelecionado.passos || []).map((passo, idx) => (
-                    <li key={passo.id || idx} className="flex gap-4">
-                      <span className="shrink-0 w-7 h-7 rounded-full border-2 border-brand-500 text-brand-600 font-black text-xs flex items-center justify-center mt-0.5">{idx + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        {passo.texto && (
-                          <div className="text-sm text-slate-700 leading-relaxed [&_b]:text-slate-900 [&_b]:font-bold" dangerouslySetInnerHTML={renderTextoPasso(passo.texto)} />
-                        )}
-                        {passo.imagem_url && (
-                          <img src={passo.imagem_url} alt={`Passo ${idx + 1}`} onClick={() => setImgZoom(passo.imagem_url!)} className="mt-3 rounded-lg border border-slate-200 max-w-full cursor-zoom-in hover:border-brand-400 transition-colors shadow-sm" />
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              )}
+              {/* Rodapé institucional com marca d'água sutil */}
+              <div className="mt-12 pt-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-400 select-none">
+                <div className="flex items-center gap-2">
+                  <img src="/Logo_Mantran.png" alt="Mantran" className="h-3.5 w-auto object-contain opacity-50 grayscale" />
+                  <span>Documentação e Procedimentos Mantran</span>
+                </div>
+                <span>Dúvidas ou suporte? Entre em contato com a equipe Mantran</span>
+              </div>
             </div>
           )}
         </main>
