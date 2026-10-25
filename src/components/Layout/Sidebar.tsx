@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
   Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Users2, Ticket,
   ChevronDown, Code2, Clock, FlaskConical, ListFilter, CheckCircle2,
-  Calendar, PlusCircle, BookOpen
+  Calendar, PlusCircle, BookOpen, LogIn
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
@@ -72,7 +72,7 @@ export function Sidebar() {
 
   const location = useLocation()
   const isTecnico = user?.perfil?.toLowerCase().includes('tecnico') || false
-  const [allowedDevItems, setAllowedDevItems] = useState<DevNavItem[]>(devNavItems)
+  const [allowedDevItems, setAllowedDevItems] = useState<DevNavItem[]>([])
   const isDevActive = location.pathname.startsWith('/dev') || 
                       location.pathname.startsWith('/minhas-tarefas') || 
                       location.pathname.startsWith('/qa-testes') || 
@@ -140,6 +140,22 @@ export function Sidebar() {
 
     const updateNav = () => {
       if (!isMounted) return
+
+      // Visitante não autenticado: visualiza apenas o FAQ
+      if (!user) {
+        setAllowedNavItems([
+          { name: 'FAQ', path: '/faq', icon: BookOpen }
+        ])
+        setAllowedDevItems([])
+        return
+      }
+
+      // Filtrar itens de Desenvolvimento & QA com base no Controle de Permissões
+      const filteredDev = devNavItems.filter(item => {
+        if (isAdmin) return true
+        return permissionsApi.canAccessRoute(item.path)
+      })
+      setAllowedDevItems(filteredDev)
       
       // Cliente do portal de tickets (logou com o próprio e-mail): "Meus Chamados" + FAQ
       if (isCliente && user?.cliente_email) {
@@ -200,17 +216,6 @@ export function Sidebar() {
       })
 
       setAllowedNavItems(mapped)
-
-      // Filter accessible dev navigation items
-      if (isParceiro || isCliente) {
-        setAllowedDevItems([])
-      } else {
-        const filteredDev = devNavItems.filter(item => {
-          if (isAdmin) return true
-          return permissionsApi.canAccessRoute(item.path)
-        })
-        setAllowedDevItems(filteredDev)
-      }
     }
 
     updateNav()
@@ -603,20 +608,34 @@ export function Sidebar() {
       </nav>
 
       <div className={clsx("border-t border-slate-800/80", isExpanded ? "p-3" : "p-2")}>
-        <button 
-          onClick={() => {
-            localStorage.removeItem('@Mantran:user')
-            window.location.href = '/'
-          }}
-          title={!isExpanded ? 'Sair' : undefined}
-          className={clsx(
-            "flex items-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all duration-200 w-full cursor-pointer",
-            isExpanded ? "px-3.5 py-2 space-x-3" : "p-2.5 justify-center"
-          )}
-        >
-          <LogOut className="w-[18px] h-[18px] flex-shrink-0" />
-          {isExpanded && <span className="text-[13px] font-medium">Sair</span>}
-        </button>
+        {user ? (
+          <button 
+            onClick={() => {
+              localStorage.removeItem('@Mantran:user')
+              window.location.href = '/'
+            }}
+            title={!isExpanded ? 'Sair' : undefined}
+            className={clsx(
+              "flex items-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-all duration-200 w-full cursor-pointer",
+              isExpanded ? "px-3.5 py-2 space-x-3" : "p-2.5 justify-center"
+            )}
+          >
+            <LogOut className="w-[18px] h-[18px] flex-shrink-0" />
+            {isExpanded && <span className="text-[13px] font-medium">Sair</span>}
+          </button>
+        ) : (
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('mantran:open-login'))}
+            title={!isExpanded ? 'Fazer Login' : undefined}
+            className={clsx(
+              "flex items-center rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200 w-full cursor-pointer font-medium",
+              isExpanded ? "px-3.5 py-2 space-x-3" : "p-2.5 justify-center"
+            )}
+          >
+            <LogIn className="w-[18px] h-[18px] flex-shrink-0" />
+            {isExpanded && <span className="text-[13px] font-medium">Login</span>}
+          </button>
+        )}
       </div>
 
       {/* Modal de Permissões */}

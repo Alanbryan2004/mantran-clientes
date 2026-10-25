@@ -58,6 +58,22 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
 
 const STORAGE_KEY = '@Mantran:perfil_permissoes'
 
+function findUserPermission(perms: Record<string, PerfilPermissao>, perfilName: string): PerfilPermissao | undefined {
+  if (!perfilName) return undefined
+  const clean = perfilName.trim()
+  if (perms[clean]) return perms[clean]
+  
+  const lower = clean.toLowerCase()
+  const foundKey = Object.keys(perms).find(k => k.trim().toLowerCase() === lower)
+  if (foundKey) return perms[foundKey]
+
+  if (DEFAULT_PERMISSOES[clean]) return DEFAULT_PERMISSOES[clean]
+  const defaultKey = Object.keys(DEFAULT_PERMISSOES).find(k => k.trim().toLowerCase() === lower)
+  if (defaultKey) return DEFAULT_PERMISSOES[defaultKey]
+
+  return undefined
+}
+
 export const permissionsApi = {
   getStoredPermissions(): Record<string, PerfilPermissao> {
     try {
@@ -158,10 +174,6 @@ export const permissionsApi = {
 
   canAccessRoute(path: string): boolean {
     const user = getLoggedUser()
-    if (!user || !user.perfil) return true
-
-    const perfilName = user.perfil.trim()
-    if (perfilName.toLowerCase() === 'administrador') return true
 
     // Normalize path
     const cleanPath = path.split('?')[0].split('#')[0]
@@ -171,6 +183,18 @@ export const permissionsApi = {
     if (normPath === '/qa-testes' || normPath.startsWith('/qa-testes/')) normPath = '/dev/qa'
     if (normPath === '/minhas-tarefas' || normPath.startsWith('/minhas-tarefas/')) normPath = '/dev/tarefas'
     if (normPath === '/cronograma' || normPath.startsWith('/cronograma/')) normPath = '/dev/cronograma'
+
+    // FAQ: liberado para consulta pública (e para todos os usuários logados, exceto Parceiro).
+    if (normPath.startsWith('/faq')) {
+      if (!user || !user.perfil) return true
+      const p = user.perfil.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      return p !== 'parceiro'
+    }
+
+    if (!user || !user.perfil) return false
+
+    const perfilName = user.perfil.trim()
+    if (perfilName.toLowerCase() === 'administrador') return true
 
     // Rotas /rh e /calendario: permitidas para todos os funcionários internos
     // (Suporte, Tecnico, Comercial, etc.), independentemente das permissões salvas.
@@ -182,15 +206,9 @@ export const permissionsApi = {
       return true
     }
 
-    // FAQ: liberado para TODOS os perfis, exceto Parceiro.
-    if (normPath.startsWith('/faq')) {
-      const p = perfilName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      return p !== 'parceiro'
-    }
-
     const perms = this.getStoredPermissions()
-    const userPerm = perms[perfilName] || DEFAULT_PERMISSOES[perfilName]
-    if (!userPerm) return true
+    const userPerm = findUserPermission(perms, perfilName)
+    if (!userPerm) return false
 
     // Special case for bases / project details
     if (normPath.startsWith('/bases')) {
@@ -233,7 +251,7 @@ export const permissionsApi = {
     const user = getLoggedUser()
     if (!user || !user.perfil) return []
     const perms = this.getStoredPermissions()
-    const userPerm = perms[user.perfil] || DEFAULT_PERMISSOES[user.perfil]
+    const userPerm = findUserPermission(perms, user.perfil)
     if (!userPerm) return []
     if (userPerm.projetos_especificos_ids && userPerm.projetos_especificos_ids.length) {
       return userPerm.projetos_especificos_ids
@@ -253,8 +271,16 @@ export const permissionsApi = {
     if (!user || !user.perfil) return '/implantacoes'
     const perfilName = user.perfil.trim()
     if (perfilName.toLowerCase() === 'administrador') return '/'
+    
+    // Perfil Cliente
+    if (perfilName.toLowerCase() === 'cliente') {
+      if (user.cliente_email) return '/tickets'
+      if (user.implantacao_id) return `/implantacoes/${user.implantacao_id}`
+      return '/implantacoes'
+    }
+
     const perms = this.getStoredPermissions()
-    const userPerm = perms[perfilName] || DEFAULT_PERMISSOES[perfilName]
+    const userPerm = findUserPermission(perms, perfilName)
     if (userPerm && userPerm.rotas && userPerm.rotas.length > 0) {
       return userPerm.rotas[0]
     }
@@ -268,7 +294,7 @@ export const permissionsApi = {
     if (perfilName.toLowerCase() === 'administrador') return false
 
     const perms = this.getStoredPermissions()
-    const userPerm = perms[perfilName] || DEFAULT_PERMISSOES[perfilName]
+    const userPerm = findUserPermission(perms, perfilName)
     if (userPerm && userPerm.read_only !== undefined) {
       return !!userPerm.read_only
     }

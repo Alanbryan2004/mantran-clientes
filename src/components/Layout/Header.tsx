@@ -28,11 +28,17 @@ import {
   Clock, 
   CalendarDays,
   Plus,
-  SlidersHorizontal
+  SlidersHorizontal,
+  LogIn,
+  BookOpen
 } from 'lucide-react'
 import clsx from 'clsx'
 
-export function Header() {
+interface HeaderProps {
+  onOpenLogin?: () => void
+}
+
+export function Header({ onOpenLogin }: HeaderProps = {}) {
   const location = useLocation()
   const navigate = useNavigate()
   const user = getLoggedUser()
@@ -92,6 +98,9 @@ export function Header() {
 
   const getPageInfo = () => {
     const path = location.pathname
+    if (path.startsWith('/faq') || (!user && path === '/')) {
+      return { title: 'FAQ — Como fazer no Mantran', icon: BookOpen, subtitle: 'Procedimentos passo a passo e documentação' }
+    }
     if (path === '/') {
       return { title: 'Dashboard Geral', icon: LayoutDashboard, subtitle: 'Métricas, bases e status em tempo real' }
     }
@@ -142,66 +151,81 @@ export function Header() {
           <PageIcon className="w-5 h-5" />
         </div>
 
-        {/* Separador vertical sutil */}
-        <div className="h-5 w-[1px] bg-slate-800 shrink-0 mx-0.5 sm:mx-1" />
+        {user ? (
+          <>
+            {/* Separador vertical sutil */}
+            <div className="h-5 w-[1px] bg-slate-800 shrink-0 mx-0.5 sm:mx-1" />
 
-        {/* Atalhos Rápidos do Topo */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
-          {activeShortcuts.map((shortcut) => {
-            const Icon = shortcut.icon
-            const isActive = location.pathname === shortcut.path || 
-              (shortcut.path !== '/' && location.pathname.startsWith(shortcut.path))
-            return (
-              <NavLink
-                key={shortcut.id}
-                id={`shortcut-header-${shortcut.id}`}
-                to={shortcut.path}
-                title={`Atalho: ${shortcut.name}`}
+            {/* Atalhos Rápidos do Topo */}
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
+              {activeShortcuts.map((shortcut) => {
+                const Icon = shortcut.icon
+                const isActive = location.pathname === shortcut.path || 
+                  (shortcut.path !== '/' && location.pathname.startsWith(shortcut.path))
+                return (
+                  <NavLink
+                    key={shortcut.id}
+                    id={`shortcut-header-${shortcut.id}`}
+                    to={shortcut.path}
+                    title={`Atalho: ${shortcut.name}`}
+                    className={clsx(
+                      "w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 relative group cursor-pointer shrink-0",
+                      isActive
+                        ? "bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm shadow-brand-500/10"
+                        : "bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700"
+                    )}
+                  >
+                    <Icon className={clsx("w-4 h-4 transition-transform group-hover:scale-110", shortcut.color)} />
+                    {isActive && (
+                      <span className="absolute -bottom-1 w-1.5 h-1.5 rounded-full bg-brand-400 shadow-sm shadow-brand-400" />
+                    )}
+                  </NavLink>
+                )
+              })}
+
+              {/* Botão para Adicionar / Personalizar Atalhos */}
+              <button
+                type="button"
+                id="btn-personalizar-atalhos-header"
+                onClick={() => setIsAtalhosModalOpen(true)}
+                title={activeShortcuts.length < 4 ? `Adicionar Atalho no Topo (${activeShortcuts.length}/4)` : "Personalizar Atalhos do Topo"}
                 className={clsx(
-                  "w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 relative group cursor-pointer shrink-0",
-                  isActive
-                    ? "bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm shadow-brand-500/10"
-                    : "bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700"
+                  "h-9 rounded-xl flex items-center justify-center transition-all duration-150 border cursor-pointer group shrink-0",
+                  activeShortcuts.length < 4
+                    ? "w-9 border-dashed border-slate-700/80 hover:border-brand-500/50 hover:bg-brand-500/10 text-slate-500 hover:text-brand-300"
+                    : "w-8 border-transparent hover:border-slate-700 hover:bg-slate-800/60 text-slate-500 hover:text-slate-300 ml-0.5"
                 )}
               >
-                <Icon className={clsx("w-4 h-4 transition-transform group-hover:scale-110", shortcut.color)} />
-                {isActive && (
-                  <span className="absolute -bottom-1 w-1.5 h-1.5 rounded-full bg-brand-400 shadow-sm shadow-brand-400" />
+                {activeShortcuts.length < 4 ? (
+                  <Plus className="w-4 h-4 transition-transform group-hover:rotate-90 duration-200" />
+                ) : (
+                  <SlidersHorizontal className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
                 )}
-              </NavLink>
-            )
-          })}
-
-          {/* Botão para Adicionar / Personalizar Atalhos */}
-          <button
-            type="button"
-            id="btn-personalizar-atalhos-header"
-            onClick={() => setIsAtalhosModalOpen(true)}
-            title={activeShortcuts.length < 4 ? `Adicionar Atalho no Topo (${activeShortcuts.length}/4)` : "Personalizar Atalhos do Topo"}
-            className={clsx(
-              "h-9 rounded-xl flex items-center justify-center transition-all duration-150 border cursor-pointer group shrink-0",
-              activeShortcuts.length < 4
-                ? "w-9 border-dashed border-slate-700/80 hover:border-brand-500/50 hover:bg-brand-500/10 text-slate-500 hover:text-brand-300"
-                : "w-8 border-transparent hover:border-slate-700 hover:bg-slate-800/60 text-slate-500 hover:text-slate-300 ml-0.5"
-            )}
-          >
-            {activeShortcuts.length < 4 ? (
-              <Plus className="w-4 h-4 transition-transform group-hover:rotate-90 duration-200" />
-            ) : (
-              <SlidersHorizontal className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
-            )}
-          </button>
-        </div>
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="hidden sm:flex flex-col ml-1 sm:ml-2">
+            <span className="text-xs sm:text-sm font-semibold text-white tracking-wide">
+              FAQ & Procedimentos Mantran
+            </span>
+            <span className="text-[10px] text-slate-400">
+              Base de conhecimento e autoatendimento
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Right side controls: Notifications Bell + User Profile Dropdown */}
+      {/* Right side controls: Notifications Bell + User Profile Dropdown OU Botão de Login */}
       <div className="flex items-center gap-3.5">
         
-        {/* Sininho de Notificações */}
-        <NotificationsPopover />
+        {user ? (
+          <>
+            {/* Sininho de Notificações */}
+            <NotificationsPopover />
 
-        {/* User Capsule & Menu */}
-        <div className="relative pl-3 border-l border-slate-800" ref={userMenuRef}>
+            {/* User Capsule & Menu */}
+            <div className="relative pl-3 border-l border-slate-800" ref={userMenuRef}>
           <button
             type="button"
             onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -333,8 +357,20 @@ export function Header() {
             </div>
           )}
         </div>
+      </>
+    ) : (
+      <button
+        type="button"
+        onClick={onOpenLogin || (() => window.dispatchEvent(new CustomEvent('mantran:open-login')))}
+        className="flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-red-700 to-red-800 hover:from-red-600 hover:to-red-700 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-red-950/40 border border-red-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+        title="Acessar conta Mantran"
+      >
+        <LogIn className="w-4 h-4 text-red-200" />
+        <span>Login</span>
+      </button>
+    )}
 
-      </div>
+  </div>
 
       {/* Modal de Alteração de Senha */}
       <AlterarMinhaSenhaModal
