@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   BookOpen, Search, Plus, Pencil, Trash2, X, Save, ChevronRight,
   Image as ImageIcon, GripVertical, Bold, FolderPlus, ArrowLeft,
-  FileCode, Upload, CheckCircle2, AlertCircle, Loader2, Sparkles, FileText
+  FileCode, Upload, CheckCircle2, AlertCircle, Loader2, Sparkles, FileText,
+  Share2, Check
 } from 'lucide-react'
 import { api, type FaqCategoria, type FaqProcedimento, type FaqPasso } from '../lib/api'
 import { getLoggedUser, canEditFaq } from '../lib/auth'
@@ -137,51 +139,6 @@ function parseFaqHtml(htmlStr: string): FaqHtmlParsed {
   return { titulo, descricao, caminhoMenu, modulo, categoria, passos }
 }
 
-export function FAQ() {
-  const user = getLoggedUser()
-  const podeEditar = canEditFaq()
-
-  const [categorias, setCategorias] = useState<FaqCategoria[]>([])
-  const [loading, setLoading] = useState(true)
-  const [erro, setErro] = useState('')
-  const [busca, setBusca] = useState('')
-  const [procSelecionadoId, setProcSelecionadoId] = useState<string | null>(null)
-
-  const [imgZoom, setImgZoom] = useState<string | null>(null)
-  const [modalCategoria, setModalCategoria] = useState<FaqCategoria | 'novo' | null>(null)
-  const [modalProc, setModalProc] = useState<FaqProcedimento | { novo: true; categoria_id: string; dadosImportados?: any } | null>(null)
-  const [modalImportar, setModalImportar] = useState(false)
-
-  async function carregar() {
-    setLoading(true)
-    setErro('')
-    try {
-      const data = await api.getFaqCompleto()
-      setCategorias(data)
-    } catch (e: any) {
-      setErro(e?.message || 'Erro ao carregar o FAQ.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { carregar() }, [])
-
-  const todosProcs = useMemo(
-    () => categorias.flatMap(c => (c.procedimentos || []).map(p => ({ ...p, _categoria: c.nome }))),
-    [categorias]
-  )
-  const procSelecionado = useMemo(
-    () => todosProcs.find(p => p.id === procSelecionadoId) || null,
-    [todosProcs, procSelecionadoId]
-  )
-
-  const modulosExistentes = useMemo(() => {
-    const set = new Set<string>()
-    categorias.forEach(c => { if (c.modulo && c.modulo.trim()) set.add(c.modulo.trim()) })
-    return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [categorias])
-
 function normalizarBusca(txt: string): string {
   return (txt || '')
     .normalize('NFD')
@@ -216,6 +173,102 @@ function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): b
   })
 }
 
+export function FAQ() {
+  const user = getLoggedUser()
+  const podeEditar = canEditFaq()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const [categorias, setCategorias] = useState<FaqCategoria[]>([])
+  const [loading, setLoading] = useState(true)
+  const [erro, setErro] = useState('')
+  const [busca, setBusca] = useState('')
+  const [procSelecionadoId, setProcSelecionadoId] = useState<string | null>(null)
+  const [linkCopiado, setLinkCopiado] = useState(false)
+
+  const [imgZoom, setImgZoom] = useState<string | null>(null)
+  const [modalCategoria, setModalCategoria] = useState<FaqCategoria | 'novo' | null>(null)
+  const [modalProc, setModalProc] = useState<FaqProcedimento | { novo: true; categoria_id: string; dadosImportados?: any } | null>(null)
+  const [modalImportar, setModalImportar] = useState(false)
+
+  async function carregar() {
+    setLoading(true)
+    setErro('')
+    try {
+      const data = await api.getFaqCompleto()
+      setCategorias(data)
+    } catch (e: any) {
+      setErro(e?.message || 'Erro ao carregar o FAQ.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { carregar() }, [])
+
+  const todosProcs = useMemo(
+    () => categorias.flatMap(c => (c.procedimentos || []).map(p => ({ ...p, _categoria: c.nome }))),
+    [categorias]
+  )
+  const procSelecionado = useMemo(
+    () => todosProcs.find(p => p.id === procSelecionadoId) || null,
+    [todosProcs, procSelecionadoId]
+  )
+
+  // Sincroniza o procedimento selecionado a partir da URL (?p=ID ou ?manual=slug/titulo)
+  useEffect(() => {
+    const param = searchParams.get('p') || searchParams.get('id') || searchParams.get('manual')
+    if (param && todosProcs.length > 0) {
+      const pNorm = normalizarBusca(param)
+      const encontrado = todosProcs.find(p => 
+        p.id === param || 
+        normalizarBusca(p.titulo) === pNorm ||
+        normalizarBusca(p.titulo).replace(/[^a-z0-9]+/g, '-') === pNorm
+      )
+      if (encontrado && procSelecionadoId !== encontrado.id) {
+        setProcSelecionadoId(encontrado.id)
+      }
+    }
+  }, [todosProcs, searchParams])
+
+  const selecionarProcedimento = (id: string | null) => {
+    setProcSelecionadoId(id)
+    if (id) {
+      setSearchParams({ p: id }, { replace: true })
+    } else {
+      setSearchParams({}, { replace: true })
+    }
+  }
+
+  const handleCopiarLink = async () => {
+    if (!procSelecionado) return
+    const url = `${window.location.origin}/faq?p=${encodeURIComponent(procSelecionado.id)}`
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(url)
+      } else {
+        const textArea = document.createElement('textarea')
+        textArea.value = url
+        textArea.style.position = 'fixed'
+        textArea.style.opacity = '0'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+      }
+      setLinkCopiado(true)
+      setTimeout(() => setLinkCopiado(false), 2500)
+    } catch (err) {
+      console.error('Falha ao copiar link:', err)
+    }
+  }
+
+  const modulosExistentes = useMemo(() => {
+    const set = new Set<string>()
+    categorias.forEach(c => { if (c.modulo && c.modulo.trim()) set.add(c.modulo.trim()) })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [categorias])
+
   const categoriasFiltradas = useMemo(() => {
     if (!busca.trim()) return categorias
     return categorias
@@ -248,7 +301,7 @@ function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): b
     if (!window.confirm(`Excluir o procedimento "${p.titulo}"? Esta ação remove também os passos.`)) return
     try {
       await api.deleteFaqProcedimento(p.id)
-      if (procSelecionadoId === p.id) setProcSelecionadoId(null)
+      if (procSelecionadoId === p.id) selecionarProcedimento(null)
       await carregar()
     } catch (e: any) { alert('Erro ao excluir: ' + (e?.message || e)) }
   }
@@ -301,7 +354,10 @@ function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): b
 
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
         {/* SIDEBAR */}
-        <aside className="bg-white border border-slate-200 rounded-2xl shadow-sm p-3 h-fit lg:sticky lg:top-4">
+        <aside className={clsx(
+          "bg-white border border-slate-200 rounded-2xl shadow-sm p-3 h-fit lg:sticky lg:top-4",
+          procSelecionado && "hidden lg:block"
+        )}>
           <div className="relative mb-3">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -353,7 +409,7 @@ function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): b
                           {(cat.procedimentos || []).map(proc => (
                             <button
                               key={proc.id}
-                              onClick={() => setProcSelecionadoId(proc.id)}
+                              onClick={() => selecionarProcedimento(proc.id)}
                               className={clsx(
                                 'w-full text-left px-2.5 py-1.5 rounded-lg text-[13px] transition-colors border',
                                 procSelecionadoId === proc.id
@@ -378,7 +434,10 @@ function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): b
         </aside>
 
         {/* CONTEÚDO */}
-        <main className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 sm:p-7 min-h-[60vh] relative overflow-hidden flex flex-col justify-between">
+        <main className={clsx(
+          "bg-white border border-slate-200 rounded-2xl shadow-sm p-5 sm:p-7 min-h-[60vh] relative overflow-hidden flex flex-col justify-between",
+          !procSelecionado && "hidden lg:flex"
+        )}>
           {/* Marca d'água do Logo da Mantran */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0 overflow-hidden">
             <img 
@@ -412,7 +471,7 @@ function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): b
           ) : (
             <div className="relative z-10 flex flex-col justify-between flex-1">
               <div>
-                <button onClick={() => setProcSelecionadoId(null)} className="lg:hidden flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 mb-3">
+                <button onClick={() => selecionarProcedimento(null)} className="lg:hidden flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 mb-3">
                   <ArrowLeft className="w-3.5 h-3.5" /> Voltar
                 </button>
 
@@ -438,16 +497,41 @@ function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): b
                       </div>
                     )}
                   </div>
-                  {podeEditar && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={() => setModalProc(procSelecionado)} className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold rounded-lg bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors">
-                        <Pencil className="w-3.5 h-3.5" /> Editar
-                      </button>
-                      <button onClick={() => handleExcluirProc(procSelecionado)} className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50" title="Excluir procedimento">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleCopiarLink}
+                      className={clsx(
+                        "py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer shadow-2xs",
+                        linkCopiado
+                          ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm"
+                          : "bg-white border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 hover:bg-slate-50"
+                      )}
+                      title="Copiar link direto para este manual"
+                    >
+                      {linkCopiado ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Link copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Copiar link</span>
+                        </>
+                      )}
+                    </button>
+                    {podeEditar && (
+                      <>
+                        <button onClick={() => setModalProc(procSelecionado)} className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold rounded-lg bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors cursor-pointer">
+                          <Pencil className="w-3.5 h-3.5" /> Editar
+                        </button>
+                        <button onClick={() => handleExcluirProc(procSelecionado)} className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 cursor-pointer" title="Excluir procedimento">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {(procSelecionado.passos || []).length === 0 ? (
@@ -510,7 +594,7 @@ function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): b
           usuario={user}
           dadosImportados={'dadosImportados' in modalProc ? (modalProc as any).dadosImportados : undefined}
           onClose={() => setModalProc(null)}
-          onSaved={async (procId) => { setModalProc(null); await carregar(); if (procId) setProcSelecionadoId(procId) }}
+          onSaved={async (procId) => { setModalProc(null); await carregar(); if (procId) selecionarProcedimento(procId) }}
         />
       )}
 
@@ -535,7 +619,7 @@ function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): b
           onSalvoDireto={async (novoProcId) => {
             setModalImportar(false)
             await carregar()
-            if (novoProcId) setProcSelecionadoId(novoProcId)
+            if (novoProcId) selecionarProcedimento(novoProcId)
           }}
         />
       )}

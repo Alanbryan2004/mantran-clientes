@@ -114,8 +114,10 @@ function App() {
     return <div className="min-h-screen bg-[#0f111a] flex items-center justify-center text-white">Carregando...</div>
   }
 
-  // No Celular / Mobile: se não autenticado, vai SEMPRE direto para a tela cheia de Login!
-  if (!isAuthenticated && isMobile) {
+  // No Celular / Mobile: se não autenticado e não for a tela de FAQ, vai direto para o Login.
+  // Permite que clientes acessem o FAQ diretamente no celular via links compartilhados.
+  const isFaqPath = window.location.pathname.startsWith('/faq')
+  if (!isAuthenticated && isMobile && !isFaqPath) {
     return (
       <>
         <VersionGuard />
