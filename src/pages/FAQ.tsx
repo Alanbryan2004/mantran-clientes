@@ -182,17 +182,46 @@ export function FAQ() {
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [categorias])
 
+function normalizarBusca(txt: string): string {
+  return (txt || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function extrairObjetivoDescricao(desc: string | null | undefined): string {
+  if (!desc) return ''
+  // Descarta seções de checklist de campos (ex: 'Antes de começar' que cita campos aleatórios como endereço, cidade, CEP)
+  const partes = desc.split(/antes de come[cç]ar|onde se aplica/i)
+  return partes[0] || desc
+}
+
+function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): boolean {
+  const qNorm = normalizarBusca(buscaStr).trim()
+  if (!qNorm) return true
+  const termos = qNorm.split(/\s+/).filter(Boolean)
+
+  const tNorm = normalizarBusca(p.titulo)
+  const mNorm = normalizarBusca(p.caminho_menu || '')
+  const cNorm = normalizarBusca(cat.nome)
+  const modNorm = normalizarBusca(cat.modulo || '')
+  const objNorm = normalizarBusca(extrairObjetivoDescricao(p.descricao))
+
+  return termos.every(termo => {
+    // Permite singular/plural simples (ex: 'cidades' -> 'cidade')
+    const base = termo.length > 3 && termo.endsWith('s') ? termo.slice(0, -1) : termo
+    // Garante casamento no início da palavra (evita 'cidade' casar dentro de 'duplicidade')
+    const regex = new RegExp('(^|[^a-z0-9])' + base, 'i')
+    return regex.test(tNorm) || regex.test(mNorm) || regex.test(cNorm) || regex.test(modNorm) || regex.test(objNorm)
+  })
+}
+
   const categoriasFiltradas = useMemo(() => {
-    const q = busca.trim().toLowerCase()
-    if (!q) return categorias
+    if (!busca.trim()) return categorias
     return categorias
       .map(c => ({
         ...c,
-        procedimentos: (c.procedimentos || []).filter(p =>
-          (p.titulo || '').toLowerCase().includes(q) ||
-          (p.descricao || '').toLowerCase().includes(q) ||
-          (p.caminho_menu || '').toLowerCase().includes(q)
-        )
+        procedimentos: (c.procedimentos || []).filter(p => atendeBusca(p, c, busca))
       }))
       .filter(c => (c.procedimentos || []).length > 0)
   }, [categorias, busca])
@@ -279,8 +308,18 @@ export function FAQ() {
               value={busca}
               onChange={e => setBusca(e.target.value)}
               placeholder="Buscar procedimento…"
-              className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
+              className="w-full pl-9 pr-8 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
             />
+            {busca && (
+              <button
+                type="button"
+                onClick={() => setBusca('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-md"
+                title="Limpar busca"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {loading ? (
