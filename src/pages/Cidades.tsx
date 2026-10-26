@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
 import { 
-  MapPin, 
   Search, 
   X, 
   Copy, 
@@ -252,7 +251,7 @@ export function Cidades() {
     return (
       <>
         {chars.slice(0, s).join('')}
-        <span className="text-amber-400 font-black bg-amber-500/20 px-0.5 rounded">
+        <span className="text-brand-700 font-black bg-brand-50 border border-brand-200/80 px-1 rounded">
           {chars.slice(s, e).join('')}
         </span>
         {chars.slice(e).join('')}
@@ -261,63 +260,67 @@ export function Cidades() {
   }
 
   return (
-    <div className="space-y-6 pb-12 max-w-7xl mx-auto">
-      {/* Header institucional */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-brand-400 flex items-center justify-center shadow-lg shadow-brand-950/20 shrink-0">
-            <MapPin className="w-6 h-6" />
+    <div className="max-w-none w-full min-w-0 bg-slate-50 rounded-2xl p-4 sm:p-6 min-h-full space-y-5">
+      {/* Cabeçalho Institucional - Padrão FAQ */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+        <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
+          <div className="h-10 sm:h-11 px-2.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-center shrink-0">
+            <img 
+              src="/Logo_Mantran.png" 
+              alt="Mantran" 
+              className="h-6 sm:h-7 w-auto object-contain select-none"
+            />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
                 Cidades & Faixas de CEP
               </h1>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-brand-50 border border-brand-200 text-brand-700">
                 IBGE & Correios Brasil
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-              Consulta rápida e instantânea de faixas de CEP e códigos IBGE de todos os municípios brasileiros.
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+              Consulta rápida e instantânea de faixas de CEP e códigos IBGE de todos os municípios do Brasil.
             </p>
           </div>
         </div>
 
         {/* Badges de Totais */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          <div className="px-3 py-1.5 rounded-xl bg-dark-card border border-slate-800 text-xs text-slate-300 flex items-center gap-2 shadow-sm">
-            <Building2 className="w-4 h-4 text-brand-400" />
-            <span><strong className="text-white font-bold">5.570</strong> Cidades</span>
+        <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+          <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 flex items-center gap-2 shadow-2xs">
+            <Building2 className="w-4 h-4 text-brand-600" />
+            <span><strong className="text-slate-900 font-bold">5.570</strong> Cidades</span>
           </div>
-          <div className="px-3 py-1.5 rounded-xl bg-dark-card border border-slate-800 text-xs text-slate-300 flex items-center gap-2 shadow-sm">
-            <MapIcon className="w-4 h-4 text-blue-400" />
-            <span><strong className="text-white font-bold">27</strong> Estados</span>
+          <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 flex items-center gap-2 shadow-2xs">
+            <MapIcon className="w-4 h-4 text-blue-600" />
+            <span><strong className="text-slate-900 font-bold">27</strong> Estados</span>
           </div>
         </div>
       </div>
 
-      {/* Caixa de Busca e Filtros */}
-      <div className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
+      {/* Caixa de Busca e Filtros - Estilo FAQ */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
         <div className="flex flex-col md:flex-row items-stretch gap-3">
           {/* Campo de Busca Texto / CEP / IBGE */}
           <div className="relative flex-1">
-            <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Digite o nome da cidade (ex: Cravinhos), CEP (ex: 14140-000) ou Código IBGE (ex: 3513108)..."
-              className="w-full pl-11 pr-10 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm sm:text-base placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all shadow-inner"
+              className="w-full pl-10 pr-9 py-2.5 text-sm sm:text-base bg-slate-50 border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-all shadow-2xs"
               autoFocus
             />
             {query && (
               <button
                 type="button"
                 onClick={() => setQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                 title="Limpar pesquisa"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -327,7 +330,7 @@ export function Cidades() {
             <select
               value={selectedUf}
               onChange={e => setSelectedUf(e.target.value)}
-              className="w-full px-3.5 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all cursor-pointer appearance-none"
+              className="w-full pl-3.5 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-700 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-all cursor-pointer appearance-none shadow-2xs"
             >
               <option value="">Todos os Estados (27)</option>
               {ufsList.map(uf => (
@@ -343,15 +346,15 @@ export function Cidades() {
         </div>
 
         {/* Mensagem de Status da Busca */}
-        <div className="mt-3.5 flex items-center justify-between gap-3 text-xs sm:text-sm text-slate-400 border-t border-slate-800/80 pt-3">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
-            <span>{searchResult.status}</span>
+        <div className="mt-3.5 flex items-center justify-between gap-3 text-xs sm:text-sm text-slate-600 border-t border-slate-100 pt-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+            <span className="truncate">{searchResult.status}</span>
           </div>
           {(query || selectedUf) && (
             <button
               onClick={() => { setQuery(''); setSelectedUf(''); }}
-              className="text-xs text-brand-400 hover:text-brand-300 font-bold hover:underline shrink-0"
+              className="text-xs text-brand-600 hover:text-brand-700 font-bold hover:underline shrink-0 cursor-pointer"
             >
               Limpar filtros
             </button>
@@ -361,24 +364,24 @@ export function Cidades() {
 
       {/* Banner de Estado Selecionado */}
       {selectedUf && (
-        <div className="bg-gradient-to-r from-brand-950/40 via-dark-card to-slate-900 border border-brand-500/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+        <div className="bg-white border border-brand-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-xl bg-brand-500/20 border border-brand-500/30 text-brand-400 font-black text-xl flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 font-black text-xl flex items-center justify-center shrink-0">
               {selectedUf}
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
                 {UFN[selectedUf]}
-                <span className="text-xs font-normal text-slate-400">({countUf[selectedUf]} municípios)</span>
+                <span className="text-xs font-normal text-slate-500">({countUf[selectedUf]} municípios)</span>
               </h2>
-              <p className="text-xs text-slate-400 font-mono mt-0.5">
+              <p className="text-xs text-slate-600 font-mono mt-0.5">
                 Faixa Geral do Estado: {UFR[selectedUf]?.map(([a, b]) => `${fmtCep(a)} a ${fmtCep(b)}`).join('  e  ')}
               </p>
             </div>
           </div>
           <button
             onClick={() => setSelectedUf('')}
-            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium self-start sm:self-auto transition-colors"
+            className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 hover:text-slate-900 shadow-2xs self-start sm:self-auto transition-colors cursor-pointer"
           >
             Ver todos os estados
           </button>
@@ -389,11 +392,11 @@ export function Cidades() {
       {searchResult.mode === 'home' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-              <Layers className="w-5 h-5 text-brand-400" />
+            <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-brand-600" />
               <span>Faixas de CEP por Estado</span>
             </h2>
-            <span className="text-xs text-slate-400">Ordenado por faixa inicial de CEP</span>
+            <span className="text-xs text-slate-500">Ordenado por faixa inicial de CEP</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -404,29 +407,29 @@ export function Cidades() {
                   key={uf}
                   type="button"
                   onClick={() => setSelectedUf(uf)}
-                  className="bg-dark-card border border-slate-800 hover:border-brand-500/50 hover:bg-slate-800/60 rounded-xl p-3.5 text-left transition-all group flex flex-col justify-between shadow-sm hover:shadow-md cursor-pointer"
+                  className="bg-white border border-slate-200 hover:border-brand-400 hover:shadow-md rounded-xl p-3.5 text-left transition-all group flex flex-col justify-between shadow-2xs cursor-pointer"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-lg font-black text-white group-hover:text-brand-400 transition-colors">
+                      <span className="text-lg font-black text-slate-900 group-hover:text-brand-600 transition-colors">
                         {uf}
                       </span>
-                      <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-brand-400 group-hover:translate-x-0.5 transition-all" />
+                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all" />
                     </div>
-                    <div className="text-xs font-bold text-slate-300 truncate" title={UFN[uf]}>
+                    <div className="text-xs font-bold text-slate-700 truncate" title={UFN[uf]}>
                       {UFN[uf]}
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2.5 border-t border-slate-800/80">
-                    <div className="text-[11px] font-mono text-slate-400 leading-tight">
+                  <div className="mt-3 pt-2.5 border-t border-slate-100">
+                    <div className="text-[11px] font-mono text-slate-600 leading-tight">
                       {ranges.map(([a, b], idx) => (
                         <div key={idx} className="truncate">
                           {fmtCep(a)} a {fmtCep(b)}
                         </div>
                       ))}
                     </div>
-                    <div className="text-[10px] text-slate-500 mt-1.5 font-medium">
+                    <div className="text-[10px] text-slate-400 mt-1.5 font-medium">
                       {countUf[uf]} municípios
                     </div>
                   </div>
@@ -441,12 +444,12 @@ export function Cidades() {
       {searchResult.mode !== 'home' && (
         <div className="space-y-4">
           {visibleItems.length === 0 ? (
-            <div className="bg-dark-card border border-slate-800 rounded-2xl p-12 text-center shadow-lg">
-              <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-4">
+            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center mx-auto mb-4 shadow-2xs">
                 <Search className="w-7 h-7" />
               </div>
-              <h3 className="text-base sm:text-lg font-bold text-white">Nenhum município encontrado</h3>
-              <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-md mx-auto">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900">Nenhum município encontrado</h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-md mx-auto">
                 {searchResult.mode === 'cep'
                   ? 'Verifique os dígitos digitados. Um CEP completo possui 8 números, ex: 14140-000.'
                   : 'Tente buscar com apenas parte do nome, sem acentos, ou escolha "Todos os Estados".'}
@@ -454,7 +457,7 @@ export function Cidades() {
               <button
                 type="button"
                 onClick={() => { setQuery(''); setSelectedUf(''); }}
-                className="mt-5 btn-primary py-2 px-4 text-xs inline-flex items-center gap-2"
+                className="mt-5 py-2 px-4 text-xs font-bold rounded-xl bg-brand-50 border border-brand-200 text-brand-700 hover:bg-brand-100 hover:border-brand-300 shadow-sm transition-colors cursor-pointer inline-flex items-center gap-2"
               >
                 Ver todos os estados
               </button>
@@ -469,16 +472,16 @@ export function Cidades() {
                 return (
                   <div
                     key={`${cidade.uf}-${cidade.name}-${index}`}
-                    className="bg-dark-card border border-slate-800 hover:border-slate-700 rounded-xl p-4 sm:p-5 shadow-sm transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                    className="bg-white border border-slate-200 hover:border-brand-300 rounded-xl p-4 sm:p-5 shadow-2xs hover:shadow-sm transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
                   >
                     {/* Dados Principais: Nome, UF e Código IBGE */}
                     <div className="min-w-0 md:w-1/3">
                       <div className="flex items-center gap-2">
-                        <h3 className="text-base sm:text-lg font-bold text-white truncate">
+                        <h3 className="text-base sm:text-lg font-black text-slate-900 truncate">
                           {renderHighlightedName(cidade.name)}
                         </h3>
                         <span 
-                          className="px-2 py-0.5 rounded-md text-[11px] font-black bg-slate-800 border border-slate-700 text-brand-400 shrink-0"
+                          className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-brand-50 border border-brand-200 text-brand-700 shrink-0"
                           title={UFN[cidade.uf]}
                         >
                           {cidade.uf}
@@ -486,20 +489,20 @@ export function Cidades() {
                       </div>
 
                       {/* Código IBGE */}
-                      <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
-                        <span className="text-slate-500">Código IBGE:</span>
-                        <span className="font-mono font-bold text-slate-200">
+                      <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                        <span>Código IBGE:</span>
+                        <span className="font-mono font-bold text-slate-800">
                           {cidade.ibge || 'Não cadastrado'}
                         </span>
                         {cidade.ibge && (
                           <button
                             type="button"
                             onClick={() => copyText(String(cidade.ibge), copyIbgeKey)}
-                            className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors"
+                            className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
                             title="Copiar código IBGE"
                           >
                             {copiedId === copyIbgeKey ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
                             ) : (
                               <Copy className="w-3.5 h-3.5" />
                             )}
@@ -521,28 +524,28 @@ export function Cidades() {
                         return (
                           <div
                             key={rIdx}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-900/60 border border-slate-800/80 rounded-lg px-3 py-2"
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="text-xs sm:text-sm font-mono font-bold text-slate-200 whitespace-nowrap">
-                                {fmtCep(a)} <span className="text-slate-500 font-normal">a</span> {fmtCep(b)}
+                              <span className="text-xs sm:text-sm font-mono font-bold text-slate-800 whitespace-nowrap">
+                                {fmtCep(a)} <span className="text-slate-400 font-normal">a</span> {fmtCep(b)}
                               </span>
                             </div>
 
                             {/* Barra de Espectro dentro do Estado */}
                             <div className="flex-1 mx-2 sm:mx-4 hidden sm:block relative">
                               <div 
-                                className="h-2 bg-slate-800 rounded-full overflow-hidden relative"
+                                className="h-2 bg-slate-200 rounded-full overflow-hidden relative"
                                 title={`Posição da faixa dentro do estado de ${UFN[cidade.uf]}`}
                               >
                                 <div
-                                  className="h-full bg-blue-500/80 rounded-full"
+                                  className="h-full bg-brand-500 rounded-full"
                                   style={{ marginLeft: `${L}%`, width: `${W}%` }}
                                 />
                               </div>
                               {hasPin && pinPos != null && (
                                 <div
-                                  className="absolute top-1/2 -translate-y-1/2 w-2 h-4 bg-amber-400 rounded-xs shadow-[0_0_8px_rgba(251,191,36,0.8)]"
+                                  className="absolute top-1/2 -translate-y-1/2 w-2.5 h-4 bg-amber-500 border border-white rounded-xs shadow-[0_0_8px_rgba(245,158,11,0.8)]"
                                   style={{ left: `${pinPos}%` }}
                                   title={`CEP pesquisado: ${fmtCep(searchResult.pinCep!)}`}
                                 />
@@ -554,16 +557,16 @@ export function Cidades() {
                               type="button"
                               onClick={() => copyText(cepText, copyRangeKey)}
                               className={clsx(
-                                "px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all self-end sm:self-auto cursor-pointer",
+                                "py-1 px-2.5 flex items-center gap-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer shadow-2xs self-end sm:self-auto",
                                 copiedId === copyRangeKey
-                                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                                  : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700"
+                                  ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-2xs"
+                                  : "bg-white border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 hover:bg-slate-50"
                               )}
                               title="Copiar faixa de CEP"
                             >
                               {copiedId === copyRangeKey ? (
                                 <>
-                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <Check className="w-3 h-3 text-emerald-600" />
                                   <span>Copiado!</span>
                                 </>
                               ) : (
@@ -587,11 +590,11 @@ export function Cidades() {
                   <button
                     type="button"
                     onClick={() => setShownCount(prev => prev + 60)}
-                    className="btn-primary py-2.5 px-6 text-sm inline-flex items-center gap-2 shadow-lg"
+                    className="py-2.5 px-6 text-sm font-bold rounded-xl bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 hover:bg-slate-50 shadow-sm transition-all cursor-pointer inline-flex items-center gap-2"
                   >
                     <span>Mostrar mais {Math.min(60, currentItems.length - shownCount)} municípios</span>
-                    <span className="text-xs opacity-75">
-                      ({currentItems.length - shownCount} restantes)
+                    <span className="text-xs text-slate-400 font-normal">
+                      ({currentItems.length - countShown(shownCount, currentItems.length)} restantes)
                     </span>
                   </button>
                 </div>
@@ -600,6 +603,19 @@ export function Cidades() {
           )}
         </div>
       )}
+
+      {/* Rodapé institucional com marca d'água igual FAQ */}
+      <div className="mt-12 pt-5 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-400 select-none">
+        <div className="flex items-center gap-2">
+          <img src="/Logo_Mantran.png" alt="Mantran" className="h-3.5 w-auto object-contain opacity-50 grayscale" />
+          <span>Consulta de Cidades, Faixas de CEP e IBGE — Base Mantran</span>
+        </div>
+        <span>Dados oficiais IBGE e Correios Brasil</span>
+      </div>
     </div>
   )
+}
+
+function countShown(shown: number, total: number) {
+  return Math.min(shown, total)
 }
