@@ -185,10 +185,11 @@ export async function parsePdfManual(caminhoPdf) {
 
   for (const e of eventos) {
     if (e.tipo === 'imagem') {
-      // ignora o header do topo (y alto) e imagens muito pequenas/decorativas de rodapé
+      // ignora o header do topo (y alto), imagens decorativas de rodapé e ícones de fecho (concluído/ajuda)
       const ehHeader = e.y > 770
       const muitoBaixa = (e.h || 0) < 8
-      if (ehHeader || muitoBaixa) continue
+      const ehIcone = (e.img.width <= 150 && e.img.height <= 150)
+      if (ehHeader || muitoBaixa || ehIcone) continue
       if (emProcedimento && passoAtual) {
         const buf = bitmapParaPngBuffer(e.img)
         if (buf) passoAtual.imagens.push({ buffer: buf, width: e.img.width, height: e.img.height })
