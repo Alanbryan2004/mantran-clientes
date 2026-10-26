@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, TrendingUp, Ticket, Clock, FlaskConical, Code2 } from 'lucide-react'
+import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, TrendingUp, Ticket, Clock, FlaskConical, Code2, MapPin } from 'lucide-react'
 import { permissionsApi, DEFAULT_PERMISSOES } from '../lib/permissions'
 import type { PerfilPermissao } from '../lib/permissions'
 import { supabase } from '../lib/supabase'
@@ -22,6 +22,7 @@ const AVAILABLE_PROFILES = [
 
 const AVAILABLE_MODULES = [
   { path: '/', label: 'Dashboard', desc: 'Métricas gerais e visão executiva', icon: LayoutDashboard },
+  { path: '/cidades', label: 'Cidades', desc: 'Consulta de faixas de CEP e códigos IBGE', icon: MapPin },
   { path: '/tickets', label: 'Tickets', desc: 'Central de chamados e suporte a tickets', icon: Ticket },
   { path: '/dev/tarefas', label: 'Minhas Tarefas (Dev)', desc: 'Apontamento de horas e execução de tarefas de API', icon: Clock },
   { path: '/dev/qa', label: 'QA & Testes', desc: 'Validação e reprovação de cenários de teste de tela', icon: FlaskConical },

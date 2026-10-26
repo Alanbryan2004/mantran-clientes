@@ -12,25 +12,25 @@ export interface PerfilPermissao {
 export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Administrador: {
     perfil: 'Administrador',
-    rotas: ['/', '/tickets', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/cidades', '/tickets', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Tecnico: {
     perfil: 'Tecnico',
-    rotas: ['/', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/cidades', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Suporte: {
     perfil: 'Suporte',
-    rotas: ['/', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa'],
+    rotas: ['/', '/cidades', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa'],
     projeto_especifico_id: null,
     read_only: false
   },
   Usuario: {
     perfil: 'Usuario',
-    rotas: ['/', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras'],
+    rotas: ['/', '/cidades', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras'],
     projeto_especifico_id: null,
     read_only: true
   },
@@ -43,13 +43,13 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Comercial: {
     perfil: 'Comercial',
-    rotas: ['/comercial', '/calendario', '/implantacoes', '/rh'],
+    rotas: ['/comercial', '/cidades', '/calendario', '/implantacoes', '/rh'],
     projeto_especifico_id: null,
     read_only: false
   },
   Cliente: {
     perfil: 'Cliente',
-    rotas: ['/tickets', '/implantacoes'],
+    rotas: ['/tickets', '/cidades', '/implantacoes'],
     projeto_especifico_id: null,
     read_only: true
   }

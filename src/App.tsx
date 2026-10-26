@@ -13,6 +13,7 @@ import { ImplantacaoDetalhes } from './pages/ImplantacaoDetalhes'
 import { Tickets } from './pages/Tickets'
 import { Calendario } from './pages/Calendario'
 import { FAQ } from './pages/FAQ'
+import { Cidades } from './pages/Cidades'
 import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
 import { Login } from './pages/Login'
 import MinhasTarefas from './pages/dev/MinhasTarefas'
@@ -137,6 +138,7 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<RootRoute />} />
             <Route path="faq" element={<FAQ />} />
+            <Route path="cidades" element={<Cidades />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="tickets/:numero" element={<Tickets />} />
             <Route path="calendario" element={<Calendario />} />

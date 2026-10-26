@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
   Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Users2, Ticket,
   ChevronDown, Code2, Clock, FlaskConical, ListFilter, CheckCircle2,
-  Calendar, PlusCircle, BookOpen, LogIn
+  Calendar, PlusCircle, BookOpen, LogIn, MapPin
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
@@ -15,6 +15,7 @@ import clsx from 'clsx'
 const allNavItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
   { name: 'Tickets', path: '/tickets', icon: Ticket },
+  { name: 'Cidades', path: '/cidades', icon: MapPin },
   { name: 'Comercial', path: '/comercial', icon: TrendingUp },
   { name: 'Clientes', path: '/clientes', icon: Users },
   { name: 'Implantações', path: '/implantacoes', icon: Rocket },
@@ -157,22 +158,30 @@ export function Sidebar() {
       })
       setAllowedDevItems(filteredDev)
       
-      // Cliente do portal de tickets (logou com o próprio e-mail): "Meus Chamados" + FAQ
+      // Cliente do portal de tickets (logou com o próprio e-mail): "Meus Chamados" + FAQ (+ Cidades se permitido)
       if (isCliente && user?.cliente_email) {
-        setAllowedNavItems([
+        const clienteItems = [
           { name: 'Meus Chamados', path: '/tickets', icon: Ticket },
-          { name: 'FAQ', path: '/faq', icon: BookOpen }
-        ])
+        ]
+        if (permissionsApi.canAccessRoute('/cidades')) {
+          clienteItems.push({ name: 'Cidades', path: '/cidades', icon: MapPin })
+        }
+        clienteItems.push({ name: 'FAQ', path: '/faq', icon: BookOpen })
+        setAllowedNavItems(clienteItems)
         return
       }
 
-      // Se for perfil Cliente (legado por implantação): "Minha Implantação" + FAQ
+      // Se for perfil Cliente (legado por implantação): "Minha Implantação" + FAQ (+ Cidades se permitido)
       if (isCliente) {
         const directPath = user?.implantacao_id ? `/implantacoes/${user.implantacao_id}` : '/implantacoes'
-        setAllowedNavItems([
+        const clienteItems = [
           { name: 'Minha Implantação', path: directPath, icon: Rocket },
-          { name: 'FAQ', path: '/faq', icon: BookOpen }
-        ])
+        ]
+        if (permissionsApi.canAccessRoute('/cidades')) {
+          clienteItems.push({ name: 'Cidades', path: '/cidades', icon: MapPin })
+        }
+        clienteItems.push({ name: 'FAQ', path: '/faq', icon: BookOpen })
+        setAllowedNavItems(clienteItems)
 
         if (!user?.implantacao_id) {
           api.getImplantacaoForLoggedCliente(user?.nome || user?.login || '').then(impl => {
@@ -181,10 +190,14 @@ export function Sidebar() {
                 user.implantacao_id = impl.id
                 localStorage.setItem('@Mantran:user', JSON.stringify(user))
               }
-              setAllowedNavItems([
+              const updatedItems = [
                 { name: 'Minha Implantação', path: `/implantacoes/${impl.id}`, icon: Rocket },
-                { name: 'FAQ', path: '/faq', icon: BookOpen }
-              ])
+              ]
+              if (permissionsApi.canAccessRoute('/cidades')) {
+                updatedItems.push({ name: 'Cidades', path: '/cidades', icon: MapPin })
+              }
+              updatedItems.push({ name: 'FAQ', path: '/faq', icon: BookOpen })
+              setAllowedNavItems(updatedItems)
             }
           }).catch(console.error)
         }
