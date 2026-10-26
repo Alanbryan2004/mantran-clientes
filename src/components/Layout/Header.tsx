@@ -30,7 +30,8 @@ import {
   Plus,
   SlidersHorizontal,
   LogIn,
-  BookOpen
+  BookOpen,
+  MapPin
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -98,6 +99,9 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
 
   const getPageInfo = () => {
     const path = location.pathname
+    if (path.startsWith('/cidades')) {
+      return { title: 'Cidades & Faixas de CEP', icon: MapPin, subtitle: 'Consulta de municípios, faixas de CEP e códigos IBGE' }
+    }
     if (path.startsWith('/faq') || (!user && path === '/')) {
       return { title: 'FAQ — Como fazer no Mantran', icon: BookOpen, subtitle: 'Procedimentos passo a passo e documentação' }
     }
@@ -155,10 +159,10 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
             <div className="h-5 w-[1px] bg-slate-800 shrink-0 hidden sm:block" />
             <div className="hidden sm:flex flex-col">
               <span className="text-xs sm:text-sm font-semibold text-white tracking-wide">
-                FAQ & Procedimentos Mantran
+                {location.pathname.startsWith('/cidades') ? 'Cidades & Faixas de CEP' : 'FAQ & Procedimentos Mantran'}
               </span>
               <span className="text-[10px] text-slate-400">
-                Base de conhecimento e autoatendimento
+                {location.pathname.startsWith('/cidades') ? 'Consulta pública de CEP e IBGE' : 'Base de conhecimento e autoatendimento'}
               </span>
             </div>
           </div>

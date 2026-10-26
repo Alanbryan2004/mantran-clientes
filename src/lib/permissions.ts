@@ -191,6 +191,11 @@ export const permissionsApi = {
       return p !== 'parceiro'
     }
 
+    // Cidades: liberado para consulta pública direta no site quando não logado.
+    if (normPath.startsWith('/cidades')) {
+      if (!user || !user.perfil) return true
+    }
+
     if (!user || !user.perfil) return false
 
     const perfilName = user.perfil.trim()

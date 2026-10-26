@@ -4,21 +4,45 @@ import {
   BookOpen, Search, Plus, Pencil, Trash2, X, Save, ChevronRight,
   Image as ImageIcon, GripVertical, Bold, FolderPlus, ArrowLeft,
   FileCode, Upload, CheckCircle2, AlertCircle, Loader2, Sparkles, FileText,
-  Share2, Check
+  Share2, Check, Link2
 } from 'lucide-react'
 import { api, type FaqCategoria, type FaqProcedimento, type FaqPasso } from '../lib/api'
 import { getLoggedUser, canEditFaq } from '../lib/auth'
 import clsx from 'clsx'
 
 // Renderiza texto do passo permitindo apenas <b>/<strong> (resto escapado).
+// Aceita apenas URLs seguras para links (http, https, mailto). Evita javascript:, data:, etc.
+function urlSeguraFaq(url: string): string | null {
+  const u = (url || '').trim()
+  if (!u) return null
+  if (/^(https?:\/\/|mailto:)/i.test(u)) return u
+  // permite domínio "cru" (ex.: www.mantran.com.br) assumindo https
+  if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(u)) return 'https://' + u
+  return null
+}
+
 function renderTextoPasso(texto: string): { __html: string } {
-  const safe = (texto || '')
+  let safe = (texto || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/&lt;b&gt;/g, '<b>').replace(/&lt;\/b&gt;/g, '</b>')
     .replace(/&lt;strong&gt;/g, '<strong>').replace(/&lt;\/strong&gt;/g, '</strong>')
-    .replace(/\n/g, '<br>')
+
+  // Links: reconverte apenas <a href="URL">texto</a> quando a URL for segura.
+  // Após o escape acima, o HTML salvo aparece como &lt;a href="URL"&gt;texto&lt;/a&gt;
+  // e as aspas podem estar como &quot; dependendo de como foi digitado.
+  safe = safe.replace(
+    /&lt;a\s+href=(?:"|&quot;|')(.*?)(?:"|&quot;|')&gt;(.*?)&lt;\/a&gt;/gi,
+    (_match, href, label) => {
+      const url = urlSeguraFaq(String(href).replace(/&amp;/g, '&'))
+      if (!url) return label // URL inválida: mostra só o texto, sem link
+      const safeUrl = url.replace(/"/g, '&quot;')
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${label}</a>`
+    }
+  )
+
+  safe = safe.replace(/\n/g, '<br>')
   return { __html: safe }
 }
 
@@ -543,7 +567,7 @@ export function FAQ() {
                         <span className="shrink-0 w-7 h-7 rounded-full border-2 border-brand-500 text-brand-600 font-black text-xs flex items-center justify-center mt-0.5">{idx + 1}</span>
                         <div className="min-w-0 flex-1">
                           {passo.texto && (
-                            <div className="text-sm text-slate-700 leading-relaxed [&_b]:text-slate-900 [&_b]:font-bold" dangerouslySetInnerHTML={renderTextoPasso(passo.texto)} />
+                            <div className="text-sm text-slate-700 leading-relaxed [&_b]:text-slate-900 [&_b]:font-bold [&_a]:text-brand-600 [&_a]:font-semibold [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-brand-700" dangerouslySetInnerHTML={renderTextoPasso(passo.texto)} />
                           )}
                           {passo.imagem_url && (
                             <img src={passo.imagem_url} alt={`Passo ${idx + 1}`} onClick={() => setImgZoom(passo.imagem_url!)} className="mt-3 block w-auto h-auto max-w-full sm:max-w-xl max-h-80 object-contain object-left rounded-lg border border-slate-200 cursor-zoom-in hover:border-brand-400 transition-colors shadow-sm" />
@@ -998,6 +1022,12 @@ function PassoEditor({ index, total, passo, uploading, onTexto, onUpload, onRemo
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null)
 
+  // Popover de inserção de link
+  const [linkAberto, setLinkAberto] = useState(false)
+  const [linkTexto, setLinkTexto] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
+  const selRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
+
   const aplicarNegrito = () => {
     const ta = taRef.current
     if (!ta) return
@@ -1005,6 +1035,31 @@ function PassoEditor({ index, total, passo, uploading, onTexto, onUpload, onRemo
     const val = passo.texto || ''
     const sel = val.slice(start, end) || 'texto'
     onTexto(val.slice(0, start) + `<b>${sel}</b>` + val.slice(end))
+  }
+
+  const abrirLink = () => {
+    const ta = taRef.current
+    const start = ta ? ta.selectionStart : (passo.texto || '').length
+    const end = ta ? ta.selectionEnd : start
+    selRef.current = { start, end }
+    const sel = (passo.texto || '').slice(start, end)
+    setLinkTexto(sel) // usa a seleção atual como texto do link, se houver
+    setLinkUrl('')
+    setLinkAberto(true)
+  }
+
+  const confirmarLink = () => {
+    const texto = (linkTexto || '').trim() || (linkUrl || '').trim()
+    const urlRaw = (linkUrl || '').trim()
+    if (!urlRaw || !texto) return
+    // normaliza: adiciona https:// se vier só o domínio
+    const url = /^(https?:\/\/|mailto:)/i.test(urlRaw) ? urlRaw : `https://${urlRaw}`
+    const { start, end } = selRef.current
+    const val = passo.texto || ''
+    const tag = `<a href="${url}">${texto}</a>`
+    onTexto(val.slice(0, start) + tag + val.slice(end))
+    setLinkAberto(false)
+    setLinkTexto(''); setLinkUrl('')
   }
 
   const onPaste = (e: React.ClipboardEvent) => {
@@ -1030,9 +1085,43 @@ function PassoEditor({ index, total, passo, uploading, onTexto, onUpload, onRemo
           <button onClick={() => onMover(-1)} disabled={index === 0} className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30" title="Subir">↑</button>
           <button onClick={() => onMover(1)} disabled={index === total - 1} className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30" title="Descer">↓</button>
           <button onClick={aplicarNegrito} className="p-1 text-slate-500 hover:text-brand-600" title="Negrito na seleção"><Bold className="w-3.5 h-3.5" /></button>
+          <button onClick={abrirLink} className="p-1 text-slate-500 hover:text-brand-600" title="Inserir link"><Link2 className="w-3.5 h-3.5" /></button>
           <button onClick={onRemover} className="p-1 text-slate-500 hover:text-red-500" title="Remover passo"><Trash2 className="w-3.5 h-3.5" /></button>
         </div>
       </div>
+
+      {linkAberto && (
+        <div className="mb-2 p-3 rounded-lg bg-white border border-brand-200 shadow-sm space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-brand-700">
+            <Link2 className="w-3.5 h-3.5" /> Inserir link
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Texto que aparecerá</label>
+            <input
+              value={linkTexto}
+              onChange={e => setLinkTexto(e.target.value)}
+              placeholder="Ex: portal da SEFAZ"
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmarLink() } }}
+              className="w-full px-2.5 py-1.5 rounded-md bg-slate-50 border border-slate-300 text-slate-800 text-xs focus:border-brand-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Endereço (URL)</label>
+            <input
+              value={linkUrl}
+              onChange={e => setLinkUrl(e.target.value)}
+              placeholder="Ex: www.sefaz.gov.br ou https://..."
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmarLink() } }}
+              className="w-full px-2.5 py-1.5 rounded-md bg-slate-50 border border-slate-300 text-slate-800 text-xs focus:border-brand-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-0.5">
+            <button onClick={() => { setLinkAberto(false); setLinkTexto(''); setLinkUrl('') }} className="py-1 px-2.5 text-[11px] font-bold rounded-md bg-white border border-slate-300 text-slate-600 hover:border-slate-400">Cancelar</button>
+            <button onClick={confirmarLink} disabled={!linkUrl.trim() || !(linkTexto.trim() || linkUrl.trim())} className="py-1 px-2.5 text-[11px] font-bold rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40">Inserir</button>
+          </div>
+        </div>
+      )}
 
       <textarea
         ref={taRef}

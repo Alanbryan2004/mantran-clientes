@@ -142,9 +142,10 @@ export function Sidebar() {
     const updateNav = () => {
       if (!isMounted) return
 
-      // Visitante não autenticado: visualiza apenas o FAQ
+      // Visitante não autenticado: visualiza Cidades e FAQ
       if (!user) {
         setAllowedNavItems([
+          { name: 'Cidades', path: '/cidades', icon: MapPin },
           { name: 'FAQ', path: '/faq', icon: BookOpen }
         ])
         setAllowedDevItems([])

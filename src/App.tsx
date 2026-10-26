@@ -115,10 +115,10 @@ function App() {
     return <div className="min-h-screen bg-[#0f111a] flex items-center justify-center text-white">Carregando...</div>
   }
 
-  // No Celular / Mobile: se não autenticado e não for a tela de FAQ, vai direto para o Login.
-  // Permite que clientes acessem o FAQ diretamente no celular via links compartilhados.
-  const isFaqPath = window.location.pathname.startsWith('/faq')
-  if (!isAuthenticated && isMobile && !isFaqPath) {
+  // No Celular / Mobile: se não autenticado e não for tela pública (FAQ ou Cidades), vai direto para o Login.
+  // Permite que clientes e visitantes acessem o FAQ e a consulta de Cidades diretamente no celular.
+  const isPublicPath = window.location.pathname.startsWith('/faq') || window.location.pathname.startsWith('/cidades')
+  if (!isAuthenticated && isMobile && !isPublicPath) {
     return (
       <>
         <VersionGuard />
@@ -127,7 +127,7 @@ function App() {
     )
   }
 
-  // No Desktop: carrega o layout com o FAQ disponível para consulta pública.
+  // No Desktop: carrega o layout com Cidades e FAQ disponíveis para consulta pública.
   // Visitantes no Desktop contam com botão de Login no Header e Sidebar que abre o modal.
   return (
     <>
