@@ -1,0 +1,2509 @@
+[
+  {
+    "arquivo": "Alteracao_Devedor_Fatura_MANTRAN.pdf",
+    "modulo": "Faturamento",
+    "categoria": "Faturas",
+    "titulo": "ALTERAÇÃO DE DEVEDOR NA FATURA – SHOPEE",
+    "paginas": 4,
+    "qtdPassos": 8,
+    "passosComImagem": 8,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para trocar o devedor de uma fatura já emitida.\n<b>Onde se aplica</b>\nSistema Mantran, módulo Shopee, na tela Faturamento (menu Faturamento > ",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1503x1080",
+        "texto": "<b>Acesse o faturamento</b> ⏎ No menu lateral, clique em Faturamento (1) e depois em Faturamento (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2700x525",
+        "texto": "<b>Pesquise a fatura</b> ⏎ Clique na aba Consulta (1), preencha o filtro que preferir, como Nº Fatura ou Período, e clique em Pesquisar (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2700x705",
+        "texto": "<b>Abra a fatura</b> ⏎ Na lista, clique duas vezes sobre a fatura (1). A fatura abre na tela. Confira o Nº Fatura antes de continuar."
+      },
+      {
+        "temImagem": true,
+        "dim": "2250x592",
+        "texto": "<b>Abra a opção Trocar Devedor</b> ⏎ Na barra inferior da tela, clique na seta do ícone de configuração (1) e selecione Trocar Devedor (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2400x479",
+        "texto": "<b>Informe o novo devedor</b> ⏎ Na janela Trocar Devedor, digite o CNPJ correto no campo Novo Devedor."
+      },
+      {
+        "temImagem": true,
+        "dim": "2400x479",
+        "texto": "<b>Confirme a troca</b> ⏎ Confira os dados e clique em Trocar. Concluído! • O devedor da fatura foi alterado."
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": ""
+      }
+    ]
+  },
+  {
+    "arquivo": "Baixa_XML_CTe_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "BAIXA DE XML DE CT-e",
+    "paginas": 4,
+    "qtdPassos": 7,
+    "passosComImagem": 7,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para baixar os arquivos XML dos conhecimentos (CT-e) emitidos em um\nperíodo.\n<b>Onde se aplica</b>\nSistema Mantran, módulo Baixa XML: tela Bai",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "420x261",
+        "texto": "<b>Abra a baixa de CT-e</b> ⏎ Na tela inicial do Mantran, clique em Baixa XML (1) e depois em CT-e (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "400x240",
+        "texto": "<b>Acesse o sistema</b> ⏎ Na janela Acesso ao Sistema, informe seu Usuário e sua Senha (1) e clique em Login (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "720x280",
+        "texto": "<b>Informe os filtros</b> ⏎ Na tela Baixa de CTE, informe a Data Inicial e a Data Final (1) e selecione a Empresa (2). Em Documento, mantenha Conhecimento (3). "
+      },
+      {
+        "temImagem": true,
+        "dim": "720x280",
+        "texto": "<b>Confirme a baixa</b> ⏎ Na mensagem Deseja realmente baixar os documentos?, clique em Sim (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "720x280",
+        "texto": "<b>Aguarde o carregamento</b> ⏎ O sistema carrega os CT-es do período. Acompanhe o andamento pela barra e pelo contador (por exemplo, CT-e 259 de 382)."
+      },
+      {
+        "temImagem": true,
+        "dim": "720x400",
+        "texto": "<b>Escolha onde salvar</b> ⏎ Na janela Procurar Pasta, selecione a pasta de destino (1) e clique em OK (2). Aguarde o sistema compactar os arquivos."
+      },
+      {
+        "temImagem": true,
+        "dim": "720x280",
+        "texto": "<b>Finalize</b> ⏎ Na mensagem Baixa realizada com sucesso, clique em OK (1). Concluído! • Os arquivos dos CT-es do período foram salvos na pasta escolhida. ?"
+      }
+    ]
+  },
+  {
+    "arquivo": "CTe_Complementar_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "EMISSÃO DE CT-e COMPLEMENTAR",
+    "paginas": 8,
+    "qtdPassos": 15,
+    "passosComImagem": 15,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para emitir um CT-e Complementar, que complementa valores de um CT-e já\nemitido (por exemplo, pedágio ou outros componentes do frete), desde a",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1040x220",
+        "texto": "<b>Acesse a tela de CT-e</b> ⏎ No módulo Operação, clique no ícone CTe."
+      },
+      {
+        "temImagem": true,
+        "dim": "812x344",
+        "texto": "<b>Avisos ao abrir a tela</b> ⏎ Se aparecer um aviso sobre CT-es pendentes (rejeitados ou não averbados), clique em Não para seguir com a emissão."
+      },
+      {
+        "temImagem": true,
+        "dim": "1334x120",
+        "texto": "<b>Selecione o tipo Complementar</b> ⏎ No campo Tipo, selecione 1 – Complementar. A janela Conhecimento Complementar será aberta."
+      },
+      {
+        "temImagem": true,
+        "dim": "880x374",
+        "texto": "<b>Informe o CT-e original</b> ⏎ Na janela Conhecimento Complementar, informe o Nº Controle do CT-e original (1) e clique em Pesquisar (2). Confira os dados tra"
+      },
+      {
+        "temImagem": true,
+        "dim": "880x344",
+        "texto": "<b>Viagem do CT-e Complementar</b> ⏎ Na mensagem \"Deseja manter o CTe Complementar na mesma viagem do original?\", clique em Sim para manter o complementar na me"
+      },
+      {
+        "temImagem": true,
+        "dim": "460x328",
+        "texto": "<b>Grave o CT-e</b> ⏎ Os dados do CT-e original são carregados na tela. Grave o CT-e e, na mensagem \"Confirma a inclusão?\", clique em Sim."
+      },
+      {
+        "temImagem": true,
+        "dim": "700x400",
+        "texto": "<b>Aviso de percurso (se aparecer)</b> ⏎ Se a tabela de frete não tiver percurso cadastrado para a origem e o destino, aparece a mensagem \"Percurso não localiza"
+      },
+      {
+        "temImagem": true,
+        "dim": "726x900",
+        "texto": "<b>Informe o valor complementar</b> ⏎ Na janela Valores do Frete, informe o valor a complementar no componente correspondente, por exemplo em Pedágio (1). Confi"
+      },
+      {
+        "temImagem": true,
+        "dim": "608x344",
+        "texto": "<b>Confirme a gravação</b> ⏎ Na mensagem \"Confirma gravação do conhecimento?\", clique em Sim. Quando aparecer \"Conhecimento gravado com sucesso.\", clique em OK."
+      },
+      {
+        "temImagem": true,
+        "dim": "612x344",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "918x150",
+        "texto": "<b>Abra a Consulta Sefaz</b> ⏎ Clique no ícone ao lado do campo Nº Controle para abrir a consulta do CT-e na SEFAZ."
+      },
+      {
+        "temImagem": true,
+        "dim": "920x580",
+        "texto": "<b>Confira a autorização</b> ⏎ A janela Conhecimento Eletrônico abre filtrada pelo CT-e. Na coluna Retorno Sefaz, confira a mensagem \"Autorizado o uso do CT-e\"."
+      },
+      {
+        "temImagem": true,
+        "dim": "920x580",
+        "texto": "<b>Imprima o DACTE</b> ⏎ Marque a caixa da coluna Chk (1) e clique em Imprimir (2). Quando aparecer \"Processo finalizado!\", clique em OK. O DACTE do CT-e Comple"
+      },
+      {
+        "temImagem": true,
+        "dim": "480x360",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "1048x656",
+        "texto": ""
+      }
+    ]
+  },
+  {
+    "arquivo": "CTe_Subcontratado_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "EMISSÃO DE CT-e SUBCONTRATADO",
+    "paginas": 8,
+    "qtdPassos": 15,
+    "passosComImagem": 15,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para emitir um CT-e com o tipo de serviço Subcontratado, vinculando o CT-e da\ntransportadora contratante como documento anterior, desde a aber",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1040x220",
+        "texto": "<b>Acesse a tela de CT-e</b> ⏎ No menu de Operação, clique no ícone CTe."
+      },
+      {
+        "temImagem": true,
+        "dim": "880x380",
+        "texto": "<b>Avisos ao abrir a tela</b> ⏎ Se aparecer um aviso sobre CT-es pendentes (não averbados ou rejeitados), clique em Não para seguir com a emissão."
+      },
+      {
+        "temImagem": true,
+        "dim": "1260x160",
+        "texto": "<b>Informe o Cliente</b> ⏎ No campo Cliente, informe o CNPJ da transportadora contratante. A razão social e a cidade são preenchidas automaticamente."
+      },
+      {
+        "temImagem": true,
+        "dim": "1260x160",
+        "texto": "<b>Informe o Remetente</b> ⏎ No campo Remetente, digite o CNPJ ou parte do nome e selecione o cadastro na lista."
+      },
+      {
+        "temImagem": true,
+        "dim": "730x650",
+        "texto": "<b>Inclua a nota fiscal</b> ⏎ Na janela Notas Fiscais, preencha os dados da NF (número, emissão, volumes, peso, valor, embalagem e produto). A nota aparece na l"
+      },
+      {
+        "temImagem": true,
+        "dim": "1800x270",
+        "texto": "<b>Informe o Destinatário</b> ⏎ No campo Destinatário (1), digite o CNPJ ou parte do nome e selecione o cadastro. O endereço de entrega, a origem do frete e a m"
+      },
+      {
+        "temImagem": true,
+        "dim": "1524x260",
+        "texto": "<b>Selecione o tipo de serviço</b> ⏎ No campo Tp. Serviço, selecione 1 – Subcontratado (1). Depois, clique em Docs (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1256x750",
+        "texto": "<b>Informe o documento anterior</b> ⏎ Na janela Documentos Anteriores, informe no campo Cliente o CNPJ do emitente do CT-e original, a transportadora contratant"
+      },
+      {
+        "temImagem": true,
+        "dim": "1256x750",
+        "texto": "<b>Confira e feche a janela</b> ⏎ A chave aparece em Documentos Anteriores Cadastrados, com o CNPJ do emitente (1). Confira e clique na seta (2) para fechar a j"
+      },
+      {
+        "temImagem": true,
+        "dim": "640x360",
+        "texto": "<b>Grave o CT-e</b> ⏎ Grave o CT-e pela barra de ferramentas inferior. Na mensagem \"Confirma a inclusão?\", clique em Sim."
+      },
+      {
+        "temImagem": true,
+        "dim": "640x380",
+        "texto": "<b>Aviso de percurso (se aparecer)</b> ⏎ Se a tabela de frete não tiver percurso cadastrado para a origem e o destino, aparece a mensagem \"Percurso não localiza"
+      },
+      {
+        "temImagem": true,
+        "dim": "657x826",
+        "texto": "<b>Informe os valores do frete</b> ⏎ Na janela Valores do Frete, informe o valor do frete, por exemplo em Frete Peso (1), e, se desejar, uma Observação (2). Con"
+      },
+      {
+        "temImagem": true,
+        "dim": "640x360",
+        "texto": "<b>Confirme a gravação</b> ⏎ Na mensagem \"Confirma gravação do conhecimento?\", clique em Sim. Quando aparecer \"Conhecimento gravado com sucesso.\", clique em OK."
+      },
+      {
+        "temImagem": true,
+        "dim": "640x360",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "632x370",
+        "texto": "<b>Confira o CT-e gerado</b> ⏎ O CT-e recebe um Nº Controle (1) e fica com a situação G – Gerado (2). A partir daqui, siga com a transmissão do CT-e normalmente"
+      }
+    ]
+  },
+  {
+    "arquivo": "Cadastro_Cliente_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "Cadastros",
+    "titulo": "CADASTRO DE CLIENTE",
+    "paginas": 4,
+    "qtdPassos": 5,
+    "passosComImagem": 5,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para cadastrar um cliente novo no Mantran pela tela de cadastro de\nclientes.\n<b>Onde se aplica</b>\nSistema Mantran, módulo Shopee: tela Cadast",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "546x464",
+        "texto": "<b>Abra o cadastro de cliente</b> ⏎ No menu lateral, clique em Cadastros (1), depois em Cliente (2) e, por fim, em Cliente (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1599x727",
+        "texto": "<b>Informe o CNPJ</b> ⏎ Na tela Cadastro de Clientes - Dados Básicos, preencha o campo CNPJ (1) e pressione Enter. O sistema preenche algumas informações automa"
+      },
+      {
+        "temImagem": true,
+        "dim": "1464x643",
+        "texto": "<b>Preencha os campos do cadastro</b> ⏎ Preencha os campos Tipo Cliente (1), Seguradora (2), Ativ. Econômica (3), Situação (4), Operação (5) e Cond. ICMS (6). N"
+      },
+      {
+        "temImagem": true,
+        "dim": "1464x100",
+        "texto": "<b>Habilite a geração automática de CTRC</b> ⏎ Em Parâmetros, habilite a opção Gerar CTRC Automático (Serviço) (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "760x83",
+        "texto": "<b>Adicione o cliente</b> ⏎ Depois de preencher todas as informações, clique no ícone + (1), na barra inferior da tela, para adicionar o cliente. Concluído! • O"
+      }
+    ]
+  },
+  {
+    "arquivo": "Cadastro_Cliente_Tela_Faturamento_MANTRAN.pdf",
+    "modulo": "Faturamento",
+    "categoria": "Cadastros",
+    "titulo": "CADASTRO DE CLIENTE PELA TELA DE FATURAMENTO",
+    "paginas": 6,
+    "qtdPassos": 10,
+    "passosComImagem": 10,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para cadastrar um cliente novo direto na tela de Faturamento, sem sair da\nemissão da fatura.\n<b>Onde se aplica</b>\nSistema Mantran, módulos Fi",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1560x1092",
+        "texto": "<b>Acesse o faturamento</b> ⏎ No menu lateral do módulo Financeiro ou Operação, clique em Faturamento (1) e depois em Manual (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2700x778",
+        "texto": "<b>Informe o CNPJ ou CPF</b> ⏎ No campo Cliente, digite o CNPJ ou CPF do cliente, somente com números, e pressione Enter. Se o cliente já estiver cadastrado, os"
+      },
+      {
+        "temImagem": true,
+        "dim": "2220x1215",
+        "texto": "<b>Inicie o cadastro</b> ⏎ Quando aparecer a mensagem “Cliente não localizado, deseja cadastrar?”, clique em Sim."
+      },
+      {
+        "temImagem": true,
+        "dim": "2070x1344",
+        "texto": "<b>Complete os dados do cliente</b> ⏎ A janela Dados Básicos do Cliente abre, e o sistema consulta o CNPJ e preenche automaticamente os dados disponíveis. Confi"
+      },
+      {
+        "temImagem": true,
+        "dim": "960x150",
+        "texto": "<b>Salve o cadastro</b> ⏎ Na barra inferior da janela, clique no ícone + verde para inserir o cadastro. Não use o ícone de folha, que limpa os campos preenchido"
+      },
+      {
+        "temImagem": true,
+        "dim": "750x467",
+        "texto": "<b>Confirme o cadastro</b> ⏎ Na mensagem “Confirma cadastro de clientes?”, clique em Sim."
+      },
+      {
+        "temImagem": true,
+        "dim": "819x492",
+        "texto": "<b>Finalize</b> ⏎ Quando aparecer a mensagem “Cliente cadastrado com sucesso.”, clique em OK."
+      },
+      {
+        "temImagem": true,
+        "dim": "2700x778",
+        "texto": "<b>Continue a fatura</b> ⏎ O sistema volta para a tela Faturamento com o cliente já preenchido no campo Cliente. Continue a emissão da fatura normalmente. Concl"
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": ""
+      }
+    ]
+  },
+  {
+    "arquivo": "Cadastro_Empresa_Agregado_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "Cadastros",
+    "titulo": "CADASTRO DE EMPRESA AGREGADO",
+    "paginas": 5,
+    "qtdPassos": 9,
+    "passosComImagem": 9,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para cadastrar uma empresa agregada. Esse cadastro é necessário\nantes de cadastrar um veículo ou um motorista agregado.\n<b>Onde se aplica</b>\n",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "420x330",
+        "texto": "<b>Abra o cadastro de empresa agregado</b> ⏎ No menu lateral do Mantran, clique em Cadastros (1) e depois em Empresa Agregado (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "679x48",
+        "texto": "<b>Informe o CNPJ ou CPF e a inscrição estadual</b> ⏎ Na tela AGREGADO - EMPRESA, selecione CNPJ ou CPF (1) e informe o número no campo ao lado (2). No campo I."
+      },
+      {
+        "temImagem": true,
+        "dim": "600x35",
+        "texto": "<b>Informe o RNTRC</b> ⏎ Preencha o campo RNTRC (1) com os 8 caracteres do registro."
+      },
+      {
+        "temImagem": true,
+        "dim": "383x85",
+        "texto": "<b>Selecione o tipo</b> ⏎ Clique no campo Tipo (1) e selecione Agregado, Terceirizado ou Cooperativa (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "229x70",
+        "texto": "<b>Selecione TAC ou ETC</b> ⏎ Com o tipo Agregado selecionado, clique no campo ao lado (1) e selecione TAC ou ETC (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1176x68",
+        "texto": "<b>Informe a razão social e o endereço</b> ⏎ Preencha a Razão Social (1), o Endereço (2), o Bairro (3) e a Cidade (4)."
+      },
+      {
+        "temImagem": true,
+        "dim": "486x56",
+        "texto": "<b>Defina o pagamento bloqueado</b> ⏎ No campo Pagto Bloq. (1), selecione Sim ou Não."
+      },
+      {
+        "temImagem": true,
+        "dim": "400x69",
+        "texto": "<b>Salve o cadastro</b> ⏎ Na barra de ícones do rodapé, clique no ícone verde de + (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "220x133",
+        "texto": "<b>Finalize</b> ⏎ Na mensagem Registro incluído com sucesso., clique em OK (1). Concluído! • A empresa agregada foi cadastrada e já pode ser usada no cadastro d"
+      }
+    ]
+  },
+  {
+    "arquivo": "Cadastro_Motorista_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "Cadastros",
+    "titulo": "CADASTRO DE MOTORISTA",
+    "paginas": 5,
+    "qtdPassos": 10,
+    "passosComImagem": 10,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para cadastrar um motorista de Frota ou Agregado e vincular a ele o\nveículo de tração. O preenchimento muda conforme o tipo escolhido.\n<b>Onde",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "420x330",
+        "texto": "<b>Abra o cadastro de motorista</b> ⏎ No menu lateral do Mantran, clique em Cadastros (1) e depois em Motorista (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "560x29",
+        "texto": "<b>Informe o tipo de motorista e o CPF</b> ⏎ Na tela CADASTRO DE MOTORISTAS, selecione o Tipo Motorista (1), Frota ou Agregado, e informe o CPF do motorista no "
+      },
+      {
+        "temImagem": true,
+        "dim": "880x76",
+        "texto": "<b>Informe os dados da CNH</b> ⏎ Preencha o Nº CNH (1), a Categoria (2), a data da 1ª Habilitação (3), a UF emissora da CNH (4) e a Validade (5)."
+      },
+      {
+        "temImagem": true,
+        "dim": "930x76",
+        "texto": "<b>Informe os dados do RG</b> ⏎ Preencha o Nº do RG (1) e a UF emissora do RG (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1150x26",
+        "texto": "<b>Informe o nome e o apelido</b> ⏎ Preencha o Apelido (1) e o Nome Motorista (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "950x27",
+        "texto": "<b>Informe a data de nascimento, o estado civil e o PIS</b> ⏎ Preencha a Data Nasc. (1), selecione o Estado Civil (2) e informe o N° PIS (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1215x27",
+        "texto": "<b>Informe o endereço</b> ⏎ Preencha o Endereço (1) do motorista."
+      },
+      {
+        "temImagem": true,
+        "dim": "1090x49",
+        "texto": "<b>Informe a empresa, a filial e o veículo</b> ⏎ No campo CNPJ Empresa (1): se o motorista for Frota, o CNPJ já vem preenchido, apenas confira; se for Agregado,"
+      },
+      {
+        "temImagem": true,
+        "dim": "400x69",
+        "texto": "<b>Salve o cadastro</b> ⏎ Na barra de ícones do rodapé, clique no ícone verde de + (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "222x132",
+        "texto": "<b>Finalize</b> ⏎ Na mensagem Motorista incluído com sucesso., clique em OK (1). Concluído! • O motorista foi cadastrado e está vinculado ao veículo de tração i"
+      }
+    ]
+  },
+  {
+    "arquivo": "Cadastro_Veiculo_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "Cadastros",
+    "titulo": "CADASTRO DE VEÍCULO",
+    "paginas": 5,
+    "qtdPassos": 9,
+    "passosComImagem": 9,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para cadastrar um veículo de Frota ou Agregado no sistema. O\npreenchimento muda conforme o tipo escolhido.\n<b>Onde se aplica</b>\nSistema Mantr",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "470x330",
+        "texto": "<b>Abra o cadastro de veículo</b> ⏎ No menu lateral do Mantran, clique em Cadastros (1), depois em Veículo (2) e em Cadastro de Veículo (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "580x32",
+        "texto": "<b>Informe a placa e o tipo do veículo</b> ⏎ Na tela CADASTRO DE VEÍCULO, informe a Placa Veículo (1) e selecione o Tipo Veículo (2): Frota ou Agregado. Com Agr"
+      },
+      {
+        "temImagem": true,
+        "dim": "920x50",
+        "texto": "<b>Informe a descrição e o ano</b> ⏎ Preencha a Descrição (1) com o nome do veículo e o Ano Veículo (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "390x28",
+        "texto": "<b>Informe a cidade de licenciamento</b> ⏎ Preencha o campo Cidade / Licenciamento (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "650x28",
+        "texto": "<b>Informe o proprietário, se o veículo for Agregado</b> ⏎ Com o tipo Agregado, informe no campo CGC / CPF Proprietário (1) o CNPJ ou CPF da empresa agregada, q"
+      },
+      {
+        "temImagem": true,
+        "dim": "490x52",
+        "texto": "<b>Informe a marca e a quantidade de eixos</b> ⏎ Preencha a Marca do Veículo (1) e a Qtde Eixos (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "490x100",
+        "texto": "<b>Selecione o modelo, a classificação, a carroceria e a filial</b> ⏎ Selecione o Modelo do Veículo (1), a Classificação do Veículo (2) e a Carroceria (3), Aber"
+      },
+      {
+        "temImagem": true,
+        "dim": "780x28",
+        "texto": "<b>Selecione o tipo de combustível</b> ⏎ Selecione o Tipo Combustível (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "400x69",
+        "texto": "<b>Salve o cadastro</b> ⏎ Na barra de ícones do rodapé, clique no ícone verde de + (1) e aguarde a mensagem de confirmação do sistema. Concluído! • O veículo fo"
+      }
+    ]
+  },
+  {
+    "arquivo": "Cadastro_de_Conta_e_Agencia_Bancaria_MANTRAN.pdf",
+    "modulo": "Faturamento",
+    "categoria": "Cadastros",
+    "titulo": "CADASTRO DE CONTA E AGÊNCIA BANCÁRIA",
+    "paginas": 7,
+    "qtdPassos": 10,
+    "passosComImagem": 9,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para cadastrar uma conta corrente bancária no Mantran, confirmando\nantes o cadastro do banco e cadastrando a agência.\n<b>Onde se aplica</b>\nSi",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "300x330",
+        "texto": "<b>Abra o módulo Financeiro</b> ⏎ No menu lateral do Mantran, clique em Financeiro (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "440x250",
+        "texto": "<b>Abra o cadastro de Banco</b> ⏎ Clique em Cadastros (1), depois em Conta Corrente (2) e em Banco (3)."
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Confirme se o banco está cadastrado</b> ⏎ Na lista Bancos Cadastrados (1), localize o banco pelo número, pelo nome fantasia ou pela razão social. Se o banco "
+      },
+      {
+        "temImagem": true,
+        "dim": "560x475",
+        "texto": "<b>.</b>"
+      },
+      {
+        "temImagem": true,
+        "dim": "560x500",
+        "texto": "<b>Cadastre o banco</b> ⏎ Preencha Nº Banco (1), Razão Social (2) e Nome Fantasia (3) e clique no ícone verde + (4). Os demais campos da tela não são obrigatóri"
+      },
+      {
+        "temImagem": true,
+        "dim": "440x250",
+        "texto": "<b>Abra o cadastro de Agência</b> ⏎ Clique em Cadastros (1), depois em Conta Corrente (2) e em Agência (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "530x415",
+        "texto": "<b>Cadastre a agência</b> ⏎ Selecione o Banco (1) e informe o Nº Agência (2) com 4 números e o dígito (3) com 1 número (se a agência não tiver dígito, informe 0"
+      },
+      {
+        "temImagem": true,
+        "dim": "440x250",
+        "texto": "<b>Abra o cadastro de Conta Corrente</b> ⏎ Clique em Cadastros (1), depois em Conta Corrente (2) e novamente em Conta Corrente (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "530x205",
+        "texto": "<b>Informe os dados da conta</b> ⏎ Na tela CADASTRO - CONTA CORRENTE, selecione a Empresa (1), a Filial (2), o Banco (3) e a Nº Agência (4) cadastrada no passo "
+      },
+      {
+        "temImagem": true,
+        "dim": "550x466",
+        "texto": "<b>Complete os dados e grave a conta</b> ⏎ Informe a Descrição Convênio (1), o Próximo Nº Remessa (2) e a Espécie Título (3), como R$. Em seguida, clique no íco"
+      }
+    ]
+  },
+  {
+    "arquivo": "Carta_de_Correcao_CCe_CTe_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "CARTA DE CORREÇÃO ELETRÔNICA (CC-e) DE CT-e",
+    "paginas": 7,
+    "qtdPassos": 11,
+    "passosComImagem": 11,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para emitir a Carta de Correção Eletrônica (CC-e) de um CT-e, desde a\nseleção do documento até a impressão da CC-e.\n<b>Onde se aplica</b>\nSist",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1680x1155",
+        "texto": "<b>Acesse a Consulta Sefaz</b> ⏎ No menu, clique em Operação (1), depois em Conhecimento (2) e, por fim, em Consulta Sefaz (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2211x729",
+        "texto": "<b>Selecione o CT-e</b> ⏎ Na tela Consulta Sefaz, pesquise o CT-e que deseja corrigir e marque a caixa da coluna Chk (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1125x123",
+        "texto": "<b>Abra a Carta de Correção</b> ⏎ Com o CT-e marcado, clique em CCe, na parte inferior da tela."
+      },
+      {
+        "temImagem": true,
+        "dim": "1386x288",
+        "texto": "<b>Escolha o grupo</b> ⏎ No campo Grupo, selecione a categoria da informação que será corrigida."
+      },
+      {
+        "temImagem": true,
+        "dim": "1380x255",
+        "texto": "<b>Escolha o campo</b> ⏎ No campo Campo, selecione a informação específica que será corrigida."
+      },
+      {
+        "temImagem": true,
+        "dim": "1392x249",
+        "texto": "<b>Informe o conteúdo</b> ⏎ No campo Conteúdo, digite o texto da correção exatamente como ele deve constar na Carta de Correção. Dica: preencha o campo Item som"
+      },
+      {
+        "temImagem": true,
+        "dim": "1392x423",
+        "texto": "<b>Adicione a correção</b> ⏎ Clique em Adicionar (1). A correção aparece na lista logo abaixo (2). Para corrigir mais de uma informação, repita os passos 4.4 a "
+      },
+      {
+        "temImagem": true,
+        "dim": "720x210",
+        "texto": "<b>Grave e envie</b> ⏎ Depois de incluir todas as correções, clique em Gravar (botão azul com o símbolo de confirmação) para enviar a CC-e para a SEFAZ."
+      },
+      {
+        "temImagem": true,
+        "dim": "2157x540",
+        "texto": "<b>Aguarde o processamento</b> ⏎ Aguarde o sistema concluir o envio. Quando aparecer a mensagem “Processo finalizado!”, clique em OK."
+      },
+      {
+        "temImagem": true,
+        "dim": "2160x171",
+        "texto": "<b>Confira a CC-e</b> ⏎ Na tela Consulta Sefaz, role a lista para a direita e confira as colunas Nº CCe (quantidade de cartas emitidas para o CT-e), Protocolo C"
+      },
+      {
+        "temImagem": true,
+        "dim": "2172x579",
+        "texto": "<b>Imprima ou salve a CC-e</b> ⏎ Marque o CT-e (1), clique na seta ao lado de Imprimir (2) e selecione Impressão CCE (3). O PDF da CC-e abre na tela: clique em "
+      }
+    ]
+  },
+  {
+    "arquivo": "Compactacao_Arquivo_Excel_MANTRAN.pdf",
+    "modulo": "Utilitários",
+    "categoria": "Ferramentas",
+    "titulo": "COMPACTAÇÃO DE ARQUIVO EXCEL",
+    "paginas": 3,
+    "qtdPassos": 4,
+    "passosComImagem": 2,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para reduzir o tamanho de um arquivo Excel que é grande demais para\nser anexado em um chamado.\n<b>Onde se aplica</b>\nComputador do cliente, no",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "789x617",
+        "texto": "<b>Compacte o arquivo em ZIP</b> ⏎ Na pasta em que o arquivo está salvo, clique com o botão direito no arquivo (1), depois em Compactar para... (2) e em Arquivo"
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Anexe o arquivo ZIP ao chamado</b> ⏎ Anexe o arquivo ZIP ao chamado. Se o sistema ainda recusar o arquivo por causa do tamanho, siga para o passo 4.3."
+      },
+      {
+        "temImagem": true,
+        "dim": "1017x221",
+        "texto": "<b>Salve uma cópia em formato binário</b> ⏎ Abra o arquivo no Excel e clique em Arquivo > Salvar uma Cópia (ou Salvar Como, conforme a versão). No campo de tipo"
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Compacte a cópia e anexe</b> ⏎ Repita o passo 4.1 com a cópia salva em .xlsb e anexe o novo arquivo ZIP ao chamado. Concluído! • O arquivo Excel foi compacta"
+      }
+    ]
+  },
+  {
+    "arquivo": "Correcao_Duplicidade_CTe_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "CORREÇÃO DE DUPLICIDADE DE CT-e",
+    "paginas": 5,
+    "qtdPassos": 5,
+    "passosComImagem": 5,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para corrigir um CT-e que ficou com a rejeição Duplicidade de CT-e,\nreenviando-o pela tela de consulta na SEFAZ.\n<b>Onde se aplica</b>\nSistema",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1207x596",
+        "texto": "<b>Localize o CT-e com rejeição</b> ⏎ No módulo Operação, na aba Consulta da tela CONHECIMENTO, informe o Período (1) e clique em Pesquisar (2). Na coluna Retor"
+      },
+      {
+        "temImagem": true,
+        "dim": "550x390",
+        "texto": "<b>Abra a Consulta Sefaz</b> ⏎ Na tela CTe, na barra de ícones do rodapé, clique em Consulta Sefaz (1). O nome aparece ao passar o mouse sobre o ícone."
+      },
+      {
+        "temImagem": true,
+        "dim": "738x508",
+        "texto": "<b>Pesquise o CT-e</b> ⏎ Na tela CONHECIMENTO ELETRÔNICO, informe o Período ou o N° Controle do CT-e e clique em Pesquisar (1). Confira se o CT-e aparece na lis"
+      },
+      {
+        "temImagem": true,
+        "dim": "738x508",
+        "texto": "<b>Selecione o CT-e</b> ⏎ Marque o CT-e na coluna Chk (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "738x508",
+        "texto": "<b>Clique em Enviar</b> ⏎ Clique em Enviar (1) para reenviar o CT-e. Concluído! • O CT-e com rejeição de duplicidade foi reenviado pela tela de consulta na SEFA"
+      }
+    ]
+  },
+  {
+    "arquivo": "Correcao_IE_Destinatario_CTe_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "CORREÇÃO DE CT-e REJEITADO POR IE DO DESTINATÁRIO INVÁLIDA",
+    "paginas": 8,
+    "qtdPassos": 15,
+    "passosComImagem": 15,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para corrigir um CT-e rejeitado pela SEFAZ com a mensagem \"210 – Rejeição: IE\ndo destinatário inválida\", desde a identificação da rejeição até",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1040x660",
+        "texto": "<b>Acesse a Consulta Sefaz</b> ⏎ No menu, clique em Operação (1), depois em Conhecimento (2) e, por fim, em Consulta Sefaz (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "830x548",
+        "texto": "<b>Pesquise os CT-es com erro</b> ⏎ No campo Filtrar CTe, selecione Retornos com Erros (1), informe o período e clique em Pesquisar (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "830x548",
+        "texto": "<b>Confira a rejeição</b> ⏎ Na coluna Retorno Sefaz (1), confira a mensagem \"210 – Rejeição: IE do destinatário inválida\" (2). Anote o número do CT-e e feche a "
+      },
+      {
+        "temImagem": true,
+        "dim": "1040x660",
+        "texto": "<b>Abra o CT-e</b> ⏎ No menu, clique em Operação (1), depois em Conhecimento (2) e, por fim, em Conhecimento (3). A tela de Conhecimento será aberta. Informe o "
+      },
+      {
+        "temImagem": true,
+        "dim": "1224x220",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "1800x160",
+        "texto": "<b>Abra o cadastro do destinatário</b> ⏎ Confira o Destinatário (1) e clique no botão ao final da linha (2) para abrir o Cadastro de Clientes."
+      },
+      {
+        "temImagem": true,
+        "dim": "760x740",
+        "texto": "<b>Consulte a Inscrição Estadual</b> ⏎ Acesse o Sintegra (www.sintegra.gov.br) e clique no estado do destinatário. No site da SEFAZ do estado, pesquise pelo CNP"
+      },
+      {
+        "temImagem": true,
+        "dim": "1640x480",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "954x756",
+        "texto": "<b>Corrija o cadastro</b> ⏎ No Cadastro de Clientes, corrija o campo Inscr. (1) com a IE correta ou com ISENTO, quando o destinatário não tiver IE. Em Cond. ICM"
+      },
+      {
+        "temImagem": true,
+        "dim": "954x756",
+        "texto": "<b>Grave a alteração</b> ⏎ Se o sistema solicitar, preencha os campos obrigatórios que estiverem em branco, como Tipo de Carga, Seguradora, Nº Endereço e Operaç"
+      },
+      {
+        "temImagem": true,
+        "dim": "560x360",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "1040x152",
+        "texto": "<b>Abra a Consulta Sefaz pelo CT-e</b> ⏎ De volta à tela de CT-e, clique no ícone da Consulta Sefaz, na barra de ferramentas inferior. A janela abre já filtrada"
+      },
+      {
+        "temImagem": true,
+        "dim": "830x548",
+        "texto": "<b>Reenvie o CT-e</b> ⏎ Marque a caixa da coluna Chk (1) e clique em Enviar (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "520x360",
+        "texto": "<b>Aguarde o processamento</b> ⏎ Quando aparecer a mensagem \"Processo finalizado!\", clique em OK."
+      },
+      {
+        "temImagem": true,
+        "dim": "830x548",
+        "texto": "<b>Confira a autorização</b> ⏎ Na coluna Retorno Sefaz, confira a mensagem \"Autorizado o uso do CT-e\". Concluído! • O cadastro do destinatário foi corrigido e o"
+      }
+    ]
+  },
+  {
+    "arquivo": "Download_CTe_XML_PDF_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "DOWNLOAD DE CT-e (XML E PDF)",
+    "paginas": 5,
+    "qtdPassos": 7,
+    "passosComImagem": 7,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para baixar o XML e/ou o PDF de um CT-e específico, de uma sequência\nde CT-e ou de todos os CT-e de um período.\n<b>Onde se aplica</b>\nSistema ",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "710x240",
+        "texto": "<b>Selecione a filial</b> ⏎ Ao entrar no sistema, na janela FILIAL, dê duplo clique na filial em que o CT-e foi emitido (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "430x400",
+        "texto": "<b>Abra a Consulta Sefaz</b> ⏎ No menu, clique em Operação (1), depois em Conhecimento (2) e, por fim, em Consulta Sefaz (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "740x165",
+        "texto": "<b>Pesquise o CT-e</b> ⏎ Na tela CONHECIMENTO ELETRÔNICO, informe o Período (1) e o N° CTe (2). Para um CT-e específico, digite o mesmo número nos dois campos; "
+      },
+      {
+        "temImagem": true,
+        "dim": "740x275",
+        "texto": "<b>Selecione o CT-e</b> ⏎ Na lista Conhecimentos Eletrônicos, marque a caixa da coluna Chk (1) do CT-e desejado e confira se a coluna Retorno Sefaz (2) mostra A"
+      },
+      {
+        "temImagem": true,
+        "dim": "740x160",
+        "texto": "<b>Escolha o formato do download</b> ⏎ Clique na setinha ao lado de Imprimir (1) e escolha uma das opções (2): Download XML, Download PDF ou Download XML/PDF (o"
+      },
+      {
+        "temImagem": true,
+        "dim": "760x190",
+        "texto": "<b>Finalize o processo</b> ⏎ Aguarde o processamento. Na mensagem Processo finalizado!, clique em OK (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "392x146",
+        "texto": "<b>Confira o arquivo baixado</b> ⏎ O navegador baixa o arquivo Documentos.zip (1), com os arquivos dos CT-e selecionados. Abra o arquivo ZIP para acessar o XML "
+      }
+    ]
+  },
+  {
+    "arquivo": "Download_Faturas_ZIP_MANTRAN.pdf",
+    "modulo": "Faturamento",
+    "categoria": "Faturas",
+    "titulo": "DOWNLOAD DE FATURAS EM ZIP",
+    "paginas": 4,
+    "qtdPassos": 5,
+    "passosComImagem": 5,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para baixar várias faturas de uma só vez, com os arquivos XML e\nDACT-e anexados, reunidas em um único arquivo ZIP.\n<b>Onde se aplica</b>\nSiste",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1013x597",
+        "texto": "<b>Abra a impressão em lote</b> ⏎ Na tela FATURAMENTO, clique no último ícone à direita da barra de ícones do rodapé, Abrir Tela para Impressão em Lote (1). O n"
+      },
+      {
+        "temImagem": true,
+        "dim": "880x143",
+        "texto": "<b>Informe os filtros</b> ⏎ Na janela IMPRESSÃO DE FATURAS, selecione a Filial (1) e o Portador (2), que é obrigatório. Em Filtrar por, marque Numeração Fatura "
+      },
+      {
+        "temImagem": true,
+        "dim": "840x280",
+        "texto": "<b>Selecione as faturas</b> ⏎ Clique em Selecionar Todos (1) para marcar todas as faturas da lista, ou marque na coluna Chk (2) apenas as que desejar."
+      },
+      {
+        "temImagem": true,
+        "dim": "883x416",
+        "texto": "<b>Gere o arquivo ZIP</b> ⏎ Na barra de ícones da janela IMPRESSÃO DE FATURAS, clique no último ícone à direita, Salvar ZIP (1). Aguarde o sistema gerar o arqui"
+      },
+      {
+        "temImagem": true,
+        "dim": "665x393",
+        "texto": "<b>Finalize</b> ⏎ Na mensagem Arquivo .ZIP gerado com sucesso!, clique em OK (1). Concluído! • As faturas selecionadas foram salvas em um arquivo ZIP, com os ar"
+      }
+    ]
+  },
+  {
+    "arquivo": "Emissao_CTe_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "EMISSÃO DE CT-e",
+    "paginas": 15,
+    "qtdPassos": 31,
+    "passosComImagem": 31,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para emitir um CT-e (conhecimento de transporte) e enviá-lo à Sefaz.\n<b>Onde se aplica</b>\nSistema Mantran, módulo Operação: tela Conhecimento",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "460x430",
+        "texto": "<b>Abra o Conhecimento</b> ⏎ No menu lateral, clique em Operação (1), depois em Conhecimento (2) e, no submenu, em Conhecimento (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "509x149",
+        "texto": "<b>Selecione o tipo de carga</b> ⏎ Na tela CONHECIMENTO, aba CTe, selecione em Tipo Carga (1) a opção Fracionada ou Fechada."
+      },
+      {
+        "temImagem": true,
+        "dim": "1080x105",
+        "texto": "<b>Informe a origem do conhecimento</b> ⏎ O CT-e pode ser criado a partir de uma coleta, de uma viagem ou de uma minuta. Se for o caso, informe o número em Nº C"
+      },
+      {
+        "temImagem": true,
+        "dim": "560x105",
+        "texto": "<b>Informe o motorista e a tração</b> ⏎ Informe o Motorista (1) e a Tração (2). Esses dados não são obrigatórios no CT-e: preencha-os quando fizerem parte da op"
+      },
+      {
+        "temImagem": true,
+        "dim": "752x260",
+        "texto": "<b>Informe o cliente</b> ⏎ No campo Cliente (1), informe o CNPJ/CPF do cliente."
+      },
+      {
+        "temImagem": true,
+        "dim": "752x260",
+        "texto": "<b>Informe o remetente</b> ⏎ No campo Remetente (1), informe o CNPJ/CPF do remetente e pressione Enter. Também é possível clicar no ícone ao lado do campo (2). "
+      },
+      {
+        "temImagem": true,
+        "dim": "640x565",
+        "texto": "<b>Digite as notas fiscais</b> ⏎ Na janela Notas Fiscais, informe os dados da nota, como a Chave (1) e o Nº (2), e clique em Incluir registro (3). Repita para c"
+      },
+      {
+        "temImagem": true,
+        "dim": "640x250",
+        "texto": "<b>Ou busque as notas do remetente</b> ⏎ Se as notas já foram importadas para o sistema, use a parte Notas Fiscais do Remetente: ajuste os filtros, se necessári"
+      },
+      {
+        "temImagem": true,
+        "dim": "752x260",
+        "texto": "<b>Informe o destinatário</b> ⏎ De volta à tela CONHECIMENTO, informe o CNPJ/CPF do destinatário no campo Destinatário (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "752x260",
+        "texto": "<b>Informe a seguradora</b> ⏎ No campo Seguradora (1), informe o código da seguradora."
+      },
+      {
+        "temImagem": true,
+        "dim": "563x331",
+        "texto": "<b>Confira o modal</b> ⏎ Em Modal (1), selecione 01 - Rodoviário, 02 - Aéreo ou 06 - Multimodal."
+      },
+      {
+        "temImagem": true,
+        "dim": "424x269",
+        "texto": "<b>Confira o tipo de serviço</b> ⏎ Em Tp. Serviço (1), selecione 0 - Frete Normal, 1 - Subcontratado, 2 - Redespacho, 3 - Redespacho Intermediário ou 4 - Serv. "
+      },
+      {
+        "temImagem": true,
+        "dim": "424x269",
+        "texto": "<b>Abra os documentos anteriores</b> ⏎ Se o Tp. Serviço for diferente de 0 - Frete Normal, é necessário informar o documento anterior. Clique em Docs (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "541x372",
+        "texto": "<b>Informe o documento anterior</b> ⏎ Na janela DOCUMENTOS ANTERIORES, informe o Cliente (1), emitente do documento anterior, e o Nº Doc. Ant. (2). Clique em + "
+      },
+      {
+        "temImagem": true,
+        "dim": "450x256",
+        "texto": "<b>Confira o seguro</b> ⏎ Em Seguro (1), selecione por conta de quem é o seguro: Remetente, Expedidor, Recebedor, Destinatário, Emissor CTe ou Tomador do Serviç"
+      },
+      {
+        "temImagem": true,
+        "dim": "611x303",
+        "texto": "<b>Confira o tipo de frete</b> ⏎ Em Tp. Frete (1), selecione F - FATURADO, A - À PAGAR, P - PAGO, B - BLOQUEADO ou C - CORTESIA."
+      },
+      {
+        "temImagem": true,
+        "dim": "380x60",
+        "texto": "<b>Inclua o registro</b> ⏎ Com todos os dados informados, clique em Incluir Registro (1), o ícone + da barra inferior."
+      },
+      {
+        "temImagem": true,
+        "dim": "210x145",
+        "texto": "<b>Confirme a inclusão</b> ⏎ Na mensagem Confirma a inclusão?, clique em Sim (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "577x360",
+        "texto": "<b>Informe os valores do frete</b> ⏎ Se não houver tabela de frete ou percurso cadastrado na tabela, abre a tela VALORES DO FRETE. Nela, informe todos os valore"
+      },
+      {
+        "temImagem": true,
+        "dim": "577x395",
+        "texto": "<b>Preencha a observação e os demais dados</b> ⏎ Na parte de baixo da tela VALORES DO FRETE, preencha também a Observação (1) e os demais campos que precisar."
+      },
+      {
+        "temImagem": true,
+        "dim": "578x743",
+        "texto": "<b>Grave os valores</b> ⏎ Confira o TOTAL DO FRETE (1) e clique em Gravar e Fechar (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "252x107",
+        "texto": "<b>Confirme a gravação</b> ⏎ Na mensagem Confirma gravação do conhecimento?, clique em Sim (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "255x140",
+        "texto": "<b>Finalize a gravação</b> ⏎ Na mensagem Conhecimento gravado com sucesso., clique em OK (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1315x480",
+        "texto": "<b>Consulte o CT-e gerado</b> ⏎ Para ver o número de controle gerado, clique na aba Consulta (1), ajuste o período, se necessário, e clique em Pesquisar (2). Na"
+      },
+      {
+        "temImagem": true,
+        "dim": "1320x360",
+        "texto": "<b>Abra o CT-e</b> ⏎ Dê dois cliques sobre o CT-e na lista. Ele abre na aba CTe, com o Nº Controle (1) e a Situação (2) G-Gerado."
+      },
+      {
+        "temImagem": true,
+        "dim": "694x110",
+        "texto": "<b>Envie um CT-e à Sefaz</b> ⏎ Para enviar apenas este CT-e, clique no raio (1) ao lado do campo Nº Controle."
+      },
+      {
+        "temImagem": true,
+        "dim": "617x539",
+        "texto": "<b>Para enviar vários CT-es, abra o Envio SEFAZ</b> ⏎ Para enviar uma sequência de CT-es, clique em Operação (1), depois em Conhecimento (2) e em Envio SEFAZ (3"
+      },
+      {
+        "temImagem": true,
+        "dim": "525x270",
+        "texto": "<b>Envie os CT-es em lote</b> ⏎ Na janela IMPRESSÃO DE CONHECIMENTOS, preencha os parâmetros, como Data Emissão (1) e N° CTRC - Controle de/até (2), e clique no"
+      },
+      {
+        "temImagem": true,
+        "dim": "619x495",
+        "texto": "<b>Abra a Consulta Sefaz</b> ⏎ Depois de enviar, acompanhe o CT-e na tela de consulta: clique em Operação (1), depois em Conhecimento (2) e em Consulta Sefaz (3"
+      },
+      {
+        "temImagem": true,
+        "dim": "788x539",
+        "texto": "<b>Pesquise o CT-e</b> ⏎ Na tela CONHECIMENTO ELETRÔNICO, informe o Período (1) e, se desejar, outros filtros, como o N° Controle (2). Clique em Pesquisar (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "788x539",
+        "texto": "<b>Use as ações do CT-e</b> ⏎ Marque o CT-e na coluna Chk (1) e use os botões da parte de baixo da tela. Clique em Imprimir (3) para imprimir, em E-Mail (4) par"
+      }
+    ]
+  },
+  {
+    "arquivo": "Emitir_Conhecimento_Por_Outra_Filial.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "EMISSÃO DE CONHECIMENTO POR OUTRA FILIAL",
+    "paginas": 2,
+    "qtdPassos": 3,
+    "passosComImagem": 0,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para selecionar outra filial e emitir um conhecimento (CT-e) por ela.\n<b>Onde se aplica</b>\nSistema Mantran, módulo Operação: tela de escolha ",
+    "passos": [
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Abra o menu Operação</b> ⏎ Com o sistema Mantran aberto, clique em Operação."
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Escolha a filial</b> ⏎ Será aberta uma tela para a escolha da filial. Selecione a filial pela qual o conhecimento será emitido."
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Emita o conhecimento</b> ⏎ Com a filial selecionada, faça o conhecimento manualmente, da forma habitual. Concluído! O conhecimento foi emitido pela filial se"
+      }
+    ]
+  },
+  {
+    "arquivo": "Envio_Manual_Conhecimento_SEFAZ_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "ENVIO MANUAL DE CONHECIMENTO (CT-E) PARA A SEFAZ",
+    "paginas": 4,
+    "qtdPassos": 7,
+    "passosComImagem": 6,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para enviar conhecimentos (CT-e) manualmente para a SEFAZ, um por vez ou em\nlote, e para consultar o retorno dos envios.\n<b>Onde se aplica</b>",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "2638x600",
+        "texto": "<b>Parte A · Envie um conhecimento</b> ⏎ <b>Pesquise o conhecimento</b> ⏎ Na tela Conhecimento (menu Operação > Conhecimento > Conhecimento), clique na aba Cons"
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Parte A · Envie um conhecimento</b> ⏎ <b>Abra o conhecimento</b> ⏎ Na Relação de Conhecimentos Emitidos, dê dois cliques sobre o conhecimento que será enviad"
+      },
+      {
+        "temImagem": true,
+        "dim": "2638x620",
+        "texto": "<b>Parte A · Envie um conhecimento</b> ⏎ <b>Envie para a SEFAZ</b> ⏎ Clique no ícone ao lado do campo Nº Controle (1) para enviar o conhecimento."
+      },
+      {
+        "temImagem": true,
+        "dim": "920x860",
+        "texto": "<b>Parte B · Envie conhecimentos em lote</b> ⏎ <b>Abra o Envio SEFAZ</b> ⏎ No menu lateral, clique em Operação (1), depois em Conhecimento (2) e em Envio SEFAZ "
+      },
+      {
+        "temImagem": true,
+        "dim": "1020x590",
+        "texto": "<b>Parte B · Envie conhecimentos em lote</b> ⏎ <b>Preencha o filtro e envie</b> ⏎ Na tela Envio de CTe em Lote, preencha o filtro que preferir, como Data Emissã"
+      },
+      {
+        "temImagem": true,
+        "dim": "920x860",
+        "texto": "<b>Parte C · Consulte os envios</b> ⏎ <b>Abra a Consulta Sefaz</b> ⏎ Para acompanhar o retorno dos envios, clique em Operação (1), depois em Conhecimento (2) e "
+      },
+      {
+        "temImagem": true,
+        "dim": "1480x910",
+        "texto": "<b>Parte C · Consulte os envios</b> ⏎ <b>Confira o retorno</b> ⏎ Na tela Conhecimento Eletrônico, preencha o filtro que preferir, como Período, Nº CTe ou Nº Con"
+      }
+    ]
+  },
+  {
+    "arquivo": "Excluir_Conhecimento_Nao_Enviado_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "EXCLUSÃO DE CONHECIMENTO NÃO ENVIADO À SEFAZ",
+    "paginas": 3,
+    "qtdPassos": 5,
+    "passosComImagem": 5,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para excluir um conhecimento (CT-e) que foi gerado no sistema, mas ainda\nnão foi enviado à SEFAZ.\n<b>Onde se aplica</b>\nSistema Mantran, módul",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "800x148",
+        "texto": "<b>Acesse a tela de Conhecimento</b> ⏎ No menu superior, clique em CTe (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2608x344",
+        "texto": "<b>Pesquise o conhecimento</b> ⏎ Clique na aba Consulta (1). Informe o Período e a data Até (2) e clique em Pesquisar (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2576x400",
+        "texto": "<b>Localize e abra o conhecimento</b> ⏎ Na lista Relação de Conhecimentos Emitidos, localize o conhecimento (1) e confira se a coluna St. mostra G e se a coluna"
+      },
+      {
+        "temImagem": true,
+        "dim": "2588x928",
+        "texto": "<b>Confira os dados do conhecimento</b> ⏎ Com o conhecimento aberto, confira se os campos Nº CTe (1) e Chave CTe (2) estão em branco."
+      },
+      {
+        "temImagem": true,
+        "dim": "840x92",
+        "texto": "<b>Exclua o conhecimento</b> ⏎ Na barra inferior, clique no botão Excluir (X vermelho) (1). Se o sistema pedir confirmação, confirme a exclusão. Concluído! O co"
+      }
+    ]
+  },
+  {
+    "arquivo": "Exclusao de Fatura_MANTRAN.pdf",
+    "modulo": "Faturamento",
+    "categoria": "Faturas",
+    "titulo": "EXCLUSÃO DE FATURA",
+    "paginas": 3,
+    "qtdPassos": 6,
+    "passosComImagem": 5,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para localizar e excluir uma fatura no sistema.\n<b>Onde se aplica</b>\nSistema Mantran, tela Faturamento, aba Consulta (menu Faturamento > Fatu",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "430x370",
+        "texto": "<b>Abra o Faturamento</b> ⏎ Com o sistema Mantran aberto, clique em Faturamento no menu lateral e, em seguida, em Faturamento no submenu."
+      },
+      {
+        "temImagem": true,
+        "dim": "930x622",
+        "texto": "<b>Acesse a aba Consulta</b> ⏎ Na tela de Faturamento, clique na aba Consulta."
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Pesquise a fatura</b> ⏎ Informe os filtros desejados (Cliente, Nº Fatura ou Período) e clique em Pesquisar."
+      },
+      {
+        "temImagem": true,
+        "dim": "920x621",
+        "texto": "<b>Abra a fatura</b> ⏎ Na Relação de Faturas, dê um duplo clique sobre a fatura que será excluída."
+      },
+      {
+        "temImagem": true,
+        "dim": "976x655",
+        "texto": "<b>Exclua a fatura</b> ⏎ Com a fatura aberta, clique no botão Excluir Registro (ícone X vermelho) na barra inferior da tela."
+      },
+      {
+        "temImagem": true,
+        "dim": "399x298",
+        "texto": "<b>Confirme a exclusão</b> ⏎ Na mensagem \"Confirma exclusão da fatura?\", clique em Sim. Concluído! • A fatura foi excluída. ?"
+      }
+    ]
+  },
+  {
+    "arquivo": "Exclusao_CTe_Importado_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "EXCLUSÃO DE CONHECIMENTO (CT-e) IMPORTADO",
+    "paginas": 4,
+    "qtdPassos": 4,
+    "passosComImagem": 4,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para excluir um conhecimento (CT-e) que foi importado em uma filial diferente\nda desejada.\n<b>Onde se aplica</b>\nSistema Mantran, módulo Opera",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "715x270",
+        "texto": "<b>Entre na filial em que o CT-e foi importado</b> ⏎ Ao abrir o sistema, na janela Filial, dê duplo clique na filial em que o conhecimento foi importado (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1362x635",
+        "texto": "<b>Pesquise o CT-e</b> ⏎ Clique em CTe, no topo da tela (1), para abrir a tela Conhecimento. Informe o número do conhecimento no campo Nº CTe (2) e pesquise."
+      },
+      {
+        "temImagem": true,
+        "dim": "1362x637",
+        "texto": "<b>Confira o conhecimento localizado</b> ⏎ Os dados do CT-e serão carregados na tela. Confira se o Nº CTe e a Série (1) correspondem ao conhecimento que deve se"
+      },
+      {
+        "temImagem": true,
+        "dim": "685x643",
+        "texto": "<b>Exclua o conhecimento</b> ⏎ Na barra inferior da tela, clique no botão Excluir (ícone X) (1) e confirme a exclusão na mensagem exibida. Concluído! • O conhec"
+      }
+    ]
+  },
+  {
+    "arquivo": "Exportacao_Nota_Fiscal_Servico_Shopee_MANTRAN.pdf",
+    "modulo": "Shopee",
+    "categoria": "Exportação",
+    "titulo": "EXPORTAÇÃO DE NOTA FISCAL DE SERVIÇO – SHOPEE",
+    "paginas": 4,
+    "qtdPassos": 8,
+    "passosComImagem": 7,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para exportar a planilha de notas fiscais de serviço (NFS-e) da Shopee por processo\ne quinzena, ou para baixar as notas em PDF.\n<b>Onde se apl",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "2280x396",
+        "texto": "<b>Parte A · Exporte a planilha de NFS-e</b> ⏎ <b>Acesse a exportação</b> ⏎ Clique em Shopee, no topo da tela. No menu lateral à esquerda, clique em eCommerce ("
+      },
+      {
+        "temImagem": true,
+        "dim": "920x660",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "860x450",
+        "texto": "<b>Parte A · Exporte a planilha de NFS-e</b> ⏎ <b>Selecione o processo</b> ⏎ Na tela Exportação de Planilha Shopee – NFSe/Fatura, selecione o Processo da sua op"
+      },
+      {
+        "temImagem": true,
+        "dim": "860x400",
+        "texto": "<b>Parte A · Exporte a planilha de NFS-e</b> ⏎ <b>Informe o período e o tipo de documento</b> ⏎ Selecione a Quinzena, o Mês e o Ano (1). Em Tp. Docto, selecione"
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Parte A · Exporte a planilha de NFS-e</b> ⏎ <b>Exporte a planilha</b> ⏎ Na barra inferior da tela, clique no ícone do Excel (3) e aguarde o sistema gerar a p"
+      },
+      {
+        "temImagem": true,
+        "dim": "1000x200",
+        "texto": "<b>Parte B · Outra opção: baixe as NFS-e em PDF</b> ⏎ <b>Abra a tela de NFS-e</b> ⏎ No topo da tela, clique no ícone NFSe (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1594x490",
+        "texto": "<b>Parte B · Outra opção: baixe as NFS-e em PDF</b> ⏎ <b>Pesquise as notas</b> ⏎ Na tela NFS-e, preencha o filtro que preferir, como Período, Nº NFS ou CGC/CPF "
+      },
+      {
+        "temImagem": true,
+        "dim": "1662x750",
+        "texto": "<b>Parte B · Outra opção: baixe as NFS-e em PDF</b> ⏎ <b>Selecione as notas e gere o PDF</b> ⏎ Na coluna Chk, marque as notas que deseja baixar (1) ou clique em"
+      }
+    ]
+  },
+  {
+    "arquivo": "Exportacao_Pre_Fatura_Line_Haul_Shopee_MANTRAN.pdf",
+    "modulo": "Shopee",
+    "categoria": "Exportação",
+    "titulo": "EXPORTAÇÃO DE PRÉ-FATURA LINE HAUL – SHOPEE",
+    "paginas": 4,
+    "qtdPassos": 7,
+    "passosComImagem": 7,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para exportar para o Excel a planilha de pré-fatura das operações Line Haul da\nShopee, por quinzena, mês e ano.\n<b>Onde se aplica</b>\nSistema ",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1120x360",
+        "texto": "<b>Acesse a exportação</b> ⏎ No menu, clique em eCommerce (1), depois em Exportação (2) e, por fim, em Planilha Shopee (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "841x374",
+        "texto": "<b>Selecione o processo</b> ⏎ No campo Processo, selecione LINE HAUL."
+      },
+      {
+        "temImagem": true,
+        "dim": "841x374",
+        "texto": "<b>Marque a opção Pré Fatura</b> ⏎ Marque a caixa Pré Fatura. Os campos de período passam a ser Quinzena, Mês e Ano."
+      },
+      {
+        "temImagem": true,
+        "dim": "841x374",
+        "texto": "<b>Informe o período e exporte</b> ⏎ Selecione a Quinzena (1), o Mês (2) e o Ano (3). Depois, clique no ícone do Excel (4), na barra inferior da janela."
+      },
+      {
+        "temImagem": true,
+        "dim": "720x320",
+        "texto": "<b>Confirme a exportação</b> ⏎ Confira a quantidade de registros na mensagem \"Confirma exportação de ... registros para o Excel?\" e clique em Sim."
+      },
+      {
+        "temImagem": true,
+        "dim": "700x124",
+        "texto": "<b>Abra o arquivo baixado</b> ⏎ A planilha é baixada pelo navegador. Para encontrá-la, abra a lista de downloads recentes do navegador e clique no arquivo Shope"
+      },
+      {
+        "temImagem": true,
+        "dim": "1900x280",
+        "texto": "<b>Confira a planilha</b> ⏎ A planilha abre no Excel com os CT-es da quinzena selecionada, um por linha, com os valores do frete, o número e a série do CT-e e a"
+      }
+    ]
+  },
+  {
+    "arquivo": "Exportacao_XML_NFSe_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "NFS-e",
+    "titulo": "EXPORTAÇÃO DE XML DAS NFS-e",
+    "paginas": 5,
+    "qtdPassos": 5,
+    "passosComImagem": 5,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para exportar, em lote, os arquivos XML das Notas Fiscais de Serviço\n(NFS-e) emitidas em um período.\n<b>Onde se aplica</b>\nSistema Mantran, mó",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1059x300",
+        "texto": "<b>Acesse o módulo NFSe</b> ⏎ Na tela inicial do sistema, clique no ícone NFSe (1), no menu superior."
+      },
+      {
+        "temImagem": true,
+        "dim": "1119x790",
+        "texto": "<b>Defina o período e pesquise</b> ⏎ Na tela NFS-e, preencha os campos Período de e Até (1) com as datas desejadas. Em seguida, clique em Pesquisar (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1122x790",
+        "texto": "<b>Selecione todas as notas</b> ⏎ Com as notas do período listadas, clique em Selecionar Todos (1) para marcar todas de uma vez."
+      },
+      {
+        "temImagem": true,
+        "dim": "1122x794",
+        "texto": "<b>Exporte o XML</b> ⏎ Confira se todas as notas estão marcadas na coluna Chk e clique em XML (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1116x780",
+        "texto": "<b>Confirme a conclusão</b> ⏎ Ao final, o sistema exibe a mensagem Processo concluído. Clique em OK (1) para finalizar. Concluído! • Os arquivos XML das NFS-e d"
+      }
+    ]
+  },
+  {
+    "arquivo": "Geracao_GNRE_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "NFS-e",
+    "titulo": "GERAÇÃO DE GNRE",
+    "paginas": 7,
+    "qtdPassos": 9,
+    "passosComImagem": 3,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para preparar a configuração da GNRE (Guia Nacional de Recolhimento\nde Tributos Estaduais) da sua empresa, gerar a GNRE de um CT-e no sistema ",
+    "passos": [
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Defina o cenário fiscal com a contabilidade</b> ⏎ Peça à contabilidade que confirme: o imposto a recolher (ICMS, ICMS-ST, DIFAL ou FCP), o responsável, a UF "
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Reúna as informações para o chamado</b> ⏎ Depois de confirmar tudo com a contabilidade, reúna as informações que serão enviadas diretamente no chamado: razão"
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Defina o código do TIPO VALOR</b> ⏎ Peça à contabilidade o código do TIPO VALOR que a sua guia deve usar. Não adote o 11 ou o 21 automaticamente: diferencie "
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Abra um chamado para a Mantran</b> ⏎ Com a contabilidade, defina também os campos que a Mantran irá configurar: Dias para o vencimento, Tipo Valor, Receita, "
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Parte B · Gere a GNRE no sistema</b> ⏎ <b>Confira se o CT-e permite gerar a GNRE</b> ⏎ Nem todo CT-e permite gerar a GNRE no Mantran. Antes de gerar, abra a "
+      },
+      {
+        "temImagem": true,
+        "dim": "776x544",
+        "texto": "<b>Parte B · Gere a GNRE no sistema</b> ⏎ <b>Pesquise o CT-e</b> ⏎ Na tela Conhecimento Eletrônico, informe o Período (1) ou os demais filtros, como N° CTe ou N"
+      },
+      {
+        "temImagem": true,
+        "dim": "850x540",
+        "texto": "<b>Parte B · Gere a GNRE no sistema</b> ⏎ <b>Selecione o CT-e</b> ⏎ Na lista Conhecimentos Eletrônicos, marque na coluna Chk (1) o CT-e para o qual será gerada "
+      },
+      {
+        "temImagem": true,
+        "dim": "850x540",
+        "texto": "<b>Parte B · Gere a GNRE no sistema</b> ⏎ <b>Clique no ícone GNRE</b> ⏎ Com o CT-e selecionado, clique no ícone GNRE (1), no canto inferior direito da tela. Se "
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Parte B · Gere a GNRE no sistema</b> ⏎ <b>Confira a guia antes de pagar</b> ⏎ Confira na guia impressa: o contribuinte, a UF favorecida, a receita, o documen"
+      }
+    ]
+  },
+  {
+    "arquivo": "Importacao_Planilha_Fatura_MANTRAN.pdf",
+    "modulo": "Faturamento",
+    "categoria": "Importação de planilhas",
+    "titulo": "IMPORTAÇÃO DE PLANILHA FATURA",
+    "paginas": 8,
+    "qtdPassos": 18,
+    "passosComImagem": 18,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para importar a planilha de fatura no Mantran e, depois, baixar as faturas\ngeradas em PDF.\n<b>Onde se aplica</b>\nSistema Mantran, módulo Shope",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1099x116",
+        "texto": "<b>Parte A · Preencha a planilha modelo</b> ⏎ <b>Preencha a planilha modelo</b> ⏎ Abra a planilha modelo e preencha a linha de dados conforme o exemplo do print"
+      },
+      {
+        "temImagem": true,
+        "dim": "2280x396",
+        "texto": "<b>Parte B · Envie a planilha para o sistema</b> ⏎ <b>Libere a barra de transferência</b> ⏎ No topo da tela do Mantran, clique na seta (1) para abrir a barra de"
+      },
+      {
+        "temImagem": true,
+        "dim": "1410x384",
+        "texto": "<b>Parte B · Envie a planilha para o sistema</b> ⏎ <b>Clique no ícone de envio</b> ⏎ Na barra que abriu, clique no ícone From PC to Server (enviar do computador"
+      },
+      {
+        "temImagem": true,
+        "dim": "2658x495",
+        "texto": "<b>Parte B · Envie a planilha para o sistema</b> ⏎ <b>Envie a planilha</b> ⏎ Clique em Click or drop files to upload (1) e selecione a planilha no seu computado"
+      },
+      {
+        "temImagem": true,
+        "dim": "2280x396",
+        "texto": "<b>Parte C · Importe a planilha</b> ⏎ <b>Acesse a importação</b> ⏎ Clique em Shopee, no topo da tela. No menu lateral à esquerda, clique em eCommerce (1), depoi"
+      },
+      {
+        "temImagem": true,
+        "dim": "1779x966",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "2103x621",
+        "texto": "<b>Parte C · Importe a planilha</b> ⏎ <b>Preencha os campos obrigatórios</b> ⏎ Preencha com as informações da sua operação: Processo (1), Portador (2), Condição"
+      },
+      {
+        "temImagem": true,
+        "dim": "2145x636",
+        "texto": "<b>Parte C · Importe a planilha</b> ⏎ <b>Selecione a planilha</b> ⏎ Clique no ícone de pasta ao lado do campo Diretório. Na janela Selecione o arquivo, localize"
+      },
+      {
+        "temImagem": true,
+        "dim": "2997x1473",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "2289x717",
+        "texto": "<b>Parte C · Importe a planilha</b> ⏎ <b>Confirme a importação</b> ⏎ Depois da leitura do arquivo, confira na mensagem a quantidade de registros e o processo. S"
+      },
+      {
+        "temImagem": true,
+        "dim": "1503x1080",
+        "texto": "<b>Parte D · Baixe as faturas</b> ⏎ <b>Acesse o faturamento</b> ⏎ No menu lateral, clique em Faturamento (1) e depois em Faturamento (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2787x810",
+        "texto": "<b>Parte D · Baixe as faturas</b> ⏎ <b>Localize a fatura</b> ⏎ Clique na aba Consulta (1), informe o período e clique em Pesquisar (2). A fatura importada apare"
+      },
+      {
+        "temImagem": true,
+        "dim": "1410x162",
+        "texto": "<b>Parte D · Baixe as faturas</b> ⏎ <b>Abra a impressão de faturas</b> ⏎ Na barra inferior da tela, clique no ícone destacado no print abaixo (o último da barra"
+      },
+      {
+        "temImagem": true,
+        "dim": "2460x600",
+        "texto": "<b>Parte D · Baixe as faturas</b> ⏎ <b>Filtre por data de emissão</b> ⏎ Marque Data Emissão e informe o período (1). Depois, clique em Pesquisar (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2457x1023",
+        "texto": "<b>Parte D · Baixe as faturas</b> ⏎ <b>Selecione as faturas e salve em ZIP</b> ⏎ Na coluna Chk, marque as faturas que deseja baixar. Para marcar todas de uma ve"
+      },
+      {
+        "temImagem": true,
+        "dim": "849x471",
+        "texto": "<b>Parte D · Baixe as faturas</b> ⏎ <b>Confirme a geração do arquivo</b> ⏎ Quando aparecer a mensagem “Arquivo .ZIP gerado com sucesso!”, clique em OK."
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": "<b>Parte D · Baixe as faturas</b> ⏎ <b>Abra o arquivo baixado</b> ⏎ O arquivo ZIP é baixado pelo navegador. Para encontrá-lo, abra a lista de downloads recentes"
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": ""
+      }
+    ]
+  },
+  {
+    "arquivo": "Importacao_Planilha_Nota_Servico_MANTRAN.pdf",
+    "modulo": "Faturamento",
+    "categoria": "Importação de planilhas",
+    "titulo": "IMPORTAÇÃO DE PLANILHA NOTA FISCAL DE SERVIÇO",
+    "paginas": 3,
+    "qtdPassos": 8,
+    "passosComImagem": 7,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para importar a planilha de notas fiscais de serviço (NFS-e) no Mantran.\n<b>Onde se aplica</b>\nSistema Mantran, módulo Shopee: tela Importação",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "2280x396",
+        "texto": "<b>Parte A · Envie a planilha para o sistema</b> ⏎ <b>Libere a barra de transferência</b> ⏎ No topo da tela do Mantran, clique na seta (1) para abrir a barra de"
+      },
+      {
+        "temImagem": true,
+        "dim": "1410x384",
+        "texto": "<b>Parte A · Envie a planilha para o sistema</b> ⏎ <b>Clique no ícone de envio</b> ⏎ Na barra que abriu, clique no ícone From PC to Server (enviar do computador"
+      },
+      {
+        "temImagem": true,
+        "dim": "2658x495",
+        "texto": "<b>Parte A · Envie a planilha para o sistema</b> ⏎ <b>Envie a planilha</b> ⏎ Clique em Click or drop files to upload (1) e selecione a planilha no seu computado"
+      },
+      {
+        "temImagem": true,
+        "dim": "2280x396",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Acesse a importação</b> ⏎ Clique em Shopee, no topo da tela. No menu lateral à esquerda, clique em eCommerce (1), depoi"
+      },
+      {
+        "temImagem": true,
+        "dim": "1224x914",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "1730x555",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Selecione o processo</b> ⏎ Na tela Importação de Planilha NFS-e, selecione o Processo da sua operação (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2997x1473",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Selecione a planilha</b> ⏎ Clique no ícone de pasta ao lado do campo Diretório, destacado em (2) na imagem do passo ant"
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Confirme a importação</b> ⏎ Depois da leitura do arquivo, confira na mensagem a quantidade de registros e o processo. S"
+      }
+    ]
+  },
+  {
+    "arquivo": "Importacao_Planilha_Shopee_Pre_Fatura_MANTRAN.pdf",
+    "modulo": "Shopee",
+    "categoria": "Importação de planilhas",
+    "titulo": "IMPORTAÇÃO DE PLANILHA SHOPEE – PRÉ-FATURA",
+    "paginas": 7,
+    "qtdPassos": 11,
+    "passosComImagem": 10,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para importar no Mantran a planilha da Shopee do tipo Pré Fatura, que\ngera os CT-es da operação.\n<b>Onde se aplica</b>\nSistema Mantran, módulo",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "600x140",
+        "texto": "<b>Parte A · Envie a planilha para o sistema</b> ⏎ <b>Libere a barra de transferência</b> ⏎ Ao acessar o sistema Mantran, clique na seta (1) no topo da tela par"
+      },
+      {
+        "temImagem": true,
+        "dim": "301x120",
+        "texto": "<b>Parte A · Envie a planilha para o sistema</b> ⏎ <b>Clique no ícone de envio</b> ⏎ Na barra que abriu, clique no ícone From PC to Server (1), conforme o exemp"
+      },
+      {
+        "temImagem": true,
+        "dim": "659x488",
+        "texto": "<b>Parte A · Envie a planilha para o sistema</b> ⏎ <b>Selecione a planilha</b> ⏎ Na janela Abrir, selecione o arquivo da planilha, que deve estar no formato xls"
+      },
+      {
+        "temImagem": true,
+        "dim": "653x367",
+        "texto": "<b>Parte A · Envie a planilha para o sistema</b> ⏎ <b>Feche a janela de envio</b> ⏎ Depois que o arquivo aparecer na lista, feche a janela no X (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "685x200",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Acesse o módulo Shopee</b> ⏎ No topo da tela, clique em Shopee (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "512x330",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Abra a importação</b> ⏎ No menu lateral à esquerda, clique em eCommerce (1), depois em Importação (2) e em Planilha Sho"
+      },
+      {
+        "temImagem": true,
+        "dim": "715x273",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Preencha o processo e o tipo</b> ⏎ Na tela Importação de Planilha Shopee, selecione o Processo da operação (1) e altere"
+      },
+      {
+        "temImagem": true,
+        "dim": "788x381",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Selecione a planilha</b> ⏎ Na janela Selecione o arquivo, localize a planilha (1) e clique em Abrir (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "691x240",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Confirme a quantidade de registros</b> ⏎ Depois da leitura do arquivo, confira a quantidade de registros na mensagem Co"
+      },
+      {
+        "temImagem": true,
+        "dim": "696x247",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Finalize a importação</b> ⏎ Na mensagem Planilha importada com sucesso!!!, clique em OK (1)."
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Acompanhe a geração dos CT-es</b> ⏎ Depois de confirmar a importação, acesse o Dashboard para acompanhar a geração dos "
+      }
+    ]
+  },
+  {
+    "arquivo": "Impressao_Tabela_Frete_MANTRAN.pdf",
+    "modulo": "Faturamento",
+    "categoria": "Tabela de Frete",
+    "titulo": "IMPRESSÃO DE TABELA DE FRETE",
+    "paginas": 7,
+    "qtdPassos": 12,
+    "passosComImagem": 12,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para imprimir ou salvar em PDF uma tabela de frete cadastrada no\nsistema.\n<b>Onde se aplica</b>\nSistema Mantran, módulo Operação: tela Impress",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "420x400",
+        "texto": "<b>Abra o módulo Operação</b> ⏎ No menu lateral do Mantran, clique em Operação (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "430x300",
+        "texto": "<b>Acesse a Operação Antiga</b> ⏎ Na lista que aparece, clique em Operação Antigo (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "728x304",
+        "texto": "<b>Abra a Tabela de Frete</b> ⏎ No menu superior, clique em Relatórios (1), depois em Cadastros (2) e em Tabela de Frete (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "715x337",
+        "texto": "<b>Abra a lista de tabelas</b> ⏎ Na janela Impressão Tabela Frete, clique no campo Tabela (1). Escolher uma tabela é obrigatório: sem ela o relatório não é gera"
+      },
+      {
+        "temImagem": true,
+        "dim": "600x328",
+        "texto": "<b>Selecione a tabela</b> ⏎ Na lista, clique na tabela desejada (1). A lista mostra o código, a sequência, a descrição e o período de vigência de cada tabela."
+      },
+      {
+        "temImagem": true,
+        "dim": "613x338",
+        "texto": "<b>Confira os dados e imprima</b> ⏎ Confira se Tabela (1), Seq. (2) e Vigência (3) foram preenchidos automaticamente. Marque Demonstrar Frete Tonelada em KG (4)"
+      },
+      {
+        "temImagem": true,
+        "dim": "750x310",
+        "texto": "<b>Visualize a tabela</b> ⏎ Aguarde a abertura da tela TABELAS DE FRETE. Confira se o título TABELA DE FRETE (1) mostra a tabela escolhida."
+      },
+      {
+        "temImagem": true,
+        "dim": "844x200",
+        "texto": "<b>Clique em imprimir</b> ⏎ Na barra superior da tela TABELAS DE FRETE, clique no ícone Print (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "547x382",
+        "texto": "<b>Confirme a impressão</b> ⏎ Na janela Print, mantenha All em Print Range e clique em OK (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1051x380",
+        "texto": "<b>Baixe o PDF</b> ⏎ Quando o PDF abrir no navegador, clique no ícone Baixar (1) (ou no ícone de impressora ao lado, para imprimir)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1341x162",
+        "texto": "<b>Salve o arquivo</b> ⏎ Na janela Salvar como, confira o Nome (1), escolha a pasta de destino e clique em Salvar (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "425x105",
+        "texto": "<b>Finalize</b> ⏎ Confira se o download foi exibido como Concluído (1). Concluído! • A tabela de frete foi impressa ou salva em PDF. ?"
+      }
+    ]
+  },
+  {
+    "arquivo": "Inclusao_Alteracao_Veiculo_Manifesto.pdf",
+    "modulo": "Operação",
+    "categoria": "Manifesto (MDF-e)",
+    "titulo": "INCLUSÃO/ALTERAÇÃO DE VEÍCULO NO MANIFESTO",
+    "paginas": 4,
+    "qtdPassos": 7,
+    "passosComImagem": 7,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para incluir ou alterar o veículo (tração e reboques) de um manifesto já\ncadastrado.\n<b>Onde se aplica</b>\nSistema Mantran, módulo Operação: t",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "430x110",
+        "texto": "<b>Abra a tela de manifestos</b> ⏎ Clique em Manifesto, no topo da tela (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1285x245",
+        "texto": "<b>Localize o manifesto</b> ⏎ Na tela Cadastro de Manifestos, clique na aba Consulta (1). Informe o Período (2) – ou o Nº Manifesto – e clique em Pesquisar (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1385x635",
+        "texto": "<b>Informe o veículo</b> ⏎ Na seção Dados da Viagem, digite no campo Tração o código ou parte da placa do veículo (1) e selecione o veículo na lista exibida (2)"
+      },
+      {
+        "temImagem": true,
+        "dim": "1179x255",
+        "texto": "<b>Confira os dados do veículo</b> ⏎ A placa e a descrição do veículo aparecem ao lado do campo Tração (1). Se o manifesto tiver reboque, preencha os campos Reb"
+      },
+      {
+        "temImagem": true,
+        "dim": "704x198",
+        "texto": "<b>Salve a alteração</b> ⏎ Na barra inferior da tela, clique em Alterar Registro (ícone de lápis) (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "402x284",
+        "texto": "<b>Confirme</b> ⏎ Na mensagem Confirma a alteração?, clique em Sim (1). Em seguida, na mensagem Manifesto alterado com sucesso!, clique em OK (2). Concluído! • "
+      },
+      {
+        "temImagem": true,
+        "dim": "392x290",
+        "texto": ""
+      }
+    ]
+  },
+  {
+    "arquivo": "Inclusao_Fatura_MANTRAN.pdf",
+    "modulo": "Faturamento",
+    "categoria": "Faturas",
+    "titulo": "INCLUSÃO DE FATURA",
+    "paginas": 9,
+    "qtdPassos": 15,
+    "passosComImagem": 15,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para incluir uma fatura para um cliente e vincular a ela os documentos\n(CT-e, NF Serviço ou Minuta) que serão faturados.\n<b>Onde se aplica</b>",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "420x330",
+        "texto": "<b>Abra o Faturamento</b> ⏎ No menu lateral do Mantran, clique em Faturamento (1) e depois em Faturamento (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "954x270",
+        "texto": "<b>Informe o cliente</b> ⏎ No campo Cliente (1), informe o CNPJ do cliente (a pesquisa também pode ser feita pelo nome). O sistema preenche os demais campos (2)"
+      },
+      {
+        "temImagem": true,
+        "dim": "954x132",
+        "texto": "<b>Inclua a fatura</b> ⏎ Na barra de ícones inferior, clique em Incluir (1), o ícone de sinal de mais verde."
+      },
+      {
+        "temImagem": true,
+        "dim": "919x180",
+        "texto": "<b>Confirme a inclusão</b> ⏎ Na mensagem Confirma inclusão da fatura?, clique em Sim (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "524x331",
+        "texto": "<b>Anote o número da fatura</b> ⏎ Na mensagem Incluída Fatura Nº seguida do número da fatura, clique em OK (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "878x612",
+        "texto": "<b>Abra a vinculação de documentos</b> ⏎ Logo após a inclusão, abre automaticamente a tela Faturamento - Documento, onde os documentos são vinculados à fatura. "
+      },
+      {
+        "temImagem": true,
+        "dim": "494x297",
+        "texto": "<b>Escolha o tipo de documento</b> ⏎ No campo Docto (1), selecione o tipo de documento que deseja encontrar (2): CTe, NF Serviço ou Minuta."
+      },
+      {
+        "temImagem": true,
+        "dim": "770x100",
+        "texto": "<b>Filtre e pesquise</b> ⏎ Em Relação de Documentos para Faturar, filtre como preferir (1), por exemplo por Período, Filial, Pré Fatura, Nº Viagem, Padrão, Divi"
+      },
+      {
+        "temImagem": true,
+        "dim": "770x165",
+        "texto": "<b>Selecione e adicione os documentos</b> ⏎ Na lista, marque na coluna Chk (1) os documentos que deseja incluir (ou clique em Selecionar Todos (2)) e clique em "
+      },
+      {
+        "temImagem": true,
+        "dim": "822x258",
+        "texto": "<b>Conheça o menu lateral Ações</b> ⏎ Na tela Faturamento - Documento, o menu lateral Ações oferece outras formas de adicionar documentos: o primeiro botão (1) "
+      },
+      {
+        "temImagem": true,
+        "dim": "457x225",
+        "texto": "<b>Adicione pelo número do CT-e</b> ⏎ Ao clicar no primeiro botão, informe o Nº Controle ou o Nº CT-e (1) e clique em Adicionar (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "424x155",
+        "texto": "<b>Adicione pela chave do CT-e</b> ⏎ Ao clicar no segundo botão, leia a chave com o leitor de código de barras ou digite a Chave CT-e (1) manualmente e clique e"
+      },
+      {
+        "temImagem": true,
+        "dim": "507x223",
+        "texto": "<b>Adicione uma NF de serviço</b> ⏎ Ao clicar no terceiro botão, informe a Série (1) e o Nº NF (2) da nota fiscal de serviço e clique em Adicionar (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "790x485",
+        "texto": "<b>Confira os documentos da fatura</b> ⏎ Os documentos adicionados aparecem na lista Documentos da fatura (1). Confira também os campos TOTAL DOCUMENTOS e TOTAL"
+      },
+      {
+        "temImagem": true,
+        "dim": "927x470",
+        "texto": "<b>Confira o valor da fatura</b> ⏎ Ao voltar para a tela Faturamento, confira o campo Total do Título (1): depois de inserir os documentos, o valor total da fat"
+      }
+    ]
+  },
+  {
+    "arquivo": "Line_Haul_Shopee_MANTRAN.pdf",
+    "modulo": "Shopee",
+    "categoria": "Line Haul",
+    "titulo": "LINE HAUL – CT-e E MANIFESTO DE TRANSFERÊNCIA SHOPEE",
+    "paginas": 9,
+    "qtdPassos": 18,
+    "passosComImagem": 17,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para gerar os CT-es e o manifesto de transferência das operações Line Haul\nda Shopee, a partir do plano de carregamento: preencher a planilha ",
+    "passos": [
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Parte A · Prepare a planilha</b> ⏎ <b>Obtenha o plano de carregamento</b> ⏎ Baixe o plano de carregamento enviado pela Shopee por e-mail ou disponibilizado n"
+      },
+      {
+        "temImagem": true,
+        "dim": "2400x314",
+        "texto": "<b>Parte A · Prepare a planilha</b> ⏎ <b>Preencha a planilha modelo</b> ⏎ Preencha a planilha modelo com os dados do plano de carregamento: Coluna da planilha O"
+      },
+      {
+        "temImagem": true,
+        "dim": "1500x464",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "2280x396",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Envie a planilha para o sistema</b> ⏎ No topo da tela do Mantran, clique na seta para abrir a barra de transferência e "
+      },
+      {
+        "temImagem": true,
+        "dim": "1410x384",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "2280x427",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "1500x720",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Acesse a importação</b> ⏎ No menu lateral, clique em eCommerce (1), depois em Importação (2) e em Planilha Shopee (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2400x900",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Selecione o processo</b> ⏎ Na tela Importação de Planilha Shopee, selecione o Processo Line Haul da sua operação (1) e "
+      },
+      {
+        "temImagem": true,
+        "dim": "2400x900",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Selecione a planilha</b> ⏎ Clique no ícone de pasta ao lado do campo Diretório. Na janela Selecione o arquivo, clique n"
+      },
+      {
+        "temImagem": true,
+        "dim": "1860x1319",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "900x509",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Confirme a importação</b> ⏎ Confira a quantidade de registros e o processo na mensagem e clique em Sim."
+      },
+      {
+        "temImagem": true,
+        "dim": "2400x900",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Aguarde a importação</b> ⏎ Aguarde a barra de progresso chegar ao fim. O sistema lê e valida cada linha da planilha."
+      },
+      {
+        "temImagem": true,
+        "dim": "816x588",
+        "texto": "<b>Parte B · Importe a planilha</b> ⏎ <b>Confira o resultado</b> ⏎ Na mensagem “Planilha importada com sucesso!!!”, confira as quantidades de registros novos, e"
+      },
+      {
+        "temImagem": true,
+        "dim": "2700x849",
+        "texto": "<b>Parte C · Acompanhe e exporte</b> ⏎ <b>Acompanhe o processamento</b> ⏎ Clique em Dashboard (1). Selecione o Processo (2), informe a data em Dt. Emissão (3) e"
+      },
+      {
+        "temImagem": true,
+        "dim": "1680x720",
+        "texto": "<b>Parte C · Acompanhe e exporte</b> ⏎ <b>Exporte a planilha</b> ⏎ Com o status Finalizado, clique em eCommerce (1), depois em Exportação (2) e em Planilha Shop"
+      },
+      {
+        "temImagem": true,
+        "dim": "1620x780",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": "<b>Parte C · Acompanhe e exporte</b> ⏎ <b>Abra o arquivo baixado</b> ⏎ A planilha exportada é baixada pelo navegador. Para encontrá-la, abra a lista de download"
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": ""
+      }
+    ]
+  },
+  {
+    "arquivo": "Manifesto_Agregado_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "Manifesto (MDF-e)",
+    "titulo": "MANIFESTO (MDF-e) COM MOTORISTA AGREGADO",
+    "paginas": 6,
+    "qtdPassos": 15,
+    "passosComImagem": 15,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para emitir, alterar e enviar à Sefaz o manifesto (MDF-e) de uma viagem\ncom motorista agregado. O manifesto é um documento fiscal obrigatório ",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "520x150",
+        "texto": "<b>Abra o manifesto</b> ⏎ Na tela inicial do Mantran, clique em Manifesto (1). A tela CADASTRO DE MANIFESTOS abre na aba Manifesto, com os campos em branco. Par"
+      },
+      {
+        "temImagem": true,
+        "dim": "1610x93",
+        "texto": "<b>Preencha os dados do manifesto</b> ⏎ Na aba Manifesto, selecione o Tp. Manifesto (1): Coleta / Entrega ou Transferência. Confira Empresa (2), Filial Emitente"
+      },
+      {
+        "temImagem": true,
+        "dim": "1190x50",
+        "texto": "<b>Informe os dados da viagem</b> ⏎ Em Dados da Viagem, confira a Filial Origem (1) e selecione o Tipo Carga (2), por exemplo 1 - Fracionada. Para motorista agr"
+      },
+      {
+        "temImagem": true,
+        "dim": "715x120",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "1180x92",
+        "texto": "<b>Informe o motorista e os veículos</b> ⏎ Informe o CPF do motorista agregado em Motorista (1) e o código do cavalo em Tração (2). O sistema exibe o nome do mo"
+      },
+      {
+        "temImagem": true,
+        "dim": "1180x94",
+        "texto": "<b>Informe a carga, a descarga e as partes</b> ⏎ Informe o CEP em Local Carga (1) e em Local Descarga (2) e o CNPJ do Remetente (3) e do Destinatário (4). O sis"
+      },
+      {
+        "temImagem": true,
+        "dim": "630x138",
+        "texto": "<b>Inclua as entregas</b> ⏎ Clique em Entregas (1) e vincule ao manifesto os documentos que serão transportados."
+      },
+      {
+        "temImagem": true,
+        "dim": "430x44",
+        "texto": "<b>Salve o manifesto</b> ⏎ Na barra de ícones, clique em Incluir (1) e confirme a mensagem exibida pelo sistema. O número do manifesto passa a aparecer no campo"
+      },
+      {
+        "temImagem": true,
+        "dim": "1800x160",
+        "texto": "<b>Consulte o manifesto que será alterado</b> ⏎ Para alterar um manifesto já cadastrado, clique na aba Consulta, informe o Período (1) ou o N° Manifesto (2) e c"
+      },
+      {
+        "temImagem": true,
+        "dim": "1200x65",
+        "texto": "<b>Abra o manifesto</b> ⏎ Na lista, clique na linha do manifesto (1). O sistema abre a aba Manifesto com os dados preenchidos."
+      },
+      {
+        "temImagem": true,
+        "dim": "1180x92",
+        "texto": "<b>Altere o motorista e a tração</b> ⏎ Apague o motorista atual e informe o novo em Motorista (1). Em seguida, informe o novo cavalo em Tração (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "420x200",
+        "texto": "<b>Salve a alteração</b> ⏎ Na barra de ícones, clique em Alterar (1). Na mensagem Confirma a alteração?, clique em Sim (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "900x180",
+        "texto": "<b>Confirme a alteração</b> ⏎ Na mensagem Manifesto alterado com sucesso!, clique em OK (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1000x480",
+        "texto": "<b>Envie o MDF-e à Sefaz</b> ⏎ Com o manifesto salvo, clique em Enviar MDF-e (1). Na mensagem Deseja realmente enviar para o Sefaz?, clique em Sim (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1800x205",
+        "texto": "<b>Confira o retorno da Sefaz</b> ⏎ Na aba Consulta, clique em Pesquisar (1) e localize o manifesto. Confira o N° MDFe (2) e o Retorno SEFAZ (3), que deve exibi"
+      }
+    ]
+  },
+  {
+    "arquivo": "Manifesto_MDFe_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "Manifesto (MDF-e)",
+    "titulo": "MANIFESTO (MDF-e)",
+    "paginas": 12,
+    "qtdPassos": 28,
+    "passosComImagem": 27,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para emitir, alterar e enviar à Sefaz o manifesto (MDF-e) de uma viagem,\ncom motorista de frota ou agregado. O manifesto é um documento fiscal",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "620x456",
+        "texto": "<b>Abra o manifesto</b> ⏎ No menu lateral, clique em Operação (1), depois em Manifesto (2) e em Gerar Manifesto (3). A tela CADASTRO DE MANIFESTOS abre na aba M"
+      },
+      {
+        "temImagem": true,
+        "dim": "1105x95",
+        "texto": "<b>Preencha os dados do manifesto</b> ⏎ Na aba Manifesto, selecione o Tp. Manifesto (1): Coleta / Entrega ou Transferência. Confira Empresa (2), Filial Emitente"
+      },
+      {
+        "temImagem": true,
+        "dim": "840x41",
+        "texto": "<b>Informe os dados da viagem</b> ⏎ Em Dados da Viagem, confira a Filial Origem (1) e selecione o Tipo Carga (2), por exemplo 1 - Fracionada. Para motorista agr"
+      },
+      {
+        "temImagem": true,
+        "dim": "715x120",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "930x104",
+        "texto": "<b>Informe o motorista e os veículos</b> ⏎ Informe o CPF do motorista em Motorista (1) e o código do cavalo em Tração (2). O sistema exibe o nome do motorista e"
+      },
+      {
+        "temImagem": true,
+        "dim": "830x110",
+        "texto": "<b>Informe a carga, a descarga e as partes</b> ⏎ Informe o CEP em Local Carga (1) e em Local Descarga (2) e o CNPJ do Remetente (3) e do Destinatário (4). O sis"
+      },
+      {
+        "temImagem": true,
+        "dim": "400x32",
+        "texto": "<b>Inclua o registro</b> ⏎ Clique em Incluir Registro (1), o ícone + da barra inferior."
+      },
+      {
+        "temImagem": true,
+        "dim": "200x140",
+        "texto": "<b>Confirme a inclusão</b> ⏎ Na mensagem Confirma a inclusão?, clique em Sim (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "240x140",
+        "texto": "<b>Finalize a inclusão</b> ⏎ Na mensagem Manifesto incluído com sucesso!, clique em OK (1). O número do manifesto passa a aparecer no campo Nº Manifesto."
+      },
+      {
+        "temImagem": true,
+        "dim": "207x110",
+        "texto": "<b>Abra os documentos</b> ⏎ Na barra inferior, clique em Documentos (1). É obrigatório vincular ao manifesto os documentos que serão transportados."
+      },
+      {
+        "temImagem": true,
+        "dim": "655x271",
+        "texto": "<b>Pesquise os documentos</b> ⏎ Na janela DOCUMENTOS DO MANIFESTO, em Relação de Doctos para Manifestar, os CT-es podem ser pesquisados de várias formas, por ex"
+      },
+      {
+        "temImagem": true,
+        "dim": "655x196",
+        "texto": "<b>Selecione e adicione os documentos</b> ⏎ Marque os documentos desejados na coluna Chk (1), ou clique em Selecionar Todos (2), e clique em Adicionar (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "655x100",
+        "texto": "<b>Ou informe o documento direto</b> ⏎ Se já souber o documento, é possível informá-lo na parte superior da janela: digite a chave em Nº Chave (1) ou informe a "
+      },
+      {
+        "temImagem": true,
+        "dim": "705x215",
+        "texto": "<b>Confira os documentos vinculados</b> ⏎ Os documentos adicionados aparecem na lista (1) da parte superior da janela. Confira e feche a janela clicando no X (2"
+      },
+      {
+        "temImagem": true,
+        "dim": "320x40",
+        "texto": "<b>Informe o percurso e o seguro</b> ⏎ Se necessário, clique em Percurso (1) e informe os estados por onde o transporte vai passar, apenas quando passar por est"
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Salve as informações</b> ⏎ Na barra inferior, clique em Alterar (1). Na mensagem Confirma a alteração?, clique em Sim (2). Este item também salva as alteraçõ"
+      },
+      {
+        "temImagem": true,
+        "dim": "420x185",
+        "texto": "<b>).</b>"
+      },
+      {
+        "temImagem": true,
+        "dim": "900x180",
+        "texto": "<b>Confirme a alteração</b> ⏎ Na mensagem Manifesto alterado com sucesso!, clique em OK (1)."
+      },
+      {
+        "temImagem": true,
+        "dim": "185x131",
+        "texto": "<b>Imprima o manifesto</b> ⏎ Se precisar, clique no ícone da impressora (1) da barra inferior e escolha o relatório: Analítico, Sintético, Exportar Excel Padrão"
+      },
+      {
+        "temImagem": true,
+        "dim": "1000x480",
+        "texto": "<b>Envie o MDF-e à Sefaz</b> ⏎ Com o manifesto salvo, clique em Enviar MDF-e (1). Na mensagem Deseja realmente enviar para o Sefaz?, clique em Sim (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "1800x205",
+        "texto": "<b>Confira o retorno da Sefaz</b> ⏎ Na aba Consulta, clique em Pesquisar (1) e localize o manifesto. Confira o N° MDFe (2) e o Retorno SEFAZ (3), que deve exibi"
+      },
+      {
+        "temImagem": true,
+        "dim": "515x319",
+        "texto": "<b>Abra a Consulta Sefaz</b> ⏎ O envio, a impressão e outras ações do MDF-e também podem ser feitos na tela Consulta Sefaz. Clique em Operação (1), depois em Ma"
+      },
+      {
+        "temImagem": true,
+        "dim": "742x195",
+        "texto": "<b>Pesquise o manifesto</b> ⏎ Na tela MANIFESTO ELETRÔNICO, informe o Período (1) e, se desejar, outros filtros. Clique em Pesquisar (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "742x572",
+        "texto": "<b>Use as ações do MDF-e</b> ⏎ Marque o manifesto na coluna Chk (1) e use os botões da parte de baixo da tela. Clique em Enviar (2) para enviar ou reenviar o MD"
+      },
+      {
+        "temImagem": true,
+        "dim": "742x145",
+        "texto": "<b>Emita em contingência, se a Sefaz estiver fora do ar</b> ⏎ Na tela MANIFESTO ELETRÔNICO, marque a opção Emitir em Contingência (1). O manifesto é liberado na"
+      },
+      {
+        "temImagem": true,
+        "dim": "1800x160",
+        "texto": "<b>Consulte o manifesto que será alterado</b> ⏎ Para alterar um manifesto já cadastrado, clique na aba Consulta, informe o Período (1) ou o N° Manifesto (2) e c"
+      },
+      {
+        "temImagem": true,
+        "dim": "1200x65",
+        "texto": "<b>Abra o manifesto</b> ⏎ Na lista, clique na linha do manifesto (1). O sistema abre a aba Manifesto com os dados preenchidos."
+      },
+      {
+        "temImagem": true,
+        "dim": "1180x92",
+        "texto": "<b>Altere o motorista e a tração</b> ⏎ Apague o motorista atual e informe o novo em Motorista (1). Em seguida, informe o novo cavalo em Tração (2). Depois, salv"
+      }
+    ]
+  },
+  {
+    "arquivo": "Ordem_de_Servico_Leo_Madeiras_MANTRAN.pdf",
+    "modulo": "Léo Madeiras",
+    "categoria": "Ordem de Serviço",
+    "titulo": "ORDEM DE SERVIÇO – LÉO MADEIRAS",
+    "paginas": 3,
+    "qtdPassos": 5,
+    "passosComImagem": 5,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para preencher a Ordem de Serviço em operações com Carreteiro Spot,\ngarantindo que os dados do remetente sejam carregados e que o campo Valor ",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "2700x907",
+        "texto": "<b>Abra a Ordem de Serviço e selecione o carreteiro</b> ⏎ No menu lateral, clique em Ordem de Serviço (1). No campo Carreteiro, selecione o transportador respon"
+      },
+      {
+        "temImagem": true,
+        "dim": "2700x1134",
+        "texto": "<b>Carregue os dados do remetente</b> ⏎ Clique no campo Remetente (1) e pressione a tecla Tab. O sistema preenche a Razão Social (2) e os dados do Local da Cole"
+      },
+      {
+        "temImagem": true,
+        "dim": "2700x848",
+        "texto": "<b>Preencha o valor do frete</b> ⏎ Com os dados do remetente carregados, o campo Valor Frete fica liberado. Informe o valor do frete. Concluído! O campo Valor F"
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": ""
+      }
+    ]
+  },
+  {
+    "arquivo": "Relatorio_Conhecimentos_Analitico_Excel_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "Relatórios",
+    "titulo": "RELATÓRIO DE CONHECIMENTOS – ANALÍTICO EM EXCEL",
+    "paginas": 5,
+    "qtdPassos": 7,
+    "passosComImagem": 6,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para gerar o Relatório de Conhecimentos no modelo Conhecimentos\nEmitidos Analítico e exportá-lo para Excel, com os dados de cada CT-e emitido ",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "536x296",
+        "texto": "<b>Acesse o relatório</b> ⏎ No menu lateral, clique em Relatório (1), depois em Operacional (2) e em Conhecimento (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "880x360",
+        "texto": "<b>Selecione o modelo do relatório</b> ⏎ Na tela Relatório de Conhecimentos, abra o campo Modelo Relatório e selecione 5 – Conhecimentos Emitidos Analítico."
+      },
+      {
+        "temImagem": true,
+        "dim": "880x360",
+        "texto": "<b>Preencha os filtros</b> ⏎ Confira a Empresa e a Filial (1) e se o Modelo Relatório está como 5 – Conhecimentos Emitidos Analítico (2). Em Período, informe a "
+      },
+      {
+        "temImagem": true,
+        "dim": "880x410",
+        "texto": "<b>Gere o Excel</b> ⏎ Na barra inferior, clique na seta ao lado do ícone Gerar Excel (1) e escolha Formato Relatório (2)."
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Abra o arquivo</b> ⏎ O arquivo é baixado pelo navegador com o nome Rel_Operacao_Conhecimento_Analitico_ seguido da data e hora da geração (ex.: Rel_Operacao_"
+      },
+      {
+        "temImagem": true,
+        "dim": "1912x262",
+        "texto": "<b>Confira a planilha</b> ⏎ A planilha traz uma linha por CT-e, com o cabeçalho na linha 1. As primeiras colunas mostram a filial e os participantes do CT-e: Ma"
+      },
+      {
+        "temImagem": true,
+        "dim": "1912x262",
+        "texto": ""
+      }
+    ]
+  },
+  {
+    "arquivo": "Relatorio_Conhecimentos_Emitidos_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "Relatórios",
+    "titulo": "RELATÓRIO DE CONHECIMENTOS EMITIDOS",
+    "paginas": 6,
+    "qtdPassos": 8,
+    "passosComImagem": 8,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para emitir o relatório de conhecimentos (CT-e) emitidos em um período,\npelo Operação ou pelo Shopee, na tela ou em planilha Excel.\n<b>Onde se",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "619x487",
+        "texto": "<b>Abra o relatório pelo Operação</b> ⏎ No menu lateral do Operação, clique em Relatório (1), depois em Operacional (2) e em Conhecimento (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "827x433",
+        "texto": "<b>Informe os filtros</b> ⏎ Na tela RELATÓRIO DE CONHECIMENTOS, selecione o Status CTe (1) e informe a data inicial em Período (2) e a data final em Até (3). Ma"
+      },
+      {
+        "temImagem": true,
+        "dim": "827x433",
+        "texto": "<b>Visualize o relatório</b> ⏎ Na barra de ícones do rodapé, clique em Imprimir (1) e aguarde o carregamento."
+      },
+      {
+        "temImagem": true,
+        "dim": "1216x616",
+        "texto": "<b>Confira o relatório</b> ⏎ O relatório abre na janela Pré-Visualização Relatório, com o título Relatório de CTRC'S Emitidos e o período informado. Use os botõ"
+      },
+      {
+        "temImagem": true,
+        "dim": "804x394",
+        "texto": "<b>Exporte para planilha (opcional)</b> ⏎ Para gerar o relatório em Excel, volte à tela de filtros, clique na seta ao lado do ícone de planilha (1) e escolha Fo"
+      },
+      {
+        "temImagem": true,
+        "dim": "811x403",
+        "texto": "<b>Finalize a planilha</b> ⏎ Na mensagem Excel Gerado com Sucesso e salvo em, clique em OK (1). A mensagem informa a pasta e o nome do arquivo gerado."
+      },
+      {
+        "temImagem": true,
+        "dim": "597x476",
+        "texto": "<b>Abra o relatório pelo Shopee</b> ⏎ Se utilizar o Shopee, no menu lateral clique em Relatório (1), depois em Operacional (2) e em Conhecimento (3). Na tela qu"
+      },
+      {
+        "temImagem": true,
+        "dim": "832x621",
+        "texto": "<b>Confira o relatório no Shopee</b> ⏎ O relatório abre na janela Pré-Visualização Relatório, igual ao do Operação, com os conhecimentos emitidos no período inf"
+      }
+    ]
+  },
+  {
+    "arquivo": "Relatorio_Conhecimentos_Emitidos_Shopee_MANTRAN.pdf",
+    "modulo": "Shopee",
+    "categoria": "Relatórios",
+    "titulo": "RELATÓRIO DE CONHECIMENTOS EMITIDOS – SHOPEE",
+    "paginas": 6,
+    "qtdPassos": 11,
+    "passosComImagem": 11,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para gerar o Relatório de Conhecimentos Emitidos de um período e\nsalvá-lo em PDF no seu computador.\n<b>Onde se aplica</b>\nSistema Mantran, mód",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "1560x1312",
+        "texto": "<b>Acesse o relatório</b> ⏎ No menu lateral do módulo Shopee, clique em Relatório (1), depois em Operacional (2) e em Conhecimento (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "2400x1091",
+        "texto": "<b>Preencha os filtros</b> ⏎ Na tela Relatório de Conhecimentos, selecione a Filial desejada ou a opção Todas (1). Em Período, informe a data inicial e a final "
+      },
+      {
+        "temImagem": true,
+        "dim": "2400x1153",
+        "texto": "<b>Gere o relatório</b> ⏎ Clique no ícone da impressora, na barra inferior esquerda da tela. Aguarde a barra “Gerando conteúdo do relatório...” chegar ao fim."
+      },
+      {
+        "temImagem": true,
+        "dim": "2400x1087",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "1950x1527",
+        "texto": "<b>Envie para impressão</b> ⏎ Na tela Pré-Visualização Relatório, clique no ícone de impressão na barra superior."
+      },
+      {
+        "temImagem": true,
+        "dim": "1350x1080",
+        "texto": "<b>Selecione a impressora</b> ⏎ Na janela Imprimir, mantenha selecionada a opção Universal Printer (1) e clique em Imprimir (2)."
+      },
+      {
+        "temImagem": true,
+        "dim": "741x453",
+        "texto": "<b>Aguarde a impressão</b> ⏎ Aguarde a janela Imprimindo passar por todas as páginas. Não clique em Cancelar."
+      },
+      {
+        "temImagem": true,
+        "dim": "2433x1188",
+        "texto": "<b>Baixe o arquivo</b> ⏎ O relatório abre em PDF no navegador. Clique no ícone de download, no canto superior direito."
+      },
+      {
+        "temImagem": true,
+        "dim": "1854x1416",
+        "texto": "<b>Salve no computador</b> ⏎ Na janela Salvar como, escolha a pasta, confira o nome do arquivo (1) e clique em Salvar (2). Concluído! • O Relatório de Conhecime"
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": ""
+      },
+      {
+        "temImagem": true,
+        "dim": "120x120",
+        "texto": ""
+      }
+    ]
+  },
+  {
+    "arquivo": "Troca_Tomador_CTe_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "TROCA DE TOMADOR DE SERVIÇO EM CT-e JÁ EMITIDO",
+    "paginas": 6,
+    "qtdPassos": 8,
+    "passosComImagem": 5,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para corrigir o tomador de serviço de um CT-e que já foi emitido e\nautorizado. O tomador do CT-e é o Cliente informado no conhecimento.\n<b>Ond",
+    "passos": [
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Verifique o prazo de cancelamento</b> ⏎ Confira a data de autorização do CT-e original. O prazo padrão de cancelamento é de 7 dias (168 horas) após a autoriz"
+      },
+      {
+        "temImagem": true,
+        "dim": "794x532",
+        "texto": "<b>Dentro do prazo: cancele o CT-e original</b> ⏎ Na tela CONHECIMENTO ELETRÔNICO, localize o CT-e usando qualquer um dos filtros (1), como Período, N° CTe, N° "
+      },
+      {
+        "temImagem": true,
+        "dim": "474x348",
+        "texto": "<b>Emita o novo CT-e com o tomador correto</b> ⏎ Na tela CONHECIMENTO, aba CTe (1), informe em Cliente (2) o tomador correto e emita o CT-e normalmente, conform"
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Fora do prazo: confira o tomador correto</b> ⏎ Se o prazo de cancelamento venceu ou a mercadoria já circulou, use o CT-e de Substituição (o antigo CT-e de An"
+      },
+      {
+        "temImagem": false,
+        "dim": null,
+        "texto": "<b>Peça o desacordo ao tomador</b> ⏎ Oriente o cliente a registrar o evento Prestação de Serviço em Desacordo no portal da SEFAZ ou no sistema dele. O registro "
+      },
+      {
+        "temImagem": true,
+        "dim": "694x301",
+        "texto": "<b>Selecione o tipo Substituição</b> ⏎ Com o desacordo registrado, abra a tela CONHECIMENTO e, em Tipo (1), selecione 3 - Substituição (2). O prazo para emitir "
+      },
+      {
+        "temImagem": true,
+        "dim": "770x441",
+        "texto": "<b>Informe o CT-e a ser substituído</b> ⏎ Na janela CONHECIMENTO DE SUBSTITUIÇÃO, informe o N° Controle (1) ou o N° Impresso (2) e o N° Serie (3) do CT-e origin"
+      },
+      {
+        "temImagem": true,
+        "dim": "794x532",
+        "texto": "<b>Confira a autorização</b> ⏎ Na tela CONHECIMENTO ELETRÔNICO, pesquise o novo CT-e e confira se o Status CTe (1) e o Retorno Sefaz (2) mostram que ele foi aut"
+      }
+    ]
+  },
+  {
+    "arquivo": "Zerar_Contador_CTe_MANTRAN.pdf",
+    "modulo": "Operação",
+    "categoria": "CT-e",
+    "titulo": "ZERAR CONTADOR DE CT-e REJEITADOS",
+    "paginas": 3,
+    "qtdPassos": 2,
+    "passosComImagem": 2,
+    "descricao": "<b>Objetivo</b>\nUse este procedimento para reiniciar automaticamente o reenvio dos CT-e rejeitados, sem\nprecisar reenviá-los manualmente.\n<b>Onde se aplica</b>\nSistema Mantran, mód",
+    "passos": [
+      {
+        "temImagem": true,
+        "dim": "552x490",
+        "texto": "<b>Abra o cancelamento em lote</b> ⏎ No menu lateral, clique em Operação (1), depois em Conhecimento (2) e em Cancelar Lote (3)."
+      },
+      {
+        "temImagem": true,
+        "dim": "420x291",
+        "texto": "<b>Clique em Zerar Contador</b> ⏎ Na janela CANCELAMENTO DE CTE EM LOTE, confira se o Processo é o correto e clique no ícone Zerar Contador (1), o último da bar"
+      }
+    ]
+  }
+]

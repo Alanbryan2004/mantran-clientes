@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   BookOpen, Search, Plus, Pencil, Trash2, X, Save, ChevronRight,
-  Image as ImageIcon, GripVertical, Bold, FolderPlus, ArrowLeft
+  Image as ImageIcon, GripVertical, Bold, FolderPlus, ArrowLeft,
+  FileCode, Upload, CheckCircle2, AlertCircle, Loader2, Sparkles, FileText
 } from 'lucide-react'
 import { api, type FaqCategoria, type FaqProcedimento, type FaqPasso } from '../lib/api'
 import { getLoggedUser, canEditFaq } from '../lib/auth'
@@ -19,6 +20,123 @@ function renderTextoPasso(texto: string): { __html: string } {
   return { __html: safe }
 }
 
+// Converte data URI (Base64) em Blob para envio ao Supabase Storage
+function dataUriToBlob(dataUri: string): { blob: Blob; ext: string } {
+  const parts = dataUri.split(',')
+  const mimeMatch = parts[0].match(/:(.*?);/)
+  const mime = mimeMatch ? mimeMatch[1] : 'image/png'
+  const ext = mime.split('/')[1] || 'png'
+  const byteString = atob(parts[1])
+  const ia = new Uint8Array(byteString.length)
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i)
+  }
+  return { blob: new Blob([ia], { type: mime }), ext }
+}
+
+// Extrai texto limpo preservando tags <b> / <strong>
+function extrairTextoFormatado(el: Element): string {
+  const clone = el.cloneNode(true) as Element
+  clone.querySelectorAll('img, .num, svg, button').forEach(n => n.remove())
+  let html = clone.innerHTML || ''
+  html = html.replace(/<\/(p|div)>/gi, '<br>')
+  html = html.replace(/<strong[^>]*>/gi, '<b>').replace(/<\/strong>/gi, '</b>')
+  html = html.replace(/<(?!\/?(?:b|br)\b)[^>]*>/gi, '')
+  html = html.replace(/(?:<br\s*\/?>\s*){3,}/gi, '<br><br>').trim()
+  return html
+}
+
+interface StepParsed {
+  texto: string
+  imagem_url: string | null
+  isBase64: boolean
+}
+
+interface FaqHtmlParsed {
+  titulo: string
+  descricao: string
+  caminhoMenu: string
+  modulo: string
+  categoria: string
+  passos: StepParsed[]
+}
+
+// Analisa HTML (gerado por Claude ou conversores) e extrai metadados e passos
+function parseFaqHtml(htmlStr: string): FaqHtmlParsed {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(htmlStr, 'text/html')
+
+  // 1. Título
+  let titulo = ''
+  const h1 = doc.querySelector('h1')
+  if (h1) titulo = h1.textContent?.trim() || ''
+  if (!titulo) {
+    const titleEl = doc.querySelector('title')
+    if (titleEl) titulo = titleEl.textContent?.split('|')[0].trim() || ''
+  }
+
+  // 2. Descrição / Subtítulo
+  let descricao = ''
+  const subEl = doc.querySelector('.subtitle, .meta, .descricao, p.subtitulo')
+  if (subEl) descricao = subEl.textContent?.trim() || ''
+
+  // 3. Caminho / Breadcrumb / Módulo / Categoria
+  let caminhoMenu = ''
+  let modulo = ''
+  let categoria = ''
+  const crumbs = Array.from(doc.querySelectorAll('.crumbs .crumb, nav.breadcrumb a, nav.breadcrumb span, .breadcrumb-item'))
+  if (crumbs.length > 0) {
+    const texts = crumbs.map(c => c.textContent?.trim() || '').filter(Boolean)
+    caminhoMenu = texts.join(' › ')
+    if (texts[0]?.toLowerCase().startsWith('módulo ') || texts[0]?.toLowerCase().startsWith('modulo ')) {
+      modulo = texts[0].replace(/^m[oó]dulo\s+/i, '').trim()
+      if (texts.length > 1) categoria = texts[1].trim()
+    } else {
+      categoria = texts[0] || ''
+    }
+  }
+
+  // 4. Passos
+  const passos: StepParsed[] = []
+  const stepSections = doc.querySelectorAll('section.step, .step-item')
+  if (stepSections.length > 0) {
+    stepSections.forEach(section => {
+      const instructionEl = section.querySelector('.instruction') || section
+      const img = instructionEl.querySelector('img')
+      let imgUrl: string | null = null
+      let isBase64 = false
+      if (img && img.getAttribute('src')) {
+        imgUrl = img.getAttribute('src')
+        isBase64 = !!imgUrl?.startsWith('data:image/')
+        img.remove()
+      }
+      const numEl = section.querySelector('.num')
+      if (numEl) numEl.remove()
+
+      const cleanText = extrairTextoFormatado(instructionEl)
+      passos.push({ texto: cleanText, imagem_url: imgUrl, isBase64 })
+    })
+  } else {
+    const lis = doc.querySelectorAll('ol.steps > li, ol > li')
+    if (lis.length > 0) {
+      lis.forEach(li => {
+        const img = li.querySelector('img')
+        let imgUrl: string | null = null
+        let isBase64 = false
+        if (img && img.getAttribute('src')) {
+          imgUrl = img.getAttribute('src')
+          isBase64 = !!imgUrl?.startsWith('data:image/')
+          img.remove()
+        }
+        const cleanText = extrairTextoFormatado(li)
+        passos.push({ texto: cleanText, imagem_url: imgUrl, isBase64 })
+      })
+    }
+  }
+
+  return { titulo, descricao, caminhoMenu, modulo, categoria, passos }
+}
+
 export function FAQ() {
   const user = getLoggedUser()
   const podeEditar = canEditFaq()
@@ -31,7 +149,8 @@ export function FAQ() {
 
   const [imgZoom, setImgZoom] = useState<string | null>(null)
   const [modalCategoria, setModalCategoria] = useState<FaqCategoria | 'novo' | null>(null)
-  const [modalProc, setModalProc] = useState<FaqProcedimento | { novo: true; categoria_id: string } | null>(null)
+  const [modalProc, setModalProc] = useState<FaqProcedimento | { novo: true; categoria_id: string; dadosImportados?: any } | null>(null)
+  const [modalImportar, setModalImportar] = useState(false)
 
   async function carregar() {
     setLoading(true)
@@ -131,12 +250,21 @@ export function FAQ() {
           </div>
         </div>
         {podeEditar && (
-          <button
-            onClick={() => setModalCategoria('novo')}
-            className="shrink-0 py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors cursor-pointer"
-          >
-            <FolderPlus className="w-4 h-4" /> <span className="hidden sm:inline">Nova Seção</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setModalImportar(true)}
+              className="shrink-0 py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-brand-50 border border-brand-200 text-brand-700 hover:bg-brand-100 hover:border-brand-300 shadow-sm transition-colors cursor-pointer"
+              title="Importar manual ou tutorial em HTML com imagens"
+            >
+              <FileCode className="w-4 h-4 text-brand-600" /> <span className="hidden sm:inline">Importar HTML</span>
+            </button>
+            <button
+              onClick={() => setModalCategoria('novo')}
+              className="shrink-0 py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors cursor-pointer"
+            >
+              <FolderPlus className="w-4 h-4" /> <span className="hidden sm:inline">Nova Seção</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -295,7 +423,7 @@ export function FAQ() {
                             <div className="text-sm text-slate-700 leading-relaxed [&_b]:text-slate-900 [&_b]:font-bold" dangerouslySetInnerHTML={renderTextoPasso(passo.texto)} />
                           )}
                           {passo.imagem_url && (
-                            <img src={passo.imagem_url} alt={`Passo ${idx + 1}`} onClick={() => setImgZoom(passo.imagem_url!)} className="mt-3 rounded-lg border border-slate-200 max-w-full cursor-zoom-in hover:border-brand-400 transition-colors shadow-sm" />
+                            <img src={passo.imagem_url} alt={`Passo ${idx + 1}`} onClick={() => setImgZoom(passo.imagem_url!)} className="mt-3 block w-auto h-auto max-w-full sm:max-w-xl max-h-80 object-contain object-left rounded-lg border border-slate-200 cursor-zoom-in hover:border-brand-400 transition-colors shadow-sm" />
                           )}
                         </div>
                       </li>
@@ -341,8 +469,35 @@ export function FAQ() {
           categoriaIdInicial={'novo' in modalProc ? modalProc.categoria_id : (modalProc as FaqProcedimento).categoria_id}
           categorias={categorias}
           usuario={user}
+          dadosImportados={'dadosImportados' in modalProc ? (modalProc as any).dadosImportados : undefined}
           onClose={() => setModalProc(null)}
           onSaved={async (procId) => { setModalProc(null); await carregar(); if (procId) setProcSelecionadoId(procId) }}
+        />
+      )}
+
+      {modalImportar && (
+        <ImportarHtmlModal
+          categorias={categorias}
+          modulosExistentes={modulosExistentes}
+          usuario={user}
+          onClose={() => setModalImportar(false)}
+          onCarregarNoEditor={(dados) => {
+            setModalImportar(false)
+            const catExiste = categorias.find(c =>
+              c.nome.toLowerCase() === (dados.categoria || '').toLowerCase() &&
+              (!dados.modulo || (c.modulo || '').toLowerCase() === dados.modulo.toLowerCase())
+            )
+            setModalProc({
+              novo: true,
+              categoria_id: catExiste ? catExiste.id : '',
+              dadosImportados: dados
+            })
+          }}
+          onSalvoDireto={async (novoProcId) => {
+            setModalImportar(false)
+            await carregar()
+            if (novoProcId) setProcSelecionadoId(novoProcId)
+          }}
         />
       )}
     </div>
@@ -415,27 +570,60 @@ function CategoriaModal({ categoria, proximaOrdem, modulosExistentes, onClose, o
 // ============================================================
 interface PassoEdit { texto: string; imagem_url: string | null; _localId: string }
 
-function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, onClose, onSaved }: {
+function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, dadosImportados, onClose, onSaved }: {
   proc: FaqProcedimento | null
   categoriaIdInicial: string
   categorias: FaqCategoria[]
   usuario: any
+  dadosImportados?: any
   onClose: () => void
   onSaved: (procId?: string) => void
 }) {
-  const [categoriaId, setCategoriaId] = useState(categoriaIdInicial)
+  const [categoriaId, setCategoriaId] = useState(() => {
+    if (proc) return proc.categoria_id
+    if (dadosImportados?.categoria) {
+      const encontrada = categorias.find(c =>
+        c.nome.toLowerCase() === dadosImportados.categoria.toLowerCase() &&
+        (!dadosImportados.modulo || (c.modulo || '').toLowerCase() === dadosImportados.modulo.toLowerCase())
+      )
+      if (encontrada) return encontrada.id
+    }
+    return categoriaIdInicial
+  })
   // Criação de seção inline (quando escolhe "+ Nova seção" no dropdown)
-  const [criandoSecao, setCriandoSecao] = useState(false)
-  const [novaSecaoNome, setNovaSecaoNome] = useState('')
-  const [novaSecaoModulo, setNovaSecaoModulo] = useState('')
-  const [titulo, setTitulo] = useState(proc?.titulo || '')
-  const [descricao, setDescricao] = useState(proc?.descricao || '')
-  const [caminhoMenu, setCaminhoMenu] = useState(proc?.caminho_menu || '')
-  const [passos, setPassos] = useState<PassoEdit[]>(
-    (proc?.passos || []).map((p: FaqPasso) => ({ texto: p.texto || '', imagem_url: p.imagem_url || null, _localId: Math.random().toString(36).slice(2) }))
-  )
+  const [criandoSecao, setCriandoSecao] = useState(() => {
+    if (proc) return false
+    if (dadosImportados?.categoria) {
+      const encontrada = categorias.find(c =>
+        c.nome.toLowerCase() === dadosImportados.categoria.toLowerCase() &&
+        (!dadosImportados.modulo || (c.modulo || '').toLowerCase() === dadosImportados.modulo.toLowerCase())
+      )
+      return !encontrada
+    }
+    return false
+  })
+  const [novaSecaoNome, setNovaSecaoNome] = useState(dadosImportados?.categoria || '')
+  const [novaSecaoModulo, setNovaSecaoModulo] = useState(dadosImportados?.modulo || '')
+  const [titulo, setTitulo] = useState(dadosImportados?.titulo || proc?.titulo || '')
+  const [descricao, setDescricao] = useState(dadosImportados?.descricao || proc?.descricao || '')
+  const [caminhoMenu, setCaminhoMenu] = useState(dadosImportados?.caminhoMenu || proc?.caminho_menu || '')
+  const [passos, setPassos] = useState<PassoEdit[]>(() => {
+    if (dadosImportados?.passos?.length) {
+      return dadosImportados.passos.map((p: any) => ({
+        texto: p.texto || '',
+        imagem_url: p.imagem_url || null,
+        _localId: Math.random().toString(36).slice(2)
+      }))
+    }
+    return (proc?.passos || []).map((p: FaqPasso) => ({
+      texto: p.texto || '',
+      imagem_url: p.imagem_url || null,
+      _localId: Math.random().toString(36).slice(2)
+    }))
+  })
   const [salvando, setSalvando] = useState(false)
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null)
+  const [modalImportarInterno, setModalImportarInterno] = useState(false)
 
   const modulosExistentes = useMemo(() => {
     const set = new Set<string>()
@@ -525,7 +713,17 @@ function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, onCl
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between p-5 border-b border-slate-200 shrink-0">
-          <h3 className="text-base font-black text-slate-800">{proc ? 'Editar Procedimento' : 'Novo Procedimento'}</h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-base font-black text-slate-800">{proc ? 'Editar Procedimento' : 'Novo Procedimento'}</h3>
+            <button
+              type="button"
+              onClick={() => setModalImportarInterno(true)}
+              className="py-1 px-2.5 flex items-center gap-1.5 text-xs font-bold rounded-lg bg-brand-50 border border-brand-200 text-brand-700 hover:bg-brand-100 transition-colors"
+              title="Preencher campos a partir de um arquivo HTML"
+            >
+              <FileCode className="w-3.5 h-3.5 text-brand-600" /> Importar HTML
+            </button>
+          </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
         </div>
 
@@ -620,6 +818,46 @@ function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, onCl
           <button onClick={salvar} disabled={salvando} className="py-2 px-4 text-xs font-bold rounded-lg bg-brand-600 text-white hover:bg-brand-700 flex items-center gap-1.5 disabled:opacity-50"><Save className="w-3.5 h-3.5" /> {salvando ? 'Salvando…' : 'Salvar Procedimento'}</button>
         </div>
       </div>
+
+      {modalImportarInterno && (
+        <ImportarHtmlModal
+          categorias={categorias}
+          modulosExistentes={modulosExistentes}
+          usuario={usuario}
+          onClose={() => setModalImportarInterno(false)}
+          onCarregarNoEditor={(dados) => {
+            setModalImportarInterno(false)
+            if (dados.titulo) setTitulo(dados.titulo)
+            if (dados.descricao) setDescricao(dados.descricao)
+            if (dados.caminhoMenu) setCaminhoMenu(dados.caminhoMenu)
+            if (dados.categoria) {
+              const encontrada = categorias.find(c =>
+                c.nome.toLowerCase() === dados.categoria.toLowerCase() &&
+                (!dados.modulo || (c.modulo || '').toLowerCase() === dados.modulo.toLowerCase())
+              )
+              if (encontrada) {
+                setCategoriaId(encontrada.id)
+                setCriandoSecao(false)
+              } else {
+                setCriandoSecao(true)
+                setNovaSecaoNome(dados.categoria)
+                setNovaSecaoModulo(dados.modulo || '')
+              }
+            }
+            if (dados.passos?.length) {
+              setPassos(dados.passos.map((p: any) => ({
+                texto: p.texto || '',
+                imagem_url: p.imagem_url || null,
+                _localId: Math.random().toString(36).slice(2)
+              })))
+            }
+          }}
+          onSalvoDireto={(novoProcId) => {
+            setModalImportarInterno(false)
+            onSaved(novoProcId)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -696,6 +934,461 @@ function PassoEditor({ index, total, passo, uploading, onTexto, onUpload, onRemo
             <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(f) }} />
           </label>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// MODAL: Importador Inteligente de HTML
+// ============================================================
+function ImportarHtmlModal({ categorias, modulosExistentes, usuario, onClose, onCarregarNoEditor, onSalvoDireto }: {
+  categorias: FaqCategoria[]
+  modulosExistentes: string[]
+  usuario: any
+  onClose: () => void
+  onCarregarNoEditor: (dados: FaqHtmlParsed) => void
+  onSalvoDireto: (novoProcId?: string) => void
+}) {
+  const [aba, setAba] = useState<'arquivo' | 'colar'>('arquivo')
+  const [arquivo, setArquivo] = useState<File | null>(null)
+  const [htmlTexto, setHtmlTexto] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
+  const [dados, setDados] = useState<FaqHtmlParsed | null>(null)
+  const [erro, setErro] = useState('')
+  const [processando, setProcessando] = useState(false)
+  const [statusProgresso, setStatusProgresso] = useState<string | null>(null)
+  const [progressoPorcentagem, setProgressoPorcentagem] = useState(0)
+
+  // Faz o parse do HTML
+  const processarTexto = (raw: string) => {
+    setErro('')
+    if (!raw.trim()) {
+      setDados(null)
+      return
+    }
+    try {
+      const parsed = parseFaqHtml(raw)
+      if (!parsed.titulo && parsed.passos.length === 0) {
+        setErro('Não foi possível identificar o título nem os passos no HTML fornecido. Verifique o formato.')
+        setDados(null)
+      } else {
+        setDados(parsed)
+      }
+    } catch (e: any) {
+      setErro('Erro ao processar HTML: ' + (e?.message || e))
+      setDados(null)
+    }
+  }
+
+  const handleFile = async (f: File) => {
+    if (!f.name.match(/\.(html|htm)$/i)) {
+      setErro('Por favor selecione um arquivo .html ou .htm')
+      return
+    }
+    setArquivo(f)
+    try {
+      const t = await f.text()
+      setHtmlTexto(t)
+      processarTexto(t)
+    } catch (e: any) {
+      setErro('Erro ao ler arquivo: ' + (e?.message || e))
+    }
+  }
+
+  // Faz upload das imagens em Base64 para o Supabase Storage
+  const uploadImagensBase64 = async (passosList: StepParsed[]): Promise<{ texto: string; imagem_url: string | null }[]> => {
+    const totalImgs = passosList.filter(p => p.isBase64 && p.imagem_url).length
+    if (totalImgs === 0) {
+      return passosList.map(p => ({ texto: p.texto, imagem_url: p.imagem_url }))
+    }
+
+    let cont = 0
+    const resultados: { texto: string; imagem_url: string | null }[] = []
+
+    for (let i = 0; i < passosList.length; i++) {
+      const p = passosList[i]
+      if (p.isBase64 && p.imagem_url) {
+        cont++
+        setStatusProgresso(`Enviando print ${cont} de ${totalImgs} para o Supabase Storage…`)
+        setProgressoPorcentagem(Math.round((cont / totalImgs) * 100))
+        try {
+          const { blob, ext } = dataUriToBlob(p.imagem_url)
+          const url = await api.uploadFaqImagem(blob, `passo_${i + 1}.${ext}`)
+          resultados.push({ texto: p.texto, imagem_url: url })
+        } catch (e: any) {
+          console.error('Erro no upload de imagem:', e)
+          resultados.push({ texto: p.texto, imagem_url: null })
+        }
+      } else {
+        resultados.push({ texto: p.texto, imagem_url: p.imagem_url })
+      }
+    }
+    return resultados
+  }
+
+  // 1. Carregar no Editor
+  const handleCarregarNoEditor = async () => {
+    if (!dados || !dados.titulo) {
+      alert('Informe o título do procedimento.')
+      return
+    }
+    setProcessando(true)
+    try {
+      const passosComUrls = await uploadImagensBase64(dados.passos)
+      onCarregarNoEditor({
+        ...dados,
+        passos: passosComUrls.map(p => ({ texto: p.texto, imagem_url: p.imagem_url, isBase64: false }))
+      })
+    } catch (e: any) {
+      alert('Erro ao processar imagens: ' + (e?.message || e))
+    } finally {
+      setProcessando(false)
+      setStatusProgresso(null)
+    }
+  }
+
+  // 2. Importar e Salvar Direto
+  const handleSalvarDireto = async () => {
+    if (!dados || !dados.titulo) {
+      alert('Informe o título do procedimento.')
+      return
+    }
+    setProcessando(true)
+    try {
+      // 1. Upload de imagens
+      const passosComUrls = await uploadImagensBase64(dados.passos)
+
+      // 2. Resolver ou criar categoria
+      setStatusProgresso('Verificando seção no banco…')
+      let catId = ''
+      const existente = categorias.find(c =>
+        c.nome.toLowerCase() === (dados.categoria || '').trim().toLowerCase() &&
+        (!dados.modulo || (c.modulo || '').toLowerCase() === dados.modulo.trim().toLowerCase())
+      )
+
+      if (existente) {
+        catId = existente.id
+      } else {
+        const novaCat = await api.createFaqCategoria({
+          nome: dados.categoria.trim() || 'Geral',
+          modulo: dados.modulo.trim() || null,
+          ordem: categorias.length + 1
+        })
+        catId = novaCat.id
+      }
+
+      // 3. Criar procedimento
+      setStatusProgresso('Criando procedimento…')
+      const novoProc = await api.createFaqProcedimento({
+        categoria_id: catId,
+        titulo: dados.titulo.trim(),
+        descricao: dados.descricao || null,
+        caminho_menu: dados.caminhoMenu || null,
+        criado_por_id: usuario?.id || null,
+        criado_por_nome: usuario?.nome || usuario?.login || null
+      })
+
+      // 4. Salvar passos
+      setStatusProgresso('Gravando os passos…')
+      await api.salvarFaqPassos(novoProc.id, passosComUrls)
+
+      onSalvoDireto(novoProc.id)
+    } catch (e: any) {
+      alert('Erro ao salvar direto: ' + (e?.message || e))
+    } finally {
+      setProcessando(false)
+      setStatusProgresso(null)
+    }
+  }
+
+  const base64Count = useMemo(
+    () => (dados?.passos || []).filter(p => p.isBase64).length,
+    [dados]
+  )
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
+        {/* Cabeçalho */}
+        <div className="p-5 border-b border-slate-200 flex items-center justify-between shrink-0 bg-gradient-to-r from-brand-50/50 to-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-200 flex items-center justify-center text-brand-600 shadow-2xs">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-800">Importar Procedimento via HTML</h3>
+              <p className="text-xs text-slate-500">Importe arquivos HTML prontos (com prints em Base64) diretamente para a biblioteca do FAQ.</p>
+            </div>
+          </div>
+          <button onClick={onClose} disabled={processando} className="text-slate-400 hover:text-slate-700 disabled:opacity-30 p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Corpo do Modal */}
+        <div className="p-5 overflow-y-auto flex-1 space-y-4 scrollbar-clean">
+          {/* Seletor de modo: Arquivo ou Colar */}
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+            <button
+              type="button"
+              onClick={() => setAba('arquivo')}
+              className={clsx(
+                'py-1.5 px-3 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5',
+                aba === 'arquivo'
+                  ? 'bg-brand-600 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              )}
+            >
+              <Upload className="w-3.5 h-3.5" /> Enviar Arquivo .HTML
+            </button>
+            <button
+              type="button"
+              onClick={() => setAba('colar')}
+              className={clsx(
+                'py-1.5 px-3 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5',
+                aba === 'colar'
+                  ? 'bg-brand-600 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              )}
+            >
+              <FileText className="w-3.5 h-3.5" /> Colar Código HTML
+            </button>
+          </div>
+
+          {/* Área de Entrada */}
+          {aba === 'arquivo' ? (
+            <div
+              onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={e => {
+                e.preventDefault()
+                setIsDragging(false)
+                const f = e.dataTransfer.files?.[0]
+                if (f) handleFile(f)
+              }}
+              className={clsx(
+                'border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer',
+                isDragging
+                  ? 'border-brand-500 bg-brand-50/70 scale-[0.99]'
+                  : 'border-slate-300 bg-slate-50/60 hover:bg-slate-50 hover:border-brand-400'
+              )}
+              onClick={() => {
+                const el = document.getElementById('faq-file-input')
+                el?.click()
+              }}
+            >
+              <input
+                id="faq-file-input"
+                type="file"
+                accept=".html,.htm"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0]
+                  if (f) handleFile(f)
+                }}
+              />
+              <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-brand-600 shadow-sm">
+                <FileCode className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-700">
+                {arquivo ? arquivo.name : 'Arraste o arquivo .html aqui ou clique para selecionar'}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {arquivo ? `${(arquivo.size / (1024 * 1024)).toFixed(2)} MB — Arquivo carregado` : 'Exemplo: Alteracao_Devedor_Fatura_MANTRAN.html'}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5">Cole o código HTML completo aqui:</label>
+              <textarea
+                value={htmlTexto}
+                onChange={e => {
+                  setHtmlTexto(e.target.value)
+                  processarTexto(e.target.value)
+                }}
+                rows={5}
+                placeholder="Cole o <html> completo gerado pelo Claude ou exportado…"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-800 text-xs font-mono focus:border-brand-500 focus:outline-none resize-y"
+              />
+            </div>
+          )}
+
+          {erro && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{erro}</span>
+            </div>
+          )}
+
+          {/* Barra de Progresso quando estiver enviando imagens */}
+          {processando && statusProgresso && (
+            <div className="p-4 rounded-xl bg-brand-50 border border-brand-200 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-brand-800">
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
+                  {statusProgresso}
+                </span>
+                <span>{progressoPorcentagem}%</span>
+              </div>
+              <div className="w-full bg-brand-200/60 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-brand-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progressoPorcentagem}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Pré-visualização dos dados extraídos */}
+          {dados && (
+            <div className="border border-slate-200 rounded-2xl bg-white p-4 space-y-4 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-700">Estrutura Reconhecida com Sucesso</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-bold border border-slate-200">
+                    {dados.passos.length} passos
+                  </span>
+                  {base64Count > 0 && (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 font-bold border border-amber-200 flex items-center gap-1">
+                      <ImageIcon className="w-3 h-3" /> {base64Count} prints embutidos
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Campos ajustáveis antes de importar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Título detectado</label>
+                  <input
+                    value={dados.titulo}
+                    onChange={e => setDados(prev => prev ? { ...prev, titulo: e.target.value } : null)}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-sm font-semibold text-slate-800 focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Descrição</label>
+                  <input
+                    value={dados.descricao}
+                    onChange={e => setDados(prev => prev ? { ...prev, descricao: e.target.value } : null)}
+                    placeholder="Descrição do procedimento"
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-800 focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Módulo</label>
+                  <input
+                    value={dados.modulo}
+                    onChange={e => setDados(prev => prev ? { ...prev, modulo: e.target.value } : null)}
+                    list="faq-modulos-import-list"
+                    placeholder="Ex: Shopee, Operação"
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-800 focus:border-brand-500 focus:outline-none"
+                  />
+                  <datalist id="faq-modulos-import-list">
+                    {modulosExistentes.map(m => <option key={m} value={m} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Seção (Categoria)</label>
+                  <input
+                    value={dados.categoria}
+                    onChange={e => setDados(prev => prev ? { ...prev, categoria: e.target.value } : null)}
+                    placeholder="Ex: Faturamento, Cadastros"
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-800 focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Caminho (Menu Breadcrumb)</label>
+                  <input
+                    value={dados.caminhoMenu}
+                    onChange={e => setDados(prev => prev ? { ...prev, caminhoMenu: e.target.value } : null)}
+                    placeholder="Ex: Módulo Shopee › Faturamento"
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-800 focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Lista dos passos detectados */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-2">Passos detectados ({dados.passos.length}):</label>
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1 scrollbar-clean">
+                  {dados.passos.map((p, i) => (
+                    <div key={i} className="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                      <span className="shrink-0 w-6 h-6 rounded-full bg-brand-100 text-brand-700 font-black flex items-center justify-center">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div
+                          className="text-slate-700 [&_b]:text-slate-900 [&_b]:font-bold leading-relaxed line-clamp-3"
+                          dangerouslySetInnerHTML={{ __html: p.texto }}
+                        />
+                      </div>
+                      {p.imagem_url && (
+                        <div className="shrink-0">
+                          <img
+                            src={p.imagem_url}
+                            alt=""
+                            className="h-10 w-16 object-cover rounded-md border border-slate-300 shadow-2xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Rodapé com botões de ação */}
+        <div className="p-4 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={processando}
+            className="w-full sm:w-auto py-2 px-4 text-xs font-bold rounded-lg bg-white border border-slate-300 text-slate-600 hover:border-slate-400 disabled:opacity-40"
+          >
+            Cancelar
+          </button>
+
+          <div className="w-full sm:w-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCarregarNoEditor}
+              disabled={!dados || processando}
+              className="flex-1 sm:flex-initial py-2 px-4 text-xs font-bold rounded-lg bg-white border border-brand-300 text-brand-700 hover:bg-brand-50 shadow-sm transition-colors disabled:opacity-40 flex items-center justify-center gap-1.5"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Revisar no Editor
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSalvarDireto}
+              disabled={!dados || processando}
+              className="flex-1 sm:flex-initial py-2 px-4 text-xs font-bold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition-colors disabled:opacity-40 flex items-center justify-center gap-1.5"
+            >
+              {processando ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Processando…
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Importar e Salvar Direto
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
