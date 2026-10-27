@@ -4,7 +4,7 @@ import {
   BookOpen, Search, Plus, Pencil, Trash2, X, Save, ChevronRight,
   Image as ImageIcon, GripVertical, Bold, FolderPlus, ArrowLeft,
   FileCode, Upload, CheckCircle2, AlertCircle, Loader2, Sparkles, FileText,
-  Share2, Check, Link2
+  Share2, Check, Link2, Maximize2, Minimize2
 } from 'lucide-react'
 import { api, type FaqCategoria, type FaqProcedimento, type FaqPasso } from '../lib/api'
 import { getLoggedUser, canEditFaq } from '../lib/auth'
@@ -717,6 +717,101 @@ function CategoriaModal({ categoria, proximaOrdem, modulosExistentes, onClose, o
 // ============================================================
 interface PassoEdit { texto: string; imagem_url: string | null; _localId: string }
 
+function ModalEditorTextoLongo({
+  titulo,
+  valorInicial,
+  onClose,
+  onSalvar
+}: {
+  titulo: string
+  valorInicial: string
+  onClose: () => void
+  onSalvar: (novoTexto: string) => void
+}) {
+  const [texto, setTexto] = useState(valorInicial)
+  const [termoBusca, setTermoBusca] = useState('')
+  const taRef = useRef<HTMLTextAreaElement>(null)
+
+  const ocorrencias = useMemo(() => {
+    if (!termoBusca.trim() || !texto) return 0
+    const regex = new RegExp(termoBusca.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+    return (texto.match(regex) || []).length
+  }, [texto, termoBusca])
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200 animate-in fade-in zoom-in-95">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-200 flex items-center justify-center text-brand-600">
+              <Maximize2 className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-slate-800">Editor Expandido: {titulo}</h3>
+              <p className="text-[11px] text-slate-400">Edite com facilidade textos longos, parágrafos ou instruções detalhadas</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Barra de pesquisa rápida no texto */}
+        <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={termoBusca}
+              onChange={e => setTermoBusca(e.target.value)}
+              placeholder="Localizar palavra ou trecho no texto..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800 text-xs focus:border-brand-500 focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold shrink-0">
+            {termoBusca.trim() && (
+              <span className={clsx("px-2 py-0.5 rounded-full text-[11px] font-bold", ocorrencias > 0 ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-600")}>
+                {ocorrencias} {ocorrencias === 1 ? 'ocorrência' : 'ocorrências'}
+              </span>
+            )}
+            <span>{texto.length} caracteres</span>
+            <span>{texto.trim() ? texto.trim().split(/\s+/).length : 0} palavras</span>
+          </div>
+        </div>
+
+        <div className="p-5 flex-1 min-h-0 flex flex-col">
+          <textarea
+            ref={taRef}
+            value={texto}
+            onChange={e => setTexto(e.target.value)}
+            placeholder="Digite ou cole o texto aqui..."
+            className="w-full flex-1 min-h-[280px] p-4 rounded-xl bg-slate-50 border border-slate-300 text-slate-800 text-sm focus:border-brand-500 focus:bg-white focus:outline-none leading-relaxed resize-none scrollbar-clean font-normal"
+            autoFocus
+          />
+        </div>
+
+        <div className="flex items-center justify-between p-4 sm:p-5 border-t border-slate-200 bg-slate-50/50 rounded-b-2xl shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="py-2 px-4 text-xs font-bold rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => onSalvar(texto)}
+            className="py-2 px-5 text-xs font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-700 shadow-md shadow-brand-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Check className="w-4 h-4" />
+            <span>Aplicar ao Campo</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, dadosImportados, onClose, onSaved }: {
   proc: FaqProcedimento | null
   categoriaIdInicial: string
@@ -753,6 +848,12 @@ function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, dado
   const [novaSecaoModulo, setNovaSecaoModulo] = useState(dadosImportados?.modulo || '')
   const [titulo, setTitulo] = useState(dadosImportados?.titulo || proc?.titulo || '')
   const [descricao, setDescricao] = useState(dadosImportados?.descricao || proc?.descricao || '')
+  const [descricaoExpandida, setDescricaoExpandida] = useState(() => (dadosImportados?.descricao || proc?.descricao || '').length > 60)
+  const [modalTextoAberto, setModalTextoAberto] = useState<{
+    titulo: string
+    valor: string
+    onSalvar: (v: string) => void
+  } | null>(null)
   const [caminhoMenu, setCaminhoMenu] = useState(dadosImportados?.caminhoMenu || proc?.caminho_menu || '')
   const [passos, setPassos] = useState<PassoEdit[]>(() => {
     if (dadosImportados?.passos?.length) {
@@ -925,8 +1026,59 @@ function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, dado
             </div>
           )}
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1.5">Descrição (subtítulo)</label>
-            <input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Breve descrição do procedimento" className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 text-sm focus:border-brand-500 focus:outline-none" />
+            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+              <div className="flex items-center gap-2">
+                <label className="block text-xs font-bold text-slate-600">Descrição (subtítulo)</label>
+                {descricao.length > 50 && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                    {descricao.length} caracteres
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDescricaoExpandida(prev => !prev)}
+                  className="py-0.5 px-2 flex items-center gap-1 text-[11px] font-bold rounded-md bg-slate-100 hover:bg-brand-50 text-slate-600 hover:text-brand-600 border border-slate-200 hover:border-brand-300 transition-colors cursor-pointer"
+                  title={descricaoExpandida ? "Recolher campo" : "Expandir campo para facilitar leitura"}
+                >
+                  {descricaoExpandida ? (
+                    <>
+                      <Minimize2 className="w-3 h-3 text-brand-600" />
+                      <span>Recolher</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="w-3 h-3 text-slate-500" />
+                      <span>Expandir</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalTextoAberto({
+                    titulo: 'Descrição (subtítulo)',
+                    valor: descricao,
+                    onSalvar: (v) => setDescricao(v)
+                  })}
+                  className="py-0.5 px-2 flex items-center gap-1 text-[11px] font-bold rounded-md bg-white hover:bg-brand-50 text-slate-600 hover:text-brand-600 border border-slate-300 hover:border-brand-300 transition-colors cursor-pointer"
+                  title="Abrir em janela ampla para facilitar leitura e edição"
+                >
+                  <FileText className="w-3 h-3 text-slate-500" />
+                  <span>Editor Amplo</span>
+                </button>
+              </div>
+            </div>
+            <textarea
+              value={descricao}
+              onChange={e => setDescricao(e.target.value)}
+              rows={descricaoExpandida ? 6 : 2}
+              placeholder="Breve descrição do procedimento"
+              className={clsx(
+                "w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 text-sm focus:border-brand-500 focus:bg-white focus:outline-none transition-all leading-relaxed resize-y scrollbar-clean",
+                descricaoExpandida ? "min-h-[140px]" : "min-h-[46px]"
+              )}
+            />
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-600 mb-1.5">Caminho no menu (breadcrumb)</label>
@@ -954,6 +1106,13 @@ function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, dado
                   onRemoveImg={() => setPassos(prev => prev.map((pp, idx) => idx === i ? { ...pp, imagem_url: null } : pp))}
                   onMover={(dir) => moverPasso(i, dir)}
                   onRemover={() => removePasso(i)}
+                  onAbrirEditorAmplo={(textoPasso, callback) => {
+                    setModalTextoAberto({
+                      titulo: `Passo ${i + 1}`,
+                      valor: textoPasso,
+                      onSalvar: callback
+                    })
+                  }}
                 />
               ))}
             </div>
@@ -1005,11 +1164,23 @@ function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, dado
           }}
         />
       )}
+
+      {modalTextoAberto && (
+        <ModalEditorTextoLongo
+          titulo={modalTextoAberto.titulo}
+          valorInicial={modalTextoAberto.valor}
+          onClose={() => setModalTextoAberto(null)}
+          onSalvar={(novo) => {
+            modalTextoAberto.onSalvar(novo)
+            setModalTextoAberto(null)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function PassoEditor({ index, total, passo, uploading, onTexto, onUpload, onRemoveImg, onMover, onRemover }: {
+function PassoEditor({ index, total, passo, uploading, onTexto, onUpload, onRemoveImg, onMover, onRemover, onAbrirEditorAmplo }: {
   index: number
   total: number
   passo: PassoEdit
@@ -1019,8 +1190,10 @@ function PassoEditor({ index, total, passo, uploading, onTexto, onUpload, onRemo
   onRemoveImg: () => void
   onMover: (dir: -1 | 1) => void
   onRemover: () => void
+  onAbrirEditorAmplo?: (texto: string, callback: (novo: string) => void) => void
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const [expandido, setExpandido] = useState(() => (passo.texto || '').length > 80)
 
   // Popover de inserção de link
   const [linkAberto, setLinkAberto] = useState(false)
@@ -1080,13 +1253,39 @@ function PassoEditor({ index, total, passo, uploading, onTexto, onUpload, onRemo
         <div className="flex items-center gap-2 text-slate-500">
           <GripVertical className="w-4 h-4 text-slate-400" />
           <span className="text-xs font-bold">Passo {index + 1}</span>
+          {(passo.texto || '').length > 80 && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-slate-200/80 text-slate-600">
+              {(passo.texto || '').length} carac.
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => onMover(-1)} disabled={index === 0} className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30" title="Subir">↑</button>
-          <button onClick={() => onMover(1)} disabled={index === total - 1} className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30" title="Descer">↓</button>
-          <button onClick={aplicarNegrito} className="p-1 text-slate-500 hover:text-brand-600" title="Negrito na seleção"><Bold className="w-3.5 h-3.5" /></button>
-          <button onClick={abrirLink} className="p-1 text-slate-500 hover:text-brand-600" title="Inserir link"><Link2 className="w-3.5 h-3.5" /></button>
-          <button onClick={onRemover} className="p-1 text-slate-500 hover:text-red-500" title="Remover passo"><Trash2 className="w-3.5 h-3.5" /></button>
+          <button onClick={() => onMover(-1)} disabled={index === 0} className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30 cursor-pointer" title="Subir">↑</button>
+          <button onClick={() => onMover(1)} disabled={index === total - 1} className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-30 cursor-pointer" title="Descer">↓</button>
+          <button onClick={aplicarNegrito} className="p-1 text-slate-500 hover:text-brand-600 cursor-pointer" title="Negrito na seleção"><Bold className="w-3.5 h-3.5" /></button>
+          <button onClick={abrirLink} className="p-1 text-slate-500 hover:text-brand-600 cursor-pointer" title="Inserir link"><Link2 className="w-3.5 h-3.5" /></button>
+          <button
+            type="button"
+            onClick={() => setExpandido(prev => !prev)}
+            className={clsx(
+              "p-1 rounded transition-colors cursor-pointer",
+              expandido ? "text-brand-600 bg-brand-50" : "text-slate-500 hover:text-brand-600"
+            )}
+            title={expandido ? "Recolher campo do passo" : "Expandir campo do passo"}
+          >
+            {expandido ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
+          {onAbrirEditorAmplo && (
+            <button
+              type="button"
+              onClick={() => onAbrirEditorAmplo(passo.texto, onTexto)}
+              className="p-1 text-slate-500 hover:text-brand-600 cursor-pointer"
+              title="Abrir em editor amplo com busca"
+            >
+              <FileText className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button onClick={onRemover} className="p-1 text-slate-500 hover:text-red-500 cursor-pointer" title="Remover passo"><Trash2 className="w-3.5 h-3.5" /></button>
         </div>
       </div>
 
@@ -1117,8 +1316,8 @@ function PassoEditor({ index, total, passo, uploading, onTexto, onUpload, onRemo
             />
           </div>
           <div className="flex items-center justify-end gap-2 pt-0.5">
-            <button onClick={() => { setLinkAberto(false); setLinkTexto(''); setLinkUrl('') }} className="py-1 px-2.5 text-[11px] font-bold rounded-md bg-white border border-slate-300 text-slate-600 hover:border-slate-400">Cancelar</button>
-            <button onClick={confirmarLink} disabled={!linkUrl.trim() || !(linkTexto.trim() || linkUrl.trim())} className="py-1 px-2.5 text-[11px] font-bold rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40">Inserir</button>
+            <button onClick={() => { setLinkAberto(false); setLinkTexto(''); setLinkUrl('') }} className="py-1 px-2.5 text-[11px] font-bold rounded-md bg-white border border-slate-300 text-slate-600 hover:border-slate-400 cursor-pointer">Cancelar</button>
+            <button onClick={confirmarLink} disabled={!linkUrl.trim() || !(linkTexto.trim() || linkUrl.trim())} className="py-1 px-2.5 text-[11px] font-bold rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40 cursor-pointer">Inserir</button>
           </div>
         </div>
       )}
@@ -1128,9 +1327,12 @@ function PassoEditor({ index, total, passo, uploading, onTexto, onUpload, onRemo
         value={passo.texto}
         onChange={e => onTexto(e.target.value)}
         onPaste={onPaste}
-        rows={2}
+        rows={expandido ? 6 : 2}
         placeholder="Descreva o passo. Use o botão de negrito para destacar nomes de campos. Cole (Ctrl+V) um print aqui."
-        className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 text-sm focus:border-brand-500 focus:outline-none resize-y"
+        className={clsx(
+          "w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 text-sm focus:border-brand-500 focus:outline-none resize-y transition-all leading-relaxed scrollbar-clean",
+          expandido ? "min-h-[140px]" : "min-h-[50px]"
+        )}
       />
 
       <div className="mt-2 flex items-center gap-3">

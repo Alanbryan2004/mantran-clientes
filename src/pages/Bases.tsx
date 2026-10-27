@@ -7,6 +7,7 @@ import { permissionsApi } from '../lib/permissions'
 import { NovoProjetoModal } from '../components/NovoProjetoModal'
 import { EditarProjetoModal } from '../components/EditarProjetoModal'
 import { useNavigate } from 'react-router-dom'
+import { calcularProgressoProjeto } from '../lib/projectProgress'
 import clsx from 'clsx'
 
 interface Projeto {
@@ -73,29 +74,16 @@ export function Bases() {
         const pDados = await api.getProjetoDados()
 
         const computedProjs: Projeto[] = projs.map((p: any) => {
-          const colsProj = pCols?.filter((c: any) => c.projeto_id === p.id && c.indicador_conclusao === true) || []
+          const colsProj = pCols?.filter((c: any) => c.projeto_id === p.id) || []
           const basesProj = pBases?.filter((b: any) => b.projeto_id === p.id) || []
           const dadosProj = pDados?.filter((d: any) => d.projeto_id === p.id) || []
 
-          if (basesProj.length === 0 || colsProj.length === 0) {
-            return { ...p, progress: 0, status: p.status || 'Em Andamento' }
-          }
-
-          let concluidos = 0
-          basesProj.forEach((b: any) => {
-            let isDone = true
-            colsProj.forEach((c: any) => {
-              const d = dadosProj.find((data: any) => data.base_id === b.base_id && data.coluna_id === c.id)
-              const val = d?.valor
-              const tp = (c.tipo || '').toUpperCase()
-              if (tp === 'STATUS' && val !== 'OK') isDone = false
-              else if (tp === 'STATUS_SN' && val !== 'SIM') isDone = false
-              else if (tp !== 'STATUS' && tp !== 'STATUS_SN' && (!val || val.trim() === '')) isDone = false
-            })
-            if (isDone) concluidos++
+          const dadosMap: Record<string, string> = {}
+          dadosProj.forEach((d: any) => {
+            dadosMap[`${d.base_id}_${d.coluna_id}`] = d.valor || ''
           })
 
-          const progress = Math.round((concluidos / basesProj.length) * 100)
+          const progress = calcularProgressoProjeto(colsProj, basesProj, dadosMap)
           const status = progress === 100 ? 'Concluído' : (p.status || 'Em Andamento')
 
           return { ...p, progress, status }

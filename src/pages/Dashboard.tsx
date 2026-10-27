@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { isClienteUser } from '../lib/auth'
 import { Users, Database, Server, ShoppingBag, ShoppingCart, Briefcase, Building, Rocket, ArrowRight, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { calcularProgressoProjeto } from '../lib/projectProgress'
 import clsx from 'clsx'
 
 // Uma etapa conta como "concluída" quando está OK ou em ERRO (erro documentado).
@@ -164,26 +165,16 @@ export function Dashboard() {
       // Buscar Projetos em Andamento
       if (projs && projs.length > 0) {
         const computedProjs = projs.map((p: any) => {
-          const colsProj = pCols?.filter((c: any) => c.projeto_id === p.id && c.indicador_conclusao === true) || []
+          const colsProj = pCols?.filter((c: any) => c.projeto_id === p.id) || []
           const basesProj = pBases?.filter((b: any) => b.projeto_id === p.id) || []
           const dadosProj = pDados?.filter((d: any) => d.projeto_id === p.id) || []
 
-          if (basesProj.length === 0 || colsProj.length === 0) return { ...p, progress: 0 }
-
-          let concluidos = 0
-          basesProj.forEach((b: any) => {
-            let isDone = true
-            colsProj.forEach((c: any) => {
-              const d = dadosProj.find((data: any) => data.base_id === b.base_id && data.coluna_id === c.id)
-              const val = d?.valor
-              const tp = (c.tipo || '').toUpperCase()
-              if (tp === 'STATUS' && val !== 'OK') isDone = false
-              else if (tp === 'STATUS_SN' && val !== 'SIM') isDone = false
-              else if (tp !== 'STATUS' && tp !== 'STATUS_SN' && (!val || val.trim() === '')) isDone = false
-            })
-            if (isDone) concluidos++
+          const dadosMap: Record<string, string> = {}
+          dadosProj.forEach((d: any) => {
+            dadosMap[`${d.base_id}_${d.coluna_id}`] = d.valor || ''
           })
-          return { ...p, progress: Math.round((concluidos / basesProj.length) * 100) }
+
+          return { ...p, progress: calcularProgressoProjeto(colsProj, basesProj, dadosMap) }
         })
         const inProgressProjs = computedProjs.filter((p: any) => p.progress < 100)
         setActiveProjects(inProgressProjs)
