@@ -483,9 +483,12 @@ export const api = {
   },
 
   async insertLeoModulo(modulo: { empresa_id: string, ativo: boolean, nome_modulo: string }) {
+    // A coluna de FK em leo_modulos é `leo_empresa_id` (ver scripts/leo_madeiras_sql.sql).
+    // Mapeamos aqui para manter a interface (empresa_id) estável nos chamadores.
+    const { empresa_id, ...resto } = modulo
     const { error } = await supabase
       .from('leo_modulos')
-      .insert(modulo)
+      .insert({ ...resto, leo_empresa_id: empresa_id })
     
     if (error) throw error
   },
@@ -494,7 +497,7 @@ export const api = {
     const { data, error } = await supabase
       .from('leo_modulos')
       .select('*')
-      .eq('empresa_id', empresaId)
+      .eq('leo_empresa_id', empresaId)
     
     if (error) throw error
     return data || []

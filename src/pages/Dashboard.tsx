@@ -5,6 +5,21 @@ import { Users, Database, Server, ShoppingBag, ShoppingCart, Briefcase, Building
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 
+// Uma etapa conta como "concluída" quando está OK ou em ERRO (erro documentado).
+// Mesma regra usada em ImplantacaoDetalhes.tsx e Implantacoes.tsx.
+const etapaConcluida = (valor: string): boolean => {
+  const v = (valor || '').trim().toUpperCase()
+  return v === 'OK' || v === 'ERRO'
+}
+
+// Implantação concluída: status persistido 'Concluído' OU todas as etapas
+// concluídas (OK/ERRO). Mantém o Dashboard consistente com as telas de Implantações.
+const implConcluida = (impl: any): boolean => {
+  if (impl.status === 'Concluído') return true
+  const etapas = impl.implantacao_etapas || []
+  return etapas.length > 0 && etapas.every((e: any) => etapaConcluida(e.valor))
+}
+
 const getProgressColor = (progress: number) => {
   if (progress <= 33) return 'bg-red-500'
   if (progress <= 66) return 'bg-amber-400'
@@ -129,18 +144,14 @@ export function Dashboard() {
       // Buscar Implantações
       if (implantacoes && implantacoes.length > 0) {
         const totalImplantacoes = implantacoes.length
-        const concluidasCount = implantacoes.filter((i: any) => i.status === 'Concluído').length
+        const concluidasCount = implantacoes.filter((i: any) => implConcluida(i)).length
         const emAndamentoCount = totalImplantacoes - concluidasCount
-        
-        let totalEtapasAll = 0
-        let okEtapasAll = 0
-        implantacoes.forEach((imp: any) => {
-          const etapas = imp.implantacao_etapas || []
-          totalEtapasAll += etapas.length
-          okEtapasAll += etapas.filter((e: any) => e.valor === 'OK').length
-        })
 
-        const overallProgress = totalEtapasAll > 0 ? Math.round((okEtapasAll / totalEtapasAll) * 100) : 0
+        // "Percentual Concluído" = implantações concluídas ÷ total.
+        // Consistente com o rótulo do card e com o subtexto ("X concluídas").
+        const overallProgress = totalImplantacoes > 0
+          ? Math.round((concluidasCount / totalImplantacoes) * 100)
+          : 0
 
         setImplantacoesStats({
           totalImplantacoes,
@@ -393,10 +404,11 @@ export function Dashboard() {
 
                 <div className="flex items-baseline space-x-3 mb-2">
                   <span className="text-4xl font-extrabold text-white">
-                    {implantacoesStats.totalImplantacoes}
+                    {implantacoesStats.emAndamentoCount}
                   </span>
                   <span className="text-xs text-slate-400">
-                    {implantacoesStats.totalImplantacoes === 1 ? 'cliente em onboarding' : 'clientes em onboarding'}
+                    {implantacoesStats.emAndamentoCount === 1 ? 'cliente em onboarding' : 'clientes em onboarding'}
+                    <span className="block text-[11px] text-slate-500">de {implantacoesStats.totalImplantacoes} no total</span>
                   </span>
                 </div>
               </div>

@@ -16,7 +16,9 @@ import {
   Trash2,
   RefreshCw,
   Info,
-  Check
+  Check,
+  ShieldAlert,
+  X
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -246,6 +248,26 @@ export function SeparadorPlanilhas() {
   const [openAbasMap, setOpenAbasMap] = useState<Record<string, boolean>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Barra de Progresso
+  const [progress, setProgress] = useState<{
+    percent: number
+    currentFile: string
+    stageText: string
+    totalFiles: number
+    currentIndex: number
+  } | null>(null)
+
+  // Modal de Validação dos Dados & Termo de Responsabilidade
+  const [showValidationAlertModal, setShowValidationAlertModal] = useState(false)
+  const [acknowledgedResponsibility, setAcknowledgedResponsibility] = useState(false)
+  const [lastProcessedSummary, setLastProcessedSummary] = useState<{
+    totalArquivos: number
+    totalOperacoes: number
+    totalLinhas: number
+    totalValor: number
+    arquivosComErro: number
+  } | null>(null)
+
   const showToast = (msg: string) => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3200)
@@ -345,14 +367,64 @@ export function SeparadorPlanilhas() {
   const handleFiles = async (files: File[]) => {
     if (!files || files.length === 0) return
     setIsProcessing(true)
+    setAcknowledgedResponsibility(false)
 
     const novosResultados: ResultadoProcessamento[] = []
-    for (const f of files) {
+    let totalOps = 0
+    let totalLinhasGeral = 0
+    let totalValorGeral = 0
+    let errosCount = 0
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i]
+      const fileIndex = i + 1
+
+      // Etapa 1: Leitura inicial do arquivo
+      setProgress({
+        percent: 15,
+        currentFile: f.name,
+        stageText: 'Carregando arquivo e preparando leitura da planilha...',
+        totalFiles: files.length,
+        currentIndex: fileIndex
+      })
+      await new Promise(r => setTimeout(r, 90))
+
       try {
         const buf = await f.arrayBuffer()
+        
+        // Etapa 2: Interpretação das abas e validação das 53 colunas
+        setProgress({
+          percent: 50,
+          currentFile: f.name,
+          stageText: 'Lendo abas e conferindo conformidade das 53 colunas da Shopee...',
+          totalFiles: files.length,
+          currentIndex: fileIndex
+        })
+        await new Promise(r => setTimeout(r, 70))
+
         const res = processarBuffer(f, buf)
         novosResultados.push(res)
+
+        // Etapa 3: Agrupando operações e computando valores
+        setProgress({
+          percent: 85,
+          currentFile: f.name,
+          stageText: 'Agrupando operações e consolidando totais financeiros...',
+          totalFiles: files.length,
+          currentIndex: fileIndex
+        })
+        await new Promise(r => setTimeout(r, 70))
+
+        if (res.erro) {
+          errosCount++
+        } else {
+          totalOps += res.grupos.length
+          totalLinhasGeral += res.totalLinhas
+          totalValorGeral += res.grupos.reduce((sum, g) => sum + g.total, 0)
+        }
+
       } catch (err: any) {
+        errosCount++
         novosResultados.push({
           id: Math.random().toString(36).substring(2, 9),
           nomeArquivo: f.name,
@@ -366,8 +438,29 @@ export function SeparadorPlanilhas() {
       }
     }
 
+    // Etapa 4: Conclusão total
+    setProgress({
+      percent: 100,
+      currentFile: files[files.length - 1].name,
+      stageText: 'Leitura e diagnóstico finalizados com sucesso!',
+      totalFiles: files.length,
+      currentIndex: files.length
+    })
+    await new Promise(r => setTimeout(r, 300))
+
     setResultados(prev => [...novosResultados, ...prev])
     setIsProcessing(false)
+    setProgress(null)
+
+    // Configura o resumo do lote e abre o modal de validação obrigatória
+    setLastProcessedSummary({
+      totalArquivos: files.length,
+      totalOperacoes: totalOps,
+      totalLinhas: totalLinhasGeral,
+      totalValor: totalValorGeral,
+      arquivosComErro: errosCount
+    })
+    setShowValidationAlertModal(true)
     showToast(`${files.length} planilha(s) analisada(s) com sucesso.`)
   }
 
@@ -545,14 +638,109 @@ export function SeparadorPlanilhas() {
         </div>
       </div>
 
+      {/* Barra de Progresso Durante a Leitura da Planilha */}
+      {isProcessing && progress && (
+        <div className="bg-white border-2 border-orange-400 rounded-2xl p-5 sm:p-6 shadow-md space-y-3.5 animate-in fade-in zoom-in-95">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-orange-100 border border-orange-200 text-orange-600 flex items-center justify-center shrink-0">
+                <RefreshCw className="w-5 h-5 animate-spin text-orange-600" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                    Lendo Planilha: <span className="text-orange-600 font-mono">{progress.currentFile}</span>
+                  </h3>
+                  {progress.totalFiles > 1 && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                      Arquivo {progress.currentIndex} de {progress.totalFiles}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+                  {progress.stageText}
+                </p>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="text-xl sm:text-2xl font-black text-orange-600 font-mono">
+                {progress.percent}%
+              </span>
+            </div>
+          </div>
+
+          {/* Barra Visual com Gradiente */}
+          <div className="w-full bg-slate-100 rounded-full h-3 sm:h-3.5 overflow-hidden p-0.5 border border-slate-200">
+            <div 
+              className="bg-gradient-to-r from-amber-500 to-orange-500 h-full rounded-full transition-all duration-300 ease-out shadow-sm relative overflow-hidden"
+              style={{ width: `${Math.max(6, progress.percent)}%` }}
+            >
+              <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Etapas de Leitura */}
+          <div className="grid grid-cols-3 gap-2 pt-1 text-[11px] text-slate-500">
+            <div className={clsx("flex items-center gap-1.5 font-medium", progress.percent >= 25 ? "text-orange-600 font-bold" : "")}>
+              <CheckCircle2 className={clsx("w-3.5 h-3.5", progress.percent >= 25 ? "text-orange-600" : "text-slate-300")} />
+              <span>1. Leitura do arquivo</span>
+            </div>
+            <div className={clsx("flex items-center gap-1.5 justify-center font-medium", progress.percent >= 60 ? "text-orange-600 font-bold" : "")}>
+              <CheckCircle2 className={clsx("w-3.5 h-3.5", progress.percent >= 60 ? "text-orange-600" : "text-slate-300")} />
+              <span>2. Validação 53 colunas</span>
+            </div>
+            <div className={clsx("flex items-center gap-1.5 justify-end font-medium", progress.percent >= 95 ? "text-orange-600 font-bold" : "")}>
+              <CheckCircle2 className={clsx("w-3.5 h-3.5", progress.percent >= 95 ? "text-orange-600" : "text-slate-300")} />
+              <span>3. Separação por operação</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Resultados do Processamento */}
       {resultados.length > 0 && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h2 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
               <FileSpreadsheet className="w-5 h-5 text-orange-600" />
               Resultados da Análise ({resultados.length})
             </h2>
+            <button
+              onClick={() => setShowValidationAlertModal(true)}
+              className="text-xs font-bold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100/70 border border-amber-200 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+              Ver Termo de Responsabilidade
+            </button>
+          </div>
+
+          {/* Banner Permanente de Validação Obrigatória e Responsabilidade */}
+          <div className="bg-gradient-to-r from-amber-50 via-amber-50/80 to-orange-50 border border-amber-300 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-amber-950 flex items-center gap-2">
+                  <span>Conferência Obrigatória dos Dados</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200/70 text-amber-900 border border-amber-300">
+                    Atenção
+                  </span>
+                </h3>
+                <p className="text-xs sm:text-sm text-amber-900/90 mt-1 leading-relaxed">
+                  Antes de importar qualquer planilha no sistema Mantran, confira a quantidade de linhas, operações e valores apurados.
+                  <strong> É de inteira responsabilidade do Usuário validar os dados da planilha a ser importada.</strong>
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowValidationAlertModal(true)}
+              className="shrink-0 px-3.5 py-2 rounded-xl bg-white hover:bg-amber-100/60 text-amber-900 border border-amber-300 text-xs font-bold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap self-stretch sm:self-auto justify-center"
+            >
+              <Info className="w-4 h-4 text-amber-600" />
+              Conferir Detalhes
+            </button>
           </div>
 
           <div className="space-y-5">
@@ -871,6 +1059,153 @@ export function SeparadorPlanilhas() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Validação dos Dados e Termo de Responsabilidade */}
+      {showValidationAlertModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-xl w-full overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
+            
+            {/* Header do Modal */}
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-5 sm:p-6 text-white flex items-start justify-between gap-4 shrink-0">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shrink-0 shadow-inner">
+                  <ShieldAlert className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30 inline-block mb-1">
+                    Conferência Obrigatória
+                  </span>
+                  <h3 className="text-lg sm:text-xl font-black text-white leading-tight">
+                    Validação da Planilha Importada
+                  </h3>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowValidationAlertModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Corpo do Modal */}
+            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto custom-scrollbar text-slate-700 text-sm">
+              
+              {/* Mensagem Principal */}
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-amber-900 text-sm">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Por favor, valide os dados da planilha antes da importação!</span>
+                </div>
+                <p className="text-xs leading-relaxed text-amber-900/90">
+                  A leitura e a divisão da planilha foram realizadas. Para assegurar a precisão operacional e financeira do seu processo, é fundamental conferir atentamente as informações antes de prosseguir com a importação no Mantran.
+                </p>
+              </div>
+
+              {/* Resumo da Leitura */}
+              {lastProcessedSummary && lastProcessedSummary.totalLinhas > 0 && (
+                <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+                  <div className="p-2.5 bg-white rounded-xl border border-slate-200/70 shadow-2xs">
+                    <span className="text-[11px] text-slate-500 font-medium block">Operações</span>
+                    <strong className="text-base font-black text-slate-900 font-mono">
+                      {lastProcessedSummary.totalOperacoes}
+                    </strong>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-xl border border-slate-200/70 shadow-2xs">
+                    <span className="text-[11px] text-slate-500 font-medium block">Total Linhas</span>
+                    <strong className="text-base font-black text-slate-900 font-mono">
+                      {intFmt.format(lastProcessedSummary.totalLinhas)}
+                    </strong>
+                  </div>
+                  <div className="p-2.5 bg-white rounded-xl border border-slate-200/70 shadow-2xs">
+                    <span className="text-[11px] text-slate-500 font-medium block">Valor Total</span>
+                    <strong className="text-base font-black text-emerald-700 font-mono truncate block" title={brl.format(lastProcessedSummary.totalValor)}>
+                      {brl.format(lastProcessedSummary.totalValor)}
+                    </strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Instruções de Conferência */}
+              <div className="space-y-2 pt-1">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Pontos fundamentais para você conferir:
+                </h4>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="w-5 h-5 rounded-md bg-orange-100 text-orange-700 font-bold flex items-center justify-center shrink-0 text-[11px] mt-0.5">
+                      1
+                    </div>
+                    <div>
+                      <strong className="text-slate-900">Total de Linhas / Registros:</strong> Conferir se a quantidade total de linhas separadas bate exatamente com o arquivo original fornecido pelo cliente/Shopee.
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="w-5 h-5 rounded-md bg-orange-100 text-orange-700 font-bold flex items-center justify-center shrink-0 text-[11px] mt-0.5">
+                      2
+                    </div>
+                    <div>
+                      <strong className="text-slate-900">Operações Separadas:</strong> Confirmar se as operações identificadas (Last Mile, Line Haul, First Mile, etc.) correspondem às filiais e serviços corretos.
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="w-5 h-5 rounded-md bg-orange-100 text-orange-700 font-bold flex items-center justify-center shrink-0 text-[11px] mt-0.5">
+                      3
+                    </div>
+                    <div>
+                      <strong className="text-slate-900">Valores Financeiros:</strong> Certificar-se de que a soma do campo <em>"valor final à receber"</em> coincide com o fechamento acordado.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Caixa Destacada de Responsabilidade */}
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 text-xs flex items-start gap-2.5">
+                <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong className="font-bold block text-rose-900 mb-0.5">Declaração de Responsabilidade:</strong>
+                  <span>
+                    É de <strong>inteira responsabilidade do Usuário</strong> conferir e validar os dados da planilha a ser importada. O Separador de Planilhas é uma ferramenta de apoio à separação e diagnóstico de colunas, cabendo ao usuário a verificação e aprovação dos dados antes da importação definitiva.
+                  </span>
+                </div>
+              </div>
+
+              {/* Checkbox de Confirmação */}
+              <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-100 hover:bg-slate-200/70 cursor-pointer transition-colors border border-slate-300">
+                <input
+                  type="checkbox"
+                  checked={acknowledgedResponsibility}
+                  onChange={e => setAcknowledgedResponsibility(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-slate-300 cursor-pointer"
+                />
+                <span className="text-xs font-semibold text-slate-800 leading-snug select-none">
+                  Estou ciente de que é de minha inteira responsabilidade validar os dados da planilha antes da importação.
+                </span>
+              </label>
+
+            </div>
+
+            {/* Rodapé do Modal */}
+            <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3 shrink-0">
+              <button
+                onClick={() => setShowValidationAlertModal(false)}
+                disabled={!acknowledgedResponsibility}
+                className={clsx(
+                  "px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all shadow-md",
+                  acknowledgedResponsibility
+                    ? "bg-orange-500 hover:bg-orange-600 text-white cursor-pointer active:scale-95"
+                    : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                )}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Entendido, vou validar os dados</span>
+              </button>
+            </div>
+
           </div>
         </div>
       )}

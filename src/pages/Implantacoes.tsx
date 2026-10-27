@@ -69,6 +69,22 @@ const isImplMeli = (impl: any) => implTemCard(impl, 'treinamento meli') || implT
 // "Cliente" = implantação normal (não é dedicada de NFSE nem de MELI)
 const isImplCliente = (impl: any) => !isImplNfse(impl) && !isImplMeli(impl)
 
+// Uma etapa conta como "concluída" quando está OK ou em ERRO (erro documentado).
+// Mesma regra usada na tela de detalhe (ImplantacaoDetalhes.tsx).
+const etapaConcluida = (valor: string): boolean => {
+  const v = (valor || '').trim().toUpperCase()
+  return v === 'OK' || v === 'ERRO'
+}
+
+// Define se a implantação está concluída de forma consistente com o detalhe:
+// status persistido 'Concluído' OU todas as etapas concluídas (OK/ERRO).
+// Evita que a lista divirja do detalhe quando o status no banco ficou defasado.
+const implConcluida = (impl: any): boolean => {
+  if (impl.status === 'Concluído') return true
+  const etapas = impl.implantacao_etapas || []
+  return etapas.length > 0 && etapas.every((e: any) => etapaConcluida(e.valor))
+}
+
 const getProximaEtapa = (etapas: any[], isShopee: boolean = false) => {
   if (!etapas || etapas.length === 0) return null
   const sorted = [...etapas].sort((a, b) => {
@@ -271,11 +287,11 @@ export function Implantacoes() {
   }
 
   const emAndamento = implantacoes
-    .filter(i => i.status === 'Em Andamento')
+    .filter(i => !implConcluida(i))
     .sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR', { sensitivity: 'base' }))
 
   const concluidos = implantacoes
-    .filter(i => i.status === 'Concluído')
+    .filter(i => implConcluida(i))
     .sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR', { sensitivity: 'base' }))
 
   // Contagens e dados respeitam a aba de TIPO ativa (Clientes / MELI / NFSE)
