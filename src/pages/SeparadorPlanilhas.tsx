@@ -88,7 +88,8 @@ export interface GrupoOperacao {
   linhas: number[]
   total: number
   filename: string
-  build: () => Uint8Array | ArrayBuffer
+  fileBytes?: Uint8Array
+  build?: () => Uint8Array | ArrayBuffer
 }
 
 export interface ResultadoProcessamento {
@@ -106,15 +107,24 @@ export interface ResultadoProcessamento {
 function validarCabecalho(ws: any): { ok: boolean; motivo?: string; linhaCab?: number; linhaTxt?: string; range?: any; diag?: DiagResult } {
   if (!ws || !ws["!ref"]) return { ok: false, motivo: "Aba vazia ou sem dados" }
   const range = XLSX.utils.decode_range(ws["!ref"])
+  const data = ws["!data"]
   const ultimaCol = Math.max(range.e.c, N - 1)
 
   const lerLinha = (r: number) => {
     const v: string[] = []
-    const rowNumStr = String(r + 1)
-    for (let c = 0; c <= ultimaCol; c++) {
-      const col = COL_LETTERS[c] || XLSX.utils.encode_col(c)
-      const cell = ws[col + rowNumStr]
-      v.push(cell ? norm(cell.v) : "")
+    if (data && data[r]) {
+      const row = data[r]
+      for (let c = 0; c <= ultimaCol; c++) {
+        const cell = row[c]
+        v.push(cell ? norm(cell.v) : "")
+      }
+    } else {
+      const rowNumStr = String(r + 1)
+      for (let c = 0; c <= ultimaCol; c++) {
+        const col = COL_LETTERS[c] || XLSX.utils.encode_col(c)
+        const cell = ws[col + rowNumStr]
+        v.push(cell ? norm(cell.v) : "")
+      }
     }
     return v
   }
@@ -422,6 +432,77 @@ export function SeparadorPlanilhas() {
     return res
   }
 
+  const processarArquivoViaWorker = (
+    file: File,
+    buf: ArrayBuffer,
+    fileIndex: number,
+    totalFiles: number
+  ): Promise<ResultadoProcessamento> => {
+    return new Promise((resolve, reject) => {
+      let worker: Worker | null = null
+      try {
+        worker = new Worker(new URL('../workers/separadorWorker.ts', import.meta.url), { type: 'module' })
+      } catch (e) {
+        reject(e)
+        return
+      }
+
+      const fileId = Math.random().toString(36).substring(2, 9)
+
+      worker.onmessage = (e: MessageEvent) => {
+        const data = e.data
+        if (data.type === 'PROGRESS') {
+          setProgress({
+            percent: data.percent,
+            currentFile: file.name,
+            stageText: data.stageText,
+            totalFiles,
+            currentIndex: fileIndex
+          })
+        } else if (data.type === 'DONE') {
+          const result = data.result
+          const resFinal: ResultadoProcessamento = {
+            id: result.id,
+            nomeArquivo: result.nomeArquivo,
+            tamanhoFormatado: formatBytes(file.size),
+            abas: result.abas || [],
+            abaUsada: result.abaUsada,
+            avisos: result.avisos || [],
+            grupos: (result.grupos || []).map((g: any) => {
+              const bytes = g.fileBytes ? new Uint8Array(g.fileBytes) : undefined
+              return {
+                op: g.op,
+                linhas: g.linhas,
+                total: g.total,
+                filename: g.filename,
+                fileBytes: bytes,
+                build: () => bytes || new Uint8Array()
+              }
+            }),
+            totalLinhas: result.totalLinhas || 0,
+            erro: result.erro || null
+          }
+          worker?.terminate()
+          resolve(resFinal)
+        } else if (data.type === 'ERROR') {
+          worker?.terminate()
+          reject(new Error(data.error || 'Erro no processamento da planilha'))
+        }
+      }
+
+      worker.onerror = (err) => {
+        worker?.terminate()
+        reject(err)
+      }
+
+      worker.postMessage({
+        id: fileId,
+        fileName: file.name,
+        fileBuffer: buf
+      })
+    })
+  }
+
   const handleFiles = async (files: File[]) => {
     if (!files || files.length === 0) return
     setIsProcessing(true)
@@ -441,34 +522,38 @@ export function SeparadorPlanilhas() {
       setProgress({
         percent: 15,
         currentFile: f.name,
-        stageText: 'Carregando arquivo e preparando leitura da planilha...',
+        stageText: 'Carregando arquivo e iniciando processamento sem travar o navegador...',
         totalFiles: files.length,
         currentIndex: fileIndex
       })
-      await new Promise(r => setTimeout(r, 80))
+      await new Promise(r => setTimeout(r, 60))
 
       try {
         const buf = await f.arrayBuffer()
         
-        // Etapa 2: Interpretação das abas, validação das 53 colunas e leitura em chunks
-        setProgress({
-          percent: 45,
-          currentFile: f.name,
-          stageText: 'Lendo abas e conferindo conformidade das 53 colunas da Shopee...',
-          totalFiles: files.length,
-          currentIndex: fileIndex
-        })
-
-        const res = await processarBuffer(f, buf, (processed, total) => {
-          const rowPct = Math.min(94, Math.round(50 + (processed / total) * 42))
+        let res: ResultadoProcessamento
+        if (typeof Worker !== 'undefined') {
+          res = await processarArquivoViaWorker(f, buf, fileIndex, files.length)
+        } else {
           setProgress({
-            percent: rowPct,
+            percent: 45,
             currentFile: f.name,
-            stageText: `Analisando linhas: ${intFmt.format(processed)} de ${intFmt.format(total)}...`,
+            stageText: 'Lendo abas e conferindo conformidade das 53 colunas da Shopee...',
             totalFiles: files.length,
             currentIndex: fileIndex
           })
-        })
+
+          res = await processarBuffer(f, buf, (processed, total) => {
+            const rowPct = Math.min(94, Math.round(50 + (processed / total) * 42))
+            setProgress({
+              percent: rowPct,
+              currentFile: f.name,
+              stageText: `Analisando linhas: ${intFmt.format(processed)} de ${intFmt.format(total)}...`,
+              totalFiles: files.length,
+              currentIndex: fileIndex
+            })
+          })
+        }
 
         novosResultados.push(res)
 
@@ -490,7 +575,7 @@ export function SeparadorPlanilhas() {
           avisos: [],
           grupos: [],
           totalLinhas: 0,
-          erro: "Não foi possível ler este arquivo. Verifique se é uma planilha Excel válida (.xlsx) e se não está corrompida ou protegida por senha."
+          erro: err?.message || "Não foi possível ler este arquivo. Verifique se é uma planilha Excel válida (.xlsx) e se não está corrompida ou protegida por senha."
         })
       }
     }
@@ -523,7 +608,8 @@ export function SeparadorPlanilhas() {
 
   const handleDownloadSingle = async (grupo: GrupoOperacao) => {
     try {
-      const data = grupo.build()
+      const data = grupo.fileBytes || (grupo.build ? grupo.build() : null)
+      if (!data) throw new Error("Arquivo não encontrado")
       salvarBlob(grupo.filename, data)
       showToast(`Arquivo baixado: ${grupo.filename}`)
     } catch (err) {
@@ -536,7 +622,8 @@ export function SeparadorPlanilhas() {
     try {
       const zip = new JSZip()
       res.grupos.forEach(g => {
-        zip.file(g.filename, g.build())
+        const data = g.fileBytes || (g.build ? g.build() : null)
+        if (data) zip.file(g.filename, data)
       })
       const blob = await zip.generateAsync({ type: "blob" })
       const base = limparNome(res.nomeArquivo.replace(/\.[^.]+$/, ""))
