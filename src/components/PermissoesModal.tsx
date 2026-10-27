@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, TrendingUp, Ticket, Clock, FlaskConical, Code2, MapPin } from 'lucide-react'
+import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, TrendingUp, Ticket, Clock, FlaskConical, Code2, MapPin, FileSpreadsheet } from 'lucide-react'
 import { permissionsApi, DEFAULT_PERMISSOES } from '../lib/permissions'
 import type { PerfilPermissao } from '../lib/permissions'
 import { supabase } from '../lib/supabase'
@@ -32,6 +32,7 @@ const AVAILABLE_MODULES = [
   { path: '/implantacoes', label: 'Implantações', desc: 'Processo de onboarding e etapas de implantação', icon: Rocket },
   { path: '/bases', label: 'Projetos', desc: 'Planilha e controle de status de projetos', icon: Database },
   { path: '/processamento-shopee', label: 'Processamento Shopee', desc: 'Acompanhamento de fechamento de Last/First Mile e Line Haul', icon: ShoppingBag },
+  { path: '/separador-planilhas', label: 'Separador de Planilhas', desc: 'Validação e divisão de planilhas de pré-fatura Shopee por operação', icon: FileSpreadsheet },
   { path: '/leo-madeiras', label: 'Léo Madeiras', desc: 'Módulo dedicado da Léo Madeiras', icon: Cloud },
 ]
 

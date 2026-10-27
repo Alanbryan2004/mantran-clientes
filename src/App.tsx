@@ -14,6 +14,7 @@ import { Tickets } from './pages/Tickets'
 import { Calendario } from './pages/Calendario'
 import { FAQ } from './pages/FAQ'
 import { Cidades } from './pages/Cidades'
+import { SeparadorPlanilhas } from './pages/SeparadorPlanilhas'
 import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
 import { Login } from './pages/Login'
 import MinhasTarefas from './pages/dev/MinhasTarefas'
@@ -115,9 +116,12 @@ function App() {
     return <div className="min-h-screen bg-[#0f111a] flex items-center justify-center text-white">Carregando...</div>
   }
 
-  // No Celular / Mobile: se não autenticado e não for tela pública (FAQ ou Cidades), vai direto para o Login.
-  // Permite que clientes e visitantes acessem o FAQ e a consulta de Cidades diretamente no celular.
-  const isPublicPath = window.location.pathname.startsWith('/faq') || window.location.pathname.startsWith('/cidades')
+  // No Celular / Mobile: se não autenticado e não for tela pública (FAQ, Cidades ou Separador de Planilhas), vai direto para o Login.
+  // Permite que clientes e visitantes acessem o FAQ, consulta de Cidades e Separador de Planilhas diretamente no celular.
+  const isPublicPath = window.location.pathname.startsWith('/faq') || 
+                       window.location.pathname.startsWith('/cidades') ||
+                       window.location.pathname.startsWith('/separador-planilhas') ||
+                       window.location.pathname.startsWith('/separador')
   if (!isAuthenticated && isMobile && !isPublicPath) {
     return (
       <>
@@ -139,6 +143,8 @@ function App() {
             <Route index element={<RootRoute />} />
             <Route path="faq" element={<FAQ />} />
             <Route path="cidades" element={<Cidades />} />
+            <Route path="separador-planilhas" element={<SeparadorPlanilhas />} />
+            <Route path="separador" element={<Navigate to="/separador-planilhas" replace />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="tickets/:numero" element={<Tickets />} />
             <Route path="calendario" element={<Calendario />} />

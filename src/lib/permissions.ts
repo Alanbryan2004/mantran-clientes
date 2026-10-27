@@ -12,25 +12,25 @@ export interface PerfilPermissao {
 export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Administrador: {
     perfil: 'Administrador',
-    rotas: ['/', '/cidades', '/tickets', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/tickets', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Tecnico: {
     perfil: 'Tecnico',
-    rotas: ['/', '/cidades', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Suporte: {
     perfil: 'Suporte',
-    rotas: ['/', '/cidades', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa'],
     projeto_especifico_id: null,
     read_only: false
   },
   Usuario: {
     perfil: 'Usuario',
-    rotas: ['/', '/cidades', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras'],
     projeto_especifico_id: null,
     read_only: true
   },
@@ -43,13 +43,13 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Comercial: {
     perfil: 'Comercial',
-    rotas: ['/comercial', '/cidades', '/calendario', '/implantacoes', '/rh'],
+    rotas: ['/comercial', '/cidades', '/separador-planilhas', '/calendario', '/implantacoes', '/rh'],
     projeto_especifico_id: null,
     read_only: false
   },
   Cliente: {
     perfil: 'Cliente',
-    rotas: ['/tickets', '/cidades', '/implantacoes'],
+    rotas: ['/tickets', '/cidades', '/separador-planilhas', '/implantacoes'],
     projeto_especifico_id: null,
     read_only: true
   }
@@ -193,6 +193,11 @@ export const permissionsApi = {
 
     // Cidades: liberado para consulta pública direta no site quando não logado.
     if (normPath.startsWith('/cidades')) {
+      if (!user || !user.perfil) return true
+    }
+
+    // Separador de Planilhas: liberado para consulta pública direta no site quando não logado.
+    if (normPath.startsWith('/separador-planilhas') || normPath.startsWith('/separador')) {
       if (!user || !user.perfil) return true
     }
 
