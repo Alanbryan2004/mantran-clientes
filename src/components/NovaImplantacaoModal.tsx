@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { 
-  X, ChevronRight, ChevronLeft, Check, ShoppingBag, Building, 
+  X, ChevronRight, ChevronLeft, Check, ShoppingBag, Building, Building2,
   Rocket, UserCheck, ShieldAlert, KeyRound, ShieldCheck, 
   Layers, PackageCheck, Sparkles, AlertCircle
 } from 'lucide-react'
@@ -32,7 +32,10 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
   const [step, setStep] = useState(1)
   const [nomeEmpresa, setNomeEmpresa] = useState('')
   const [selectedBase, setSelectedBase] = useState('')
-  const [tipoCliente, setTipoCliente] = useState<'SHOPEE' | 'NORMAL' | ''>('')
+  const [tipoCliente, setTipoCliente] = useState<'SHOPEE' | 'NORMAL' | 'LEO_MADEIRAS' | ''>('')
+  const [cdEmpresaLeo, setCdEmpresaLeo] = useState('')
+  const [loadingProximoCd, setLoadingProximoCd] = useState(false)
+  const [leoBaseId, setLeoBaseId] = useState('31d0eeec-f5ef-45f5-b74f-7c64c61c5736')
   
   // Step 2: Módulos & Integrações Contratados (para o cadastro do Cliente)
   const [selectedModulosContratados, setSelectedModulosContratados] = useState<string[]>([])
@@ -67,6 +70,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
     setNomeEmpresa('')
     setSelectedBase('')
     setTipoCliente('')
+    setCdEmpresaLeo('')
     setSelectedModulosContratados([])
     setSelectedOperacoes([])
     setSelectedModulosTreinamento([])
@@ -80,10 +84,57 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
       const data = await api.getBasesWithClienteInfo()
       const livres = data.filter((b: any) => !b.clientes)
       setBasesDisponiveis(livres)
+
+      // Captura ID da base dbMantranLeo012 mesmo se tiver clientes cadastrados
+      const baseLeo = data.find((b: any) => b.nome_base === 'dbMantranLeo012')
+      if (baseLeo) {
+        setLeoBaseId(baseLeo.id)
+      }
     } catch (err) {
       console.error('Erro ao buscar bases:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchProximoCdEmpresa = async () => {
+    setLoadingProximoCd(true)
+    try {
+      const empresas = await api.getLeoEmpresas()
+      let max = 0
+      empresas.forEach((e: any) => {
+        const num = parseInt(e.cd_empresa, 10)
+        if (!isNaN(num) && num > max) max = num
+      })
+      const nextCd = String(max + 1).padStart(3, '0')
+      setCdEmpresaLeo(nextCd)
+    } catch (err) {
+      console.error('Erro ao buscar próximo código da Léo Madeiras:', err)
+      setCdEmpresaLeo('059')
+    } finally {
+      setLoadingProximoCd(false)
+    }
+  }
+
+  const handleSelectTipoCliente = (tipo: 'NORMAL' | 'SHOPEE' | 'LEO_MADEIRAS') => {
+    setTipoCliente(tipo)
+    if (tipo === 'LEO_MADEIRAS') {
+      setSelectedBase('dbMantranLeo012')
+      fetchProximoCdEmpresa()
+      // Imagem 2: módulos normalmente contratados para Léo Madeiras (Operação e Baixa XML)
+      const defaultLeoModulos = ['Operação', 'Baixa XML']
+      setSelectedModulosContratados(defaultLeoModulos)
+      // Imagem 3: seguir os mesmos módulos no treinamento
+      setSelectedModulosTreinamento(defaultLeoModulos)
+    } else {
+      if (selectedBase === 'dbMantranLeo012') {
+        setSelectedBase('')
+      }
+      setCdEmpresaLeo('')
+      if (tipo === 'NORMAL') {
+        setSelectedModulosContratados([])
+        setSelectedModulosTreinamento([])
+      }
     }
   }
 
@@ -119,8 +170,8 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
       const exists = prev.includes(nomeModulo)
       const next = exists ? prev.filter(m => m !== nomeModulo) : [...prev, nomeModulo]
       
-      // Se for cliente Normal e estiver desmarcando ou marcando, sincroniza sugestão de treinamento
-      if (tipoCliente === 'NORMAL') {
+      // Se for cliente Normal ou Léo Madeiras e estiver desmarcando ou marcando, sincroniza sugestão de treinamento
+      if (tipoCliente === 'NORMAL' || tipoCliente === 'LEO_MADEIRAS') {
         const isModuloMantran = modulosMantranList.some(m => m.nome === nomeModulo)
         if (isModuloMantran) {
           if (exists) {
@@ -140,11 +191,11 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
     if (allSelected) {
       // Desmarcar todos os módulos Mantran
       setSelectedModulosContratados(prev => prev.filter(n => !todosNomes.includes(n)))
-      if (tipoCliente === 'NORMAL') setSelectedModulosTreinamento([])
+      if (tipoCliente === 'NORMAL' || tipoCliente === 'LEO_MADEIRAS') setSelectedModulosTreinamento([])
     } else {
       // Marcar todos
       setSelectedModulosContratados(prev => Array.from(new Set([...prev, ...todosNomes])))
-      if (tipoCliente === 'NORMAL') setSelectedModulosTreinamento(todosNomes)
+      if (tipoCliente === 'NORMAL' || tipoCliente === 'LEO_MADEIRAS') setSelectedModulosTreinamento(todosNomes)
     }
   }
 
@@ -209,7 +260,13 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
   }
 
   const canProceed = () => {
-    if (step === 1) return nomeEmpresa.trim() !== '' && selectedBase !== '' && tipoCliente !== ''
+    if (step === 1) {
+      if (!nomeEmpresa.trim() || !tipoCliente) return false
+      if (tipoCliente === 'LEO_MADEIRAS') {
+        return cdEmpresaLeo.trim() !== ''
+      }
+      return selectedBase !== ''
+    }
     if (step === 2) {
       // Passo 2: Obrigatório selecionar ao menos um módulo contratado
       return selectedModulosContratados.length > 0
@@ -228,11 +285,24 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
     setSaving(true)
     let createdClienteId: string | null = null
     let updatedBaseId: string | null = null
+    let createdLeoEmpresaId: string | null = null
 
     try {
+      // 0. Se for Léo Madeiras, validação prévia de código duplicado
+      const finalCdLeo = cdEmpresaLeo.trim()
+      if (tipoCliente === 'LEO_MADEIRAS') {
+        if (!finalCdLeo) {
+          throw new Error('Informe o código da empresa para a Léo Madeiras.')
+        }
+        const todasEmpresas = await api.getLeoEmpresas()
+        if (todasEmpresas.some((e: any) => e.cd_empresa?.trim().toLowerCase() === finalCdLeo.toLowerCase())) {
+          throw new Error(`Já existe uma empresa com o código "${finalCdLeo}" na Léo Madeiras.`)
+        }
+      }
+
       // 1. Criar o cliente na tabela clientes
       const clienteData = await api.insertCliente({
-        nome_empresa: nomeEmpresa,
+        nome_empresa: nomeEmpresa.trim(),
         tipo: tipoCliente,
         possui_aditivo: false
       })
@@ -247,29 +317,68 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
         }
       }
 
-      // 3. Vincular a base ao cliente
-      const baseObj = basesDisponiveis.find((b: any) => b.nome_base === selectedBase)
-      if (baseObj) {
-        updatedBaseId = baseObj.id
-        await api.updateBase(baseObj.id, { 
-          cliente_id: clienteData.id, 
-          status: 'Em Uso' 
-        })
+      // 3. Vincular a base ao cliente (apenas se NÃO for Léo Madeiras, pois dbMantranLeo012 é multi-tenant compartilhada)
+      let resolvedBaseId = leoBaseId || '31d0eeec-f5ef-45f5-b74f-7c64c61c5736'
+      if (tipoCliente !== 'LEO_MADEIRAS') {
+        const baseObj = basesDisponiveis.find((b: any) => b.nome_base === selectedBase)
+        if (baseObj) {
+          resolvedBaseId = baseObj.id
+          updatedBaseId = baseObj.id
+          await api.updateBase(baseObj.id, { 
+            cliente_id: clienteData.id, 
+            status: 'Em Uso' 
+          })
+        }
       }
 
-      // 4. Criar a implantação
+      // 4. Se for Léo Madeiras, adicionar a Empresa na tela Léo Madeiras (leo_empresas, leo_usuarios, leo_modulos)
+      if (tipoCliente === 'LEO_MADEIRAS') {
+        const leoEmpresaData = await api.insertLeoEmpresa({
+          cd_empresa: finalCdLeo,
+          nome_empresa: nomeEmpresa.trim(),
+          ativo: true
+        })
+        createdLeoEmpresaId = leoEmpresaData.id
+
+        // Criar usuário padrão na tela Léo Madeiras
+        const defaultLogin = nomeEmpresa.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10) || 'admin'
+        try {
+          await api.insertLeoUsuario({
+            leo_empresa_id: leoEmpresaData.id,
+            login: defaultLogin,
+            senha: '012@Mantran'
+          })
+        } catch (uErr) {
+          console.warn('Aviso ao criar usuário na Léo Madeiras:', uErr)
+        }
+
+        // Inserir módulos contratados na tela Léo Madeiras
+        for (const modNome of selectedModulosContratados) {
+          try {
+            await api.insertLeoModulo({
+              empresa_id: leoEmpresaData.id,
+              ativo: true,
+              nome_modulo: modNome
+            })
+          } catch (mErr) {
+            console.warn(`Aviso ao vincular módulo ${modNome} na Léo Madeiras:`, mErr)
+          }
+        }
+      }
+
+      // 5. Criar a implantação
       const implData = await api.insertImplantacao({
         cliente_id: clienteData.id,
-        base_id: baseObj?.id || '',
-        nome_empresa: nomeEmpresa,
+        base_id: resolvedBaseId,
+        nome_empresa: nomeEmpresa.trim(),
         tipo_cliente: tipoCliente,
         operacoes_shopee: tipoCliente === 'SHOPEE' ? selectedOperacoes : [],
-        modulos_normal: tipoCliente === 'NORMAL' ? selectedModulosTreinamento : [],
+        modulos_normal: (tipoCliente === 'NORMAL' || tipoCliente === 'LEO_MADEIRAS') ? selectedModulosTreinamento : [],
         analista_responsavel_id: selectedAnalistaId || null,
         analista_responsavel: selectedAnalistaNome || null
       })
 
-      // 5. Gerar e inserir as etapas
+      // 6. Gerar e inserir as etapas
       const etapasNomes = generateEtapas()
       const etapasToInsert = etapasNomes.map((nome, i) => ({
         implantacao_id: implData.id,
@@ -279,14 +388,16 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
       }))
       await api.insertImplantacaoEtapas(etapasToInsert)
 
-      // 5.1 Registrar Histórico inicial de Criação da Implantação
+      // 6.1 Registrar Histórico inicial de Criação da Implantação
       try {
         const currentUser = getLoggedUser()
         const usuarioNome = currentUser ? (currentUser.nome || currentUser.login) : 'Equipe Mantran'
         const usuarioId = currentUser ? currentUser.id : null
-        const baseTxt = selectedBase ? ` na Base ${selectedBase}` : ''
+        const baseTxt = tipoCliente === 'LEO_MADEIRAS' 
+          ? ` na Base dbMantranLeo012 (CD ${finalCdLeo})` 
+          : (selectedBase ? ` na Base ${selectedBase}` : '')
         const analistaTxt = selectedAnalistaNome ? ` • Analista Responsável: ${selectedAnalistaNome}` : ''
-        const tipoTxt = tipoCliente === 'SHOPEE' ? 'Shopee' : 'Padrão'
+        const tipoTxt = tipoCliente === 'SHOPEE' ? 'Shopee' : tipoCliente === 'LEO_MADEIRAS' ? 'Léo Madeiras' : 'Padrão'
 
         await api.insertImplantacaoHistorico({
           implantacao_id: implData.id,
@@ -299,9 +410,9 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
         console.warn('Aviso ao registrar histórico de criação da implantação:', histErr)
       }
 
-      // 6. Gerar automaticamente o Usuário e Senha do Cliente com Perfil Cliente
+      // 7. Gerar automaticamente o Usuário e Senha do Cliente com Perfil Cliente
       try {
-        const baseNum = getBaseNumero(selectedBase)
+        const baseNum = tipoCliente === 'LEO_MADEIRAS' ? '012' : getBaseNumero(selectedBase)
         await api.insertUsuarioCliente({
           nome: nomeEmpresa.trim(),
           login: `${nomeEmpresa.trim()}@Mantran`,
@@ -311,20 +422,24 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
         console.error('Aviso ao criar usuário do cliente:', userErr)
       }
 
-      // 7. Gerar Notificação para a equipe sobre a Nova Implantação
+      // 8. Gerar Notificação para a equipe sobre a Nova Implantação
       try {
         const analistaTxt = selectedAnalistaNome ? ` • Analista: ${selectedAnalistaNome}` : ''
-        const baseTxt = selectedBase ? ` • Base: ${selectedBase}` : ''
+        const baseTxt = tipoCliente === 'LEO_MADEIRAS' 
+          ? ` • Base: dbMantranLeo012 (CD ${finalCdLeo})` 
+          : (selectedBase ? ` • Base: ${selectedBase}` : '')
+        const tipoDesc = tipoCliente === 'SHOPEE' ? 'Shopee' : tipoCliente === 'LEO_MADEIRAS' ? 'Léo Madeiras' : 'Padrão'
         await api.createNotificacao({
           titulo: `🚀 Nova Implantação: ${nomeEmpresa.trim()}`,
-          mensagem: `A implantação da empresa "${nomeEmpresa.trim()}" (${tipoCliente === 'SHOPEE' ? 'Shopee' : 'Padrão'}) foi iniciada.${baseTxt}${analistaTxt}`,
+          mensagem: `A implantação da empresa "${nomeEmpresa.trim()}" (${tipoDesc}) foi iniciada.${baseTxt}${analistaTxt}`,
           tipo: 'nova_implantacao',
           implantacao_id: implData.id,
           cliente_id: clienteData.id,
           dados_extras: {
             nome_empresa: nomeEmpresa.trim(),
             tipo_cliente: tipoCliente,
-            base: selectedBase,
+            base: tipoCliente === 'LEO_MADEIRAS' ? 'dbMantranLeo012' : selectedBase,
+            cd_empresa_leo: tipoCliente === 'LEO_MADEIRAS' ? finalCdLeo : null,
             analista: selectedAnalistaNome || null
           }
         })
@@ -344,6 +459,9 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
       if (createdClienteId) {
         try { await api.deleteCliente(createdClienteId) } catch (_) {}
       }
+      if (createdLeoEmpresaId) {
+        try { await api.deleteLeoEmpresa(createdLeoEmpresaId) } catch (_) {}
+      }
 
       alert('Erro ao criar implantação: ' + err.message)
     } finally {
@@ -353,7 +471,10 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
 
   if (!isOpen) return null
 
-  const previewEtapas = (tipoCliente && ((tipoCliente === 'SHOPEE' && selectedOperacoes.length > 0) || (tipoCliente === 'NORMAL' && selectedModulosTreinamento.length > 0)))
+  const previewEtapas = (tipoCliente && (
+    (tipoCliente === 'SHOPEE' && selectedOperacoes.length > 0) || 
+    ((tipoCliente === 'NORMAL' || tipoCliente === 'LEO_MADEIRAS') && selectedModulosTreinamento.length > 0)
+  ))
     ? generateEtapas()
     : []
 
@@ -434,35 +555,62 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">
-                  Base Disponível <span className="text-rose-400">*</span>
-                </label>
-                {loading ? (
-                  <p className="text-slate-500 text-sm">Carregando bases disponíveis...</p>
-                ) : (
-                  <select 
-                    value={selectedBase} 
-                    onChange={e => setSelectedBase(e.target.value)}
-                    className="input-field w-full text-base py-2.5 font-mono cursor-pointer"
-                  >
-                    <option value="">Selecione uma base livre...</option>
-                    {basesDisponiveis.map((b: any) => (
-                      <option key={b.id} value={b.nome_base}>{b.nome_base}</option>
-                    ))}
-                  </select>
-                )}
-                <p className="text-xs text-slate-500 mt-1">{basesDisponiveis.length} bases disponíveis encontradas</p>
-              </div>
+              {tipoCliente === 'LEO_MADEIRAS' ? (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">
+                    Código da Empresa (cd_Empresa) <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type="text"
+                      value={cdEmpresaLeo}
+                      onChange={e => setCdEmpresaLeo(e.target.value)}
+                      placeholder="Ex: 059"
+                      maxLength={10}
+                      className="input-field w-full text-base py-2.5 font-mono uppercase tracking-wider"
+                    />
+                    {loadingProximoCd && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-400 font-semibold animate-pulse">
+                        Calculando...
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between text-xs mt-1.5 text-slate-400">
+                    <span>Base associada: <strong className="text-amber-400 font-mono">dbMantranLeo012</strong></span>
+                    <span className="text-slate-500 italic">Pode ser alterado na mão</span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">
+                    Base Disponível <span className="text-rose-400">*</span>
+                  </label>
+                  {loading ? (
+                    <p className="text-slate-500 text-sm">Carregando bases disponíveis...</p>
+                  ) : (
+                    <select 
+                      value={selectedBase} 
+                      onChange={e => setSelectedBase(e.target.value)}
+                      className="input-field w-full text-base py-2.5 font-mono cursor-pointer"
+                    >
+                      <option value="">Selecione uma base livre...</option>
+                      {basesDisponiveis.map((b: any) => (
+                        <option key={b.id} value={b.nome_base}>{b.nome_base}</option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="text-xs text-slate-500 mt-1">{basesDisponiveis.length} bases disponíveis encontradas</p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-slate-300 mb-3">
                   Tipo de Cliente <span className="text-rose-400">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
-                    onClick={() => setTipoCliente('NORMAL')}
+                    onClick={() => handleSelectTipoCliente('NORMAL')}
                     className={clsx(
                       "flex flex-col items-center p-5 rounded-2xl border-2 transition-all duration-200",
                       tipoCliente === 'NORMAL' 
@@ -476,7 +624,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
                   </button>
                   <button
                     type="button"
-                    onClick={() => setTipoCliente('SHOPEE')}
+                    onClick={() => handleSelectTipoCliente('SHOPEE')}
                     className={clsx(
                       "flex flex-col items-center p-5 rounded-2xl border-2 transition-all duration-200",
                       tipoCliente === 'SHOPEE' 
@@ -487,6 +635,20 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
                     <ShoppingBag className="w-8 h-8 mb-2" />
                     <span className="text-sm font-bold">SHOPEE</span>
                     <span className="text-xs mt-1 opacity-60">Operações Shopee 4PL</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTipoCliente('LEO_MADEIRAS')}
+                    className={clsx(
+                      "flex flex-col items-center p-5 rounded-2xl border-2 transition-all duration-200",
+                      tipoCliente === 'LEO_MADEIRAS' 
+                        ? "border-amber-500 bg-amber-500/10 text-amber-400 ring-2 ring-amber-500/20 shadow-lg shadow-amber-500/10" 
+                        : "border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700 hover:text-slate-300"
+                    )}
+                  >
+                    <Building2 className="w-8 h-8 mb-2" />
+                    <span className="text-sm font-bold">LÉO MADEIRAS</span>
+                    <span className="text-xs mt-1 opacity-60">Base dbMantranLeo012</span>
                   </button>
                 </div>
               </div>
@@ -686,7 +848,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
             </div>
           )}
 
-          {step === 3 && tipoCliente === 'NORMAL' && (
+          {step === 3 && (tipoCliente === 'NORMAL' || tipoCliente === 'LEO_MADEIRAS') && (
             <div className="space-y-5 animate-fade-in">
               <div>
                 <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-1">
@@ -838,16 +1000,28 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
                 <div className="flex justify-between p-3.5 text-xs">
                   <span className="text-slate-400 font-semibold">Base Mantran</span>
                   <span className="font-bold text-white font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                    {selectedBase}
+                    {tipoCliente === 'LEO_MADEIRAS' ? 'dbMantranLeo012 (Compartilhada)' : selectedBase}
                   </span>
                 </div>
+                {tipoCliente === 'LEO_MADEIRAS' && (
+                  <div className="flex justify-between p-3.5 text-xs">
+                    <span className="text-slate-400 font-semibold">Código da Empresa (cd_Empresa)</span>
+                    <span className="font-bold font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      {cdEmpresaLeo}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between p-3.5 text-xs">
                   <span className="text-slate-400 font-semibold">Tipo</span>
                   <span className={clsx(
                     "font-bold px-2 py-0.5 rounded text-xs",
-                    tipoCliente === 'SHOPEE' ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                    tipoCliente === 'SHOPEE' 
+                      ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" 
+                      : tipoCliente === 'LEO_MADEIRAS'
+                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                      : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
                   )}>
-                    {tipoCliente}
+                    {tipoCliente === 'LEO_MADEIRAS' ? 'LÉO MADEIRAS' : tipoCliente}
                   </span>
                 </div>
                 <div className="flex justify-between p-3.5 text-xs">
@@ -912,7 +1086,9 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
                   </div>
                   <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/50">
                     <span className="text-slate-400 block text-[10px] uppercase font-semibold">Senha Padrão</span>
-                    <span className="font-mono font-bold text-emerald-400">{getBaseNumero(selectedBase)}@Mantran</span>
+                    <span className="font-mono font-bold text-emerald-400">
+                      {tipoCliente === 'LEO_MADEIRAS' ? '012@Mantran' : `${getBaseNumero(selectedBase)}@Mantran`}
+                    </span>
                   </div>
                 </div>
               </div>

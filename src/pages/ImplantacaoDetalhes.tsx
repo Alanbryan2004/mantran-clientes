@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, ShoppingCart, Building, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star, Pencil, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, ShoppingCart, Building, Building2, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star, Pencil, AlertTriangle } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
@@ -391,10 +391,18 @@ export function ImplantacaoDetalhes() {
               <span className={`text-[10px] uppercase font-bold px-2.5 py-1 rounded-full border flex items-center gap-1.5 ${
                 isShopee 
                   ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' 
+                  : implantacao.tipo_cliente === 'LEO_MADEIRAS'
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                   : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
               }`}>
-                {isShopee ? <ShoppingBag className="w-3.5 h-3.5" /> : <Building className="w-3.5 h-3.5" />}
-                {implantacao.tipo_cliente}
+                {isShopee ? (
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                ) : implantacao.tipo_cliente === 'LEO_MADEIRAS' ? (
+                  <Building2 className="w-3.5 h-3.5" />
+                ) : (
+                  <Building className="w-3.5 h-3.5" />
+                )}
+                {implantacao.tipo_cliente === 'LEO_MADEIRAS' ? 'LÉO MADEIRAS' : implantacao.tipo_cliente}
               </span>
               {hasMeli && (
                 <span className="text-[10px] uppercase font-bold px-2.5 py-1 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/20 flex items-center gap-1.5">

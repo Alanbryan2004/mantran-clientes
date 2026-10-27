@@ -704,13 +704,20 @@ export const api = {
       .select(`
         *,
         bases ( id, nome_base ),
+        clientes ( id, tipo ),
         implantacao_etapas ( id, nome_etapa, valor, ordem ),
         implantacao_historico ( id, data_hora, texto, usuario_nome, created_at )
       `)
       .order('created_at', { ascending: false })
     
     if (error) throw error
-    return data || []
+    return (data || []).map((imp: any) => {
+      const isLeo = imp.clientes?.tipo === 'LEO_MADEIRAS' || imp.bases?.nome_base === 'dbMantranLeo012'
+      return {
+        ...imp,
+        tipo_cliente: isLeo ? 'LEO_MADEIRAS' : imp.tipo_cliente
+      }
+    })
   },
 
   async getImplantacaoById(id: string) {
@@ -719,6 +726,7 @@ export const api = {
       .select(`
         *,
         bases ( id, nome_base ),
+        clientes ( id, tipo ),
         implantacao_etapas ( id, nome_etapa, valor, ordem ),
         implantacao_historico ( id, data_hora, texto, usuario_nome, created_at )
       `)
@@ -730,6 +738,12 @@ export const api = {
     // Sort etapas by ordem
     if (data && data.implantacao_etapas) {
       data.implantacao_etapas.sort((a: any, b: any) => a.ordem - b.ordem)
+    }
+    if (data) {
+      const isLeo = data.clientes?.tipo === 'LEO_MADEIRAS' || data.bases?.nome_base === 'dbMantranLeo012'
+      if (isLeo) {
+        data.tipo_cliente = 'LEO_MADEIRAS'
+      }
     }
     return data
   },
@@ -744,14 +758,22 @@ export const api = {
     analista_responsavel_id?: string | null,
     analista_responsavel?: string | null
   }) {
+    // Normaliza para o CHECK do banco ('NORMAL' | 'SHOPEE'), mantendo o cliente como LEO_MADEIRAS
+    const dbTipo = implantacao.tipo_cliente === 'SHOPEE' ? 'SHOPEE' : 'NORMAL'
     const { data, error } = await supabase
       .from('implantacoes')
-      .insert(implantacao)
+      .insert({
+        ...implantacao,
+        tipo_cliente: dbTipo
+      })
       .select()
       .single()
     
     if (error) throw error
-    return data
+    return {
+      ...data,
+      tipo_cliente: implantacao.tipo_cliente
+    }
   },
 
   async updateImplantacao(id: string, updates: any) {

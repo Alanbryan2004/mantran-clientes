@@ -58,7 +58,7 @@ export function Clientes() {
     const matchesSearch = c.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
       (c.empresa && c.empresa.toLowerCase().includes(searchQuery.toLowerCase()))
     
-    const matchesTipo = tipoFilter === 'TODOS' || c.tipo === tipoFilter
+    const matchesTipo = tipoFilter === 'TODOS' || c.tipo === tipoFilter || (tipoFilter === 'LEO' && (c.tipo === 'LEO' || c.tipo === 'LEO_MADEIRAS'))
 
     return matchesSearch && matchesTipo
   })

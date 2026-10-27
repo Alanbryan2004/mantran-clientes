@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Rocket, Trash2, Settings, ShoppingBag, ShoppingCart, Building, CheckCircle2, Clock, Search, Filter, X, UserCheck, History, KeyRound, Calendar, Pencil, AlertTriangle, FileText } from 'lucide-react'
+import { Plus, Rocket, Trash2, Settings, ShoppingBag, ShoppingCart, Building, Building2, CheckCircle2, Clock, Search, Filter, X, UserCheck, History, KeyRound, Calendar, Pencil, AlertTriangle, FileText } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser, getLoggedUser } from '../lib/auth'
 import { NovaImplantacaoModal } from '../components/NovaImplantacaoModal'
@@ -729,10 +729,18 @@ export function Implantacoes() {
                               <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                                 impl.tipo_cliente === 'SHOPEE' 
                                   ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' 
+                                  : impl.tipo_cliente === 'LEO_MADEIRAS'
+                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                                   : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
                               }`}>
-                                {impl.tipo_cliente === 'SHOPEE' ? <ShoppingBag className="w-3 h-3" /> : <Building className="w-3 h-3" />}
-                                {impl.tipo_cliente}
+                                {impl.tipo_cliente === 'SHOPEE' ? (
+                                  <ShoppingBag className="w-3 h-3" />
+                                ) : impl.tipo_cliente === 'LEO_MADEIRAS' ? (
+                                  <Building2 className="w-3 h-3" />
+                                ) : (
+                                  <Building className="w-3 h-3" />
+                                )}
+                                {impl.tipo_cliente === 'LEO_MADEIRAS' ? 'LÉO' : impl.tipo_cliente}
                               </span>
                               {(impl.implantacao_etapas || []).some((e: any) => ['mercado livre','treinamento meli'].includes((e.nome_etapa || '').trim().toLowerCase())) && (
                                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/20 flex items-center gap-1">
@@ -996,10 +1004,18 @@ export function Implantacoes() {
                               <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
                                 impl.tipo_cliente === 'SHOPEE' 
                                   ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' 
+                                  : impl.tipo_cliente === 'LEO_MADEIRAS'
+                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                                   : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
                               }`}>
-                                {impl.tipo_cliente === 'SHOPEE' ? <ShoppingBag className="w-3 h-3" /> : <Building className="w-3 h-3" />}
-                                {impl.tipo_cliente}
+                                {impl.tipo_cliente === 'SHOPEE' ? (
+                                  <ShoppingBag className="w-3 h-3" />
+                                ) : impl.tipo_cliente === 'LEO_MADEIRAS' ? (
+                                  <Building2 className="w-3 h-3" />
+                                ) : (
+                                  <Building className="w-3 h-3" />
+                                )}
+                                {impl.tipo_cliente === 'LEO_MADEIRAS' ? 'LÉO' : impl.tipo_cliente}
                               </span>
                               {(impl.implantacao_etapas || []).some((e: any) => ['mercado livre','treinamento meli'].includes((e.nome_etapa || '').trim().toLowerCase())) && (
                                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/20 flex items-center gap-1">
