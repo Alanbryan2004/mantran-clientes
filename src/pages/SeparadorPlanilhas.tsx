@@ -51,7 +51,11 @@ const N = ESPERADO_NORM.length
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
 const intFmt = new Intl.NumberFormat("pt-BR")
-const colName = (i: number) => XLSX.utils.encode_col(i)
+const COL_LETTERS: string[] = []
+for (let i = 0; i <= 150; i++) {
+  COL_LETTERS.push(XLSX.utils.encode_col(i))
+}
+const colName = (i: number) => COL_LETTERS[i] || XLSX.utils.encode_col(i)
 
 const LINHAS_BUSCA = 15
 const MIN_RECONHECIDAS = Math.ceil(N / 3)
@@ -106,8 +110,10 @@ function validarCabecalho(ws: any): { ok: boolean; motivo?: string; linhaCab?: n
 
   const lerLinha = (r: number) => {
     const v: string[] = []
+    const rowNumStr = String(r + 1)
     for (let c = 0; c <= ultimaCol; c++) {
-      const cell = ws[XLSX.utils.encode_cell({ r, c })]
+      const col = COL_LETTERS[c] || XLSX.utils.encode_col(c)
+      const cell = ws[col + rowNumStr]
       v.push(cell ? norm(cell.v) : "")
     }
     return v
@@ -178,9 +184,25 @@ function validarCabecalho(ws: any): { ok: boolean; motivo?: string; linhaCab?: n
   }
 }
 
-function linhaVazia(ws: any, r: number, c0: number, c1: number): boolean {
+function linhaVazia(ws: any, rowNumStr: string, c0: number, c1: number): boolean {
+  // Verificação rápida nas colunas mais comuns primeiro (operacao, tracking, tipo, valor)
+  const colOp = COL_LETTERS[IDX_OP] || XLSX.utils.encode_col(IDX_OP)
+  const cellOp = ws[colOp + rowNumStr]
+  if (cellOp && cellOp.v !== undefined && cellOp.v !== null && String(cellOp.v).trim() !== "") return false
+
+  const col0 = COL_LETTERS[0] || "A"
+  const cell0 = ws[col0 + rowNumStr]
+  if (cell0 && cell0.v !== undefined && cell0.v !== null && String(cell0.v).trim() !== "") return false
+
+  const colValor = COL_LETTERS[IDX_VALOR] || XLSX.utils.encode_col(IDX_VALOR)
+  const cellValor = ws[colValor + rowNumStr]
+  if (cellValor && cellValor.v !== undefined && cellValor.v !== null && String(cellValor.v).trim() !== "") return false
+
+  // Se nenhum dos 3 principais tem valor, checa as demais colunas
   for (let c = c0; c <= c1; c++) {
-    const cell = ws[XLSX.utils.encode_cell({ r, c })]
+    if (c === IDX_OP || c === 0 || c === IDX_VALOR) continue
+    const col = COL_LETTERS[c] || XLSX.utils.encode_col(c)
+    const cell = ws[col + rowNumStr]
     if (cell && cell.v !== undefined && cell.v !== null && String(cell.v).trim() !== "") return false
   }
   return true
@@ -198,9 +220,12 @@ function montarArquivo(ws: any, nomeAba: string, linhaCab: number, linhas: numbe
   const lastC = N - 1
   let outR = 0
   const copiarLinha = (r: number) => {
+    const rowNumStr = String(r + 1)
+    const outRowNumStr = String(outR + 1)
     for (let c = 0; c <= lastC; c++) {
-      const cell = ws[XLSX.utils.encode_cell({ r, c })]
-      if (cell) out[XLSX.utils.encode_cell({ r: outR, c })] = copiarCelula(cell)
+      const col = COL_LETTERS[c] || XLSX.utils.encode_col(c)
+      const cell = ws[col + rowNumStr]
+      if (cell) out[col + outRowNumStr] = copiarCelula(cell)
     }
     outR++
   }
@@ -277,8 +302,26 @@ export function SeparadorPlanilhas() {
     setOpenAbasMap(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
-  const processarBuffer = (file: File, buffer: ArrayBuffer): ResultadoProcessamento => {
-    const wb = XLSX.read(buffer, { type: "array", cellNF: true, cellDates: false, cellStyles: false })
+  const processarBuffer = async (
+    file: File, 
+    buffer: ArrayBuffer,
+    onRowProgress?: (processed: number, total: number) => void
+  ): Promise<ResultadoProcessamento> => {
+    // Dá um respiro para a UI antes do processamento
+    await new Promise(resolve => setTimeout(resolve, 30))
+
+    const wb = XLSX.read(buffer, { 
+      type: "array", 
+      cellNF: true, 
+      cellDates: false, 
+      cellStyles: false,
+      cellFormula: false,
+      cellHTML: false
+    })
+    
+    // Libera a UI logo após o parsing do arquivo binário
+    await new Promise(resolve => setTimeout(resolve, 30))
+
     const abas: AbaValidacao[] = wb.SheetNames.map(nome => ({
       nome,
       ...validarCabecalho(wb.Sheets[nome])
@@ -316,11 +359,26 @@ export function SeparadorPlanilhas() {
 
     const mapa = new Map<string, { op: string; linhas: number[]; total: number }>()
     let semOp = 0
+    const colOpKey = COL_LETTERS[IDX_OP] || XLSX.utils.encode_col(IDX_OP)
+    const colValorKey = COL_LETTERS[IDX_VALOR] || XLSX.utils.encode_col(IDX_VALOR)
+
+    const totalLinhasParaProcessar = Math.max(1, range.e.r - linhaCab)
+    const CHUNK_SIZE = 1200 // Cede a CPU a cada 1.200 linhas para impedir que o navegador considere a página travada
 
     for (let r = linhaCab + 1; r <= range.e.r; r++) {
-      if (linhaVazia(ws, r, 0, N - 1)) continue
+      const offset = r - linhaCab
+      if (offset % CHUNK_SIZE === 0) {
+        if (onRowProgress) {
+          onRowProgress(offset, totalLinhasParaProcessar)
+        }
+        // Yield para o navegador respirar e não disparar "Página sem resposta"
+        await new Promise(resolve => setTimeout(resolve, 0))
+      }
 
-      const cOp = ws[XLSX.utils.encode_cell({ r, c: IDX_OP })]
+      const rowNumStr = String(r + 1)
+      if (linhaVazia(ws, rowNumStr, 0, N - 1)) continue
+
+      const cOp = ws[colOpKey + rowNumStr]
       let op = cOp ? String(cOp.v ?? "").replace(/\u00a0/g, " ").trim() : ""
       if (!op) {
         op = "Sem operação"
@@ -333,7 +391,7 @@ export function SeparadorPlanilhas() {
       const g = mapa.get(op)!
       g.linhas.push(r)
 
-      const cV = ws[XLSX.utils.encode_cell({ r, c: IDX_VALOR })]
+      const cV = ws[colValorKey + rowNumStr]
       if (cV && typeof cV.v === "number") {
         g.total += cV.v
       } else if (cV && typeof cV.v === "string") {
@@ -387,33 +445,32 @@ export function SeparadorPlanilhas() {
         totalFiles: files.length,
         currentIndex: fileIndex
       })
-      await new Promise(r => setTimeout(r, 90))
+      await new Promise(r => setTimeout(r, 80))
 
       try {
         const buf = await f.arrayBuffer()
         
-        // Etapa 2: Interpretação das abas e validação das 53 colunas
+        // Etapa 2: Interpretação das abas, validação das 53 colunas e leitura em chunks
         setProgress({
-          percent: 50,
+          percent: 45,
           currentFile: f.name,
           stageText: 'Lendo abas e conferindo conformidade das 53 colunas da Shopee...',
           totalFiles: files.length,
           currentIndex: fileIndex
         })
-        await new Promise(r => setTimeout(r, 70))
 
-        const res = processarBuffer(f, buf)
-        novosResultados.push(res)
-
-        // Etapa 3: Agrupando operações e computando valores
-        setProgress({
-          percent: 85,
-          currentFile: f.name,
-          stageText: 'Agrupando operações e consolidando totais financeiros...',
-          totalFiles: files.length,
-          currentIndex: fileIndex
+        const res = await processarBuffer(f, buf, (processed, total) => {
+          const rowPct = Math.min(94, Math.round(50 + (processed / total) * 42))
+          setProgress({
+            percent: rowPct,
+            currentFile: f.name,
+            stageText: `Analisando linhas: ${intFmt.format(processed)} de ${intFmt.format(total)}...`,
+            totalFiles: files.length,
+            currentIndex: fileIndex
+          })
         })
-        await new Promise(r => setTimeout(r, 70))
+
+        novosResultados.push(res)
 
         if (res.erro) {
           errosCount++
