@@ -4,7 +4,7 @@ import {
   BookOpen, Search, Plus, Pencil, Trash2, X, Save, ChevronRight,
   Image as ImageIcon, GripVertical, Bold, FolderPlus, ArrowLeft,
   FileCode, Upload, CheckCircle2, AlertCircle, Loader2, Sparkles, FileText,
-  Share2, Check, Link2, Maximize2, Minimize2
+  Share2, Check, Link2, Maximize2, Minimize2, FileSpreadsheet, Download
 } from 'lucide-react'
 import { api, type FaqCategoria, type FaqProcedimento, type FaqPasso } from '../lib/api'
 import { getLoggedUser, canEditFaq } from '../lib/auth'
@@ -237,6 +237,20 @@ export function FAQ() {
     () => todosProcs.find(p => p.id === procSelecionadoId) || null,
     [todosProcs, procSelecionadoId]
   )
+
+  const isManualImportacaoFatura = useMemo(() => {
+    if (!procSelecionado) return false
+    const tituloNorm = (procSelecionado.titulo || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .trim()
+    return (
+      procSelecionado.id === '2a0fe834-7d2d-498c-911a-24d9b70770c1' ||
+      procSelecionado.id === '2c549770-c69b-4000-9362-c95d46f4f510' ||
+      tituloNorm.includes('IMPORTACAO DE PLANILHA FATURA')
+    )
+  }, [procSelecionado])
 
   // Sincroniza o procedimento selecionado a partir da URL (?p=ID ou ?manual=slug/titulo)
   useEffect(() => {
@@ -521,7 +535,18 @@ export function FAQ() {
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                    {isManualImportacaoFatura && (
+                      <a
+                        href="/Modelo_Importacao_Fatura.xlsx"
+                        download="Modelo_Importacao_Fatura.xlsx"
+                        className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all cursor-pointer"
+                        title="Baixar Modelo de Planilha de Fatura (.xlsx)"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        <span>Baixar Planilha Modelo</span>
+                      </a>
+                    )}
                     <button
                       type="button"
                       onClick={handleCopiarLink}
@@ -558,6 +583,36 @@ export function FAQ() {
                   </div>
                 </div>
 
+                {isManualImportacaoFatura && (
+                  <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-teal-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+                    <div className="flex items-start sm:items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 flex items-center justify-center shrink-0">
+                        <FileSpreadsheet className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-bold text-slate-900">Modelo de Planilha de Fatura (.xlsx)</h4>
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wide">
+                            Arquivo Oficial
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          Baixe a planilha modelo oficial com todas as colunas pré-formatadas para preenchimento e importação no Mantran.
+                        </p>
+                      </div>
+                    </div>
+
+                    <a
+                      href="/Modelo_Importacao_Fatura.xlsx"
+                      download="Modelo_Importacao_Fatura.xlsx"
+                      className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-xs flex items-center gap-2 transition-all shadow-sm shrink-0 cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Baixar Planilha Modelo (.xlsx)</span>
+                    </a>
+                  </div>
+                )}
+
                 {(procSelecionado.passos || []).length === 0 ? (
                   <div className="text-sm text-slate-400 italic py-8 text-center">Este procedimento ainda não tem passos cadastrados.</div>
                 ) : (
@@ -568,6 +623,19 @@ export function FAQ() {
                         <div className="min-w-0 flex-1">
                           {passo.texto && (
                             <div className="text-sm text-slate-700 leading-relaxed [&_b]:text-slate-900 [&_b]:font-bold [&_a]:text-brand-600 [&_a]:font-semibold [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-brand-700" dangerouslySetInnerHTML={renderTextoPasso(passo.texto)} />
+                          )}
+                          {isManualImportacaoFatura && idx === 0 && (
+                            <div className="mt-2.5">
+                              <a
+                                href="/Modelo_Importacao_Fatura.xlsx"
+                                download="Modelo_Importacao_Fatura.xlsx"
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-xs font-bold transition-all shadow-2xs"
+                              >
+                                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                                <span>Clique aqui para baixar o Modelo da Planilha (.xlsx)</span>
+                                <Download className="w-3.5 h-3.5 text-emerald-600 ml-0.5" />
+                              </a>
+                            </div>
                           )}
                           {passo.imagem_url && (
                             <img src={passo.imagem_url} alt={`Passo ${idx + 1}`} onClick={() => setImgZoom(passo.imagem_url!)} className="mt-3 block w-auto h-auto max-w-full sm:max-w-xl max-h-80 object-contain object-left rounded-lg border border-slate-200 cursor-zoom-in hover:border-brand-400 transition-colors shadow-sm" />
