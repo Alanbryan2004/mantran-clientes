@@ -956,18 +956,29 @@ export const api = {
   // implantacao_checkpoint.dados.nfse, com emitira_nfse = true.
   async getNfseCheckpoint(implantacaoId: string): Promise<any | null> {
     const cp = await api.getImplantacaoCheckpoint(implantacaoId)
-    return cp?.dados?.nfse || null
+    if (!cp || !cp.dados) return null
+    return {
+      parametros: cp.dados.nfse?.parametros || [],
+      emitira_nfse: cp.dados.nfse?.emitira_nfse ?? true,
+      certificado_digital: cp.dados.certificado_digital || {
+        arquivo_nome: '',
+        arquivo_base64: '',
+        arquivo_tamanho: 0,
+        senha: ''
+      }
+    }
   },
 
-  // Salva o checkpoint NFSE (merge em dados.nfse) e marca a etapa 'Checkpoint'
+  // Salva o checkpoint NFSE (merge em dados.nfse e dados.certificado_digital) e marca a etapa 'Checkpoint'
   // como OK quando houver ao menos um parâmetro com os campos essenciais
   // (inscrição municipal + município), senão PENDENTE.
-  async saveNfseCheckpoint(implantacaoId: string, parametros: any[]) {
+  async saveNfseCheckpoint(implantacaoId: string, parametros: any[], certificado_digital?: any) {
     const existing = await api.getImplantacaoCheckpoint(implantacaoId)
     const dadosAtuais = existing?.dados || {}
     const novosDados = {
       ...dadosAtuais,
-      nfse: { emitira_nfse: true, parametros: parametros || [] }
+      nfse: { emitira_nfse: true, parametros: parametros || [] },
+      ...(certificado_digital !== undefined ? { certificado_digital } : {})
     }
 
     if (existing) {
