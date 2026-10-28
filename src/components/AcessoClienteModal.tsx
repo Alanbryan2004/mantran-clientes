@@ -153,18 +153,28 @@ export function AcessoClienteModal({ isOpen, onClose, implantacao, onSuccess }: 
     const origin = isLocalhost ? 'https://mantran-clientes-five.vercel.app' : window.location.origin
     const nomeEmpresa = implantacao?.nome_empresa || 'Cliente'
 
-    return `Olá! 👋\n` +
-      `Criamos este grupo para acompanharmos juntos o progresso da implantação do TMS.\n` +
-      `Aqui estarão o cliente (${nomeEmpresa}), o vendedor responsável e o time de implantação, garantindo uma comunicação clara e rápida durante todo o processo.\n\n` +
-      `👉 Importante: este grupo tem uso exclusivo para acompanhamento da implantação. Após a conclusão, o suporte e novas demandas deverão seguir pelo fluxo de abertura de tickets.\n\n` +
-      `Sejam bem-vindos e vamos juntos para uma implantação de sucesso! 🚀\n\n` +
-      `*Acesso ao Acompanhamento de Implantação - Mantran*\n\n` +
-      `Olá! Seguem seus dados de acesso exclusivo para acompanhar o status e as etapas da sua implantação:\n\n` +
+    return `*🚀 BEM-VINDOS À IMPLANTAÇÃO MANTRAN!*\n\n` +
+      `Olá! 👋\n` +
+      `Criamos este grupo para acompanharmos juntos o progresso da implantação do TMS Mantran.\n` +
+      `Aqui estarão o cliente (${nomeEmpresa}), o vendedor responsável e o time de implantação, garantindo uma comunicação clara, ágil e organizada durante todo o processo.\n\n` +
+      `*📅 PRAZO DE IMPLANTAÇÃO*\n` +
+      `O prazo previsto para conclusão da implantação é de 40 dias corridos, considerando o cumprimento das etapas e a disponibilidade das informações necessárias por parte do cliente.\n\n` +
+      `*🕗 HORÁRIO DE ATENDIMENTO*\n` +
+      `O horário de atendimento da equipe Mantran é de segunda a sexta-feira, das 08h00 às 18h00, exceto feriados.\n` +
+      `⚠️ *Importante:* Mensagens enviadas neste grupo fora do horário de atendimento poderão não ser respondidas imediatamente, sendo tratadas no próximo período de expediente.\n\n` +
+      `*📌 FINALIDADE DO GRUPO*\n` +
+      `Este grupo é destinado exclusivamente ao acompanhamento da implantação, esclarecimento de dúvidas e alinhamento das etapas do processo.\n` +
+      `Após a conclusão da implantação, o suporte técnico e as novas solicitações deverão seguir pelo fluxo oficial de abertura de tickets da Mantran.\n\n` +
+      `Sejam muito bem-vindos! Vamos juntos trabalhar para uma implantação organizada e de sucesso! 🚀\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `*🔐 ACESSO AO ACOMPANHAMENTO DE IMPLANTAÇÃO*\n` +
+      `Disponibilizamos um acesso exclusivo ao Portal Mantran Clientes, onde será possível acompanhar o andamento e as etapas da implantação.\n\n` +
       `🏢 *Empresa:* ${nomeEmpresa}\n` +
       `🌐 *Link de Acesso:* ${origin}\n` +
       `👤 *Usuário:* ${login}\n` +
       `🔑 *Senha:* ${senha}\n\n` +
-      `_Acompanhe em tempo real todas as etapas do processo de implantação._`
+      `📊 _Acompanhe em tempo real o progresso, as etapas e o status da sua implantação._\n\n` +
+      `*Equipe Mantran 💜*`
   }
 
   const getFeedbackMessage = () => {
