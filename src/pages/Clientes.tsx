@@ -7,7 +7,7 @@ import { EditarClienteModal } from '../components/EditarClienteModal'
 import { UsuariosModal } from '../components/UsuariosModal'
 import { ModulosModal } from '../components/ModulosModal'
 import { NovaBaseModal } from '../components/NovaBaseModal'
-import { Plus, Search, Database, ShoppingBag, Briefcase, Layers, Package } from 'lucide-react'
+import { Plus, Search, Database, ShoppingBag, Briefcase, Layers, Package, Globe } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
 import clsx from 'clsx'
@@ -15,6 +15,7 @@ import clsx from 'clsx'
 export function Clientes() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [clientes, setClientes] = useState<BaseMantran[]>([])
+  const [mantranWebIds, setMantranWebIds] = useState<Set<string>>(new Set())
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isNovaBaseOpen, setIsNovaBaseOpen] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -31,17 +32,26 @@ export function Clientes() {
 
   const [tipoFilter, setTipoFilter] = useState<string>(() => {
     const param = searchParams.get('tipo')?.toUpperCase()
-    return param === 'SHOPEE' || param === 'NORMAL' || param === 'COMMERSYS' || param === 'LEO' ? param : 'TODOS'
+    return param === 'SHOPEE' || param === 'NORMAL' || param === 'COMMERSYS' || param === 'LEO' || param === 'MANTRANWEB' ? param : 'TODOS'
   })
 
   useEffect(() => {
     const param = searchParams.get('tipo')?.toUpperCase()
-    if (param === 'SHOPEE' || param === 'NORMAL' || param === 'COMMERSYS' || param === 'LEO') {
+    if (param === 'SHOPEE' || param === 'NORMAL' || param === 'COMMERSYS' || param === 'LEO' || param === 'MANTRANWEB') {
       setTipoFilter(param)
     } else if (!param) {
       setTipoFilter('TODOS')
     }
   }, [searchParams])
+
+  // Atualiza a lista de IDs no MantranWeb quando o modal de módulos alterar algo
+  useEffect(() => {
+    const handler = () => {
+      api.getClientesMantranWebIds().then(setMantranWebIds).catch(() => {})
+    }
+    window.addEventListener('mantran:modulos-updated', handler)
+    return () => window.removeEventListener('mantran:modulos-updated', handler)
+  }, [])
 
   const handleSetFilter = (tipo: string) => {
     setTipoFilter(tipo)
@@ -58,7 +68,10 @@ export function Clientes() {
     const matchesSearch = c.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
       (c.empresa && c.empresa.toLowerCase().includes(searchQuery.toLowerCase()))
     
-    const matchesTipo = tipoFilter === 'TODOS' || c.tipo === tipoFilter || (tipoFilter === 'LEO' && (c.tipo === 'LEO' || c.tipo === 'LEO_MADEIRAS'))
+    const matchesTipo = tipoFilter === 'TODOS' || 
+      (tipoFilter === 'MANTRANWEB' ? (c.clienteDbId ? mantranWebIds.has(c.clienteDbId) : false) : (
+        c.tipo === tipoFilter || (tipoFilter === 'LEO' && (c.tipo === 'LEO' || c.tipo === 'LEO_MADEIRAS'))
+      ))
 
     return matchesSearch && matchesTipo
   })
@@ -232,7 +245,11 @@ export function Clientes() {
   const fetchBases = async () => {
     setLoading(true)
     try {
-      const data = await api.getBasesWithClientes()
+      const [data, webIds] = await Promise.all([
+        api.getBasesWithClientes(),
+        api.getClientesMantranWebIds().catch(() => new Set<string>())
+      ])
+      if (webIds) setMantranWebIds(webIds)
 
       if (data) {
         const mappedData: BaseMantran[] = data.map((b: any) => {
@@ -383,6 +400,23 @@ export function Clientes() {
               <Package className="w-3.5 h-3.5" />
               Leo
             </button>
+            <button
+              onClick={() => handleSetFilter('MANTRANWEB')}
+              className={clsx(
+                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                tipoFilter === 'MANTRANWEB'
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-xs"
+                  : "text-slate-400 hover:text-slate-200"
+              )}
+            >
+              <Globe className="w-3.5 h-3.5 text-cyan-400" />
+              MantranWeb
+              {mantranWebIds.size > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-500/25 text-cyan-200 font-extrabold border border-cyan-500/30">
+                  {mantranWebIds.size}
+                </span>
+              )}
+            </button>
           </div>
 
           <div className="relative w-full sm:w-64">
@@ -424,6 +458,7 @@ export function Clientes() {
         <div className="flex-1 overflow-hidden flex flex-col">
           <ClientesTable 
             clientes={filteredClientes} 
+            mantranWebIds={mantranWebIds}
             onOpenUsuarios={handleOpenUsuarios}
             onOpenModulos={handleOpenModulos}
             onEdit={handleEditCliente}

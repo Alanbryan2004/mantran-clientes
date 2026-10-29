@@ -1,10 +1,11 @@
 import type { BaseMantran } from '../data/mockBases'
 import { isReadOnlyUser } from '../lib/auth'
 import clsx from 'clsx'
-import { Users, Blocks, Pencil, Trash2, Eye, Paperclip } from 'lucide-react'
+import { Users, Blocks, Pencil, Trash2, Eye, Paperclip, Globe } from 'lucide-react'
 
 interface ClientesTableProps {
   clientes: BaseMantran[]
+  mantranWebIds?: Set<string>
   onOpenUsuarios: (clienteDbId: string, clienteNome: string, baseId: string) => void
   onOpenModulos: (clienteDbId: string, clienteNome: string) => void
   onEdit: (cliente: BaseMantran) => void
@@ -12,7 +13,7 @@ interface ClientesTableProps {
   onVisualizarAditivo?: (cliente: BaseMantran) => void
 }
 
-export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit, onDelete, onVisualizarAditivo }: ClientesTableProps) {
+export function ClientesTable({ clientes, mantranWebIds, onOpenUsuarios, onOpenModulos, onEdit, onDelete, onVisualizarAditivo }: ClientesTableProps) {
   
   const getBadgeStyle = (col: string, value: string) => {
     if (!value) return ''
@@ -66,8 +67,20 @@ export function ClientesTable({ clientes, onOpenUsuarios, onOpenModulos, onEdit,
               <td className="px-4 py-2 font-medium text-blue-400 whitespace-nowrap">
                 {cliente.id}
               </td>
-              <td className={clsx("px-4 py-2 font-semibold", cliente.empresa === 'GRAN MILAN' ? 'text-red-500' : 'text-slate-100')}>
-                {cliente.empresa}
+              <td className="px-4 py-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={clsx("font-semibold", cliente.empresa === 'GRAN MILAN' ? 'text-red-500' : 'text-slate-100')}>
+                    {cliente.empresa}
+                  </span>
+                  {cliente.clienteDbId && mantranWebIds?.has(cliente.clienteDbId) && (
+                    <span
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shrink-0 shadow-sm"
+                      title="Cliente migrado para o MantranWeb"
+                    >
+                      <Globe className="w-2.5 h-2.5" /> MantranWeb
+                    </span>
+                  )}
+                </div>
               </td>
               
               {['tipo'].map((col) => {

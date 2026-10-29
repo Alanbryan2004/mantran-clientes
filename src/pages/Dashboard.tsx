@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { isClienteUser } from '../lib/auth'
-import { Users, Database, Server, ShoppingBag, ShoppingCart, Briefcase, Building, Rocket, ArrowRight, AlertCircle } from 'lucide-react'
+import { Users, Database, Server, ShoppingBag, ShoppingCart, Briefcase, Building, Rocket, ArrowRight, AlertCircle, Globe } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { calcularProgressoProjeto } from '../lib/projectProgress'
 import clsx from 'clsx'
@@ -63,6 +63,7 @@ export function Dashboard() {
     clientesLeoAtivos: 0,
     clientesLeoTotal: 0,
     clientesMeli: 0,
+    clientesMantranWeb: 0,
   })
 
   const [implantacoesStats, setImplantacoesStats] = useState({
@@ -97,7 +98,7 @@ export function Dashboard() {
     setLoading(true)
     try {
       // Parallel fast fetching for smooth rendering
-      const [basesRes, clientesRes, leoRes, impRes, projsRes, colsRes, pBasesRes, dadosRes, meliRes] = await Promise.allSettled([
+      const [basesRes, clientesRes, leoRes, impRes, projsRes, colsRes, pBasesRes, dadosRes, meliRes, mantranWebRes] = await Promise.allSettled([
         api.getBases(),
         api.getClientes(),
         api.getLeoEmpresas(),
@@ -106,9 +107,11 @@ export function Dashboard() {
         api.getProjetoColunas(),
         api.getProjetoBases(),
         api.getProjetoDados(),
-        api.countClientesMeli()
+        api.countClientesMeli(),
+        api.countClientesMantranWeb()
       ])
       const clientesMeli = meliRes.status === 'fulfilled' ? meliRes.value : 0
+      const clientesMantranWeb = mantranWebRes.status === 'fulfilled' ? mantranWebRes.value : 0
 
       const bases = basesRes.status === 'fulfilled' ? basesRes.value : []
       const clientes = clientesRes.status === 'fulfilled' ? clientesRes.value : []
@@ -138,7 +141,8 @@ export function Dashboard() {
           clientesNormal,
           clientesLeoAtivos,
           clientesLeoTotal,
-          clientesMeli
+          clientesMeli,
+          clientesMantranWeb
         })
       }
 
@@ -379,10 +383,61 @@ export function Dashboard() {
               </div>
             </div>
 
+            {/* CARD: Clientes MantranWeb (Migração C# -> Web) */}
+            <div 
+              onClick={() => navigate('/clientes?tipo=MANTRANWEB')}
+              className="card p-6 border border-slate-800/50 hover:border-cyan-500/50 transition-all duration-300 cursor-pointer group flex flex-col justify-between lg:col-span-2"
+            >
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-lg font-bold text-white flex items-center group-hover:text-cyan-400 transition-colors">
+                    <Globe className="w-5 h-5 mr-2 text-cyan-400 shrink-0" />
+                    Clientes MantranWeb
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                      Plataforma Web
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
+                  </div>
+                </div>
+
+                <div className="flex items-baseline space-x-3 mb-2">
+                  <span className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-br from-cyan-300 to-emerald-400">
+                    {stats.clientesMantranWeb}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {stats.clientesMantranWeb === 1 ? 'cliente migrado para a Web' : 'clientes migrados para a Web'}
+                    <span className="block text-[11px] text-slate-500">
+                      de {stats.clientesShopee + stats.clientesNormal} clientes totais
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-2">
+                <div className="flex justify-between items-end mb-1">
+                  <span className="text-xs font-semibold text-slate-400">Progresso da Migração C# → Web</span>
+                  <span className="text-lg font-bold text-cyan-400">
+                    {Math.round(((stats.clientesMantranWeb) / (Math.max(1, stats.clientesShopee + stats.clientesNormal))) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden mb-2">
+                  <div 
+                    className="h-2 rounded-full transition-all duration-1000 bg-gradient-to-r from-cyan-500 to-emerald-500"
+                    style={{ width: `${Math.min(100, Math.round(((stats.clientesMantranWeb) / (Math.max(1, stats.clientesShopee + stats.clientesNormal))) * 100))}%` }}
+                  ></div>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {stats.clientesMantranWeb} operando na Web • {Math.max(0, (stats.clientesShopee + stats.clientesNormal) - stats.clientesMantranWeb)} restantes no C# legado
+                </p>
+              </div>
+            </div>
+
             {/* CARD: Implantações (Total + % Concluído) */}
             <div 
               onClick={() => navigate('/implantacoes')}
-              className="card p-6 border border-slate-800/50 hover:border-brand-500/50 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
+              className="card p-6 border border-slate-800/50 hover:border-brand-500/50 transition-all duration-300 cursor-pointer group flex flex-col justify-between lg:col-span-2"
             >
               <div>
                 <div className="flex justify-between items-center mb-3">

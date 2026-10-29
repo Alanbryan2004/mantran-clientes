@@ -1246,6 +1246,79 @@ export const api = {
     return ids.size
   },
 
+  // Conta quantos clientes DISTINTOS têm a flag 'MantranWeb' ativa.
+  async countClientesMantranWeb(): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .from('modulos')
+        .select('cliente_id, ativo')
+        .eq('nome_modulo', 'MantranWeb')
+      if (error) return 0
+      const ids = new Set(
+        (data || [])
+          .filter((m: any) => m.ativo !== false && m.cliente_id)
+          .map((m: any) => m.cliente_id)
+      )
+      return ids.size
+    } catch {
+      return 0
+    }
+  },
+
+  // Retorna conjunto de IDs de clientes no MantranWeb
+  async getClientesMantranWebIds(): Promise<Set<string>> {
+    try {
+      const { data, error } = await supabase
+        .from('modulos')
+        .select('cliente_id, ativo')
+        .eq('nome_modulo', 'MantranWeb')
+      if (error) return new Set()
+      return new Set(
+        (data || [])
+          .filter((m: any) => m.ativo !== false && m.cliente_id)
+          .map((m: any) => m.cliente_id)
+      )
+    } catch {
+      return new Set()
+    }
+  },
+
+  // Define a flag MantranWeb para um cliente (em modulos e clientes se coluna existir)
+  async setClienteMantranWeb(clienteId: string, ativo: boolean): Promise<void> {
+    if (!clienteId) return
+    if (ativo) {
+      try {
+        const { error } = await supabase.from('modulos').upsert([
+          { cliente_id: clienteId, nome_modulo: 'MantranWeb', ativo: true }
+        ], { onConflict: 'cliente_id,nome_modulo' })
+        if (error) {
+          // fallback insert se não houver constraint de conflito
+          await supabase.from('modulos').insert([
+            { cliente_id: clienteId, nome_modulo: 'MantranWeb', ativo: true }
+          ])
+        }
+      } catch {
+        try {
+          await supabase.from('modulos').insert([
+            { cliente_id: clienteId, nome_modulo: 'MantranWeb', ativo: true }
+          ])
+        } catch (_) {}
+      }
+    } else {
+      try {
+        await supabase.from('modulos')
+          .delete()
+          .eq('cliente_id', clienteId)
+          .eq('nome_modulo', 'MantranWeb')
+      } catch (_) {}
+    }
+
+    // Tenta atualizar também na tabela clientes caso a coluna exista
+    try {
+      await supabase.from('clientes').update({ mantran_web: ativo }).eq('id', clienteId)
+    } catch (_) {}
+  },
+
   async updateImplantacaoStatus(id: string, status: string) {
     const { error } = await supabase
       .from('implantacoes')

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Check, Rocket } from 'lucide-react'
+import { X, Check, Rocket, Globe } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
@@ -19,6 +19,7 @@ type ModuloMantran = {
 
 const MELI_NOME = 'Mercado Livre'
 const NFSE_NOME = 'NFSE'
+const MANTRAN_WEB_NOME = 'MantranWeb'
 
 export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: ModulosModalProps) {
   const [modulosDisponiveis, setModulosDisponiveis] = useState<ModuloMantran[]>([])
@@ -135,10 +136,23 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: Modulo
     }
   }
 
+  const isMantranWeb = clienteModulos.includes(MANTRAN_WEB_NOME)
+
   const handleToggle = async (nomeModulo: string, isChecked: boolean) => {
     if (!clienteId || isReadOnlyUser()) return
 
     try {
+      if (nomeModulo === MANTRAN_WEB_NOME) {
+        await api.setClienteMantranWeb(clienteId, isChecked)
+        if (isChecked) {
+          setClienteModulos(prev => [...prev.filter(m => m !== MANTRAN_WEB_NOME), MANTRAN_WEB_NOME])
+        } else {
+          setClienteModulos(prev => prev.filter(m => m !== MANTRAN_WEB_NOME))
+        }
+        window.dispatchEvent(new CustomEvent('mantran:modulos-updated', { detail: { clienteId, nomeModulo, isChecked } }))
+        return
+      }
+
       if (isChecked) {
         // Add module
         const { error } = await supabase.from('modulos').insert([{
@@ -157,6 +171,7 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: Modulo
         if (error) throw error
         setClienteModulos(prev => prev.filter(m => m !== nomeModulo))
       }
+      window.dispatchEvent(new CustomEvent('mantran:modulos-updated', { detail: { clienteId, nomeModulo, isChecked } }))
     } catch (err: any) {
       console.error('Erro ao alternar módulo:', err)
       alert('Erro ao atualizar: ' + err.message)
@@ -165,8 +180,8 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: Modulo
 
   if (!isOpen) return null
 
-  const modulosList = modulosDisponiveis.filter(m => m.tipo === 'MÓDULO')
-  const integracoesList = modulosDisponiveis.filter(m => m.tipo === 'INTEGRAÇÃO')
+  const modulosList = modulosDisponiveis.filter(m => m.tipo === 'MÓDULO' && m.nome !== MANTRAN_WEB_NOME)
+  const integracoesList = modulosDisponiveis.filter(m => m.tipo === 'INTEGRAÇÃO' && m.nome !== MANTRAN_WEB_NOME)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -183,6 +198,62 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome }: Modulo
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
+          {/* FLAG MANTRANWEB NO TOPO */}
+          {!loading && (
+            <div className={`mb-6 p-4 rounded-xl border transition-all duration-300 flex items-center justify-between gap-4 ${
+              isMantranWeb 
+                ? 'bg-gradient-to-r from-cyan-950/50 via-slate-900 to-slate-900 border-cyan-500/50 shadow-lg shadow-cyan-950/20' 
+                : 'bg-slate-800/40 border-slate-700/70 hover:border-slate-600'
+            }`}>
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border transition-all ${
+                  isMantranWeb 
+                    ? 'bg-gradient-to-br from-cyan-400 to-emerald-500 text-slate-950 border-cyan-300 shadow-md shadow-cyan-500/25' 
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}>
+                  <Globe className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold text-white tracking-wide">MantranWeb</h3>
+                    {isMantranWeb ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-xs">
+                        <Check className="w-3 h-3 text-cyan-400" /> Migrado para a Web
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                        Ambiente C# (Desktop Legado)
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {isMantranWeb 
+                      ? 'Este cliente já foi migrado com sucesso e está operando na nova plataforma 100% Web.' 
+                      : 'Marque esta flag quando o cliente for migrado do C# para a nova plataforma totalmente Web.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Flag / Switch */}
+              <div className="flex items-center gap-2.5 shrink-0">
+                <span className="text-xs font-semibold text-slate-400 hidden sm:inline">
+                  {isMantranWeb ? 'Ativo' : 'Inativo'}
+                </span>
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input 
+                    type="checkbox" 
+                    checked={isMantranWeb}
+                    disabled={!clienteId || isReadOnlyUser()}
+                    onChange={(e) => handleToggle(MANTRAN_WEB_NOME, e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className={`w-14 h-8 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all cursor-pointer ${
+                    isMantranWeb ? 'peer-checked:bg-gradient-to-r peer-checked:from-cyan-500 peer-checked:to-emerald-500 shadow-md shadow-cyan-500/20' : ''
+                  }`}></div>
+                </label>
+              </div>
+            </div>
+          )}
           {/* Faixa de ação: aparece quando NFSE/MELI marcado E ainda não existe
               implantação dedicada daquele módulo. Some após criar. */}
           {!loading && ((temNfse && !jaTemImplNfse) || (temMeli && !jaTemImplMeli)) && !isReadOnlyUser() && (
