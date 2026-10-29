@@ -105,26 +105,14 @@ export function Clientes() {
   }
 
   const handleDeleteCliente = async (clienteDbId: string, baseNome: string, empresa: string) => {
-    if (!confirm(`Tem certeza que deseja EXCLUIR a empresa ${empresa}? Isso irá limpar a base ${baseNome} e apagar todos os usuários e módulos.`)) return
+    if (!confirm(`Tem certeza que deseja DESATIVAR a empresa ${empresa}?\n\nOs dados completos serão migrados para a tabela de Clientes Desativados para histórico e a base ${baseNome} será liberada.`)) return
     
     try {
-      // 1. Release the base
-      const baseData = await api.getBaseByName(baseNome)
-      if (baseData) {
-        await api.updateBase(baseData.id, { cliente_id: null, status: 'Disponível' })
-      }
-      
-      // 2. Delete dependencies explicitly
-      await api.deleteUsuariosByCliente(clienteDbId)
-      await api.deleteModulosByCliente(clienteDbId)
-      
-      // 3. Delete the client itself
-      await api.deleteCliente(clienteDbId)
-      
+      await api.desativarCliente(clienteDbId, baseNome, empresa)
       await fetchBases()
     } catch (err) {
-      console.error('Erro ao excluir:', err)
-      alert('Erro ao excluir cliente.')
+      console.error('Erro ao excluir/desativar:', err)
+      alert('Erro ao desativar cliente.')
     }
   }
 

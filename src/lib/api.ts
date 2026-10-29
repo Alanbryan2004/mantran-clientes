@@ -287,6 +287,126 @@ export const api = {
     if (error) throw error
   },
 
+  // Desativa o cliente migrando todo o histórico para a tabela clientes_desativados,
+  // preservando a base que utilizava, credenciais, módulos, aditivos e checkpoints,
+  // e limpando a base para ficar com status 'Disponível'.
+  async desativarCliente(clienteId: string, baseNome: string, nomeEmpresa?: string, motivo?: string) {
+    let usuarioExecutor = 'Administrador'
+    try {
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('@Mantran:user') : null
+      if (stored) {
+        const u = JSON.parse(stored)
+        usuarioExecutor = u.nome || u.login || 'Administrador'
+      }
+    } catch {}
+
+    // 1. Coletar dados do cliente atual
+    const { data: cliente } = await supabase
+      .from('clientes')
+      .select('*')
+      .eq('id', clienteId)
+      .maybeSingle()
+
+    // 2. Coletar usuários GPO vinculados
+    const { data: usuariosGpo } = await supabase
+      .from('usuarios_gpo')
+      .select('*')
+      .eq('cliente_id', clienteId)
+
+    // 3. Coletar módulos ativos
+    const { data: modulos } = await supabase
+      .from('modulos')
+      .select('*')
+      .eq('cliente_id', clienteId)
+
+    // 4. Coletar base vinculada
+    const baseData = await api.getBaseByName(baseNome).catch(() => null)
+
+    // 5. Coletar implantação e checkpoint (se houver)
+    let implantacaoSnapshot: any = null
+    try {
+      const { data: imp } = await supabase
+        .from('implantacoes')
+        .select('*, implantacao_etapas(*)')
+        .or(`cliente_id.eq.${clienteId},nome_empresa.ilike.%${cliente?.nome_empresa || nomeEmpresa || ''}%`)
+        .limit(1)
+        .maybeSingle()
+
+      if (imp) {
+        const cp = await api.getImplantacaoCheckpoint(imp.id).catch(() => null)
+        implantacaoSnapshot = {
+          implantacao: imp,
+          checkpoint: cp
+        }
+      }
+    } catch (e) {
+      console.warn('Implantação não encontrada para o cliente desativado:', e)
+    }
+
+    // 6. Montar o snapshot consolidado
+    const senhaPadrao = (usuariosGpo && usuariosGpo[0]?.senha) || null
+
+    const snapshotCompleto = {
+      cliente,
+      base: baseData,
+      usuarios_gpo: usuariosGpo || [],
+      modulos: modulos || [],
+      implantacao: implantacaoSnapshot,
+      desativado_em: new Date().toISOString(),
+      desativado_por: usuarioExecutor,
+      motivo: motivo || null
+    }
+
+    // 7. Salvar na tabela clientes_desativados (se já criada via SQL)
+    const registroDesativado = {
+      cliente_id_original: clienteId,
+      nome_empresa: cliente?.nome_empresa || nomeEmpresa || 'Empresa Desconhecida',
+      tipo: cliente?.tipo || 'NORMAL',
+      ativo: false,
+      base_id: baseData?.id || null,
+      base_nome: baseNome,
+      base_status_anterior: baseData?.status || 'Ocupada',
+      senha_padrao: senhaPadrao,
+      usuarios_gpo_json: usuariosGpo || [],
+      modulos_json: modulos || [],
+      possui_aditivo: cliente?.possui_aditivo || false,
+      arquivo_aditivo_nome: cliente?.arquivo_aditivo_nome || null,
+      arquivo_aditivo_base64: cliente?.arquivo_aditivo_base64 || null,
+      arquivo_aditivo_tamanho: cliente?.arquivo_aditivo_tamanho || null,
+      implantacao_id: implantacaoSnapshot?.implantacao?.id || null,
+      implantacao_dados_json: implantacaoSnapshot,
+      data_cadastro_original: cliente?.created_at || null,
+      desativado_em: new Date().toISOString(),
+      desativado_por: usuarioExecutor,
+      motivo: motivo || null,
+      dados_completos_json: snapshotCompleto
+    }
+
+    try {
+      const { error: insertErr } = await supabase
+        .from('clientes_desativados')
+        .insert(registroDesativado)
+
+      if (insertErr) {
+        console.warn('Aviso ao arquivar em clientes_desativados:', insertErr)
+      }
+    } catch (e) {
+      console.warn('Falha na inserção em clientes_desativados:', e)
+    }
+
+    // 8. Liberar a base e definir status 'Disponível'
+    if (baseData) {
+      await api.updateBase(baseData.id, { cliente_id: null, status: 'Disponível' })
+    }
+
+    // 9. Excluir dependências ativas
+    await api.deleteUsuariosByCliente(clienteId)
+    await api.deleteModulosByCliente(clienteId)
+
+    // 10. Excluir cliente da tabela ativa
+    await api.deleteCliente(clienteId)
+  },
+
   // --- Usuarios_GPO ---
   async getUsuariosByCliente(clienteId: string) {
     const { data, error } = await supabase
@@ -1803,6 +1923,22 @@ export const api = {
       .filter(Boolean)
   },
 
+  // Funcionários da Mantran (nome + e-mail corporativo) para o tipo "Funcionários"
+  // no envio de campanhas internas.
+  async getFuncionariosMantran(): Promise<{ nome: string; email: string }[]> {
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('nome, login, email_corporativo')
+      .not('email_corporativo', 'is', null)
+    if (error) return []
+    return (data || [])
+      .map((u: any) => ({
+        nome: (u.nome || u.login || '').trim() || (u.email_corporativo || '').split('@')[0],
+        email: (u.email_corporativo || '').trim().toLowerCase()
+      }))
+      .filter(u => u.email)
+  },
+
   async createUsuarioSistema(payload: {
     nome: string
     login: string
@@ -3128,6 +3264,115 @@ export const api = {
     } catch (err: any) {
       return { ok: false, erro: err?.message || 'Não foi possível contatar o servidor de envio.' }
     }
+  },
+
+  // ===================== E-mail em massa (campanhas) =====================
+  // Todas as chamadas abaixo são "best-effort": se as tabelas de histórico
+  // ainda não existirem no banco, o envio continua funcionando sem gravar.
+
+  // Lista de e-mails descadastrados (opt-out). Retorna Set em minúsculo.
+  async getEmailDescadastros(): Promise<Set<string>> {
+    try {
+      const { data, error } = await supabase.from('email_descadastros').select('email')
+      if (error) return new Set()
+      return new Set((data || []).map((r: any) => (r.email || '').trim().toLowerCase()))
+    } catch { return new Set() }
+  },
+
+  async registrarDescadastro(email: string, motivo?: string): Promise<boolean> {
+    const e = (email || '').trim().toLowerCase()
+    if (!e) return false
+    const { error } = await supabase
+      .from('email_descadastros')
+      .upsert({ email: e, motivo: motivo || null }, { onConflict: 'email' })
+    if (error) throw error
+    return true
+  },
+
+  // Cria a campanha (lote) e retorna o id. Null se a tabela não existir.
+  async createEmailCampanha(payload: {
+    assunto: string
+    corpo_html?: string | null
+    filtro_tipo?: string | null
+    somente_ativos?: boolean
+    intervalo_ms?: number
+    total_destinatarios?: number
+    criado_por_id?: string | null
+    criado_por_nome?: string | null
+  }): Promise<string | null> {
+    try {
+      const { data, error } = await supabase
+        .from('email_campanhas')
+        .insert({
+          assunto: payload.assunto,
+          corpo_html: payload.corpo_html ?? null,
+          filtro_tipo: payload.filtro_tipo ?? null,
+          somente_ativos: payload.somente_ativos ?? true,
+          intervalo_ms: payload.intervalo_ms ?? 4000,
+          total_destinatarios: payload.total_destinatarios ?? 0,
+          status: 'EM_ANDAMENTO',
+          criado_por_id: payload.criado_por_id ?? null,
+          criado_por_nome: payload.criado_por_nome ?? null
+        })
+        .select('id')
+        .single()
+      if (error) return null
+      return data?.id ?? null
+    } catch { return null }
+  },
+
+  // Registra o resultado de um envio individual.
+  async registrarEmailEnvio(payload: {
+    campanha_id?: string | null
+    contato_id?: string | null
+    email: string
+    nome?: string | null
+    empresa_nome?: string | null
+    tipo_empresa?: string | null
+    status: 'ENVIADO' | 'ERRO' | 'IGNORADO'
+    erro?: string | null
+  }): Promise<void> {
+    try {
+      await supabase.from('email_envios').insert({
+        campanha_id: payload.campanha_id ?? null,
+        contato_id: payload.contato_id ?? null,
+        email: payload.email,
+        nome: payload.nome ?? null,
+        empresa_nome: payload.empresa_nome ?? null,
+        tipo_empresa: payload.tipo_empresa ?? null,
+        status: payload.status,
+        erro: payload.erro ?? null,
+        enviado_em: payload.status === 'ENVIADO' ? new Date().toISOString() : null
+      })
+    } catch { /* histórico best-effort */ }
+  },
+
+  // Atualiza totais/estado da campanha ao final (ou ao pausar/cancelar).
+  async atualizarEmailCampanha(id: string | null, updates: {
+    total_enviados?: number
+    total_falhas?: number
+    status?: 'EM_ANDAMENTO' | 'CONCLUIDA' | 'CANCELADA' | 'PAUSADA'
+  }): Promise<void> {
+    if (!id) return
+    try {
+      await supabase
+        .from('email_campanhas')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+    } catch { /* best-effort */ }
+  },
+
+  // Histórico de campanhas (mais recentes primeiro).
+  async getEmailCampanhas(limite = 50): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('email_campanhas')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limite)
+      if (error) return []
+      return data || []
+    } catch { return [] }
   },
 
   // Técnicos (perfil Técnico) para "Responsável Técnico"
