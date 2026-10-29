@@ -32,7 +32,8 @@ import {
   LogIn,
   BookOpen,
   MapPin,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileStack
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -100,6 +101,9 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
 
   const getPageInfo = () => {
     const path = location.pathname
+    if (path.startsWith('/juntar')) {
+      return { title: 'Juntar Planilhas Shopee 4PL', icon: FileStack, subtitle: 'Unificação e conferência de planilhas por operação' }
+    }
     if (path.startsWith('/separador')) {
       return { title: 'Separador de Planilhas', icon: FileSpreadsheet, subtitle: 'Validação e divisão de pré-faturas Shopee por operação' }
     }
@@ -163,14 +167,18 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
             <div className="h-5 w-[1px] bg-slate-800 shrink-0 hidden sm:block" />
             <div className="hidden sm:flex flex-col">
               <span className="text-xs sm:text-sm font-semibold text-white tracking-wide">
-                {location.pathname.startsWith('/separador') 
-                  ? 'Separador de Planilhas Shopee' 
-                  : (location.pathname.startsWith('/cidades') ? 'Cidades & Faixas de CEP' : 'FAQ & Procedimentos Mantran')}
+                {location.pathname.startsWith('/juntar')
+                  ? 'Juntar Planilhas Shopee 4PL'
+                  : location.pathname.startsWith('/separador') 
+                    ? 'Separador de Planilhas Shopee' 
+                    : (location.pathname.startsWith('/cidades') ? 'Cidades & Faixas de CEP' : 'FAQ & Procedimentos Mantran')}
               </span>
               <span className="text-[10px] text-slate-400">
-                {location.pathname.startsWith('/separador') 
-                  ? 'Validação de 53 colunas e divisão por operação' 
-                  : (location.pathname.startsWith('/cidades') ? 'Consulta pública de CEP e IBGE' : 'Base de conhecimento e autoatendimento')}
+                {location.pathname.startsWith('/juntar')
+                  ? 'Unificação de pré-faturas e garantia de integridade'
+                  : location.pathname.startsWith('/separador') 
+                    ? 'Validação de 53 colunas e divisão por operação' 
+                    : (location.pathname.startsWith('/cidades') ? 'Consulta pública de CEP e IBGE' : 'Base de conhecimento e autoatendimento')}
               </span>
             </div>
           </div>

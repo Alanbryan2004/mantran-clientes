@@ -15,7 +15,9 @@ import { Calendario } from './pages/Calendario'
 import { FAQ } from './pages/FAQ'
 import { Cidades } from './pages/Cidades'
 import { SeparadorPlanilhas } from './pages/SeparadorPlanilhas'
+import { JuntarPlanilhas } from './pages/JuntarPlanilhas'
 import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
+import { CampanhaEmail } from './pages/CampanhaEmail'
 import { Login } from './pages/Login'
 import MinhasTarefas from './pages/dev/MinhasTarefas'
 import QATestes from './pages/dev/QATestes'
@@ -116,12 +118,14 @@ function App() {
     return <div className="min-h-screen bg-[#0f111a] flex items-center justify-center text-white">Carregando...</div>
   }
 
-  // No Celular / Mobile: se não autenticado e não for tela pública (FAQ, Cidades ou Separador de Planilhas), vai direto para o Login.
-  // Permite que clientes e visitantes acessem o FAQ, consulta de Cidades e Separador de Planilhas diretamente no celular.
+  // No Celular / Mobile: se não autenticado e não for tela pública (FAQ, Cidades, Separador ou Juntar Planilhas), vai direto para o Login.
+  // Permite que clientes e visitantes acessem o FAQ, consulta de Cidades, Separador e Juntar Planilhas diretamente no celular.
   const isPublicPath = window.location.pathname.startsWith('/faq') || 
                        window.location.pathname.startsWith('/cidades') ||
                        window.location.pathname.startsWith('/separador-planilhas') ||
-                       window.location.pathname.startsWith('/separador')
+                       window.location.pathname.startsWith('/separador') ||
+                       window.location.pathname.startsWith('/juntar-planilhas') ||
+                       window.location.pathname.startsWith('/juntar')
   if (!isAuthenticated && isMobile && !isPublicPath) {
     return (
       <>
@@ -131,7 +135,7 @@ function App() {
     )
   }
 
-  // No Desktop: carrega o layout com Cidades e FAQ disponíveis para consulta pública.
+  // No Desktop: carrega o layout com Cidades, FAQ, Separador e Juntar Planilhas disponíveis para consulta pública.
   // Visitantes no Desktop contam com botão de Login no Header e Sidebar que abre o modal.
   return (
     <>
@@ -145,8 +149,11 @@ function App() {
             <Route path="cidades" element={<Cidades />} />
             <Route path="separador-planilhas" element={<SeparadorPlanilhas />} />
             <Route path="separador" element={<Navigate to="/separador-planilhas" replace />} />
+            <Route path="juntar-planilhas" element={<JuntarPlanilhas />} />
+            <Route path="juntar" element={<Navigate to="/juntar-planilhas" replace />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="tickets/:numero" element={<Tickets />} />
+            <Route path="campanha-email" element={<CampanhaEmail />} />
             <Route path="calendario" element={<Calendario />} />
             <Route path="comercial" element={<Comercial />} />
             <Route path="clientes" element={<Clientes />} />

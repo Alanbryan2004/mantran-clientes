@@ -21,11 +21,12 @@ export function Layout() {
     const user = getLoggedUser()
 
     const checkAccess = async () => {
-      // Visitante não autenticado pode acessar FAQ, Cidades e Separador de Planilhas
+      // Visitante não autenticado pode acessar FAQ, Cidades, Separador e Juntar Planilhas
       if (!user) {
         const isPublic = location.pathname.startsWith('/faq') || 
                          location.pathname.startsWith('/cidades') || 
                          location.pathname.startsWith('/separador') ||
+                         location.pathname.startsWith('/juntar') ||
                          location.pathname === '/'
         if (!isPublic) {
           navigate('/faq', { replace: true })
@@ -54,15 +55,17 @@ export function Layout() {
     checkAccess()
   }, [location.pathname, navigate])
 
-  // Telas com tema claro (Tickets, Desenvolvimento & QA, FAQ, Cidades e Separador de Planilhas): fundo suave cobrindo toda a área rolável
+  // Telas com tema claro (Tickets, Desenvolvimento & QA, FAQ, Cidades, Separador e Juntar Planilhas): fundo suave cobrindo toda a área rolável
   const isLightRoute = location.pathname.startsWith('/tickets') || 
+                       location.pathname.startsWith('/campanha-email') ||
                        location.pathname.startsWith('/dev') || 
                        location.pathname.startsWith('/minhas-tarefas') || 
                        location.pathname.startsWith('/qa-testes') || 
                        location.pathname.startsWith('/cronograma') || 
                        location.pathname.startsWith('/faq') ||
                        location.pathname.startsWith('/cidades') ||
-                       location.pathname.startsWith('/separador')
+                       location.pathname.startsWith('/separador') ||
+                       location.pathname.startsWith('/juntar')
 
   return (
     <div className="flex h-screen bg-dark-bg text-dark-text overflow-hidden">

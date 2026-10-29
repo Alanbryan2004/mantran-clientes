@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Juntar Planilhas · Shopee 4PL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --bg:#F1F4F8; --panel:#F8FAFC; --surface:#FFFFFF; --surface-2:#F6F8FB; --ink:#0F1E35; --text:#3B4A5E; --muted:#64748B; --line:#E2E8F0; --line-2:#CBD5E1;
+  --or:#FF6A00; --or-2:#FF9500; --or-soft:#FFF1E4; --or-line:#FFD2AE; --or-ink:#C2410C;
+  --blue:#2563EB; --blue-soft:#EAF1FF; --blue-line:#C9DAFD;
+  --green:#059669; --green-soft:#E7F7F0; --green-line:#B7E7D2;
+  --red:#E11D48; --red-ink:#9F1239; --red-soft:#FFF1F3; --red-line:#FECDD6;
+  --yel-soft:#FFFBEB; --yel-line:#FBE38E; --yel-ink:#7C2D12; --yel-badge:#FDE68A;
+  --shadow:0 1px 2px rgba(15,30,53,.04),0 4px 14px rgba(15,30,53,.05);
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1118; --panel:#101821; --surface:#16202B; --surface-2:#1B2633; --ink:#EEF2F7; --text:#C3CDD9; --muted:#8C9AAD; --line:#253242; --line-2:#334457;
+    --or:#FF7A1A; --or-2:#FF9F1C; --or-soft:#2E1C0E; --or-line:#5C3311; --or-ink:#FFB070;
+    --blue:#6EA0FF; --blue-soft:#14223D; --blue-line:#22375E;
+    --green:#4FD1A0; --green-soft:#0F2A21; --green-line:#1B4636;
+    --red:#FF6B86; --red-ink:#FF9AAC; --red-soft:#2E1219; --red-line:#57202E;
+    --yel-soft:#2A2310; --yel-line:#56461A; --yel-ink:#F8D27A; --yel-badge:#6B5413;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1118; --panel:#101821; --surface:#16202B; --surface-2:#1B2633; --ink:#EEF2F7; --text:#C3CDD9; --muted:#8C9AAD; --line:#253242; --line-2:#334457;
+  --or:#FF7A1A; --or-2:#FF9F1C; --or-soft:#2E1C0E; --or-line:#5C3311; --or-ink:#FFB070;
+  --blue:#6EA0FF; --blue-soft:#14223D; --blue-line:#22375E;
+  --green:#4FD1A0; --green-soft:#0F2A21; --green-line:#1B4636;
+  --red:#FF6B86; --red-ink:#FF9AAC; --red-soft:#2E1219; --red-line:#57202E;
+  --yel-soft:#2A2310; --yel-line:#56461A; --yel-ink:#F8D27A; --yel-badge:#6B5413;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Nunito Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.5}
+h1,h2,h3,h4{font-family:"Outfit","Nunito Sans",system-ui,sans-serif;color:var(--ink)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 56px}
+.panel{background:var(--panel);border-radius:22px;padding:26px 28px 30px}
+.hidden{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.hero{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding-bottom:24px;border-bottom:1px solid var(--line)}
+.brandbox{flex:none;background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:12px 14px;box-shadow:var(--shadow)}
+.brandbox img{display:block;height:30px;width:auto}
+.titles{flex:1;min-width:260px}
+.titles h1{margin:0;font-size:clamp(1.6rem,3vw,2.1rem);font-weight:800;letter-spacing:-0.02em;line-height:1.15;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pill-or{font-size:.9rem;font-weight:700;letter-spacing:0;color:var(--or-ink);background:var(--or-soft);border:1px solid var(--or-line);padding:3px 13px;border-radius:999px}
+.titles p{margin:6px 0 0;color:var(--muted);font-size:1.02rem}
+.secure{flex:none;display:inline-flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:9px 16px;font-size:.98rem;box-shadow:var(--shadow)}
+.secure svg{width:22px;height:22px;color:var(--green)}
+.secure b{color:var(--ink);font-weight:800}
+.steps{list-style:none;margin:28px 0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.steps li{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;gap:16px;align-items:flex-start;box-shadow:var(--shadow)}
+.num{flex:none;width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-family:"Outfit",sans-serif;font-weight:700;font-size:1.05rem;border:1px solid}
+.num.o{background:var(--or-soft);color:var(--or);border-color:var(--or-line)}
+.num.b{background:var(--blue-soft);color:var(--blue);border-color:var(--blue-line)}
+.num.g{background:var(--green-soft);color:var(--green);border-color:var(--green-line)}
+.steps b{display:block;color:var(--ink);font-family:"Outfit",sans-serif;font-weight:700;font-size:1.08rem;margin-bottom:2px}
+.steps span{color:var(--muted);font-size:.95rem}
+@media (max-width:820px){.steps{grid-template-columns:1fr}}
+.drop{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;border:2px dashed var(--line-2);border-radius:20px;background:var(--surface);padding:64px 24px 56px;cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--or);background:var(--or-soft)}
+.drop.busy{border-color:var(--or);background:var(--panel);cursor:progress}
+.drop:focus-within{outline:3px solid var(--or-line);outline-offset:3px}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.drop.busy input{pointer-events:none}
+.tile{width:84px;height:84px;border-radius:20px;display:grid;place-items:center;background:var(--or-soft);color:var(--or);margin-bottom:22px}
+.tile svg{width:38px;height:38px}
+.busy .tile svg{animation:gira 1.1s linear infinite}
+.drop strong{font-family:"Outfit",sans-serif;font-size:1.55rem;font-weight:700;color:var(--ink);line-height:1.25}
+.drop .sub{color:var(--muted);font-size:1.1rem;margin-top:8px}
+.btn-or{display:inline-flex;align-items:center;gap:10px;margin-top:26px;background:var(--or);color:#fff;font-family:"Outfit",sans-serif;font-weight:700;font-size:1.1rem;padding:13px 28px;border-radius:999px;box-shadow:0 6px 16px rgba(255,106,0,.28)}
+.btn-or svg{width:22px;height:22px}
+@keyframes gira{to{transform:rotate(360deg)}}
+.progress{margin-top:28px;background:var(--surface);border:2px solid var(--or);border-radius:20px;padding:26px 34px 24px;box-shadow:0 10px 30px rgba(255,106,0,.08)}
+.pg-top{display:flex;align-items:center;gap:18px}
+.pg-ico{flex:none;width:58px;height:58px;border-radius:14px;display:grid;place-items:center;background:var(--or-soft);color:var(--or);border:1px solid var(--or-line)}
+.pg-ico svg{width:30px;height:30px;animation:gira 1.1s linear infinite}
+.pg-txt{flex:1;min-width:0}
+.pg-title{font-family:"Outfit",sans-serif;font-weight:700;font-size:1.3rem;color:var(--ink);overflow-wrap:anywhere}
+.pg-title code{font-family:"JetBrains Mono",ui-monospace,monospace;color:var(--or);font-weight:700;font-size:1.02em}
+.pg-sub{display:flex;align-items:center;gap:9px;color:var(--muted);margin-top:2px}
+.pg-sub::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--or);flex:none}
+.pg-pct{font-family:"JetBrains Mono",ui-monospace,monospace;font-weight:700;font-size:2rem;color:var(--or);font-variant-numeric:tabular-nums}
+.bar{height:20px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);margin:22px 0 18px;padding:3px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--or-2),var(--or));transition:width .25s}
+.stages{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;list-style:none;margin:0;padding:0}
+.stages li{display:flex;align-items:center;gap:9px;color:var(--muted);font-weight:600}
+.stages li svg{width:20px;height:20px;opacity:.55}
+.stages li.on{color:var(--or)} .stages li.on svg{opacity:1}
+.stages li.done{color:var(--green)} .stages li.done svg{opacity:1}
+.res-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin:44px 0 22px}
+.res-head h2{margin:0;font-size:1.65rem;font-weight:700;display:flex;align-items:center;gap:12px}
+.res-head h2 svg{width:28px;height:28px;color:var(--or)}
+.btn{font:inherit;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:9px;border-radius:12px;padding:10px 18px;border:1px solid var(--line);background:var(--surface);color:var(--ink);transition:filter .15s,border-color .15s,background .15s}
+.btn svg{width:19px;height:19px}
+.btn:hover{border-color:var(--line-2)}
+.btn:focus-visible{outline:3px solid var(--or-line);outline-offset:2px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.termo{background:var(--yel-soft);border-color:var(--yel-line);color:var(--or-ink)}
+.btn.outline-or{border:1.5px solid var(--yel-line);background:var(--surface);color:var(--yel-ink)}
+.btn.primary{background:var(--or);border-color:var(--or);color:#fff;font-family:"Outfit",sans-serif;font-size:1.08rem;padding:13px 26px;border-radius:999px;box-shadow:0 6px 16px rgba(255,106,0,.25)}
+.btn.primary:hover:not(:disabled){filter:brightness(1.05)}
+.btn.icon{padding:9px;border-color:transparent;background:transparent;color:var(--muted)}
+.btn.icon:hover{color:var(--red);background:var(--red-soft)}
+.btn.icon svg{width:22px;height:22px}
+.spin{width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.45);border-top-color:#fff;animation:gira .8s linear infinite}
+.notice{display:flex;gap:20px;align-items:center;background:var(--yel-soft);border:1px solid var(--yel-line);border-radius:18px;padding:30px;margin-bottom:28px}
+.ntile{flex:none;align-self:flex-start;width:60px;height:60px;border-radius:14px;display:grid;place-items:center;background:var(--or-soft);color:var(--or);border:1px solid var(--or-line)}
+.ntile svg{width:30px;height:30px}
+.notice h3{margin:0 0 4px;font-size:1.4rem;font-weight:700;color:var(--yel-ink);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.badge-y{font-family:"Nunito Sans",sans-serif;font-size:.78rem;font-weight:800;letter-spacing:.06em;background:var(--yel-badge);color:var(--yel-ink);padding:3px 12px;border-radius:999px}
+.notice p{margin:0;color:var(--yel-ink);font-size:1.1rem;line-height:1.6}
+.notice p b{font-weight:800}
+.grow{flex:1;min-width:0}
+@media (max-width:760px){.notice{flex-wrap:wrap;padding:22px}.notice .btn{width:100%;justify-content:center}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:var(--shadow)}
+.card-head{display:flex;align-items:center;gap:18px;padding:28px 30px;border-bottom:1px solid var(--line)}
+.card-head.err{background:var(--red-soft)}
+.card-head.ok{background:color-mix(in srgb,var(--green-soft) 55%,var(--surface))}
+.htile{flex:none;width:60px;height:60px;border-radius:14px;display:grid;place-items:center}
+.htile svg{width:32px;height:32px}
+.htile.err{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red)}
+.htile.ok{background:color-mix(in srgb,var(--green) 14%,transparent);color:var(--green)}
+.card-head h3{margin:0;font-size:1.45rem;font-weight:700}
+.card-head .sub{color:var(--muted);font-size:1.05rem}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.8rem;font-weight:500;background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:3px 10px;white-space:nowrap}
+.chip b{color:var(--ink);font-weight:700}
+.card-body{padding:26px 30px}
+.card-body + .card-body{border-top:1px solid var(--line)}
+.card-body h4{margin:0 0 14px;font-size:1.15rem;font-weight:700}
+.alert{display:flex;gap:14px;align-items:flex-start;border-radius:14px;padding:18px 22px;border:1px solid;font-size:1.02rem;margin:0}
+.alert + .alert{margin-top:10px}
+.alert svg{flex:none;width:24px;height:24px;margin-top:1px}
+.alert b{display:block;font-weight:800}
+.alert.err{background:var(--red-soft);border-color:var(--red-line);color:var(--red-ink)}
+.alert.err svg{color:var(--red)}
+.alert.warn{background:var(--yel-soft);border-color:var(--yel-line);color:var(--yel-ink)}
+.alert.warn svg{color:var(--or)}
+.alert.ok{background:var(--green-soft);border-color:var(--green-line);color:var(--green)}
+.table-wrap{position:relative;overflow-x:auto;border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;font-size:1rem}
+th{text-align:left;font-size:.78rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:14px 16px;border-top:1px solid var(--line);vertical-align:middle}
+tbody tr:first-child td{border-top:0}
+tbody tr:hover td{background:var(--surface-2)}
+tr.fm td{background:color-mix(in srgb,var(--blue-soft) 45%,var(--surface))}
+tfoot td{font-weight:800;color:var(--ink);background:var(--surface-2);border-top:2px solid var(--line)}
+.num-c{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.pos{width:1%;font-family:"JetBrains Mono",monospace;font-weight:700;color:var(--muted)}
+td.act{width:1%;white-space:nowrap;text-align:right}
+.fname{font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.fsub{color:var(--muted);font-size:.88rem;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tag-hdr{font-size:.7rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 9px;border-radius:999px;background:var(--green-soft);color:var(--green);border:1px solid var(--green-line);margin-left:8px;vertical-align:2px}
+select{font:inherit;font-weight:600;font-size:.95rem;padding:8px 10px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink)}
+select.pend{border-color:var(--red);color:var(--red);background:var(--red-soft)}
+select:focus-visible{outline:3px solid var(--or-line);outline-offset:1px}
+.mini{display:inline-flex;gap:4px}
+.mini .btn{padding:7px;border-radius:9px}
+.mini .btn svg{width:17px;height:17px}
+.mini .btn.rm:hover{color:var(--red);border-color:var(--red-line);background:var(--red-soft)}
+.note{color:var(--muted);font-size:.95rem;margin:14px 0 0}
+.actions{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap;margin-top:22px}
+#conf:empty{display:none}
+#conf{margin-top:18px}
+.foot{margin:34px 0 0;text-align:center;color:var(--muted);font-size:.95rem;display:flex;gap:8px;align-items:center;justify-content:center}
+.foot svg{width:18px;height:18px;color:var(--green);flex:none}
+@media (max-width:640px){
+  .wrap{padding:16px 12px 40px}.panel{padding:20px 16px}
+  .card-head,.card-body{padding:20px 16px}
+  td,th{padding:10px 8px}
+  td.pos,th:first-child{padding-left:12px}
+  select{font-size:.88rem;padding:7px 6px}
+  .fsub span:not(.chip){display:none}
+  .actions .btn{width:100%;justify-content:center}
+  .progress{padding:20px 18px}
+  .pg-pct{font-size:1.5rem}
+  .drop{padding:40px 16px}
+}
+dialog.termo{border:0;padding:0;border-radius:26px;width:min(860px,calc(100vw - 24px));max-height:calc(100dvh - 24px);background:var(--surface);color:var(--text);box-shadow:0 30px 80px rgba(0,0,0,.35);overflow:hidden}
+dialog.termo[open]{display:flex;flex-direction:column}
+dialog.termo::backdrop{background:rgba(15,23,42,.6);backdrop-filter:blur(2px)}
+.t-head{flex:none;display:flex;align-items:center;gap:20px;padding:28px 32px;background:linear-gradient(110deg,#FF9F0A,#FF6A00 70%,#FF5A00);color:#fff}
+.stile{flex:none;width:68px;height:68px;border-radius:16px;display:grid;place-items:center;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3)}
+.stile svg{width:34px;height:34px}
+.t-pill{display:inline-block;font-family:"Outfit",sans-serif;font-size:.85rem;font-weight:800;letter-spacing:.06em;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:3px 14px}
+.t-head h2{color:#fff;margin:6px 0 0;font-size:clamp(1.3rem,3vw,1.75rem);font-weight:800;line-height:1.2}
+.t-close{flex:none;align-self:flex-start;background:transparent;border:0;color:#fff;cursor:pointer;padding:6px;border-radius:10px}
+.t-close:hover{background:rgba(255,255,255,.18)}
+.t-close svg{width:26px;height:26px}
+.t-body{flex:1;overflow-y:auto;padding:12px 36px 24px}
+.t-call{background:var(--yel-soft);border:1px solid var(--yel-line);border-radius:16px;padding:20px 24px;margin-top:12px}
+.t-call h3{margin:0 0 8px;display:flex;gap:10px;align-items:center;font-size:1.2rem;color:var(--yel-ink)}
+.t-call h3 svg{width:22px;height:22px;color:var(--or);flex:none}
+.t-call p{margin:0;color:var(--or-ink);line-height:1.7}
+.t-lbl{margin:28px 0 12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;font-size:.9rem;color:var(--muted)}
+.t-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.t-list li{display:flex;gap:14px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:16px 18px;line-height:1.55}
+.t-list .n{flex:none;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;background:var(--or-soft);color:var(--or-ink);font-weight:800;font-size:.85rem;margin-top:1px}
+.t-list b{color:var(--ink)}
+.t-decl{display:flex;gap:16px;background:var(--red-soft);border:1px solid var(--red-line);border-radius:16px;padding:22px 24px;margin-top:22px;color:var(--red-ink);line-height:1.7}
+.t-decl svg{flex:none;width:26px;height:26px;color:var(--red);margin-top:2px}
+.t-check{display:flex;gap:14px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--line-2);border-radius:16px;padding:20px 22px;margin-top:20px;font-weight:700;color:var(--ink);cursor:pointer;line-height:1.5}
+.t-check input{flex:none;width:20px;height:20px;margin:2px 0 0;accent-color:var(--or);cursor:pointer}
+.t-foot{flex:none;display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap;padding:20px 32px;border-top:1px solid var(--line);background:var(--panel)}
+.t-foot .btn.primary:disabled{background:var(--line-2);border-color:var(--line-2);color:var(--muted);box-shadow:none;opacity:1}
+@media (max-width:640px){.t-head{padding:20px;gap:14px}.stile{width:52px;height:52px}.t-body{padding:8px 18px 18px}.t-foot{padding:16px 18px}.t-foot .btn{flex:1;justify-content:center}}
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60;max-width:calc(100vw - 32px)}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}.tile svg,.pg-ico svg,.spin{animation-duration:2.5s!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="panel">
+  <header class="hero">
+    <div class="brandbox"><img src="data:image/png;base64,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" width="324" height="63" alt="Mantran"></div>
+    <div class="titles">
+      <h1>Juntar Planilhas <span class="pill-or">Shopee 4PL</span></h1>
+      <p>Une as planilhas exportadas por operação num único arquivo para importação no Mantran.</p>
+    </div>
+    <div class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z"/><path d="m9 12 2 2 4-4"/></svg> Processamento Seguro <b>100% Local</b></div>
+  </header>
+
+  <ol class="steps">
+    <li><span class="num o">1</span><div><b>Envie as Planilhas</b><span>Arraste os arquivos de Line Haul, Last Mile e First Mile (.xlsx)</span></div></li>
+    <li><span class="num b">2</span><div><b>Ordem Automática</b><span>Cabeçalho de Line Haul ou Last Mile na primeira linha e First Mile sempre por último</span></div></li>
+    <li><span class="num g">3</span><div><b>Download Unificado</b><span>Baixe uma única planilha, conferida célula por célula</span></div></li>
+  </ol>
+
+  <label class="drop" id="drop">
+    <span class="tile" id="dropTile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="m7 9 5-5 5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></span>
+    <strong id="dropTitle">Arraste as planilhas exportadas aqui</strong>
+    <span class="sub">ou clique para escolher no seu computador (pode enviar mais de uma de uma vez)</span>
+    <span class="btn-or" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h2"/><path d="M13 13h2"/><path d="M9 17h2"/><path d="M13 17h2"/></svg> Escolher Arquivos (.xlsx)</span>
+    <input type="file" id="input" accept=".xlsx,.xlsm,.xls,.csv" multiple aria-label="Escolher planilhas">
+  </label>
+
+  <section class="progress hidden" id="progress" aria-live="polite">
+    <div class="pg-top">
+      <div class="pg-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/></svg></div>
+      <div class="pg-txt">
+        <div class="pg-title" id="pgTitle">Lendo Planilha</div>
+        <div class="pg-sub" id="pgSub">Preparando…</div>
+      </div>
+      <div class="pg-pct" id="pgPct">0%</div>
+    </div>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso da leitura" id="pgBar"><i id="pgFill"></i></div>
+    <ol class="stages" id="pgStages">
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16 10"/></svg> 1. Leitura do arquivo</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16 10"/></svg> 2. Identificação da operação</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16 10"/></svg> 3. Ordem de montagem</li>
+    </ol>
+  </section>
+</div>
+
+<div id="results"></div>
+
+<p class="foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z"/><path d="m9 12 2 2 4-4"/></svg> Os arquivos são processados com segurança diretamente no seu navegador e não são enviados para nenhum servidor externo.</p>
+</div>
+
+<dialog class="termo" id="termo" aria-labelledby="t-titulo">
+  <div class="t-head">
+    <div class="stile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z"/><path d="M12 8v4.5"/><path d="M12 16h.01"/></svg></div>
+    <div class="grow">
+      <span class="t-pill">CONFERÊNCIA OBRIGATÓRIA</span>
+      <h2 id="t-titulo">Validação da Planilha Unificada</h2>
+    </div>
+    <button type="button" class="t-close" id="tClose" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg></button>
+  </div>
+  <div class="t-body">
+    <div class="t-call">
+      <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4.5"/><path d="M12 17h.01"/></svg> Valide os dados antes de disponibilizar a planilha!</h3>
+      <p>A leitura e a junção das planilhas foram concluídas. Para garantir a precisão operacional e financeira do processo, confira atentamente as informações antes de baixar a planilha e importá-la no Mantran.</p>
+    </div>
+    <p class="t-lbl">Pontos fundamentais para você conferir:</p>
+    <ol class="t-list">
+      <li><span class="n">1</span><span><b>Total de Linhas / Registros:</b> Confira se a quantidade total de linhas da planilha unificada bate exatamente com a soma dos arquivos enviados.</span></li>
+      <li><span class="n">2</span><span><b>Ordem e Operações:</b> Confirme se as operações identificadas (Line Haul, Last Mile e First Mile) correspondem às filiais e aos serviços corretos, com o cabeçalho apenas na primeira linha e First Mile por último.</span></li>
+      <li><span class="n">3</span><span><b>Valores Financeiros:</b> Certifique-se de que a soma do campo <i>“valor final a receber”</i> coincide com o fechamento acordado.</span></li>
+    </ol>
+    <div class="t-decl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z"/><path d="M12 8v4.5"/><path d="M12 16h.01"/></svg><div><b>Declaração de Responsabilidade:</b><br>É de <b>inteira responsabilidade do Usuário</b> conferir e validar os dados da planilha antes de disponibilizá-la. O Juntar Planilhas é uma ferramenta de apoio à unificação de arquivos, cabendo ao usuário a verificação e a aprovação dos dados antes de seu uso ou importação.</div></div>
+    <label class="t-check"><input type="checkbox" id="tCheck"> Estou ciente de que é de minha inteira responsabilidade validar os dados da planilha antes de disponibilizá-la.</label>
+  </div>
+  <div class="t-foot">
+    <button type="button" class="btn" id="tCancel">Cancelar</button>
+    <button type="button" class="btn primary" id="tOk" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16 10"/></svg> <span id="tOkTxt">Entendido, vou validar os dados</span></button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* Juntar Planilhas · Shopee 4PL
+   Ordem: Line Haul e Last Mile primeiro (o primeiro deles fornece o cabeçalho),
+   First Mile sempre por último. Sem validação de cabeçalho. */
+
+const OPS = {
+  lh: {nome:"Line Haul",  peso:1},
+  lm: {nome:"Last Mile",  peso:1},
+  fm: {nome:"First Mile", peso:2}
+};
+const int = new Intl.NumberFormat("pt-BR");
+
+let downloadsP = null;
+function getDownloads(){
+  if(!downloadsP){
+    downloadsP = (window.claude && typeof window.claude.use === "function")
+      ? window.claude.use("downloads").catch(()=>null)
+      : Promise.resolve(null);
+  }
+  return downloadsP;
+}
+
+function toast(t){
+  const el = document.getElementById("toast");
+  el.textContent = t; el.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(()=>el.classList.remove("show"),2600);
+}
+
+async function salvar(filename, data){
+  const blob = data instanceof Blob ? data : new Blob([data],{type:"application/octet-stream"});
+  const dl = await getDownloads();
+  if(dl){
+    try{
+      await dl.save({filename, data: blob});
+      toast("Arquivo salvo: " + filename);
+    }catch(e){
+      if(e && e.code === "declined") toast("Download cancelado");
+      else if(e && e.code === "rate_limited") toast("Já existe um download aguardando confirmação");
+      else toast("Não foi possível salvar: " + (e && e.message ? e.message : "erro"));
+    }
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+}
+
+
+function el(tag, attrs={}, ...kids){
+  const e = document.createElement(tag);
+  for(const [k,v] of Object.entries(attrs)){
+    if(k === "class") e.className = v;
+    else if(k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if(v !== null && v !== undefined) e.setAttribute(k, v);
+  }
+  kids.flat().forEach(k => e.append(k instanceof Node ? k : document.createTextNode(k)));
+  return e;
+}
+
+
+
+const ICON = {"shieldok": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z\"/><path d=\"m9 12 2 2 4-4\"/></svg>", "shieldex": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z\"/><path d=\"M12 8v4.5\"/><path d=\"M12 16h.01\"/></svg>", "upload": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 15V4\"/><path d=\"m7 9 5-5 5 5\"/><path d=\"M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3\"/></svg>", "sync": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 11a8 8 0 0 0-14.3-4.9L4 8\"/><path d=\"M4 4v4h4\"/><path d=\"M4 13a8 8 0 0 0 14.3 4.9L20 16\"/><path d=\"M20 20v-4h-4\"/></svg>", "filesheet": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"/><path d=\"M14 3v5h5\"/><path d=\"M9 13h2\"/><path d=\"M13 13h2\"/><path d=\"M9 17h2\"/><path d=\"M13 17h2\"/></svg>", "warn": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z\"/><path d=\"M12 9v4.5\"/><path d=\"M12 17h.01\"/></svg>", "info": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11v5\"/><path d=\"M12 8h.01\"/></svg>", "x": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M6 6l12 12\"/><path d=\"M18 6 6 18\"/></svg>", "checkcircle": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"m8 12.5 2.8 2.8L16 10\"/></svg>"};
+ICON.up   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>';
+ICON.down = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+ICON.trash= '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4h6v3"/></svg>';
+ICON.xcircle='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg>';
+ICON.dl   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>';
+const icon = k => { const t = document.createElement("template"); t.innerHTML = ICON[k].trim(); const svg = t.content.firstChild; svg.setAttribute("aria-hidden","true"); return svg; };
+
+function alerta(tipo, titulo, texto){
+  const ic = tipo === "err" ? "xcircle" : tipo === "ok" ? "checkcircle" : "warn";
+  return el("div",{class:"alert " + tipo, role: tipo === "err" ? "alert" : null}, icon(ic), el("div",{}, titulo ? el("b",{}, titulo) : "", texto));
+}
+const tamanho = b => b == null ? "" : b >= 1048576 ? (b/1048576).toFixed(1).replace(".",",") + " MB" : Math.max(1, Math.round(b/1024)) + " KB";
+
+const semAcento = s => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+
+/* Identifica a operação: primeiro pelo nome do arquivo, depois pelo conteúdo */
+function detectarNoTexto(t){
+  t = semAcento(t).replace(/[_\-.]+/g," ");
+  if(/line\s*haul|linehaul/.test(t)) return "lh";
+  if(/last\s*mile|lastmile/.test(t)) return "lm";
+  if(/first\s*mile|firstmile/.test(t)) return "fm";
+  // abreviações isoladas no nome do arquivo: LH, LM, FM
+  if(/(^|\s)lh(\s|$)/.test(t)) return "lh";
+  if(/(^|\s)lm(\s|$)/.test(t)) return "lm";
+  if(/(^|\s)fm(\s|$)/.test(t)) return "fm";
+  return "";
+}
+function detectarNoConteudo(ws, r0, r1, c1){
+  const cont = {lh:0, lm:0, fm:0};
+  for(let r = r0; r <= Math.min(r1, r0 + 300); r++){
+    for(let c = 0; c <= Math.min(c1, 80); c++){
+      const cell = ws[XLSX.utils.encode_cell({r,c})];
+      if(cell && cell.t === "s"){ const op = detectarNoTexto(cell.v); if(op) cont[op]++; }
+    }
+  }
+  const melhor = Object.entries(cont).sort((a,b)=>b[1]-a[1])[0];
+  return melhor[1] > 0 ? melhor[0] : "";
+}
+
+function linhaVazia(ws, r, c0, c1){
+  for(let c = c0; c <= c1; c++){
+    const cell = ws[XLSX.utils.encode_cell({r,c})];
+    if(cell && cell.v !== undefined && cell.v !== null && String(cell.v).trim() !== "") return false;
+  }
+  return true;
+}
+
+function copiarCelula(cell){
+  const n = {t:cell.t, v:cell.v};
+  if(cell.z) n.z = cell.z;
+  // fórmula sem valor calculado salvo: mantém a fórmula para não perder a célula
+  if((cell.v === undefined || cell.v === null) && cell.f){ n.f = cell.f; delete n.v; }
+  if(cell.t === "s" && cell.v === undefined && !n.f) n.v = "";
+  return n;
+}
+
+/* Área real ocupada pela aba, calculada a partir das células.
+   Alguns sistemas gravam a dimensão da planilha errada (menor que o conteúdo);
+   confiar nela faria linhas e colunas serem descartadas. */
+function rangeReal(ws){
+  let r0 = Infinity, c0 = Infinity, r1 = -1, c1 = -1;
+  for(const k of Object.keys(ws)){
+    if(k[0] === "!") continue;
+    const {r, c} = XLSX.utils.decode_cell(k);
+    if(r < r0) r0 = r; if(r > r1) r1 = r;
+    if(c < c0) c0 = c; if(c > c1) c1 = c;
+  }
+  if(r1 < 0) return null;
+  return {s:{r:r0, c:c0}, e:{r:r1, c:c1}};
+}
+
+let seq = 0;
+function lerPlanilha(nomeArquivo, buffer){
+  const wb = XLSX.read(buffer, {type:"array", cellNF:true, cellDates:false, cellStyles:false});
+  // primeira aba que tem conteúdo
+  let nomeAba = null, ws = null, range = null;
+  for(const n of wb.SheetNames){
+    const w = wb.Sheets[n];
+    const rg = w ? rangeReal(w) : null;
+    if(rg){ nomeAba = n; ws = w; range = rg; break; }
+  }
+  const item = {id: ++seq, nomeArquivo, op:"", auto:false, linhas:0, aviso:"", erro:""};
+  if(!ws){ item.erro = "Planilha vazia"; return item; }
+
+  // cabeçalho = primeira linha não vazia
+  let cab = range.s.r;
+  while(cab <= range.e.r && linhaVazia(ws, cab, range.s.c, range.e.c)) cab++;
+  if(cab > range.e.r){ item.erro = "Planilha vazia"; return item; }
+
+  const dados = [];
+  for(let r = cab + 1; r <= range.e.r; r++) if(!linhaVazia(ws, r, range.s.c, range.e.c)) dados.push(r);
+
+  Object.assign(item, {ws, nomeAba, range, cab, dados, linhas:dados.length, colunas: range.e.c - range.s.c + 1});
+  if(wb.SheetNames.length > 1) item.aviso = `Usada a aba “${nomeAba}” (o arquivo tem ${wb.SheetNames.length} abas)`;
+
+  item.op = detectarNoTexto(nomeArquivo) || detectarNoConteudo(ws, cab, range.e.r, range.e.c);
+  item.auto = !!item.op;
+  return item;
+}
+
+/* Estado */
+let itens = [];
+
+function ordenar(){
+  // mantém a ordem relativa entre Line Haul / Last Mile e joga First Mile para o fim
+  const peso = it => it.erro ? 9 : (it.op ? OPS[it.op].peso : 3);
+  itens = itens.map((it,i)=>({it,i})).sort((a,b)=> peso(a.it)-peso(b.it) || a.i-b.i).map(x=>x.it);
+}
+
+function validos(){ return itens.filter(i => !i.erro); }
+
+function montar(){
+  const lista = validos();
+  const fonteCab = lista.find(i => i.op === "lh" || i.op === "lm") || lista[0];
+  const out = {};
+  let outR = 0, maxC = 0;
+  const esperado = []; // [endereço, valor] de cada célula copiada, para a conferência
+  const copiarLinha = (it, r) => {
+    const {ws, range} = it;
+    for(let c = range.s.c; c <= range.e.c; c++){
+      const cell = ws[XLSX.utils.encode_cell({r,c})];
+      const oc = c - range.s.c;
+      if(cell){
+        const addr = XLSX.utils.encode_cell({r:outR, c:oc});
+        out[addr] = copiarCelula(cell);
+        if(cell.v !== undefined && cell.v !== null && cell.v !== "") esperado.push([addr, cell.v]);
+        if(oc > maxC) maxC = oc;
+      }
+    }
+    outR++;
+  };
+  copiarLinha(fonteCab, fonteCab.cab);
+  maxC = Math.max(maxC, fonteCab.colunas - 1);
+  lista.forEach(it => it.dados.forEach(r => copiarLinha(it, r)));
+  const ref = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:Math.max(outR-1,0), c:maxC}});
+  out["!ref"] = ref;
+  if(fonteCab.ws["!cols"]) out["!cols"] = fonteCab.ws["!cols"].slice(fonteCab.range.s.c);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, out, (fonteCab.nomeAba || "Planilha1").slice(0,31));
+  const dados = XLSX.write(wb, {bookType:"xlsx", type:"array", compression:true});
+  const linhasEsperadas = 1 + lista.reduce((s,i)=>s+i.dados.length,0);
+  return {dados, linhas: outR - 1, conferencia: conferir(dados, esperado, linhasEsperadas, outR)};
+}
+
+/* Conferência automática: relê o arquivo gerado e compara célula por célula
+   com o que foi lido das planilhas de origem */
+function conferir(dados, esperado, linhasEsperadas, linhasMontadas){
+  const wb = XLSX.read(dados, {type:"array"});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rg = rangeReal(ws);
+  const linhasArquivo = rg ? rg.e.r + 1 : 0;
+  const problemas = [];
+  if(linhasMontadas !== linhasEsperadas || linhasArquivo !== linhasEsperadas){
+    problemas.push(`linhas: esperadas ${linhasEsperadas}, no arquivo ${linhasArquivo}`);
+  }
+  let diferentes = 0, primeira = "";
+  for(const [addr, v] of esperado){
+    const c = ws[addr];
+    if(!c || c.v !== v){ diferentes++; if(!primeira) primeira = addr; }
+  }
+  if(diferentes) problemas.push(`${diferentes} célula(s) diferentes, a primeira em ${primeira}`);
+  return {ok: !problemas.length, problemas, celulas: esperado.length, linhas: linhasEsperadas};
+}
+
+function nomeSaida(){
+  const ops = [...new Set(validos().map(i => i.op).filter(Boolean))].map(o => OPS[o].nome);
+  return `Planilha unificada - ${ops.join(" + ") || "Shopee"}.xlsx`;
+}
+
+
+/* Progresso da leitura */
+const pg = {
+  box: document.getElementById("progress"), title: document.getElementById("pgTitle"), sub: document.getElementById("pgSub"),
+  pct: document.getElementById("pgPct"), fill: document.getElementById("pgFill"), bar: document.getElementById("pgBar"),
+  stages: [...document.querySelectorAll("#pgStages li")]
+};
+const drop = document.getElementById("drop");
+const dropTitle = document.getElementById("dropTitle");
+const dropTile = document.getElementById("dropTile");
+const esperarPintura = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));
+const pausa = ms => new Promise(r => setTimeout(r, ms));
+
+function progresso(arquivo, pct, sub, etapa){
+  pg.title.replaceChildren("Lendo Planilha: ", el("code",{}, arquivo));
+  pg.sub.textContent = sub;
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  pg.pct.textContent = p + "%"; pg.fill.style.width = p + "%"; pg.bar.setAttribute("aria-valuenow", p);
+  pg.stages.forEach((li,i) => { li.classList.toggle("done", i < etapa); li.classList.toggle("on", i === etapa); });
+}
+function ocupado(on){
+  drop.classList.toggle("busy", on);
+  dropTitle.textContent = on ? "Processando e analisando planilhas…" : "Arraste as planilhas exportadas aqui";
+  dropTile.replaceChildren(icon(on ? "sync" : "upload"));
+  pg.box.classList.toggle("hidden", !on);
+}
+
+/* Termo de responsabilidade */
+const termo = document.getElementById("termo"), tCheck = document.getElementById("tCheck"), tOk = document.getElementById("tOk"), tOkTxt = document.getElementById("tOkTxt");
+let termoResolve = null;
+tCheck.addEventListener("change", () => { tOk.disabled = !tCheck.checked; });
+function fecharTermo(ok){ if(termo.open) termo.close(); const r = termoResolve; termoResolve = null; if(r) r(ok); }
+tOk.addEventListener("click", () => fecharTermo(true));
+document.getElementById("tCancel").addEventListener("click", () => fecharTermo(false));
+document.getElementById("tClose").addEventListener("click", () => fecharTermo(false));
+termo.addEventListener("cancel", e => { e.preventDefault(); fecharTermo(false); });
+function abrirTermo(paraBaixar){
+  tCheck.checked = false; tOk.disabled = true;
+  tOkTxt.textContent = paraBaixar ? "Dados validados, disponibilizar planilha" : "Entendido, vou validar os dados";
+  termo.showModal();
+  termo.querySelector(".t-body").scrollTop = 0;
+  return new Promise(res => { termoResolve = res; });
+}
+
+/* Interface */
+function mover(id, dir){
+  const i = itens.findIndex(x => x.id === id), j = i + dir;
+  if(j < 0 || j >= itens.length) return;
+  [itens[i], itens[j]] = [itens[j], itens[i]];
+  desenhar();
+}
+
+function desenhar(){
+  const out = document.getElementById("results");
+  out.replaceChildren();
+  if(!itens.length) return;
+  ordenar();
+
+  const lista = validos();
+  const erros = itens.filter(i => i.erro);
+  const pendentes = lista.filter(i => !i.op);
+  const temInicio = lista.some(i => i.op === "lh" || i.op === "lm");
+  const fonteCab = lista.find(i => i.op === "lh" || i.op === "lm") || lista[0];
+  const totalLinhas = lista.reduce((s,i)=>s+i.linhas,0);
+  const pronto = lista.length > 0 && !pendentes.length;
+
+  out.append(el("div",{class:"res-head"},
+    el("h2",{}, icon("filesheet"), `Resultados da Análise (${itens.length})`),
+    el("button",{type:"button", class:"btn termo", onclick:()=>abrirTermo(false)}, icon("shieldok"), "Ver Termo de Responsabilidade")));
+
+  out.append(el("div",{class:"notice"},
+    el("div",{class:"ntile"}, icon("warn")),
+    el("div",{class:"grow"},
+      el("h3",{}, "Conferência Obrigatória dos Dados", el("span",{class:"badge-y"},"ATENÇÃO")),
+      el("p",{}, "Antes de disponibilizar a planilha unificada, confira a quantidade de linhas, as operações e os valores apurados. ",
+        el("b",{}, "É de inteira responsabilidade do Usuário validar os dados da planilha antes de disponibilizá-la."))),
+    el("button",{type:"button", class:"btn outline-or", onclick:()=>abrirTermo(false)}, icon("info"), "Conferir Detalhes")));
+
+  const card = el("section",{class:"card"});
+  const subTxt = !lista.length ? "Nenhum arquivo válido para juntar"
+    : pendentes.length ? `Escolha a operação de ${pendentes.length===1?"1 arquivo":pendentes.length+" arquivos"} para liberar o download`
+    : "Pronta para download";
+  card.append(el("div",{class:"card-head " + (pronto ? "ok" : "err")},
+    el("div",{class:"htile " + (pronto ? "ok" : "err")}, icon(pronto ? "checkcircle" : "xcircle")),
+    el("div",{class:"grow"},
+      el("h3",{}, "Planilha Unificada"),
+      el("div",{class:"sub"}, subTxt),
+      el("div",{class:"chips"},
+        el("span",{class:"chip"}, el("b",{}, int.format(lista.length)), lista.length===1?" arquivo":" arquivos"),
+        el("span",{class:"chip"}, el("b",{}, int.format(totalLinhas)), " linhas de dados"),
+        el("span",{class:"chip"}, el("b",{}, int.format(totalLinhas + (lista.length?1:0))), " linhas no total"))),
+    el("button",{type:"button", class:"btn icon", "aria-label":"Limpar tudo", title:"Limpar tudo", onclick:()=>{ itens = []; desenhar(); }}, icon("trash"))));
+
+  if(erros.length || pendentes.length || (lista.length && !temInicio)){
+    const b = el("div",{class:"card-body"});
+    erros.forEach(i => b.append(alerta("err", "Erro ao ler o arquivo:", `${i.nomeArquivo}: ${i.erro}. Este arquivo será ignorado.`)));
+    if(pendentes.length) b.append(alerta("err", "Operação não identificada:", `Escolha a operação de ${pendentes.length===1?"1 arquivo":pendentes.length+" arquivos"} na tabela abaixo para liberar o download.`));
+    if(lista.length && !temInicio) b.append(alerta("warn", "Sem Line Haul ou Last Mile:", `O cabeçalho será copiado de “${fonteCab.nomeArquivo}”.`));
+    card.append(b);
+  }
+
+  if(lista.length){
+    const sec = el("div",{class:"card-body"}, el("h4",{}, "Ordem de Montagem"));
+    const tbl = el("table",{}, el("thead",{}, el("tr",{},
+      el("th",{},"#"), el("th",{},"Arquivo"), el("th",{},"Operação"), el("th",{class:"num-c"},"Linhas"), el("th",{}, el("span",{class:"sr"},"Ações")))));
+    const tb = el("tbody");
+    let pos = 0;
+    itens.forEach((it, idx) => {
+      if(it.erro) return;
+      pos++;
+      const sel = el("select",{"aria-label":"Operação de " + it.nomeArquivo, class: it.op ? "" : "pend", onchange: e => { it.op = e.target.value; it.auto = false; desenhar(); }},
+        el("option",{value:""},"Escolha…"),
+        ...Object.entries(OPS).map(([k,o]) => { const op = el("option",{value:k}, o.nome); if(it.op === k) op.selected = true; return op; }));
+      const subs = [];
+      if(it.tamanho != null) subs.push(el("span",{class:"chip"}, tamanho(it.tamanho)));
+      const det = [];
+      if(it.op && it.auto) det.push("operação identificada automaticamente");
+      if(it.aviso) det.push(it.aviso);
+      if(det.length) subs.push(el("span",{}, det.join(" · ")));
+      const info = el("div",{}, el("div",{class:"fname"}, it.nomeArquivo, it === fonteCab ? el("span",{class:"tag-hdr"},"cabeçalho") : ""), el("div",{class:"fsub"}, ...subs));
+
+      const bloco = x => x.op === "fm" ? "fm" : (x.op ? "ini" : "pend");
+      const ant = itens[idx-1], prox = itens[idx+1];
+      const up = el("button",{type:"button", class:"btn", "aria-label":"Subir", title:"Subir", onclick:()=>mover(it.id,-1)}, icon("up"));
+      const dn = el("button",{type:"button", class:"btn", "aria-label":"Descer", title:"Descer", onclick:()=>mover(it.id,1)}, icon("down"));
+      up.disabled = !(ant && !ant.erro && bloco(ant) === bloco(it));
+      dn.disabled = !(prox && !prox.erro && bloco(prox) === bloco(it));
+      const rm = el("button",{type:"button", class:"btn rm", "aria-label":"Remover " + it.nomeArquivo, title:"Remover", onclick:()=>{ itens = itens.filter(x => x !== it); desenhar(); }}, icon("trash"));
+
+      tb.append(el("tr",{class: it.op === "fm" ? "fm" : ""},
+        el("td",{class:"pos"}, String(pos)),
+        el("td",{}, info),
+        el("td",{}, sel),
+        el("td",{class:"num-c"}, int.format(it.linhas)),
+        el("td",{class:"act"}, el("span",{class:"mini"}, up, dn, rm))));
+    });
+    tbl.append(tb, el("tfoot",{}, el("tr",{}, el("td",{},""), el("td",{},"Total de linhas de dados"), el("td",{},""), el("td",{class:"num-c"}, int.format(totalLinhas)), el("td",{},""))));
+    sec.append(el("div",{class:"table-wrap"}, tbl));
+    sec.append(el("p",{class:"note"}, "O cabeçalho do arquivo marcado vai para a primeira linha. Os cabeçalhos dos demais arquivos são descartados e as linhas de dados são anexadas na ordem acima. First Mile fica sempre no fim."));
+
+    const conf = el("div",{id:"conf", "aria-live":"polite"});
+    const btnLabel = el("span",{}, "Baixar Planilha Unificada");
+    const btnIcon = icon("dl");
+    const btn = el("button",{type:"button", class:"btn primary", onclick: async () => {
+      if(!(await abrirTermo(true))) return;
+      btn.disabled = true;
+      btn.replaceChildren(el("span",{class:"spin", "aria-hidden":"true"}), el("span",{}, "Montando e conferindo…"));
+      try{
+        await esperarPintura();
+        const r = montar();
+        if(!r.conferencia.ok){
+          conf.replaceChildren(alerta("err", "Download bloqueado pela conferência automática:", r.conferencia.problemas.join("; ") + ". Envie os arquivos novamente ou entre em contato com o suporte."));
+          return;
+        }
+        conf.replaceChildren(alerta("ok", "Conferência automática concluída:", `${int.format(r.conferencia.linhas)} linhas e ${int.format(r.conferencia.celulas)} células preenchidas conferidas, sem perda de dados.`));
+        await salvar(nomeSaida(), new Blob([r.dados]));
+      }catch(e){
+        conf.replaceChildren(alerta("err", "Não foi possível montar o arquivo.", ""));
+      }finally{
+        btn.replaceChildren(btnIcon, btnLabel);
+        btn.disabled = !pronto;
+      }
+    }}, btnIcon, btnLabel);
+    btn.disabled = !pronto;
+    sec.append(conf, el("div",{class:"actions"}, btn));
+    card.append(sec);
+  }
+  out.append(card);
+}
+
+async function lerArquivos(files){
+  if(drop.classList.contains("busy")) return;
+  ocupado(true);
+  const n = files.length;
+  try{
+    for(let i = 0; i < n; i++){
+      const f = files[i];
+      const pct = frac => ((i + frac) / n) * 100;
+      progresso(f.name, pct(0.05), "Carregando arquivo na memória…", 0);
+      await esperarPintura();
+      let item;
+      try{
+        const buf = await f.arrayBuffer();
+        progresso(f.name, pct(0.35), "Lendo e descompactando planilha…", 0);
+        await esperarPintura();
+        item = lerPlanilha(f.name, buf);
+        progresso(f.name, pct(0.8), "Identificando a operação do arquivo…", 1);
+        await esperarPintura();
+      }catch(e){
+        item = {id: ++seq, nomeArquivo:f.name, erro:"não foi possível ler o arquivo (verifique se é uma planilha válida e sem senha)"};
+      }
+      item.tamanho = f.size;
+      itens.push(item);
+    }
+    progresso(files[n-1].name, 100, "Organizando a ordem de montagem…", 2);
+    await pausa(350);
+    progresso(files[n-1].name, 100, "Concluído", 3);
+    await pausa(250);
+  }finally{
+    ocupado(false);
+  }
+  desenhar();
+  document.getElementById("results").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+const input = document.getElementById("input");
+input.addEventListener("change", () => { if(input.files.length) lerArquivos([...input.files]); input.value = ""; });
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); if(!drop.classList.contains("busy")) drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => { const fs = [...(e.dataTransfer?.files || [])]; if(fs.length) lerArquivos(fs); });
+getDownloads();
+</script>
+</body>
+</html>

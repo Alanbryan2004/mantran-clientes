@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
   Rocket, Shield, ShoppingBag, UserCog, Users2, Ticket,
   ChevronDown, Code2, Clock, FlaskConical, ListFilter, CheckCircle2,
-  Calendar, PlusCircle, BookOpen, LogIn, MapPin, FileSpreadsheet
+  Calendar, PlusCircle, BookOpen, LogIn, MapPin, FileSpreadsheet, FileStack
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
@@ -25,6 +25,7 @@ const allNavItems = [
   { name: 'FAQ', path: '/faq', icon: BookOpen },
   { name: 'Cidades', path: '/cidades', icon: MapPin },
   { name: 'Separador de Planilhas', path: '/separador-planilhas', icon: FileSpreadsheet },
+  { name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack },
 ]
 
 interface DevSubItem {
@@ -143,12 +144,13 @@ export function Sidebar() {
     const updateNav = () => {
       if (!isMounted) return
 
-      // Visitante não autenticado: visualiza FAQ, Cidades e Separador de Planilhas
+      // Visitante não autenticado: visualiza FAQ, Cidades, Separador e Juntar Planilhas
       if (!user) {
         setAllowedNavItems([
           { name: 'FAQ', path: '/faq', icon: BookOpen },
           { name: 'Cidades', path: '/cidades', icon: MapPin },
           { name: 'Separador de Planilhas', path: '/separador-planilhas', icon: FileSpreadsheet },
+          { name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack },
         ])
         setAllowedDevItems([])
         return
@@ -161,7 +163,7 @@ export function Sidebar() {
       })
       setAllowedDevItems(filteredDev)
       
-      // Cliente do portal de tickets (logou com o próprio e-mail): "Meus Chamados" + FAQ + Cidades + Separador de Planilhas
+      // Cliente do portal de tickets (logou com o próprio e-mail): "Meus Chamados" + FAQ + Cidades + Separador de Planilhas + Juntar Planilhas
       if (isCliente && user?.cliente_email) {
         const clienteItems = [
           { name: 'Meus Chamados', path: '/tickets', icon: Ticket },
@@ -173,11 +175,14 @@ export function Sidebar() {
         if (permissionsApi.canAccessRoute('/separador-planilhas')) {
           clienteItems.push({ name: 'Separador de Planilhas', path: '/separador-planilhas', icon: FileSpreadsheet })
         }
+        if (permissionsApi.canAccessRoute('/juntar-planilhas')) {
+          clienteItems.push({ name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack })
+        }
         setAllowedNavItems(clienteItems)
         return
       }
 
-      // Se for perfil Cliente (legado por implantação): "Minha Implantação" + FAQ + Cidades + Separador de Planilhas
+      // Se for perfil Cliente (legado por implantação): "Minha Implantação" + FAQ + Cidades + Separador de Planilhas + Juntar Planilhas
       if (isCliente) {
         const directPath = user?.implantacao_id ? `/implantacoes/${user.implantacao_id}` : '/implantacoes'
         const clienteItems = [
@@ -189,6 +194,9 @@ export function Sidebar() {
         }
         if (permissionsApi.canAccessRoute('/separador-planilhas')) {
           clienteItems.push({ name: 'Separador de Planilhas', path: '/separador-planilhas', icon: FileSpreadsheet })
+        }
+        if (permissionsApi.canAccessRoute('/juntar-planilhas')) {
+          clienteItems.push({ name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack })
         }
         setAllowedNavItems(clienteItems)
 
@@ -208,6 +216,9 @@ export function Sidebar() {
               }
               if (permissionsApi.canAccessRoute('/separador-planilhas')) {
                 updatedItems.push({ name: 'Separador de Planilhas', path: '/separador-planilhas', icon: FileSpreadsheet })
+              }
+              if (permissionsApi.canAccessRoute('/juntar-planilhas')) {
+                updatedItems.push({ name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack })
               }
               setAllowedNavItems(updatedItems)
             }
