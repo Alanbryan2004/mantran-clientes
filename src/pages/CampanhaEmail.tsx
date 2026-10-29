@@ -194,9 +194,11 @@ export function CampanhaEmail() {
       ? `<a href="${urlAbsoluta('/api/descadastro')}?email=${encodeURIComponent(d.email)}" style="color:#94a3b8;text-decoration:underline">descadastrar</a>`
       : ''
     const logoSrc = urlAbsoluta(logoUrl)
+    // Em e-mail o max-height do CSS costuma ser ignorado; o atributo height do
+    // <img> é respeitado. Fixa a altura (largura automática mantém a proporção).
     const logo = logoSrc
       ? `<tr><td style="padding:24px 32px;background:#ffffff;border-bottom:3px solid ${corDestaque}">
-           <img src="${logoSrc}" alt="logo" style="max-height:44px;height:auto;display:block" /></td></tr>`
+           <img src="${logoSrc}" alt="logo" height="40" style="height:40px;width:auto;max-width:220px;display:block;border:0;outline:none;text-decoration:none" /></td></tr>`
       : ''
     return `<!doctype html><html><body style="margin:0;padding:0;background:#f1f5f9">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0">

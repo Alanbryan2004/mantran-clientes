@@ -45,6 +45,13 @@ export interface NfseItem {
   emitia_rps: boolean | null
   cnpj_emissao: string
   codigo_nbs?: string
+  // Certificado digital A1 por cadastro de NFSe (cada CNPJ/município pode ter o seu).
+  certificado?: {
+    arquivo_nome: string
+    arquivo_base64: string
+    arquivo_tamanho?: number
+    senha: string
+  }
 }
 
 export interface PercursoLineHaulItem {

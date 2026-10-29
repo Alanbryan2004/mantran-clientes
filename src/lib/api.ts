@@ -1051,21 +1051,26 @@ export const api = {
       if (error) throw error
     }
 
-    // Atualiza a etapa 'Mercado Livre' para refletir o preenchimento.
+    // Marca a etapa correta como OK/PENDENTE ao preencher o checkpoint.
+    // Na implantação DEDICADA nova (que tem o card 'Checkpoint'), o checkpoint
+    // MELI vive no card 'Checkpoint' (espelha a NFSe). No legado (só a etapa
+    // 'Mercado Livre'), marca a própria etapa de MELI.
     const completo = !!novosDados.meli.client_id && !!novosDados.meli.client_secret
     const { data: etapas } = await supabase
       .from('implantacao_etapas')
       .select('id, nome_etapa')
       .eq('implantacao_id', implantacaoId)
-    const etapaMeli = (etapas || []).find((e: any) => {
+    const etapaCheckpoint = (etapas || []).find((e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint')
+    const etapaMeliLegado = (etapas || []).find((e: any) => {
       const n = (e.nome_etapa || '').trim().toLowerCase()
       return n === 'treinamento meli' || n === 'mercado livre'
     })
-    if (etapaMeli) {
+    const alvo = etapaCheckpoint || etapaMeliLegado
+    if (alvo) {
       await supabase
         .from('implantacao_etapas')
         .update({ valor: completo ? 'OK' : 'PENDENTE' })
-        .eq('id', etapaMeli.id)
+        .eq('id', alvo.id)
     }
     return { completo }
   },

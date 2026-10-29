@@ -53,13 +53,8 @@ export function NfseCheckpointModal({
   onSuccess
 }: NfseCheckpointModalProps) {
   const [parametros, setParametros] = useState<NfseItem[]>([novoParametro()])
-  const [certificado, setCertificado] = useState<CertificadoState>({
-    arquivo_nome: '',
-    arquivo_base64: '',
-    arquivo_tamanho: 0,
-    senha: ''
-  })
-  const [showCertSenha, setShowCertSenha] = useState(false)
+  // controla a visibilidade da senha por cadastro (índice -> boolean)
+  const [showCertSenha, setShowCertSenha] = useState<Record<number, boolean>>({})
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState('')
@@ -77,26 +72,25 @@ export function NfseCheckpointModal({
     setLoading(true)
     try {
       const data = await api.getNfseCheckpoint(implantacaoId)
-      const lista = Array.isArray(data?.parametros) && data.parametros.length > 0
+      let lista: NfseItem[] = Array.isArray(data?.parametros) && data.parametros.length > 0
         ? data.parametros
         : (Array.isArray(data) && data.length > 0 ? data : [novoParametro()])
-      setParametros(lista)
 
-      if (data?.certificado_digital) {
-        setCertificado({
-          arquivo_nome: data.certificado_digital.arquivo_nome || '',
-          arquivo_base64: data.certificado_digital.arquivo_base64 || '',
-          arquivo_tamanho: data.certificado_digital.arquivo_tamanho || 0,
-          senha: data.certificado_digital.senha || ''
-        })
-      } else {
-        setCertificado({
-          arquivo_nome: '',
-          arquivo_base64: '',
-          arquivo_tamanho: 0,
-          senha: ''
-        })
+      // Retrocompatibilidade: se houver um certificado GLOBAL antigo e o 1º cadastro
+      // ainda não tiver certificado próprio, migra o global para ele.
+      const certGlobal = data?.certificado_digital
+      const temCertGlobal = certGlobal && (certGlobal.arquivo_nome || certGlobal.senha)
+      if (temCertGlobal && lista[0] && !lista[0].certificado) {
+        lista = lista.map((p, i) => i === 0
+          ? { ...p, certificado: {
+              arquivo_nome: certGlobal.arquivo_nome || '',
+              arquivo_base64: certGlobal.arquivo_base64 || '',
+              arquivo_tamanho: certGlobal.arquivo_tamanho || 0,
+              senha: certGlobal.senha || ''
+            } }
+          : p)
       }
+      setParametros(lista)
     } catch (err) {
       console.error('Erro ao carregar checkpoint NFSe:', err)
       setParametros([novoParametro()])
@@ -105,42 +99,40 @@ export function NfseCheckpointModal({
     }
   }
 
-  const handleCertificadoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const certVazio = (): CertificadoState => ({ arquivo_nome: '', arquivo_base64: '', arquivo_tamanho: 0, senha: '' })
+
+  // Atualiza o certificado de um cadastro específico (por índice).
+  const atualizarCert = (index: number, patch: Partial<CertificadoState>) => {
+    setParametros(prev => prev.map((p, i) => {
+      if (i !== index) return p
+      const atual = p.certificado || certVazio()
+      return { ...p, certificado: { ...atual, ...patch } }
+    }))
+  }
+
+  const handleCertificadoUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     if (file.size > 10 * 1024 * 1024) {
       alert('O arquivo de certificado é muito grande. O limite é de 10MB.')
       return
     }
-
     const reader = new FileReader()
     reader.onload = () => {
-      const base64 = reader.result as string
-      setCertificado(prev => ({
-        ...prev,
-        arquivo_nome: file.name,
-        arquivo_base64: base64,
-        arquivo_tamanho: file.size
-      }))
+      atualizarCert(index, { arquivo_nome: file.name, arquivo_base64: reader.result as string, arquivo_tamanho: file.size })
     }
     reader.readAsDataURL(file)
+    e.target.value = '' // permite reupload do mesmo arquivo
   }
 
-  const handleRemoverCertificado = () => {
-    setCertificado({
-      arquivo_nome: '',
-      arquivo_base64: '',
-      arquivo_tamanho: 0,
-      senha: ''
-    })
-  }
+  const handleRemoverCertificado = (index: number) => atualizarCert(index, certVazio())
 
-  const handleDownloadCertificado = () => {
-    if (!certificado.arquivo_base64) return
+  const handleDownloadCertificado = (index: number) => {
+    const cert = parametros[index]?.certificado
+    if (!cert?.arquivo_base64) return
     const link = document.createElement('a')
-    link.href = certificado.arquivo_base64
-    link.download = certificado.arquivo_nome || 'certificado.pfx'
+    link.href = cert.arquivo_base64
+    link.download = cert.arquivo_nome || 'certificado.pfx'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -162,9 +154,10 @@ export function NfseCheckpointModal({
     if (readOnly) return
     setErro('')
 
-    // Se anexou arquivo de certificado mas não informou a senha:
-    if (certificado.arquivo_base64 && !certificado.senha.trim()) {
-      setErro('Por favor, informe a senha do Certificado Digital A1.')
+    // Para cada cadastro: se anexou o arquivo do certificado, a senha é obrigatória.
+    const idxSemSenha = parametros.findIndex(p => p.certificado?.arquivo_base64 && !(p.certificado?.senha || '').trim())
+    if (idxSemSenha >= 0) {
+      setErro(`Informe a senha do Certificado Digital do cadastro #${idxSemSenha + 1}.`)
       return
     }
 
@@ -175,7 +168,11 @@ export function NfseCheckpointModal({
     }
     setSaving(true)
     try {
-      await api.saveNfseCheckpoint(implantacaoId, parametros, certificado)
+      // Mantém o certificado GLOBAL (consumido pelo checklist/visualização) apontando
+      // para o certificado do primeiro cadastro que tiver um anexado.
+      const primeiroCert = parametros.find(p => p.certificado?.arquivo_nome || (p.certificado?.senha || '').trim())?.certificado
+      const certificadoGlobal = primeiroCert || certVazio()
+      await api.saveNfseCheckpoint(implantacaoId, parametros, certificadoGlobal)
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -233,152 +230,12 @@ export function NfseCheckpointModal({
             <div className="text-xs text-slate-400 py-6 text-center">Carregando...</div>
           ) : (
             <>
-              {/* SEÇÃO: CERTIFICADO DIGITAL A1 (.PFX) */}
-              <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-brand-500/15 border border-brand-500/30 text-brand-400 flex items-center justify-center shrink-0 mt-0.5">
-                    <KeyRound className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-brand-400 uppercase tracking-wider">
-                      Certificado Digital A1 (.pfx) & Senha
-                    </h4>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      O certificado digital A1 é necessário para a emissão e assinatura eletrônica das suas Notas Fiscais de Serviço (NFSe) na Prefeitura.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Upload do Certificado */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-2">
-                    Arquivo do Certificado Digital (.pfx / .p12):
-                  </label>
-
-                  <input
-                    type="file"
-                    id="nfse-cert-file"
-                    accept=".pfx,.p12,application/x-pkcs12"
-                    onChange={handleCertificadoUpload}
-                    disabled={readOnly}
-                    className="hidden"
-                  />
-
-                  {certificado.arquivo_nome ? (
-                    <div className="flex items-center justify-between p-4 bg-slate-800/60 rounded-xl border border-emerald-500/40 flex-wrap gap-3">
-                      <div className="flex items-center space-x-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                          <Lock className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-white flex items-center gap-1.5 truncate">
-                            <span className="truncate">{certificado.arquivo_nome}</span>
-                            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 uppercase shrink-0">
-                              Anexado
-                            </span>
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {certificado.arquivo_tamanho 
-                              ? `${(certificado.arquivo_tamanho / 1024).toFixed(1)} KB` 
-                              : 'Certificado pronto'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {certificado.arquivo_base64 && (
-                          <button
-                            type="button"
-                            onClick={handleDownloadCertificado}
-                            className="text-xs py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
-                            title="Baixar certificado"
-                          >
-                            <Download className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Baixar</span>
-                          </button>
-                        )}
-                        {!readOnly && (
-                          <>
-                            <label
-                              htmlFor="nfse-cert-file"
-                              className="text-xs py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand-300 hover:text-brand-200 border border-brand-500/40 cursor-pointer transition-colors"
-                            >
-                              Substituir
-                            </label>
-                            <button
-                              type="button"
-                              onClick={handleRemoverCertificado}
-                              className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
-                              title="Remover certificado"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    readOnly ? (
-                      <div className="p-4 bg-slate-800/40 rounded-xl border border-slate-800 text-xs text-slate-500 italic text-center">
-                        Nenhum certificado digital anexado.
-                      </div>
-                    ) : (
-                      <label
-                        htmlFor="nfse-cert-file"
-                        className="border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-xl p-6 bg-slate-900/40 text-center transition-all cursor-pointer flex flex-col items-center space-y-2 block group"
-                      >
-                        <div className="w-12 h-12 rounded-full bg-brand-500/10 group-hover:bg-brand-500/20 border border-brand-500/30 text-brand-400 flex items-center justify-center transition-colors">
-                          <KeyRound className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">
-                            Clique para selecionar o certificado (.pfx)
-                          </p>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            Formatos suportados: .pfx ou .p12 (Certificado A1)
-                          </p>
-                        </div>
-                      </label>
-                    )
-                  )}
-                </div>
-
-                {/* Senha do Certificado */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Senha do Certificado Digital:
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showCertSenha ? "text" : "password"}
-                      placeholder="Informe a senha do certificado A1..."
-                      value={certificado.senha || ''}
-                      onChange={(e) => setCertificado(prev => ({ ...prev, senha: e.target.value }))}
-                      disabled={readOnly}
-                      className="input-field text-sm pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCertSenha(!showCertSenha)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
-                      title={showCertSenha ? "Ocultar senha" : "Ver senha"}
-                    >
-                      {showCertSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
-                    <span>🔒</span>
-                    <span>A senha será utilizada unicamente para instalação e emissão dos documentos fiscais no servidor seguro.</span>
-                  </p>
-                </div>
-              </div>
-
-              {/* PARÂMETROS FISCAIS DA NFSE */}
+              {/* Cada cadastro de NFSe tem o SEU próprio Certificado Digital A1 + parâmetros */}
               {parametros.map((n, index) => (
                 <div key={n.id} className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold text-brand-400 uppercase tracking-wider">
-                      Parâmetros Fiscais da NFSe {parametros.length > 1 ? `#${index + 1}` : ''}
+                      Cadastro de NFSe {parametros.length > 1 ? `#${index + 1}` : ''}
                     </h4>
                     {parametros.length > 1 && !readOnly && (
                       <button
@@ -391,6 +248,95 @@ export function NfseCheckpointModal({
                       </button>
                     )}
                   </div>
+
+                  {/* CERTIFICADO DIGITAL A1 deste cadastro */}
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-brand-500/15 border border-brand-500/30 text-brand-400 flex items-center justify-center shrink-0 mt-0.5">
+                        <KeyRound className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-bold text-brand-400 uppercase tracking-wider">Certificado Digital A1 (.pfx) & Senha</h5>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Necessário para emissão e assinatura das NFSe deste CNPJ/município.</p>
+                      </div>
+                    </div>
+
+                    <input
+                      type="file"
+                      id={`nfse-cert-file-${index}`}
+                      accept=".pfx,.p12,application/x-pkcs12"
+                      onChange={(e) => handleCertificadoUpload(index, e)}
+                      disabled={readOnly}
+                      className="hidden"
+                    />
+
+                    {n.certificado?.arquivo_nome ? (
+                      <div className="flex items-center justify-between p-3 bg-slate-800/60 rounded-xl border border-emerald-500/40 flex-wrap gap-3">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                            <Lock className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-white flex items-center gap-1.5 truncate">
+                              <span className="truncate">{n.certificado.arquivo_nome}</span>
+                              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 uppercase shrink-0">Anexado</span>
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {n.certificado.arquivo_tamanho ? `${(n.certificado.arquivo_tamanho / 1024).toFixed(1)} KB` : 'Certificado pronto'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {n.certificado.arquivo_base64 && (
+                            <button type="button" onClick={() => handleDownloadCertificado(index)} className="text-xs py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer" title="Baixar certificado">
+                              <Download className="w-3.5 h-3.5 text-slate-400" /><span>Baixar</span>
+                            </button>
+                          )}
+                          {!readOnly && (
+                            <>
+                              <label htmlFor={`nfse-cert-file-${index}`} className="text-xs py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand-300 hover:text-brand-200 border border-brand-500/40 cursor-pointer transition-colors">Substituir</label>
+                              <button type="button" onClick={() => handleRemoverCertificado(index)} className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer" title="Remover certificado">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      readOnly ? (
+                        <div className="p-3 bg-slate-800/40 rounded-xl border border-slate-800 text-xs text-slate-500 italic text-center">Nenhum certificado digital anexado.</div>
+                      ) : (
+                        <label htmlFor={`nfse-cert-file-${index}`} className="border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-xl p-5 bg-slate-900/40 text-center transition-all cursor-pointer flex flex-col items-center space-y-2 block group">
+                          <div className="w-11 h-11 rounded-full bg-brand-500/10 group-hover:bg-brand-500/20 border border-brand-500/30 text-brand-400 flex items-center justify-center transition-colors">
+                            <KeyRound className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">Clique para selecionar o certificado (.pfx)</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Formatos suportados: .pfx ou .p12 (Certificado A1)</p>
+                          </div>
+                        </label>
+                      )
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Senha do Certificado Digital:</label>
+                      <div className="relative">
+                        <input
+                          type={showCertSenha[index] ? 'text' : 'password'}
+                          placeholder="Informe a senha do certificado A1..."
+                          value={n.certificado?.senha || ''}
+                          onChange={(e) => atualizarCert(index, { senha: e.target.value })}
+                          disabled={readOnly}
+                          className="input-field text-sm pr-10"
+                        />
+                        <button type="button" onClick={() => setShowCertSenha(prev => ({ ...prev, [index]: !prev[index] }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer" title={showCertSenha[index] ? 'Ocultar senha' : 'Ver senha'}>
+                          {showCertSenha[index] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider pt-1">Parâmetros Fiscais</h5>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>

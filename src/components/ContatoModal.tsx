@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   X, User, Mail, Phone, Building2, Edit3, Trash2, GitMerge,
   Send, KeyRound, Loader2, Ticket as TicketIcon, Clock
@@ -209,7 +209,8 @@ function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
         celular: celular.trim() || null,
         cargo: cargo.trim() || null,
         empresa_id: empresaId || null,
-        empresa_nome: empresaNome.trim() || null,
+        // só grava o nome quando há vínculo com um cliente existente
+        empresa_nome: empresaId ? (empresaNome.trim() || null) : null,
         grupo_id: grupoId || null,
         ve_todos_empresa: veTodos
       })
@@ -260,23 +261,16 @@ function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
           </div>
           <div>
             <label className={labelCls}>Empresa</label>
-            <input
-              type="text"
-              list="lista-empresas-contato"
-              value={empresaNome}
-              onChange={e => {
-                const nome = e.target.value
-                setEmpresaNome(nome)
-                // Se o texto casar exatamente com um cliente, vincula o id; senão, deixa livre
-                const match = clientes.find(c => (c.nome_empresa || '').toLowerCase() === nome.trim().toLowerCase())
-                setEmpresaId(match ? match.id : '')
+            <EmpresaComboboxContato
+              clientes={clientes}
+              empresaId={empresaId}
+              empresaNome={empresaNome}
+              onSelecionar={(cli) => {
+                setEmpresaId(cli ? cli.id : '')
+                setEmpresaNome(cli ? cli.nome_empresa : '')
               }}
-              placeholder="Digite o nome da empresa..."
-              className={inputCls}
             />
-            <datalist id="lista-empresas-contato">
-              {clientes.map(c => <option key={c.id} value={c.nome_empresa} />)}
-            </datalist>
+            <p className="text-[11px] text-slate-400 mt-1">Só é possível vincular a uma empresa existente no cadastro.</p>
           </div>
           <div>
             <label className={labelCls}>Grupo</label>
@@ -299,6 +293,106 @@ function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// Combobox de empresa (Editar contato): filtra conforme digita e
+// só permite vincular a uma empresa existente no cadastro de clientes.
+// ============================================================
+function EmpresaComboboxContato({ clientes, empresaId, empresaNome, onSelecionar }: {
+  clientes: any[]
+  empresaId: string
+  empresaNome: string
+  onSelecionar: (cliente: any | null) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const [termo, setTermo] = useState('')
+  const [ativo, setAtivo] = useState(0)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const listaRef = useRef<HTMLDivElement>(null)
+
+  const temVinculo = !!empresaId
+  const valorInput = aberto ? termo : (empresaNome || '')
+
+  useEffect(() => {
+    if (!aberto) return
+    const onDocClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setAberto(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [aberto])
+
+  const filtrados = useMemo(() => {
+    const t = termo.trim().toLowerCase()
+    const base = t
+      ? clientes.filter(c => (c.nome_empresa || '').toLowerCase().includes(t))
+      : clientes
+    return [...base].sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR')).slice(0, 50)
+  }, [clientes, termo])
+
+  useEffect(() => { setAtivo(0) }, [termo, aberto])
+  useEffect(() => {
+    if (!aberto || !listaRef.current) return
+    const el = listaRef.current.children[ativo] as HTMLElement | undefined
+    if (el) el.scrollIntoView({ block: 'nearest' })
+  }, [ativo, aberto])
+
+  const selecionar = (c: any) => { onSelecionar(c); setAberto(false); setTermo('') }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (!aberto) { setAberto(true); return } setAtivo(i => Math.min(i + 1, filtrados.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setAtivo(i => Math.max(i - 1, 0)) }
+    else if (e.key === 'Enter') { if (aberto && filtrados[ativo]) { e.preventDefault(); selecionar(filtrados[ativo]) } }
+    else if (e.key === 'Escape') { if (aberto) { e.preventDefault(); setAberto(false) } }
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={valorInput}
+          placeholder="Digite para buscar a empresa…"
+          onFocus={() => { setTermo(''); setAberto(true) }}
+          onChange={e => { setTermo(e.target.value); setAberto(true) }}
+          onKeyDown={onKeyDown}
+          className={clsx(
+            'w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:border-brand-500',
+            temVinculo ? 'border-emerald-300 bg-emerald-50/50 text-emerald-700 font-medium' : 'border-slate-300 bg-white text-slate-700'
+          )}
+        />
+        {temVinculo && (
+          <button type="button" title="Remover vínculo" onClick={() => { onSelecionar(null); setTermo(''); setAberto(false) }} className="shrink-0 text-slate-400 hover:text-red-500">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      {aberto && (
+        <div ref={listaRef} className="absolute z-20 mt-1 w-full max-h-56 overflow-auto scrollbar-clean bg-white border border-slate-200 rounded-lg shadow-lg">
+          {filtrados.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">Nenhuma empresa encontrada</div>
+          ) : (
+            filtrados.map((c, idx) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => selecionar(c)}
+                onMouseEnter={() => setAtivo(idx)}
+                className={clsx(
+                  'w-full text-left px-3 py-1.5 text-sm transition-colors truncate',
+                  idx === ativo ? 'bg-brand-50' : '',
+                  c.id === empresaId ? 'text-emerald-700 font-semibold' : 'text-slate-700'
+                )}
+              >
+                {c.nome_empresa}
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }

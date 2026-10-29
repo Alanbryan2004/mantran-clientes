@@ -354,6 +354,9 @@ export function ImplantacaoDetalhes() {
   // Implantação dedicada de NFSE: possui o card 'Treinamento NFSE'.
   // Nela, o Checkpoint é o formulário enxuto de NFSe (não o questionário completo).
   const isImplantacaoNfse = etapas.some(e => (e.nome_etapa || '').trim().toLowerCase() === 'treinamento nfse')
+  // Implantação dedicada de MELI: possui o card 'Treinamento MELI' (padrão novo,
+  // espelha a NFSe). Nela, o Checkpoint abre o formulário enxuto do MELI.
+  const isImplantacaoMeli = etapas.some(e => (e.nome_etapa || '').trim().toLowerCase() === 'treinamento meli')
 
   const nonFeedbackEtapas = etapas.filter(e => (e.nome_etapa || '').trim().toLowerCase() !== 'feedback')
   const areAllNonFeedbackEtapasOk = nonFeedbackEtapas.length > 0 && nonFeedbackEtapas.every(e => etapaConcluida(e.valor))
@@ -932,7 +935,25 @@ export function ImplantacaoDetalhes() {
                 </div>
               )}
 
-              {((etapa.nome_etapa || '').trim().toLowerCase() === 'checkpoint') && !isImplantacaoNfse && (
+              {((etapa.nome_etapa || '').trim().toLowerCase() === 'checkpoint') && isImplantacaoMeli && !isClienteUser() && (
+                <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsMeliModalOpen(true)}
+                    className={clsx(
+                      "w-full text-xs font-bold py-1.5 px-3 rounded-lg border flex items-center justify-center gap-1.5 transition-colors cursor-pointer",
+                      etapa.valor === 'OK'
+                        ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border-emerald-500/30"
+                        : "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border-amber-500/30"
+                    )}
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span>{etapa.valor === 'OK' ? 'Ver / Editar Checkpoint MELI' : 'Preencher Checkpoint MELI'}</span>
+                  </button>
+                </div>
+              )}
+
+              {((etapa.nome_etapa || '').trim().toLowerCase() === 'checkpoint') && !isImplantacaoNfse && !isImplantacaoMeli && (
                 <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
                   {isClienteUser() ? (
                     checkpointData?.concluido ? (
@@ -978,7 +999,9 @@ export function ImplantacaoDetalhes() {
                 </div>
               )}
 
-              {isMeliEtapa(etapa.nome_etapa) && !isClienteUser() && (
+              {/* Legado: implantação MELI antiga com a etapa única "Mercado Livre"
+                  (sem os 4 cards). Nas novas (isImplantacaoMeli), o botão fica no Checkpoint. */}
+              {isMeliEtapa(etapa.nome_etapa) && !isImplantacaoMeli && !isClienteUser() && (
                 <div className="mt-3 pt-2.5 border-t border-slate-800/60 flex flex-col gap-1.5">
                   <button
                     type="button"

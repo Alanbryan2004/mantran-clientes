@@ -33,6 +33,10 @@ import {
   Plus as PlusIcon,
   Minus,
   BadgeCheck,
+  Upload,
+  FileSpreadsheet,
+  CheckCircle2,
+  Building2,
   Loader2 as Spinner
 } from 'lucide-react'
 import clsx from 'clsx'
@@ -230,11 +234,12 @@ function TicketsAgente() {
   const [mergeListaAddCc, setMergeListaAddCc] = useState(false)
   const [mesclandoLista, setMesclandoLista] = useState(false)
   // Barra flutuante de navegação (estilo Freshdesk): view atual + expandido
-  const [view, setView] = useState<'painel' | 'tickets' | 'contatos' | 'admin'>('tickets')
+  const [view, setView] = useState<'painel' | 'tickets' | 'contatos' | 'empresas' | 'admin'>('tickets')
   const [railAberto, setRailAberto] = useState(false)
   const [agentes, setAgentes] = useState<UsuarioSistema[]>([])
   const [tecnicos, setTecnicos] = useState<UsuarioSistema[]>([])
   const [clientes, setClientes] = useState<any[]>([])
+  const [leoEmpresas, setLeoEmpresas] = useState<any[]>([])
   const [contatos, setContatos] = useState<any[]>([])
   const [emailsFuncionarios, setEmailsFuncionarios] = useState<string[]>([])
 
@@ -269,6 +274,8 @@ function TicketsAgente() {
     api.getUsuariosTecnicos().then(us => setTecnicos(us as UsuarioSistema[])).catch(() => {})
     // Empresas = clientes cadastrados
     api.getClientes().then(cs => setClientes(cs || [])).catch(() => {})
+    // Empresas da Léo Madeiras (entram também na aba Empresas)
+    api.getLeoEmpresas().then(es => setLeoEmpresas(es || [])).catch(() => {})
     // Contatos (para exibir a empresa vinculada nos cards)
     api.getContatos().then(cs => setContatos(cs || [])).catch(() => {})
     // Cadastros auxiliares (tipos, classificações, grupos, departamentos)
@@ -612,6 +619,17 @@ function TicketsAgente() {
         <PainelControleView tickets={tickets} agentes={agentes} tecnicos={tecnicos} loading={loading} />
       ) : view === 'contatos' ? (
         <ContatosView clientes={clientes} grupos={cadastros.grupos} emailsFuncionarios={emailsFuncionarios} onChange={() => api.getContatos().then(cs => setContatos(cs || [])).catch(() => {})} />
+      ) : view === 'empresas' ? (
+        <EmpresasView
+          clientes={clientes}
+          leoEmpresas={leoEmpresas}
+          contatos={contatos}
+          tickets={tickets}
+          emailsFuncionarios={emailsFuncionarios}
+          onChangeClientes={() => api.getClientes().then(cs => setClientes(cs || [])).catch(() => {})}
+          onChangeLeo={() => api.getLeoEmpresas().then(es => setLeoEmpresas(es || [])).catch(() => {})}
+          onChangeContatos={() => api.getContatos().then(cs => setContatos(cs || [])).catch(() => {})}
+        />
       ) : view === 'admin' ? (
         <AdminCadastrosView cadastros={cadastros} onChange={() => api.getTicketCadastros().then(setCadastros).catch(() => {})} />
       ) : (
@@ -1556,13 +1574,14 @@ function ClientePortalDetalhe({ ticketId, clienteNome, clienteEmail, onVoltar }:
 function TicketsNavRail({ aberto, onToggle, view, onSelect }: {
   aberto: boolean
   onToggle: () => void
-  view: 'painel' | 'tickets' | 'contatos' | 'admin'
-  onSelect: (v: 'painel' | 'tickets' | 'contatos' | 'admin') => void
+  view: 'painel' | 'tickets' | 'contatos' | 'empresas' | 'admin'
+  onSelect: (v: 'painel' | 'tickets' | 'contatos' | 'empresas' | 'admin') => void
 }) {
-  const itens: { key: string; label: string; icon: any; target: 'painel' | 'tickets' | 'contatos' | 'admin' }[] = [
+  const itens: { key: string; label: string; icon: any; target: 'painel' | 'tickets' | 'contatos' | 'empresas' | 'admin' }[] = [
     { key: 'painel', label: 'Painel de Controle', icon: LayoutDashboard, target: 'painel' },
     { key: 'tickets', label: 'Tickets', icon: TicketIcon, target: 'tickets' },
     { key: 'contatos', label: 'Contatos', icon: Users, target: 'contatos' },
+    { key: 'empresas', label: 'Empresas', icon: Building2, target: 'empresas' },
     { key: 'admin', label: 'Admin', icon: Settings, target: 'admin' }
   ]
 
@@ -1902,8 +1921,21 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [selecionado, setSelecionado] = useState<TicketContato | null>(null)
+  const [importarAberto, setImportarAberto] = useState(false)
   const [porPagina, setPorPagina] = useState(30)
   const [pagina, setPagina] = useState(1)
+  type OrdenarCampo = 'contato' | 'classificacao' | 'empresa' | 'grupo' | 'email' | 'celular' | 'telefone'
+  const [ordenarPor, setOrdenarPor] = useState<OrdenarCampo | null>(null)
+  const [direcao, setDirecao] = useState<'asc' | 'desc'>('asc')
+
+  const alternarOrdenacao = (campo: OrdenarCampo) => {
+    if (ordenarPor === campo) {
+      setDirecao(d => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setOrdenarPor(campo)
+      setDirecao('asc')
+    }
+  }
 
   const carregar = async () => {
     setLoading(true)
@@ -1947,14 +1979,42 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contatos, busca, clientes, grupos])
 
-  // Volta para a página 1 ao filtrar ou mudar itens por página
-  useEffect(() => { setPagina(1) }, [busca, porPagina])
+  // Ordenação pela coluna clicada no cabeçalho
+  const ordenados = useMemo(() => {
+    if (!ordenarPor) return filtrados
+    const valor = (c: TicketContato): string => {
+      switch (ordenarPor) {
+        case 'contato': return c.nome || ''
+        case 'classificacao': return classificacaoCliente(c)
+        case 'empresa': return empresaNome(c)
+        case 'grupo': return grupoNome(c)
+        case 'email': return c.email || ''
+        case 'celular': return c.celular || ''
+        case 'telefone': return c.telefone_comercial || ''
+        default: return ''
+      }
+    }
+    const fator = direcao === 'asc' ? 1 : -1
+    return [...filtrados].sort((a, b) => {
+      const va = valor(a).trim()
+      const vb = valor(b).trim()
+      // vazios sempre ao final, independente da direção
+      if (!va && !vb) return 0
+      if (!va) return 1
+      if (!vb) return -1
+      return va.localeCompare(vb, 'pt-BR', { sensitivity: 'base', numeric: true }) * fator
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtrados, ordenarPor, direcao, clientes, grupos, emailsFuncionarios])
 
-  const totalRegistros = filtrados.length
+  // Volta para a página 1 ao filtrar, ordenar ou mudar itens por página
+  useEffect(() => { setPagina(1) }, [busca, porPagina, ordenarPor, direcao])
+
+  const totalRegistros = ordenados.length
   const totalPaginas = Math.max(1, Math.ceil(totalRegistros / porPagina))
   const paginaAtual = Math.min(pagina, totalPaginas)
   const inicio = (paginaAtual - 1) * porPagina
-  const contatosPagina = filtrados.slice(inicio, inicio + porPagina)
+  const contatosPagina = ordenados.slice(inicio, inicio + porPagina)
 
   const exportar = async () => {
     try {
@@ -1994,14 +2054,24 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
               <p className="text-[11px] sm:text-xs text-slate-500">{contatos.length} contato(s) cadastrado(s)</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={exportar}
-            className="py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors cursor-pointer self-start sm:self-auto"
-          >
-            <Download className="w-4 h-4 shrink-0" />
-            <span>Exportar</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setImportarAberto(true)}
+              className="py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition-colors cursor-pointer"
+            >
+              <Upload className="w-4 h-4 shrink-0" />
+              <span>Importar</span>
+            </button>
+            <button
+              type="button"
+              onClick={exportar}
+              className="py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors cursor-pointer"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              <span>Exportar</span>
+            </button>
+          </div>
         </div>
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -2019,18 +2089,36 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
       <div className="flex-1 min-h-0 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
         <div className="flex-1 min-h-0 overflow-auto scrollbar-clean">
           <div className="min-w-[1040px]">
-            {/* Cabeçalho (sempre visível) */}
+            {/* Cabeçalho (sempre visível) — clique para ordenar */}
             <div
               className="grid sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase tracking-wide text-slate-500"
               style={{ gridTemplateColumns: COLS }}
             >
-              <div className="px-4 py-3">Contato</div>
-              <div className="px-4 py-3">Classificação</div>
-              <div className="px-4 py-3">Empresa</div>
-              <div className="px-4 py-3">Grupo</div>
-              <div className="px-4 py-3">Endereço de e-mail</div>
-              <div className="px-4 py-3">Telemóvel</div>
-              <div className="px-4 py-3">Telefone fixo</div>
+              {([
+                { campo: 'contato', label: 'Contato' },
+                { campo: 'classificacao', label: 'Classificação' },
+                { campo: 'empresa', label: 'Empresa' },
+                { campo: 'grupo', label: 'Grupo' },
+                { campo: 'email', label: 'Endereço de e-mail' },
+                { campo: 'celular', label: 'Telemóvel' },
+                { campo: 'telefone', label: 'Telefone fixo' }
+              ] as { campo: OrdenarCampo; label: string }[]).map(col => (
+                <button
+                  key={col.campo}
+                  type="button"
+                  onClick={() => alternarOrdenacao(col.campo)}
+                  className={clsx(
+                    'px-4 py-3 flex items-center gap-1 text-left uppercase tracking-wide transition-colors hover:text-brand-600 cursor-pointer select-none',
+                    ordenarPor === col.campo ? 'text-brand-600' : 'text-slate-500'
+                  )}
+                  title={`Ordenar por ${col.label}`}
+                >
+                  <span className="truncate">{col.label}</span>
+                  {ordenarPor === col.campo
+                    ? (direcao === 'asc' ? <ArrowUp className="w-3 h-3 shrink-0" /> : <ArrowDown className="w-3 h-3 shrink-0" />)
+                    : <ArrowUp className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-40" />}
+                </button>
+              ))}
             </div>
 
             {/* Linhas */}
@@ -2118,6 +2206,1086 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
           onChange={() => { carregar(); onChange() }}
         />
       )}
+
+      {importarAberto && (
+        <ImportarContatosModal
+          clientes={clientes}
+          contatosExistentes={contatos}
+          onClose={() => setImportarAberto(false)}
+          onConcluido={() => { setImportarAberto(false); carregar(); onChange() }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// Matching de empresa da planilha com o Cadastro de Clientes.
+// Conservador para não criar vínculos errados:
+//  1) exato (normalizado)  2) 1ª palavra do termo == nome de cliente
+//  3) único cliente que começa com o termo  4) único cliente que contém o termo
+// Em ambiguidade ou termo curto (<3), retorna null (empresa fica em branco).
+// ============================================================
+const _normEmpresa = (v: any) =>
+  (v ?? '').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+
+function acharEmpresaCliente(termoRaw: string, clientes: any[]): any | null {
+  const termo = _normEmpresa(termoRaw)
+  if (!termo) return null
+
+  const exato = clientes.find(c => _normEmpresa(c.nome_empresa) === termo)
+  if (exato) return exato
+
+  const primeira = termo.split(' ')[0]
+  if (primeira.length >= 3) {
+    const porPrimeira = clientes.filter(c => _normEmpresa(c.nome_empresa) === primeira)
+    if (porPrimeira.length === 1) return porPrimeira[0]
+  }
+
+  if (termo.length < 3) return null
+
+  const comecaCom = clientes.filter(c => _normEmpresa(c.nome_empresa).startsWith(termo))
+  if (comecaCom.length === 1) return comecaCom[0]
+
+  const contem = clientes.filter(c => _normEmpresa(c.nome_empresa).includes(termo))
+  if (contem.length === 1) return contem[0]
+
+  return null
+}
+
+// ============================================================
+// Modal: Importar Contatos via planilha (xlsx/csv)
+// Colunas aceitas: Email (obrigatória), Nome, Empresa, Telefone.
+// Regras: email é chave única (não repete). Novo email -> cria.
+// Email existente sem empresa -> atualiza a empresa (se casar no cadastro).
+// Empresa só vincula se existir no Cadastro de Clientes; senão fica em branco.
+// ============================================================
+type LinhaImport = {
+  email: string
+  nome: string
+  empresaTexto: string
+  telefone: string
+  acao: 'criar' | 'atualizar' | 'pular'
+  motivo: string
+  empresaId: string | null
+  empresaNomeFinal: string | null
+  contatoId?: string
+  ajusteManual?: boolean
+}
+
+function ImportarContatosModal({ clientes, contatosExistentes, onClose, onConcluido }: {
+  clientes: any[]
+  contatosExistentes: TicketContato[]
+  onClose: () => void
+  onConcluido: () => void
+}) {
+  const [arquivo, setArquivo] = useState<File | null>(null)
+  const [linhas, setLinhas] = useState<LinhaImport[]>([])
+  const [erro, setErro] = useState('')
+  const [lendo, setLendo] = useState(false)
+  const [gravando, setGravando] = useState(false)
+  const [progresso, setProgresso] = useState(0)
+  const [concluido, setConcluido] = useState<{ criados: number; atualizados: number; pulados: number } | null>(null)
+  const [leoEmpresas, setLeoEmpresas] = useState<any[]>([])
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Carrega também as empresas da Léo Madeiras para o matching/busca
+  // (há empresas que existem só na Léo e não no Cadastro de Clientes).
+  useEffect(() => {
+    api.getLeoEmpresas().then(es => setLeoEmpresas(es || [])).catch(() => {})
+  }, [])
+
+  // Base unificada de empresas pesquisáveis: Cadastro de Clientes + Léo Madeiras.
+  // origem 'cliente' -> vincula por empresa_id; origem 'leo' -> vincula só por nome.
+  const empresasBusca = useMemo(() => {
+    const base = (clientes || []).map((c: any) => ({ id: c.id, nome_empresa: c.nome_empresa, origem: 'cliente' as const }))
+    const nomesClientes = new Set(base.map(c => (c.nome_empresa || '').trim().toLowerCase()))
+    const leo = (leoEmpresas || [])
+      .filter((e: any) => !nomesClientes.has((e.nome_empresa || '').trim().toLowerCase()))
+      .map((e: any) => ({ id: null, nome_empresa: e.nome_empresa, origem: 'leo' as const }))
+    return [...base, ...leo]
+  }, [clientes, leoEmpresas])
+
+  const emailMap = useMemo(() => {
+    const m = new Map<string, TicketContato>()
+    contatosExistentes.forEach(c => { if (c.email) m.set(c.email.trim().toLowerCase(), c) })
+    return m
+  }, [contatosExistentes])
+
+  const pick = (row: any, nomes: string[]): string => {
+    for (const key of Object.keys(row)) {
+      const kn = key.trim().toLowerCase()
+      if (nomes.some(n => kn === n || kn.includes(n))) {
+        const v = row[key]
+        if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim()
+      }
+    }
+    return ''
+  }
+
+  const processarArquivo = async (file: File) => {
+    setErro(''); setLendo(true); setConcluido(null); setLinhas([])
+    try {
+      const XLSX = await import('xlsx')
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
+      if (!rows.length) { setErro('A planilha está vazia ou não tem cabeçalho reconhecível.'); setLendo(false); return }
+
+      const vistosNaPlanilha = new Set<string>()
+      const resultado: LinhaImport[] = []
+
+      for (const row of rows) {
+        const email = pick(row, ['e-mail', 'email', 'endereço de e-mail', 'endereco de e-mail']).toLowerCase()
+        const nomeRaw = pick(row, ['nome', 'contato'])
+        const sobrenome = pick(row, ['sobrenome'])
+        const nome = [nomeRaw, sobrenome].filter(Boolean).join(' ').trim()
+        const empresaTexto = pick(row, ['empresa'])
+        const telefone = pick(row, ['telefone', 'telemóvel', 'telemovel', 'celular', 'fone'])
+
+        if (!email) continue // sem email, ignora
+        if (vistosNaPlanilha.has(email)) continue // duplicado na própria planilha
+        vistosNaPlanilha.add(email)
+
+        const empresa = empresaTexto ? acharEmpresaCliente(empresaTexto, empresasBusca) : null
+        const empresaId = empresa ? empresa.id : null
+        const empresaNomeFinal = empresa ? empresa.nome_empresa : null
+
+        const existente = emailMap.get(email)
+        let acao: LinhaImport['acao']
+        let motivo = ''
+        if (!existente) {
+          acao = 'criar'
+          motivo = empresa ? `Empresa: ${empresaNomeFinal}` : (empresaTexto ? 'Empresa não encontrada → em branco' : 'Sem empresa')
+        } else {
+          const faltaEmpresa = !existente.empresa_id && !(existente.empresa_nome || '').trim()
+          if (faltaEmpresa && empresa) {
+            acao = 'atualizar'
+            motivo = `Vincular empresa: ${empresaNomeFinal}`
+          } else {
+            acao = 'pular'
+            motivo = existente.empresa_id || existente.empresa_nome ? 'Já existe (com empresa)' : 'Já existe'
+          }
+        }
+
+        resultado.push({
+          email, nome: nome || email, empresaTexto, telefone,
+          acao, motivo, empresaId, empresaNomeFinal, contatoId: existente?.id
+        })
+      }
+
+      setLinhas(resultado)
+      if (!resultado.length) setErro('Nenhuma linha com e-mail válido foi encontrada.')
+    } catch (e: any) {
+      console.error(e)
+      setErro('Não foi possível ler a planilha: ' + (e?.message || 'formato inválido'))
+    } finally {
+      setLendo(false)
+    }
+  }
+
+  const onSelecionarArquivo = (file: File | null) => {
+    if (!file) return
+    setArquivo(file)
+    processarArquivo(file)
+  }
+
+  // Ajuste manual do vínculo de empresa de uma linha (recalcula a ação).
+  const definirEmpresaManual = (index: number, cliente: any | null) => {
+    setLinhas(prev => prev.map((l, i) => {
+      if (i !== index) return l
+      const empresaId = cliente ? cliente.id : null
+      const empresaNomeFinal = cliente ? cliente.nome_empresa : null
+      const existente = l.contatoId ? emailMap.get(l.email) : undefined
+
+      let acao: LinhaImport['acao']
+      let motivo: string
+      if (!existente) {
+        // contato novo: sempre será criado (com ou sem empresa)
+        acao = 'criar'
+        motivo = cliente ? `Empresa: ${empresaNomeFinal}` : (l.empresaTexto ? 'Empresa não encontrada → em branco' : 'Sem empresa')
+      } else {
+        const tinhaEmpresa = !!existente.empresa_id || !!(existente.empresa_nome || '').trim()
+        if (tinhaEmpresa) {
+          // já tinha empresa no cadastro: não mexe (mantém como ignorado)
+          acao = 'pular'
+          motivo = 'Já existe (com empresa)'
+        } else if (cliente) {
+          acao = 'atualizar'
+          motivo = `Vincular empresa: ${empresaNomeFinal}`
+        } else {
+          acao = 'pular'
+          motivo = 'Já existe'
+        }
+      }
+      return { ...l, empresaId, empresaNomeFinal, acao, motivo, ajusteManual: true }
+    }))
+  }
+
+  const resumo = useMemo(() => ({
+    criar: linhas.filter(l => l.acao === 'criar').length,
+    atualizar: linhas.filter(l => l.acao === 'atualizar').length,
+    pular: linhas.filter(l => l.acao === 'pular').length,
+    comEmpresa: linhas.filter(l => l.empresaId || (l.empresaNomeFinal || '').trim()).length
+  }), [linhas])
+
+  const executar = async () => {
+    const aGravar = linhas.filter(l => l.acao === 'criar' || l.acao === 'atualizar')
+    if (!aGravar.length) return
+    setGravando(true); setProgresso(0)
+    let criados = 0, atualizados = 0
+    try {
+      for (let i = 0; i < aGravar.length; i++) {
+        const l = aGravar[i]
+        if (l.acao === 'criar') {
+          await api.createContato({
+            nome: l.nome,
+            email: l.email,
+            telefone_comercial: l.telefone || null,
+            empresa_id: l.empresaId,
+            empresa_nome: l.empresaNomeFinal
+          })
+          criados++
+        } else if (l.acao === 'atualizar' && l.contatoId) {
+          await api.updateContato(l.contatoId, {
+            empresa_id: l.empresaId,
+            empresa_nome: l.empresaNomeFinal
+          })
+          atualizados++
+        }
+        setProgresso(Math.round(((i + 1) / aGravar.length) * 100))
+      }
+      setConcluido({ criados, atualizados, pulados: resumo.pular })
+    } catch (e: any) {
+      setErro('Erro ao gravar: ' + (e?.message || 'desconhecido') + ` (gravados: ${criados + atualizados})`)
+    } finally {
+      setGravando(false)
+    }
+  }
+
+  const badge = (acao: LinhaImport['acao']) => {
+    if (acao === 'criar') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    if (acao === 'atualizar') return 'bg-amber-50 text-amber-700 border-amber-200'
+    return 'bg-slate-100 text-slate-500 border-slate-200'
+  }
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-600">
+              <Upload className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Importar contatos</h2>
+              <p className="text-[11px] text-slate-500">Planilha .xlsx ou .csv com colunas: E-mail, Nome, Empresa, Telefone</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto scrollbar-clean p-5 space-y-4">
+          {concluido ? (
+            <div className="py-8 text-center space-y-3">
+              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Importação concluída</h3>
+              <p className="text-sm text-slate-600">
+                <strong>{concluido.criados}</strong> criados • <strong>{concluido.atualizados}</strong> atualizados • <strong>{concluido.pulados}</strong> ignorados
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Seletor de arquivo */}
+              <label
+                className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed border-slate-300 hover:border-brand-400 cursor-pointer transition-colors text-center"
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); onSelecionarArquivo(e.dataTransfer.files?.[0] || null) }}
+              >
+                <FileSpreadsheet className="w-8 h-8 text-slate-400" />
+                <div className="text-sm text-slate-600">
+                  {arquivo ? <span className="font-semibold text-slate-800">{arquivo.name}</span> : 'Clique para escolher ou arraste a planilha aqui'}
+                </div>
+                <div className="text-[11px] text-slate-400">.xlsx ou .csv</div>
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={e => onSelecionarArquivo(e.target.files?.[0] || null)}
+                />
+              </label>
+
+              {lendo && (
+                <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Lendo planilha…</div>
+              )}
+              {erro && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" /> {erro}
+                </div>
+              )}
+
+              {linhas.length > 0 && (
+                <>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">{resumo.criar} a criar</span>
+                    <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-semibold">{resumo.atualizar} a atualizar empresa</span>
+                    <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200 font-semibold">{resumo.pular} ignorados</span>
+                    <span className="px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 border border-brand-200 font-semibold">{resumo.comEmpresa} com empresa vinculada</span>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="max-h-[38vh] overflow-auto scrollbar-clean">
+                      <table className="w-full text-xs">
+                        <thead className="sticky top-0 bg-slate-50 text-slate-500 font-bold uppercase text-[10px]">
+                          <tr>
+                            <th className="text-left px-3 py-2">Ação</th>
+                            <th className="text-left px-3 py-2">Nome</th>
+                            <th className="text-left px-3 py-2">E-mail</th>
+                            <th className="text-left px-3 py-2">Empresa (planilha → vínculo)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {linhas.slice(0, 300).map((l, i) => (
+                            <tr key={i} className="hover:bg-slate-50 align-top">
+                              <td className="px-3 py-1.5">
+                                <span className={clsx('px-2 py-0.5 rounded-full border text-[10px] font-bold capitalize', badge(l.acao))}>{l.acao}</span>
+                              </td>
+                              <td className="px-3 py-1.5 text-slate-700 truncate max-w-[130px]">{l.nome}</td>
+                              <td className="px-3 py-1.5 text-slate-500 truncate max-w-[170px]">{l.email}</td>
+                              <td className="px-3 py-1.5 text-slate-600">
+                                <div className="flex flex-col gap-1 min-w-[230px]">
+                                  <div className="text-[10px] text-slate-400 truncate">
+                                    Planilha: {l.empresaTexto || '—'}
+                                  </div>
+                                  <EmpresaCombobox
+                                    clientes={empresasBusca}
+                                    empresaId={l.empresaId}
+                                    empresaNome={l.empresaNomeFinal}
+                                    temTextoPlanilha={!!l.empresaTexto}
+                                    onSelecionar={(cli) => definirEmpresaManual(i, cli)}
+                                  />
+                                  {l.ajusteManual && (
+                                    <span className="text-[9px] text-brand-500 font-semibold">ajustado manualmente</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {linhas.length > 300 && (
+                      <div className="px-3 py-2 text-[11px] text-slate-400 bg-slate-50 border-t border-slate-200">
+                        Mostrando as primeiras 300 de {linhas.length} linhas. Todas serão processadas.
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Dica: digite no campo de empresa de qualquer linha para filtrar os clientes do cadastro e clique no resultado para vincular. Só é possível vincular a uma empresa existente.
+                  </p>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
+          <div className="text-xs text-slate-400">
+            {gravando ? `Gravando… ${progresso}%` : ''}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50">
+              {concluido ? 'Fechar' : 'Cancelar'}
+            </button>
+            {concluido ? (
+              <button onClick={onConcluido} className="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold">Ver contatos</button>
+            ) : (
+              <button
+                onClick={executar}
+                disabled={gravando || (resumo.criar + resumo.atualizar) === 0}
+                className="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50"
+              >
+                {gravando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {gravando ? 'Importando…' : `Importar ${resumo.criar + resumo.atualizar}`}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// Combobox de empresa: filtra os clientes conforme o usuário digita
+// e vincula ao clicar numa opção. Só vincula a empresas existentes.
+// ============================================================
+function EmpresaCombobox({ clientes, empresaId, empresaNome, temTextoPlanilha, onSelecionar }: {
+  clientes: any[]
+  empresaId: string | null
+  empresaNome: string | null
+  temTextoPlanilha: boolean
+  onSelecionar: (cliente: any | null) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const [termo, setTermo] = useState('')
+  const [ativo, setAtivo] = useState(0) // índice destacado para navegação por teclado
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const listaRef = useRef<HTMLDivElement>(null)
+
+  // "tem vínculo" cobre empresas do Cadastro (com id) e da Léo (só nome, id nulo)
+  const temVinculo = !!empresaId || !!(empresaNome || '').trim()
+  const nomeVinculadoLower = (empresaNome || '').trim().toLowerCase()
+
+  // texto exibido: quando fechado, mostra a empresa vinculada; ao focar, limpa para buscar
+  const valorInput = aberto ? termo : (empresaNome || '')
+
+  useEffect(() => {
+    if (!aberto) return
+    const onDocClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setAberto(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [aberto])
+
+  const filtrados = useMemo(() => {
+    const t = termo.trim().toLowerCase()
+    const base = t
+      ? clientes.filter(c => (c.nome_empresa || '').toLowerCase().includes(t))
+      : clientes
+    return base.slice(0, 50)
+  }, [clientes, termo])
+
+  // Reposiciona o destaque ao filtrar ou (re)abrir
+  useEffect(() => { setAtivo(0) }, [termo, aberto])
+
+  // Mantém o item destacado visível ao navegar com as setas
+  useEffect(() => {
+    if (!aberto || !listaRef.current) return
+    const el = listaRef.current.children[ativo] as HTMLElement | undefined
+    if (el) el.scrollIntoView({ block: 'nearest' })
+  }, [ativo, aberto])
+
+  const selecionar = (c: any) => { onSelecionar(c); setAberto(false); setTermo('') }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (!aberto) { setAberto(true); return }
+      setAtivo(i => Math.min(i + 1, filtrados.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setAtivo(i => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      if (aberto && filtrados[ativo]) {
+        e.preventDefault()
+        selecionar(filtrados[ativo])
+      }
+    } else if (e.key === 'Escape') {
+      if (aberto) { e.preventDefault(); setAberto(false) }
+    }
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={valorInput}
+          placeholder={temTextoPlanilha ? 'Em branco — buscar empresa…' : 'Buscar empresa…'}
+          onFocus={() => { setTermo(''); setAberto(true) }}
+          onChange={e => { setTermo(e.target.value); setAberto(true) }}
+          onKeyDown={onKeyDown}
+          className={clsx(
+            'w-full px-2 py-1 rounded-md border text-[11px] focus:outline-none focus:border-brand-500',
+            temVinculo
+              ? 'border-emerald-300 bg-emerald-50/60 text-emerald-700 font-semibold'
+              : 'border-slate-300 bg-white text-slate-600'
+          )}
+        />
+        {temVinculo && (
+          <button
+            type="button"
+            title="Remover vínculo (deixar em branco)"
+            onClick={() => { onSelecionar(null); setTermo(''); setAberto(false) }}
+            className="shrink-0 text-slate-400 hover:text-red-500"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {aberto && (
+        <div ref={listaRef} className="absolute z-20 mt-1 w-full max-h-52 overflow-auto scrollbar-clean bg-white border border-slate-200 rounded-lg shadow-lg">
+          {filtrados.length === 0 ? (
+            <div className="px-3 py-2 text-[11px] text-slate-400">Nenhuma empresa encontrada</div>
+          ) : (
+            filtrados.map((c, idx) => {
+              const selecionado = (c.id && c.id === empresaId) ||
+                (c.nome_empresa || '').trim().toLowerCase() === nomeVinculadoLower
+              const destacado = idx === ativo
+              return (
+                <button
+                  key={c.id || `leo-${c.nome_empresa}-${idx}`}
+                  type="button"
+                  onClick={() => selecionar(c)}
+                  onMouseEnter={() => setAtivo(idx)}
+                  className={clsx(
+                    'w-full text-left px-3 py-1.5 text-[11px] transition-colors truncate flex items-center justify-between gap-2',
+                    destacado ? 'bg-brand-50' : '',
+                    selecionado ? 'text-emerald-700 font-semibold' : 'text-slate-700'
+                  )}
+                >
+                  <span className="truncate">{c.nome_empresa}</span>
+                  {c.origem === 'leo' && (
+                    <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-200">Léo</span>
+                  )}
+                </button>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// View: Empresas (Cadastro de Clientes + Léo Madeiras)
+// Colunas: Empresa, Contatos (qtd de e-mails), Tipo, Tickets (total), Ativo
+// ============================================================
+type EmpresaLinha = {
+  chave: string
+  nome: string
+  tipo: string              // NORMAL | SHOPEE | LÉO MADEIRAS (ou o tipo do cliente)
+  origem: 'cliente' | 'leo'
+  id: string | null         // id do cliente (ou da empresa Léo)
+  ativo: boolean
+  contatos: number
+  tickets: number
+}
+
+function EmpresasView({ clientes, leoEmpresas, contatos, tickets, emailsFuncionarios, onChangeClientes, onChangeLeo, onChangeContatos }: {
+  clientes: any[]
+  leoEmpresas: any[]
+  contatos: any[]
+  tickets: Ticket[]
+  emailsFuncionarios: string[]
+  onChangeClientes: () => void
+  onChangeLeo: () => void
+  onChangeContatos: () => void
+}) {
+  const [busca, setBusca] = useState('')
+  const [salvandoId, setSalvandoId] = useState<string | null>(null)
+  const [ordenarPor, setOrdenarPor] = useState<'nome' | 'contatos' | 'tipo' | 'tickets' | 'ativo'>('nome')
+  const [direcao, setDirecao] = useState<'asc' | 'desc'>('asc')
+  const [filtroTipo, setFiltroTipo] = useState<'TODOS' | 'NORMAL' | 'SHOPEE' | 'LEO'>('TODOS')
+  const [filtroAtivo, setFiltroAtivo] = useState<'TODOS' | 'ATIVAS' | 'INATIVAS'>('TODOS')
+  const [soSemContato, setSoSemContato] = useState(false)
+  const [novoContatoEmpresa, setNovoContatoEmpresa] = useState<EmpresaLinha | null>(null)
+  const navegar = useNavigate()
+  // Overrides otimistas do "ativo" (até o refresh dos dados vindos do pai)
+  const [ativoLocal, setAtivoLocal] = useState<Record<string, boolean>>({})
+
+  const norm = (v: any) => (v ?? '').toString().trim().toLowerCase()
+
+  // Resolve a empresa de cada contato (nome normalizado) para contagem
+  const empresaDoContato = (ct: any): string => {
+    const email = norm(ct.email)
+    if (email && emailsFuncionarios.includes(email)) return 'mantran'
+    const nome = ct.empresa_id
+      ? (clientes.find((c: any) => c.id === ct.empresa_id)?.nome_empresa || ct.empresa_nome)
+      : ct.empresa_nome
+    return norm(nome)
+  }
+
+  // contato_id -> nome de empresa normalizado (para casar tickets)
+  const empresaPorContatoId = useMemo(() => {
+    const m = new Map<string, string>()
+    contatos.forEach((ct: any) => { if (ct.id) m.set(ct.id, empresaDoContato(ct)) })
+    return m
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contatos, clientes, emailsFuncionarios])
+
+  // email -> nome de empresa normalizado (fallback para tickets sem contato_id)
+  const empresaPorEmail = useMemo(() => {
+    const m = new Map<string, string>()
+    contatos.forEach((ct: any) => { if (ct.email) m.set(norm(ct.email), empresaDoContato(ct)) })
+    return m
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contatos, clientes, emailsFuncionarios])
+
+  const empresaDoTicket = (t: Ticket): string => {
+    if (t.contato_id && empresaPorContatoId.has(t.contato_id)) return empresaPorContatoId.get(t.contato_id)!
+    const email = norm(t.cliente_email)
+    if (email && empresaPorEmail.has(email)) return empresaPorEmail.get(email)!
+    return ''
+  }
+
+  const linhas = useMemo<EmpresaLinha[]>(() => {
+    // 1) Contagens agregadas por nome de empresa (normalizado)
+    const contatoCount = new Map<string, number>()
+    contatos.forEach((ct: any) => {
+      const chave = empresaDoContato(ct)
+      if (!chave) return
+      contatoCount.set(chave, (contatoCount.get(chave) || 0) + 1)
+    })
+    const ticketCount = new Map<string, number>()
+    tickets.forEach((t: Ticket) => {
+      const chave = empresaDoTicket(t)
+      if (!chave) return
+      ticketCount.set(chave, (ticketCount.get(chave) || 0) + 1)
+    })
+
+    // 2) Base unificada: clientes + leo (sem duplicar por nome)
+    const nomesClientes = new Set(clientes.map((c: any) => norm(c.nome_empresa)))
+    const base: EmpresaLinha[] = clientes.map((c: any) => {
+      const nn = norm(c.nome_empresa)
+      return {
+        chave: 'cli:' + c.id,
+        nome: c.nome_empresa || '(sem nome)',
+        tipo: (c.tipo || 'NORMAL'),
+        origem: 'cliente' as const,
+        id: c.id,
+        ativo: ativoLocal['cli:' + c.id] ?? (c.ativo !== false),
+        contatos: contatoCount.get(nn) || 0,
+        tickets: ticketCount.get(nn) || 0
+      }
+    })
+    const leo: EmpresaLinha[] = (leoEmpresas || [])
+      .filter((e: any) => !nomesClientes.has(norm(e.nome_empresa)))
+      .map((e: any) => {
+        const nn = norm(e.nome_empresa)
+        return {
+          chave: 'leo:' + e.id,
+          nome: e.nome_empresa || '(sem nome)',
+          tipo: 'LÉO MADEIRAS',
+          origem: 'leo' as const,
+          id: e.id,
+          ativo: ativoLocal['leo:' + e.id] ?? (e.ativo !== false),
+          contatos: contatoCount.get(nn) || 0,
+          tickets: ticketCount.get(nn) || 0
+        }
+      })
+    return [...base, ...leo]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientes, leoEmpresas, contatos, tickets, emailsFuncionarios, ativoLocal])
+
+  const tipoCasa = (tipoEmpresa: string): boolean => {
+    if (filtroTipo === 'TODOS') return true
+    const t = tipoEmpresa.toUpperCase()
+    if (filtroTipo === 'LEO') return t.includes('LÉO') || t.includes('LEO')
+    if (filtroTipo === 'SHOPEE') return t.includes('SHOPEE')
+    if (filtroTipo === 'NORMAL') return !t.includes('SHOPEE') && !t.includes('LÉO') && !t.includes('LEO')
+    return true
+  }
+
+  const filtradas = useMemo(() => {
+    const t = busca.trim().toLowerCase()
+    const arr = linhas.filter(l => {
+      if (t && !(l.nome.toLowerCase().includes(t) || l.tipo.toLowerCase().includes(t))) return false
+      if (!tipoCasa(l.tipo)) return false
+      if (filtroAtivo === 'ATIVAS' && !l.ativo) return false
+      if (filtroAtivo === 'INATIVAS' && l.ativo) return false
+      if (soSemContato && l.contatos > 0) return false
+      return true
+    })
+    const fator = direcao === 'asc' ? 1 : -1
+    return [...arr].sort((a, b) => {
+      let r = 0
+      if (ordenarPor === 'nome') r = a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+      else if (ordenarPor === 'tipo') r = a.tipo.localeCompare(b.tipo, 'pt-BR', { sensitivity: 'base' })
+      else if (ordenarPor === 'contatos') r = a.contatos - b.contatos
+      else if (ordenarPor === 'tickets') r = a.tickets - b.tickets
+      else if (ordenarPor === 'ativo') r = (a.ativo === b.ativo ? 0 : a.ativo ? -1 : 1)
+      return r * fator
+    })
+  }, [linhas, busca, ordenarPor, direcao, filtroTipo, filtroAtivo, soSemContato])
+
+  const alternarOrd = (campo: typeof ordenarPor) => {
+    if (ordenarPor === campo) setDirecao(d => (d === 'asc' ? 'desc' : 'asc'))
+    else { setOrdenarPor(campo); setDirecao('asc') }
+  }
+
+  const toggleAtivo = async (l: EmpresaLinha) => {
+    if (!l.id) return
+    const novo = !l.ativo
+    setAtivoLocal(prev => ({ ...prev, [l.chave]: novo }))
+    setSalvandoId(l.chave)
+    try {
+      if (l.origem === 'cliente') await api.updateCliente(l.id, { ativo: novo })
+      else await api.updateLeoEmpresa(l.id, { ativo: novo })
+      if (l.origem === 'cliente') onChangeClientes(); else onChangeLeo()
+    } catch (e: any) {
+      setAtivoLocal(prev => ({ ...prev, [l.chave]: l.ativo })) // reverte
+      alert('Não foi possível salvar o status. Verifique se a coluna "ativo" existe na tabela.\n\n' + (e?.message || ''))
+    } finally {
+      setSalvandoId(null)
+    }
+  }
+
+  const tipoBadge = (tipo: string) => {
+    const t = tipo.toUpperCase()
+    if (t.includes('SHOPEE')) return 'bg-orange-50 text-orange-700 border-orange-200'
+    if (t.includes('LÉO') || t.includes('LEO')) return 'bg-amber-50 text-amber-700 border-amber-200'
+    return 'bg-blue-50 text-blue-700 border-blue-200'
+  }
+
+  const totalAtivas = linhas.filter(l => l.ativo).length
+  const totalSemContato = linhas.filter(l => l.contatos === 0).length
+
+  // Contadores que refletem o recorte atual (busca + ativo + sem-contato),
+  // ignorando o próprio filtro de Tipo para que os cards funcionem como atalho.
+  const contadores = useMemo(() => {
+    const t = busca.trim().toLowerCase()
+    const base = linhas.filter(l => {
+      if (t && !(l.nome.toLowerCase().includes(t) || l.tipo.toLowerCase().includes(t))) return false
+      if (filtroAtivo === 'ATIVAS' && !l.ativo) return false
+      if (filtroAtivo === 'INATIVAS' && l.ativo) return false
+      if (soSemContato && l.contatos > 0) return false
+      return true
+    })
+    const ehLeo = (tp: string) => { const u = tp.toUpperCase(); return u.includes('LÉO') || u.includes('LEO') }
+    const ehShopee = (tp: string) => tp.toUpperCase().includes('SHOPEE')
+    return {
+      total: base.length,
+      normal: base.filter(l => !ehShopee(l.tipo) && !ehLeo(l.tipo)).length,
+      shopee: base.filter(l => ehShopee(l.tipo)).length,
+      leo: base.filter(l => ehLeo(l.tipo)).length,
+      ativas: base.filter(l => l.ativo).length,
+      inativas: base.filter(l => !l.ativo).length,
+      semContato: base.filter(l => l.contatos === 0).length
+    }
+  }, [linhas, busca, filtroAtivo, soSemContato])
+
+  const COLS = 'minmax(200px,2fr) minmax(100px,0.8fr) minmax(130px,1fr) minmax(90px,0.7fr) minmax(80px,0.5fr) minmax(130px,0.9fr)'
+
+  const Th = ({ campo, label, right }: { campo: typeof ordenarPor; label: string; right?: boolean }) => (
+    <button
+      type="button"
+      onClick={() => alternarOrd(campo)}
+      className={clsx(
+        'px-4 py-3 flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-brand-600 cursor-pointer select-none',
+        right ? 'justify-end' : 'text-left',
+        ordenarPor === campo ? 'text-brand-600' : 'text-slate-500'
+      )}
+    >
+      <span className="truncate">{label}</span>
+      {ordenarPor === campo && (direcao === 'asc' ? <ArrowUp className="w-3 h-3 shrink-0" /> : <ArrowDown className="w-3 h-3 shrink-0" />)}
+    </button>
+  )
+
+  return (
+    <div className="max-w-none w-full min-w-0 flex flex-col flex-1 min-h-0 pl-12">
+      <div className="shrink-0 space-y-4 pb-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-600 shrink-0">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">Empresas</h1>
+              <p className="text-[11px] sm:text-xs text-slate-500">{linhas.length} empresa(s) • {totalAtivas} ativa(s)</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navegar(`/campanha-email${filtroTipo !== 'TODOS' ? `?tipo=${filtroTipo}` : ''}`)}
+            className="shrink-0 py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition-colors cursor-pointer"
+            title="Criar campanha de e-mail"
+          >
+            <Mail className="w-4 h-4 shrink-0" />
+            <span>Enviar e-mail</span>
+          </button>
+        </div>
+
+        {/* Cards de contador (clicáveis — refletem os filtros atuais) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+          {([
+            { key: 'total', label: 'Total', valor: contadores.total, cor: 'slate', ativo: filtroTipo === 'TODOS' && filtroAtivo === 'TODOS' && !soSemContato, onClick: () => { setFiltroTipo('TODOS'); setFiltroAtivo('TODOS'); setSoSemContato(false) } },
+            { key: 'normal', label: 'Normal', valor: contadores.normal, cor: 'blue', ativo: filtroTipo === 'NORMAL', onClick: () => setFiltroTipo(filtroTipo === 'NORMAL' ? 'TODOS' : 'NORMAL') },
+            { key: 'shopee', label: 'Shopee', valor: contadores.shopee, cor: 'orange', ativo: filtroTipo === 'SHOPEE', onClick: () => setFiltroTipo(filtroTipo === 'SHOPEE' ? 'TODOS' : 'SHOPEE') },
+            { key: 'leo', label: 'Léo Madeiras', valor: contadores.leo, cor: 'amber', ativo: filtroTipo === 'LEO', onClick: () => setFiltroTipo(filtroTipo === 'LEO' ? 'TODOS' : 'LEO') },
+            { key: 'ativas', label: 'Ativas', valor: contadores.ativas, cor: 'emerald', ativo: filtroAtivo === 'ATIVAS', onClick: () => setFiltroAtivo(filtroAtivo === 'ATIVAS' ? 'TODOS' : 'ATIVAS') },
+            { key: 'inativas', label: 'Inativas', valor: contadores.inativas, cor: 'slate', ativo: filtroAtivo === 'INATIVAS', onClick: () => setFiltroAtivo(filtroAtivo === 'INATIVAS' ? 'TODOS' : 'INATIVAS') },
+            { key: 'sem', label: 'Sem contato', valor: contadores.semContato, cor: 'rose', ativo: soSemContato, onClick: () => setSoSemContato(v => !v) }
+          ] as { key: string; label: string; valor: number; cor: string; ativo: boolean; onClick: () => void }[]).map(card => {
+            const cores: Record<string, { on: string; num: string }> = {
+              slate: { on: 'border-slate-400 bg-slate-50', num: 'text-slate-700' },
+              blue: { on: 'border-blue-400 bg-blue-50', num: 'text-blue-700' },
+              orange: { on: 'border-orange-400 bg-orange-50', num: 'text-orange-700' },
+              amber: { on: 'border-amber-400 bg-amber-50', num: 'text-amber-700' },
+              emerald: { on: 'border-emerald-400 bg-emerald-50', num: 'text-emerald-700' },
+              rose: { on: 'border-rose-400 bg-rose-50', num: 'text-rose-700' }
+            }
+            const c = cores[card.cor] || cores.slate
+            return (
+              <button
+                key={card.key}
+                type="button"
+                onClick={card.onClick}
+                className={clsx(
+                  'rounded-xl border p-2.5 text-left transition-all cursor-pointer',
+                  card.ativo ? c.on + ' shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'
+                )}
+              >
+                <div className={clsx('text-xl font-black tabular-nums', card.ativo ? c.num : 'text-slate-800')}>{card.valor}</div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500 truncate">{card.label}</div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Pesquisar por empresa ou tipo..."
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+            className="w-full pl-9 pr-3 py-2.5 text-sm bg-white border border-slate-300 rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 shadow-sm"
+          />
+        </div>
+
+        {/* Filtros */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Tipo:</span>
+            <select
+              value={filtroTipo}
+              onChange={e => setFiltroTipo(e.target.value as any)}
+              className="px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:border-brand-500 cursor-pointer"
+            >
+              <option value="TODOS">Todos</option>
+              <option value="NORMAL">Normal</option>
+              <option value="SHOPEE">Shopee</option>
+              <option value="LEO">Léo Madeiras</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Ativo:</span>
+            <select
+              value={filtroAtivo}
+              onChange={e => setFiltroAtivo(e.target.value as any)}
+              className="px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:border-brand-500 cursor-pointer"
+            >
+              <option value="TODOS">Todas</option>
+              <option value="ATIVAS">Ativas</option>
+              <option value="INATIVAS">Inativas</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSoSemContato(v => !v)}
+            className={clsx(
+              'px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5',
+              soSemContato
+                ? 'bg-rose-50 border-rose-300 text-rose-700'
+                : 'bg-white border-slate-300 text-slate-600 hover:border-rose-300 hover:text-rose-600'
+            )}
+            title="Mostrar apenas empresas sem nenhum contato"
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            Sem contato ({totalSemContato})
+          </button>
+          {(filtroTipo !== 'TODOS' || filtroAtivo !== 'TODOS' || soSemContato || busca) && (
+            <button
+              type="button"
+              onClick={() => { setFiltroTipo('TODOS'); setFiltroAtivo('TODOS'); setSoSemContato(false); setBusca('') }}
+              className="px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600 flex items-center gap-1 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" /> Limpar filtros
+            </button>
+          )}
+          <span className="ml-auto text-[11px] text-slate-400">{filtradas.length} de {linhas.length}</span>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-auto scrollbar-clean">
+          <div className="min-w-[760px]">
+            <div
+              className="grid sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase tracking-wide text-slate-500"
+              style={{ gridTemplateColumns: COLS }}
+            >
+              <Th campo="nome" label="Empresa" />
+              <Th campo="contatos" label="Contatos" />
+              <Th campo="tipo" label="Tipo" />
+              <Th campo="tickets" label="Tickets" />
+              <Th campo="ativo" label="Ativo" />
+              <div className="px-4 py-3 text-right">Ações</div>
+            </div>
+
+            {filtradas.length === 0 ? (
+              <div className="py-16 text-center text-slate-400 text-sm">Nenhuma empresa encontrada.</div>
+            ) : (
+              filtradas.map(l => (
+                <div
+                  key={l.chave}
+                  className="grid items-center border-b border-slate-100 text-sm text-slate-600 hover:bg-brand-50/30 transition-colors"
+                  style={{ gridTemplateColumns: COLS }}
+                >
+                  <div className="px-4 py-3 flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 uppercase shrink-0">
+                      {(l.nome || '?').charAt(0)}
+                    </div>
+                    <span className="font-semibold text-slate-800 truncate">{l.nome}</span>
+                  </div>
+                  <div className="px-4 py-3 tabular-nums">{l.contatos}</div>
+                  <div className="px-4 py-3">
+                    <span className={clsx('inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-bold', tipoBadge(l.tipo))}>
+                      {l.tipo}
+                    </span>
+                  </div>
+                  <div className="px-4 py-3 tabular-nums">{l.tickets}</div>
+                  <div className="px-4 py-3">
+                    <label className="inline-flex items-center cursor-pointer" title={l.ativo ? 'Ativa' : 'Inativa'}>
+                      <input
+                        type="checkbox"
+                        checked={l.ativo}
+                        disabled={salvandoId === l.chave}
+                        onChange={() => toggleAtivo(l)}
+                        className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer disabled:opacity-50"
+                      />
+                    </label>
+                  </div>
+                  <div className="px-4 py-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setNovoContatoEmpresa(l)}
+                      className={clsx(
+                        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer',
+                        l.contatos === 0
+                          ? 'bg-brand-600 text-white border-brand-600 hover:bg-brand-700'
+                          : 'bg-white text-slate-600 border-slate-300 hover:border-brand-400 hover:text-brand-600'
+                      )}
+                      title={l.contatos === 0 ? 'Esta empresa não tem contato — adicionar' : 'Adicionar contato'}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">{l.contatos === 0 ? 'Adicionar contato' : 'Contato'}</span>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {novoContatoEmpresa && (
+        <NovoContatoEmpresaModal
+          empresa={novoContatoEmpresa}
+          onClose={() => setNovoContatoEmpresa(null)}
+          onSalvo={() => { setNovoContatoEmpresa(null); onChangeContatos() }}
+        />
+      )}
+
+    </div>
+  )
+}
+
+// ============================================================
+// Modal: Novo contato vinculado a uma empresa (a partir da aba Empresas)
+// ============================================================
+function NovoContatoEmpresaModal({ empresa, onClose, onSalvo }: {
+  empresa: EmpresaLinha
+  onClose: () => void
+  onSalvo: () => void
+}) {
+  const [nome, setNome] = useState('')
+  const [email, setEmail] = useState('')
+  const [telefone, setTelefone] = useState('')
+  const [celular, setCelular] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const inputCls = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm focus:outline-none focus:border-brand-500'
+  const labelCls = 'block text-xs font-bold text-slate-600 mb-1'
+
+  const salvar = async () => {
+    if (!nome.trim()) { setErro('Informe o nome do contato.'); return }
+    if (!email.trim()) { setErro('Informe o e-mail do contato.'); return }
+    setErro(''); setSalvando(true)
+    try {
+      // valida e-mail único (case-insensitive)
+      const existentes = await api.getContatos()
+      const dup = (existentes || []).some((c: any) => (c.email || '').trim().toLowerCase() === email.trim().toLowerCase())
+      if (dup) { setErro('Já existe um contato com este e-mail.'); setSalvando(false); return }
+
+      await api.createContato({
+        nome: nome.trim(),
+        email: email.trim(),
+        telefone_comercial: telefone.trim() || null,
+        celular: celular.trim() || null,
+        // cliente -> vincula por id; Léo -> vincula só por nome
+        empresa_id: empresa.origem === 'cliente' ? empresa.id : null,
+        empresa_nome: empresa.nome
+      })
+      onSalvo()
+    } catch (e: any) {
+      setErro('Erro ao salvar: ' + (e?.message || 'desconhecido'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-600 shrink-0">
+              <User className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-slate-900">Novo contato</h2>
+              <p className="text-[11px] text-slate-500 truncate">Empresa: {empresa.nome}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {erro && (
+            <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" /> {erro}
+            </div>
+          )}
+          <div>
+            <label className={labelCls}>Nome <span className="text-red-500">*</span></label>
+            <input value={nome} onChange={e => setNome(e.target.value)} autoFocus className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>E-mail <span className="text-red-500">*</span></label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={inputCls} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Telefone comercial</label>
+              <input value={telefone} onChange={e => setTelefone(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Celular</label>
+              <input value={celular} onChange={e => setCelular(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-slate-200 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-white border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50">Cancelar</button>
+          <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-60">
+            {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            {salvando ? 'Salvando…' : 'Adicionar contato'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
