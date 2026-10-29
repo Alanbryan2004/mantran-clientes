@@ -1,7 +1,6 @@
 import { 
   LayoutDashboard, 
   Ticket, 
-  TrendingUp, 
   Users, 
   Rocket, 
   Database, 
@@ -48,6 +47,7 @@ export const ALL_SHORTCUT_OPTIONS: ShortcutDefinition[] = [
     category: 'Geral',
     color: 'text-emerald-400'
   },
+  /*
   {
     id: 'comercial',
     name: 'Comercial',
@@ -56,6 +56,7 @@ export const ALL_SHORTCUT_OPTIONS: ShortcutDefinition[] = [
     category: 'Geral',
     color: 'text-cyan-400'
   },
+  */
   {
     id: 'clientes',
     name: 'Clientes',
@@ -204,6 +205,7 @@ export const ALL_SHORTCUT_OPTIONS: ShortcutDefinition[] = [
 
 export function isShortcutPermitted(shortcut: ShortcutDefinition, user: any): boolean {
   if (!user) return false
+  if (shortcut.id === 'comercial' || shortcut.path === '/comercial') return false
   const perfilLower = (user.perfil || '').toLowerCase()
   const isAdmin = perfilLower === 'administrador'
   const isTecnico = perfilLower.includes('tecnico')
@@ -244,7 +246,7 @@ export function getDefaultShortcutIds(user: any): string[] {
   }
 
   if (isComercial) {
-    return ['comercial', 'clientes', 'tickets', 'dashboard']
+    return ['clientes', 'tickets', 'dashboard', 'implantacoes']
   }
 
   return ['dashboard', 'tickets', 'implantacoes', 'clientes']

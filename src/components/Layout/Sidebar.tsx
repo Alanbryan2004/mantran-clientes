@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { 
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
-  Rocket, Shield, ShoppingBag, UserCog, TrendingUp, Users2, Ticket,
+  Rocket, Shield, ShoppingBag, UserCog, Users2, Ticket,
   ChevronDown, Code2, Clock, FlaskConical, ListFilter, CheckCircle2,
   Calendar, PlusCircle, BookOpen, LogIn, MapPin, FileSpreadsheet
 } from 'lucide-react'
@@ -15,7 +15,7 @@ import clsx from 'clsx'
 const allNavItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
   { name: 'Tickets', path: '/tickets', icon: Ticket },
-  { name: 'Comercial', path: '/comercial', icon: TrendingUp },
+  // { name: 'Comercial', path: '/comercial', icon: TrendingUp }, // Oculto temporariamente para todos
   { name: 'Clientes', path: '/clientes', icon: Users },
   { name: 'Implantações', path: '/implantacoes', icon: Rocket },
   { name: 'Projetos', path: '/bases', icon: Database },
@@ -218,6 +218,7 @@ export function Sidebar() {
 
       // Filter accessible navigation items
       const filtered = allNavItems.filter(item => {
+        if (item.path === '/comercial') return false
         return permissionsApi.canAccessRoute(item.path)
       })
       

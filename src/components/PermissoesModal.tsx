@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, TrendingUp, Ticket, Clock, FlaskConical, Code2, MapPin, FileSpreadsheet } from 'lucide-react'
+import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, Ticket, Clock, FlaskConical, Code2, MapPin, FileSpreadsheet } from 'lucide-react'
 import { permissionsApi, DEFAULT_PERMISSOES } from '../lib/permissions'
 import type { PerfilPermissao } from '../lib/permissions'
 import { supabase } from '../lib/supabase'
@@ -27,7 +27,7 @@ const AVAILABLE_MODULES = [
   { path: '/dev/tarefas', label: 'Minhas Tarefas (Dev)', desc: 'Apontamento de horas e execução de tarefas de API', icon: Clock },
   { path: '/dev/qa', label: 'QA & Testes', desc: 'Validação e reprovação de cenários de teste de tela', icon: FlaskConical },
   { path: '/dev/dashboard', label: 'Controle de APIs / Dev', desc: 'Dashboard e acompanhamento de telas, cronograma e APIs', icon: Code2 },
-  { path: '/comercial', label: 'Comercial', desc: 'Pipeline de vendas, simulador de propostas e metas', icon: TrendingUp },
+  // { path: '/comercial', label: 'Comercial', desc: 'Pipeline de vendas, simulador de propostas e metas', icon: TrendingUp },
   { path: '/clientes', label: 'Clientes', desc: 'Gerenciamento de clientes e bases de dados', icon: Users },
   { path: '/implantacoes', label: 'Implantações', desc: 'Processo de onboarding e etapas de implantação', icon: Rocket },
   { path: '/bases', label: 'Projetos', desc: 'Planilha e controle de status de projetos', icon: Database },
