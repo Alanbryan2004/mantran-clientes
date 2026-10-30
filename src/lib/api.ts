@@ -4350,6 +4350,126 @@ export const api = {
     if (error) throw error
     const { data } = supabase.storage.from('faq').getPublicUrl(path)
     return data.publicUrl
+  },
+
+  // --- Vínculos Diretos entre Empresas do mesmo Cliente/Grupo ---
+  async getEmpresaVinculos(): Promise<EmpresaVinculoItem[]> {
+    try {
+      const { data, error } = await supabase
+        .from('empresa_vinculos')
+        .select('*')
+      if (error) {
+        return getLocalEmpresaVinculos()
+      }
+      saveLocalEmpresaVinculos(data || [])
+      return data || []
+    } catch {
+      return getLocalEmpresaVinculos()
+    }
+  },
+
+  async salvarEmpresaVinculos(
+    empresa: { chave: string; nome: string; origem: 'cliente' | 'leo' },
+    vinculadas: { chave: string; nome: string; origem: 'cliente' | 'leo' }[]
+  ): Promise<{ sucesso: boolean; banco: boolean }> {
+    const local = getLocalEmpresaVinculos()
+    const todosAlvos = [empresa, ...vinculadas]
+    
+    // Se não há vinculadas, remove a empresa do seu vínculo
+    if (vinculadas.length === 0) {
+      const itemAtual = local.find(i => i.empresa_chave === empresa.chave)
+      let novoLocal = local.filter(i => i.empresa_chave !== empresa.chave)
+      if (itemAtual) {
+        const restantes = novoLocal.filter(i => i.grupo_id === itemAtual.grupo_id)
+        if (restantes.length <= 1) {
+          novoLocal = novoLocal.filter(i => i.grupo_id !== itemAtual.grupo_id)
+        }
+      }
+      saveLocalEmpresaVinculos(novoLocal)
+
+      try {
+        if (itemAtual) {
+          await supabase.from('empresa_vinculos').delete().eq('empresa_chave', empresa.chave)
+          const { data: noGrupo } = await supabase.from('empresa_vinculos').select('id').eq('grupo_id', itemAtual.grupo_id)
+          if (noGrupo && noGrupo.length <= 1) {
+            await supabase.from('empresa_vinculos').delete().eq('grupo_id', itemAtual.grupo_id)
+          }
+          return { sucesso: true, banco: true }
+        }
+      } catch {
+        return { sucesso: true, banco: false }
+      }
+      return { sucesso: true, banco: true }
+    }
+
+    // Identifica o grupoId a ser usado
+    const chavesTodos = new Set(todosAlvos.map(t => t.chave))
+    const existentesNoGrupo = local.filter(i => chavesTodos.has(i.empresa_chave))
+    const grupoId = existentesNoGrupo[0]?.grupo_id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : ('grp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)))
+
+    const itemAtual = local.find(i => i.empresa_chave === empresa.chave)
+    const antigoGrupoId = itemAtual?.grupo_id
+
+    let novoLocal = local.filter(i => {
+      if (antigoGrupoId && i.grupo_id === antigoGrupoId && !chavesTodos.has(i.empresa_chave)) {
+        return false
+      }
+      return !chavesTodos.has(i.empresa_chave)
+    })
+
+    const novosItens: EmpresaVinculoItem[] = todosAlvos.map(t => ({
+      grupo_id: grupoId,
+      empresa_chave: t.chave,
+      empresa_nome: t.nome,
+      origem: t.origem
+    }))
+
+    novoLocal.push(...novosItens)
+    saveLocalEmpresaVinculos(novoLocal)
+
+    try {
+      if (antigoGrupoId && antigoGrupoId !== grupoId) {
+        await supabase.from('empresa_vinculos').delete().eq('grupo_id', antigoGrupoId)
+      }
+      
+      const chavesArray = Array.from(chavesTodos)
+      await supabase.from('empresa_vinculos').delete().in('empresa_chave', chavesArray)
+      const { error: errInsert } = await supabase.from('empresa_vinculos').insert(
+        novosItens.map(i => ({
+          grupo_id: i.grupo_id,
+          empresa_chave: i.empresa_chave,
+          empresa_nome: i.empresa_nome,
+          origem: i.origem
+        }))
+      )
+      if (errInsert) {
+        return { sucesso: true, banco: false }
+      }
+      return { sucesso: true, banco: true }
+    } catch {
+      return { sucesso: true, banco: false }
+    }
+  },
+
+  async desvincularEmpresa(empresaChave: string): Promise<boolean> {
+    const local = getLocalEmpresaVinculos()
+    const item = local.find(i => i.empresa_chave === empresaChave)
+    if (!item) return true
+    
+    let novoLocal = local.filter(i => i.empresa_chave !== empresaChave)
+    const restantes = novoLocal.filter(i => i.grupo_id === item.grupo_id)
+    if (restantes.length <= 1) {
+      novoLocal = novoLocal.filter(i => i.grupo_id !== item.grupo_id)
+    }
+    saveLocalEmpresaVinculos(novoLocal)
+
+    try {
+      await supabase.from('empresa_vinculos').delete().eq('empresa_chave', empresaChave)
+      if (restantes.length <= 1) {
+        await supabase.from('empresa_vinculos').delete().eq('grupo_id', item.grupo_id)
+      }
+    } catch {}
+    return true
   }
 }
 
@@ -4709,6 +4829,35 @@ export interface PlantaoTecnico {
   created_at?: string
   updated_at?: string
 }
+
+export interface EmpresaVinculoItem {
+  id?: string
+  grupo_id: string
+  empresa_chave: string
+  empresa_nome: string
+  origem: 'cliente' | 'leo'
+  created_at?: string
+}
+
+const STORAGE_KEY_EMPRESA_VINCULOS = '@Mantran:empresa_vinculos'
+
+function getLocalEmpresaVinculos(): EmpresaVinculoItem[] {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_EMPRESA_VINCULOS) : null
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveLocalEmpresaVinculos(items: EmpresaVinculoItem[]) {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_EMPRESA_VINCULOS, JSON.stringify(items))
+    }
+  } catch {}
+}
+
 
 
 

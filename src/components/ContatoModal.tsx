@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import { api, type TicketContato, type Ticket } from '../lib/api'
+import { formatTelefone } from '../lib/telefone'
 
 const STATUS_CLASSES_LIGHT: Record<string, string> = {
   'Novo': 'bg-brand-50 text-brand-700 border-brand-200',
@@ -113,7 +114,7 @@ export function ContatoModal({ contato, clientes, grupos, onClose, onChange, onA
               <div className="mt-1 space-y-0.5 text-sm text-slate-600">
                 {atual.email && <div className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> {atual.email}</div>}
                 {(atual.telefone_comercial || atual.celular) && (
-                  <div className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {atual.telefone_comercial || atual.celular}</div>
+                  <div className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {formatTelefone(atual.telefone_comercial || atual.celular)}</div>
                 )}
                 {empresaNome && <div className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5 text-slate-400" /> {empresaNome}</div>}
               </div>
@@ -183,8 +184,8 @@ function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
 }) {
   const [nome, setNome] = useState(contato.nome || '')
   const [email, setEmail] = useState(contato.email || '')
-  const [telefoneComercial, setTelefoneComercial] = useState(contato.telefone_comercial || '')
-  const [celular, setCelular] = useState(contato.celular || '')
+  const [telefoneComercial, setTelefoneComercial] = useState(formatTelefone(contato.telefone_comercial || ''))
+  const [celular, setCelular] = useState(formatTelefone(contato.celular || ''))
   const [cargo, setCargo] = useState(contato.cargo || '')
   const [empresaId, setEmpresaId] = useState(contato.empresa_id || '')
   const [empresaNome, setEmpresaNome] = useState(
@@ -248,11 +249,11 @@ function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Telefone comercial</label>
-              <input type="text" value={telefoneComercial} onChange={e => setTelefoneComercial(e.target.value)} className={inputCls} />
+              <input type="text" value={telefoneComercial} onChange={e => setTelefoneComercial(formatTelefone(e.target.value))} placeholder="(11) 2345-6789" className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Celular</label>
-              <input type="text" value={celular} onChange={e => setCelular(e.target.value)} className={inputCls} />
+              <input type="text" value={celular} onChange={e => setCelular(formatTelefone(e.target.value))} placeholder="(11) 91234-5678" className={inputCls} />
             </div>
           </div>
           <div>
