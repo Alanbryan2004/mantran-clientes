@@ -35,7 +35,9 @@ import {
   PartyPopper,
   Mail,
   Building2,
-  UserCheck
+  UserCheck,
+  ChevronRight,
+  CalendarDays
 } from 'lucide-react'
 import { 
   api, 
@@ -51,6 +53,7 @@ import {
 } from '../lib/api'
 import { getLoggedUser, isAdminUser, updateLoggedUserFoto, updateLoggedUserDataNascimento, updateLoggedUserEmails, updateLoggedUserAssinatura } from '../lib/auth'
 import { ControlePontoModal } from '../components/ControlePontoModal'
+import { HistoricoPontoColaboradorModal } from '../components/HistoricoPontoColaboradorModal'
 import { calcularBancoHoras, formatSaldo } from '../lib/bancoHoras'
 import clsx from 'clsx'
 
@@ -81,6 +84,14 @@ export function RH() {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })
+
+  // Modal de Histórico de Ponto do Colaborador (dividido por mês)
+  const [colaboradorHistoricoPonto, setColaboradorHistoricoPonto] = useState<{
+    usuarioId: string
+    usuarioNome: string
+    fotoUrl?: string | null
+    cargo?: string | null
+  } | null>(null)
 
   // Filtros & Buscas
   const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
@@ -1510,7 +1521,7 @@ export function RH() {
   }, [todosPontosEquipe, pontoDataSelecionada, usuarios])
 
   // Abre o editor de correção de um marco (Admin/RH)
-  const abrirCorrecaoPonto = (usuarioId: string, usuarioNome: string, tipo: TipoPonto, dataHora?: string) => {
+  const abrirCorrecaoPonto = (usuarioId: string, usuarioNome: string, tipo: TipoPonto, dataHora?: string, dataEspecifica?: string) => {
     let hora = ''
     if (dataHora) {
       // Extrai HH:MM no fuso de Brasília
@@ -1518,7 +1529,7 @@ export function RH() {
         timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false
       }).format(new Date(dataHora))
     }
-    setCorrecaoPonto({ usuarioId, usuarioNome, tipo, data: pontoDataSelecionada, hora })
+    setCorrecaoPonto({ usuarioId, usuarioNome, tipo, data: dataEspecifica || pontoDataSelecionada, hora })
   }
 
   const salvarCorrecaoPonto = async () => {
@@ -3494,31 +3505,54 @@ export function RH() {
                       col.temRegistro ? 'border-slate-800 hover:border-slate-700' : 'border-slate-800/50 opacity-60'
                     )}
                   >
-                    {/* Cabeçalho do card */}
+                    {/* Cabeçalho do card (clique para abrir histórico mensal) */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-slate-800 font-bold flex items-center justify-center text-xs text-white uppercase overflow-hidden shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const u = usuarios.find(x => x.id === col.usuario_id)
+                          setColaboradorHistoricoPonto({
+                            usuarioId: col.usuario_id,
+                            usuarioNome: col.usuario_nome,
+                            fotoUrl: col.foto_url,
+                            cargo: u?.cargo || null
+                          })
+                        }}
+                        className="flex items-center gap-2.5 text-left cursor-pointer group/colab transition-all select-none min-w-0"
+                        title="Clique para ver todos os pontos deste colaborador divididos por mês"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-slate-800 font-bold flex items-center justify-center text-xs text-white uppercase overflow-hidden shrink-0 group-hover/colab:ring-2 group-hover/colab:ring-emerald-500/50 transition-all">
                           {col.foto_url ? (
                             <img src={col.foto_url} alt={col.usuario_nome} className="w-full h-full object-cover" />
                           ) : (
                             col.usuario_nome.charAt(0)
                           )}
                         </div>
-                        <span className="text-xs font-bold text-white">{col.usuario_nome}</span>
-                      </div>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-white group-hover/colab:text-emerald-400 flex items-center gap-1 transition-colors truncate">
+                            {col.usuario_nome}
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover/colab:text-emerald-400 group-hover/colab:translate-x-0.5 transition-all shrink-0" />
+                          </span>
+                          <span className="text-[10px] text-slate-400 flex items-center gap-1 group-hover/colab:text-emerald-400/80 transition-colors">
+                            <CalendarDays className="w-2.5 h-2.5 text-slate-500" />
+                            Ver histórico mensal
+                          </span>
+                        </div>
+                      </button>
+
                       {col.temRegistro ? (
                         col.emAndamento ? (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/30 flex items-center gap-1">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/30 flex items-center gap-1 shrink-0">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                             Em andamento
                           </span>
                         ) : (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700/40 text-slate-300 font-bold border border-slate-600/40">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700/40 text-slate-300 font-bold border border-slate-600/40 shrink-0">
                             Encerrado
                           </span>
                         )
                       ) : (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800/60 text-slate-500 font-bold border border-slate-700/40">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800/60 text-slate-500 font-bold border border-slate-700/40 shrink-0">
                           Sem registro
                         </span>
                       )}
@@ -3586,6 +3620,26 @@ export function RH() {
                         </div>
                       )
                     })()}
+
+                    {/* Botão para ver histórico mensal do colaborador */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const u = usuarios.find(x => x.id === col.usuario_id)
+                        setColaboradorHistoricoPonto({
+                          usuarioId: col.usuario_id,
+                          usuarioNome: col.usuario_nome,
+                          fotoUrl: col.foto_url,
+                          cargo: u?.cargo || null
+                        })
+                      }}
+                      className="w-full pt-2.5 border-t border-slate-800/60 text-[11px] font-bold text-slate-400 hover:text-emerald-400 flex items-center justify-center gap-1.5 transition-colors cursor-pointer group/btn"
+                      title="Ver todos os pontos deste funcionário divididos por mês"
+                    >
+                      <CalendarDays className="w-3.5 h-3.5 text-emerald-500 group-hover/btn:scale-110 transition-transform" />
+                      <span>Ver pontos dividido por mês</span>
+                      <ChevronRight className="w-3 h-3 text-slate-500 group-hover/btn:translate-x-0.5 transition-transform" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -5059,6 +5113,22 @@ export function RH() {
         isOpen={isPontoModalOpen}
         onClose={() => setIsPontoModalOpen(false)}
       />
+
+      {/* ================= MODAL HISTÓRICO DE PONTO DIVIDIDO POR MÊS ================= */}
+      {colaboradorHistoricoPonto && (
+        <HistoricoPontoColaboradorModal
+          isOpen={!!colaboradorHistoricoPonto}
+          onClose={() => setColaboradorHistoricoPonto(null)}
+          colaborador={colaboradorHistoricoPonto}
+          jornada={todasJornadasEquipe.find(j => j.usuario_id === colaboradorHistoricoPonto.usuarioId) || null}
+          todasFaltas={todasFaltasEquipe}
+          todosDayOffs={todasDayOffEquipe}
+          todasFerias={todasFeriasEquipe}
+          isGestorRh={isGestorRh}
+          pontosEquipeCache={todosPontosEquipe}
+          onCorrigirPonto={(uid, unome, tipo, dataHora, data) => abrirCorrecaoPonto(uid, unome, tipo, dataHora, data)}
+        />
+      )}
 
       {/* ================= MODAL CORREÇÃO DE PONTO (Admin/RH) ================= */}
       {correcaoPonto && (
