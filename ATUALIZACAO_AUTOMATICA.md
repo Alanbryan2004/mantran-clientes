@@ -164,10 +164,10 @@ export default function VersionGuard() {
       }
     };
 
-    // Gatilho A: Polling a cada 15 segundos
-    intervalRef.current = setInterval(checkVersion, 15 * 1000);
+    // Gatilho A: Polling espaçado a cada 5 minutos (evita estourar limites de requisições na CDN)
+    intervalRef.current = setInterval(checkVersion, 5 * 60 * 1000);
 
-    // Gatilho B: Usuário volta para a aba ou desbloqueia o celular
+    // Gatilho B: Usuário volta para a aba ou desbloqueia o celular (com throttle)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkVersion();
