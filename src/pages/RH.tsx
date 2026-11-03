@@ -124,7 +124,6 @@ export function RH() {
   // Filtros & Buscas
   const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
   const [mesFiltroFaltas, setMesFiltroFaltas] = useState<string>('todos')
-  const [statusFiltroFaltas, setStatusFiltroFaltas] = useState<string>('todos')
   const [buscaColaboradorFaltas, setBuscaColaboradorFaltas] = useState<string>('')
   const [mesFiltroMinhasFaltas, setMesFiltroMinhasFaltas] = useState<string>('todos')
 
@@ -560,12 +559,7 @@ export function RH() {
         if (!pertenceAoMes) return false
       }
 
-      // 2. Filtro de Status
-      if (statusFiltroFaltas !== 'todos') {
-        if (item.status !== statusFiltroFaltas) return false
-      }
-
-      // 3. Busca textual
+      // 2. Busca textual
       if (buscaColaboradorFaltas.trim()) {
         const termo = buscaColaboradorFaltas.toLowerCase().trim()
         const matchNome = item.usuario_nome?.toLowerCase().includes(termo)
@@ -576,7 +570,7 @@ export function RH() {
 
       return true
     })
-  }, [todasFaltasEquipe, mesFiltroFaltas, statusFiltroFaltas, buscaColaboradorFaltas])
+  }, [todasFaltasEquipe, mesFiltroFaltas, buscaColaboradorFaltas])
 
   const resumoFaltasPeriodo = useMemo(() => {
     const total = faltasFiltradasEquipe.length
@@ -3633,22 +3627,22 @@ export function RH() {
           {tab === 'faltas_equipe' && (
             <div className="space-y-5">
               {/* Cabeçalho principal com Seletor e Navegação por Mês */}
-              <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl space-y-4">
+              <div className="bg-dark-card border border-slate-800 p-3.5 sm:p-4 rounded-2xl shadow-lg space-y-3">
                 
                 {/* Linha superior: Título e Botão Nova Falta */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-sm shrink-0">
-                      <FileText className="w-5 h-5" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-800/70">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-sm shrink-0">
+                      <FileText className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
                         <span>Faltas e Atestados da Equipe</span>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
                           {todasFaltasEquipe.length}
                         </span>
                       </h3>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-[11px] text-slate-400">
                         {mesFiltroFaltas === 'todos' 
                           ? `Visualizando histórico completo (${todasFaltasEquipe.length} ocorrências)` 
                           : `Visualizando ausências em ${formatarMesAnoPt(mesFiltroFaltas)} (${faltasFiltradasEquipe.length} registro(s))`
@@ -3657,50 +3651,47 @@ export function RH() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingFaltaId(null)
-                        setFaltaUsuarioId('')
-                        setFaltaUsuarioNome('')
-                        setFaltaInicio('')
-                        setFaltaFim('')
-                        setMotivoFalta('Doença / Atestado Médico')
-                        setDescricaoFalta('')
-                        setArquivoUrl('')
-                        setArquivoNome('')
-                        setIsFaltaModalOpen(true)
-                      }}
-                      className="btn-primary py-2 px-3.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Lançar Falta / Atestado</span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingFaltaId(null)
+                      setFaltaUsuarioId('')
+                      setFaltaUsuarioNome('')
+                      setFaltaInicio('')
+                      setFaltaFim('')
+                      setMotivoFalta('Doença / Atestado Médico')
+                      setDescricaoFalta('')
+                      setArquivoUrl('')
+                      setArquivoNome('')
+                      setIsFaltaModalOpen(true)
+                    }}
+                    className="btn-primary py-1.5 px-3 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md self-end sm:self-center"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Lançar Falta / Atestado</span>
+                  </button>
                 </div>
 
-                {/* Linha de Navegação de Mês */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
+                {/* Linha de Navegação de Mês, Pílulas e Busca */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-0.5">
                   
-                  {/* Seletor & Setas de Mês */}
-                  <div className="flex flex-wrap items-center gap-2">
+                  {/* Seletor & Setas de Mês e Pílulas */}
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {/* Botão Mês Anterior */}
                     <button
                       type="button"
                       onClick={irParaMesAnteriorFaltas}
-                      className="p-2 rounded-xl bg-slate-900 border border-slate-700/80 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
                       title="Mês Anterior"
                     >
                       <ChevronLeft className="w-4 h-4" />
-                      <span className="hidden sm:inline">Anterior</span>
                     </button>
 
                     {/* Mostrador do Mês com seletor nativo embutido */}
                     <div className="relative flex items-center">
-                      <div className="px-3.5 py-2 rounded-xl bg-slate-900/90 border border-emerald-500/30 flex items-center gap-2 text-xs font-bold text-white shadow-inner">
-                        <CalendarDays className="w-4 h-4 text-emerald-400" />
-                        <span className="min-w-[120px] text-center font-bold">
+                      <div className="px-3 py-1.5 rounded-lg bg-slate-900/90 border border-emerald-500/30 flex items-center gap-2 text-xs font-bold text-white shadow-inner">
+                        <CalendarDays className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="min-w-[110px] text-center font-bold">
                           {mesFiltroFaltas === 'todos' ? 'Todos os Meses' : formatarMesAnoPt(mesFiltroFaltas)}
                         </span>
                       </div>
@@ -3721,10 +3712,9 @@ export function RH() {
                     <button
                       type="button"
                       onClick={irParaProximoMesFaltas}
-                      className="p-2 rounded-xl bg-slate-900 border border-slate-700/80 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
                       title="Próximo Mês"
                     >
-                      <span className="hidden sm:inline">Próximo</span>
                       <ChevronRight className="w-4 h-4" />
                     </button>
 
@@ -3733,7 +3723,7 @@ export function RH() {
                       type="button"
                       onClick={irParaMesAtualFaltas}
                       className={clsx(
-                        "px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border",
+                        "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border",
                         mesFiltroFaltas === new Date().toISOString().substring(0, 7)
                           ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
                           : "bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-800"
@@ -3743,31 +3733,73 @@ export function RH() {
                       Mês Atual
                     </button>
 
+                    {/* Divisor vertical */}
+                    <span className="h-5 w-px bg-slate-800 mx-1 hidden sm:block" />
+
                     {/* Atalho Ver Todos */}
                     <button
                       type="button"
                       onClick={() => setMesFiltroFaltas('todos')}
                       className={clsx(
-                        "px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border",
+                        "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border",
                         mesFiltroFaltas === 'todos'
                           ? "bg-brand-500/20 text-brand-300 border-brand-500/40 shadow-sm"
-                          : "bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-800"
+                          : "bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700"
                       )}
                       title="Exibir todos os meses agrupados"
                     >
-                      Todos os Meses
+                      Todos ({todasFaltasEquipe.length})
                     </button>
+
+                    {/* Pílulas rápidas dos Meses com Ocorrências */}
+                    {mesesDisponiveisFaltas.map(m => {
+                      const ativo = mesFiltroFaltas === m.mesChave
+                      return (
+                        <button
+                          key={m.mesChave}
+                          type="button"
+                          onClick={() => setMesFiltroFaltas(m.mesChave)}
+                          className={clsx(
+                            "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border flex items-center gap-1.5",
+                            ativo
+                              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm"
+                              : "bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700"
+                          )}
+                        >
+                          <span>{m.labelCurto}</span>
+                          <span className={clsx(
+                            "text-[10px] px-1.5 py-0.2 rounded-full font-mono",
+                            ativo ? "bg-emerald-500/30 text-emerald-200" : "bg-slate-800 text-slate-400"
+                          )}>
+                            {m.count}
+                          </span>
+                        </button>
+                      )
+                    })}
+
+                    {/* Se o mês atualmente selecionado não está na lista de meses com dados, exibe pílula com (0) */}
+                    {mesFiltroFaltas !== 'todos' && !mesesDisponiveisFaltas.some(m => m.mesChave === mesFiltroFaltas) && (
+                      <button
+                        type="button"
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 border bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm flex items-center gap-1.5"
+                      >
+                        <span>{formatarMesAnoCurtoPt(mesFiltroFaltas)}</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-emerald-500/30 text-emerald-200">
+                          0
+                        </span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Campo de Busca de Colaborador */}
-                  <div className="relative flex-1 max-w-xs">
+                  <div className="relative w-full md:w-64 shrink-0">
                     <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={buscaColaboradorFaltas}
                       onChange={(e) => setBuscaColaboradorFaltas(e.target.value)}
                       placeholder="Buscar colaborador ou motivo..."
-                      className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                      className="w-full pl-9 pr-8 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
                     />
                     {buscaColaboradorFaltas && (
                       <button
@@ -3779,95 +3811,6 @@ export function RH() {
                       </button>
                     )}
                   </div>
-                </div>
-
-                {/* Pílulas rápidas dos Meses com Ocorrências */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-clean">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
-                    <Filter className="w-3 h-3" /> Meses:
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => setMesFiltroFaltas('todos')}
-                    className={clsx(
-                      "px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border",
-                      mesFiltroFaltas === 'todos'
-                        ? "bg-brand-500/20 text-brand-300 border-brand-500/40"
-                        : "bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700"
-                    )}
-                  >
-                    Todos ({todasFaltasEquipe.length})
-                  </button>
-
-                  {mesesDisponiveisFaltas.map(m => {
-                    const ativo = mesFiltroFaltas === m.mesChave
-                    return (
-                      <button
-                        key={m.mesChave}
-                        type="button"
-                        onClick={() => setMesFiltroFaltas(m.mesChave)}
-                        className={clsx(
-                          "px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border flex items-center gap-1.5",
-                          ativo
-                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm"
-                            : "bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700"
-                        )}
-                      >
-                        <span>{m.labelCurto}</span>
-                        <span className={clsx(
-                          "text-[10px] px-1.5 py-0.2 rounded-full font-mono",
-                          ativo ? "bg-emerald-500/30 text-emerald-200" : "bg-slate-800 text-slate-400"
-                        )}>
-                          {m.count}
-                        </span>
-                      </button>
-                    )
-                  })}
-
-                  {/* Se o mês atualmente selecionado não está na lista de meses com dados, exibe pílula com (0) */}
-                  {mesFiltroFaltas !== 'todos' && !mesesDisponiveisFaltas.some(m => m.mesChave === mesFiltroFaltas) && (
-                    <button
-                      type="button"
-                      className="px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 border bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm flex items-center gap-1.5"
-                    >
-                      <span>{formatarMesAnoCurtoPt(mesFiltroFaltas)}</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-emerald-500/30 text-emerald-200">
-                        0
-                      </span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Filtros de Status (Pills) */}
-                <div className="flex items-center gap-2 pt-1 border-t border-slate-800/60 overflow-x-auto pb-1">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1">
-                    Status:
-                  </span>
-                  {[
-                    { id: 'todos', label: 'Todos' },
-                    { id: 'Pendente', label: 'Pendentes', dot: 'bg-amber-400' },
-                    { id: 'Abonado / Aprovado', label: 'Abonados / Aprovados', dot: 'bg-emerald-400' },
-                    { id: 'Recusado', label: 'Recusados', dot: 'bg-rose-400' }
-                  ].map(st => {
-                    const ativo = statusFiltroFaltas === st.id
-                    return (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => setStatusFiltroFaltas(st.id)}
-                        className={clsx(
-                          "px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border flex items-center gap-1.5",
-                          ativo
-                            ? "bg-slate-800 text-white border-slate-600 shadow-sm"
-                            : "bg-slate-900/60 text-slate-400 hover:text-slate-300 border-slate-800"
-                        )}
-                      >
-                        {st.dot && <span className={clsx("w-2 h-2 rounded-full", st.dot)} />}
-                        <span>{st.label}</span>
-                      </button>
-                    )
-                  })}
                 </div>
               </div>
 
