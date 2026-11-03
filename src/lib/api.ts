@@ -1085,6 +1085,8 @@ export const api = {
     return {
       parametros: cp.dados.nfse?.parametros || [],
       emitira_nfse: cp.dados.nfse?.emitira_nfse ?? true,
+      exemplo_xml: cp.dados.nfse?.exemplo_xml || null,
+      exemplo_pdf: cp.dados.nfse?.exemplo_pdf || null,
       certificado_digital: cp.dados.certificado_digital || {
         arquivo_nome: '',
         arquivo_base64: '',
@@ -1100,9 +1102,17 @@ export const api = {
   async saveNfseCheckpoint(implantacaoId: string, parametros: any[], certificado_digital?: any) {
     const existing = await api.getImplantacaoCheckpoint(implantacaoId)
     const dadosAtuais = existing?.dados || {}
+    const primeiroXml = (parametros || []).find((p: any) => p?.exemplo_xml?.arquivo_base64)?.exemplo_xml || null
+    const primeiroPdf = (parametros || []).find((p: any) => p?.exemplo_pdf?.arquivo_base64)?.exemplo_pdf || null
+
     const novosDados = {
       ...dadosAtuais,
-      nfse: { emitira_nfse: true, parametros: parametros || [] },
+      nfse: {
+        emitira_nfse: true,
+        parametros: parametros || [],
+        ...(primeiroXml ? { exemplo_xml: primeiroXml } : {}),
+        ...(primeiroPdf ? { exemplo_pdf: primeiroPdf } : {})
+      },
       ...(certificado_digital !== undefined ? { certificado_digital } : {})
     }
 

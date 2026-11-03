@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { 
   Building, CheckCircle2, Download, FileSpreadsheet, 
   FileText, MapPin, Truck, Users, 
-  X, Edit3, KeyRound, Lock, Eye, EyeOff, Copy
+  X, Edit3, KeyRound, Lock, Eye, EyeOff, Copy,
+  FileCode
 } from 'lucide-react'
 import type { CheckpointFormData } from './ClienteFormularioModal'
 import clsx from 'clsx'
@@ -89,6 +90,16 @@ export function VisualizarCheckpointModal({
       link.click()
       document.body.removeChild(link)
     }
+  }
+
+  const downloadArquivo = (base64?: string, nomePadrao = 'arquivo') => {
+    if (!base64) return
+    const link = document.createElement('a')
+    link.href = base64
+    link.download = nomePadrao
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const handleCopySenha = () => {
@@ -331,61 +342,126 @@ export function VisualizarCheckpointModal({
 
               {nfse.emitira_nfse ? (
                 <div className="space-y-3">
-                  {nfseParametros.map((item: any, idx: number) => (
-                    <div key={item.id || idx} className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
-                      {nfseParametros.length > 1 && (
-                        <p className="text-[11px] font-bold text-brand-400 uppercase tracking-wider">Cadastro de NFSe #{idx + 1}</p>
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">CNPJ</p>
-                          <p className="font-mono font-bold text-slate-200">{item.cnpj_emissao || 'Não informado'}</p>
+                  {nfseParametros.map((item: any, idx: number) => {
+                    const xml = item.exemplo_xml || (idx === 0 ? (nfse as any).exemplo_xml : null)
+                    const pdf = item.exemplo_pdf || (idx === 0 ? (nfse as any).exemplo_pdf : null)
+
+                    return (
+                      <div key={item.id || idx} className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                        {nfseParametros.length > 1 && (
+                          <p className="text-[11px] font-bold text-brand-400 uppercase tracking-wider">Cadastro de NFSe #{idx + 1}</p>
+                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                            <p className="text-slate-400 text-[11px] mb-0.5">CNPJ</p>
+                            <p className="font-mono font-bold text-slate-200">{item.cnpj_emissao || 'Não informado'}</p>
+                          </div>
+
+                          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                            <p className="text-slate-400 text-[11px] mb-0.5">Inscrição Municipal</p>
+                            <p className="font-mono font-bold text-slate-200">{item.inscricao_municipal || 'Não informado'}</p>
+                          </div>
+
+                          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                            <p className="text-slate-400 text-[11px] mb-0.5">Município de Emissão</p>
+                            <p className="font-bold text-slate-200">{item.nome_municipio || 'Não informado'}</p>
+                          </div>
+
+                          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                            <p className="text-slate-400 text-[11px] mb-0.5">Alíquota ISS</p>
+                            <p className="font-bold text-emerald-400">{item.aliquota_iss || 'Não informado'}</p>
+                          </div>
                         </div>
 
-                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">Inscrição Municipal</p>
-                          <p className="font-mono font-bold text-slate-200">{item.inscricao_municipal || 'Não informado'}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
+                          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                            <p className="text-slate-400 text-[11px] mb-0.5">Código de Tributação</p>
+                            <p className="font-mono text-slate-200">{item.codigo_tributacao || 'Não informado'}</p>
+                          </div>
+
+                          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                            <p className="text-slate-400 text-[11px] mb-0.5">Código do Serviço</p>
+                            <p className="font-mono font-semibold text-slate-200">{item.codigo_servico || 'Não informado'}</p>
+                          </div>
+
+                          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                            <p className="text-slate-400 text-[11px] mb-0.5">CNAE</p>
+                            <p className="font-mono text-slate-200">{item.cnae || 'Não informado'}</p>
+                          </div>
+
+                          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                            <p className="text-slate-400 text-[11px] mb-0.5">Código NBS</p>
+                            <p className="font-mono text-slate-200">{item.codigo_nbs || 'Não informado'}</p>
+                          </div>
+
+                          <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
+                            <p className="text-slate-400 text-[11px] mb-0.5">Emitia RPS Anteriormente?</p>
+                            <p className="font-bold text-slate-200">{item.emitia_rps ? 'Sim' : 'Não'}</p>
+                          </div>
                         </div>
 
-                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">Município de Emissão</p>
-                          <p className="font-bold text-slate-200">{item.nome_municipio || 'Não informado'}</p>
-                        </div>
+                        {/* Arquivos de Exemplo para Validação (XML & PDF) */}
+                        <div className="pt-3 border-t border-slate-800 space-y-2">
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            Arquivos de Exemplo para Validação (Prefeitura)
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {/* XML */}
+                            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800 flex items-center justify-between gap-2">
+                              <div className="flex items-center space-x-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                                  <FileCode className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[11px] text-slate-400">XML da NFSe</p>
+                                  <p className="text-xs font-bold text-slate-200 truncate" title={xml?.arquivo_nome || 'Não anexado'}>
+                                    {xml?.arquivo_nome || 'Nenhum XML anexado'}
+                                  </p>
+                                </div>
+                              </div>
+                              {xml?.arquivo_base64 && (
+                                <button
+                                  type="button"
+                                  onClick={() => downloadArquivo(xml.arquivo_base64, xml.arquivo_nome || 'nfse_exemplo.xml')}
+                                  className="text-xs py-1 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/40 flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                                  title="Baixar XML"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Baixar</span>
+                                </button>
+                              )}
+                            </div>
 
-                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">Alíquota ISS</p>
-                          <p className="font-bold text-emerald-400">{item.aliquota_iss || 'Não informado'}</p>
+                            {/* PDF */}
+                            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800 flex items-center justify-between gap-2">
+                              <div className="flex items-center space-x-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                                  <FileText className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[11px] text-slate-400">Espelho / PDF da NFSe</p>
+                                  <p className="text-xs font-bold text-slate-200 truncate" title={pdf?.arquivo_nome || 'Não anexado'}>
+                                    {pdf?.arquivo_nome || 'Nenhum PDF anexado'}
+                                  </p>
+                                </div>
+                              </div>
+                              {pdf?.arquivo_base64 && (
+                                <button
+                                  type="button"
+                                  onClick={() => downloadArquivo(pdf.arquivo_base64, pdf.arquivo_nome || 'nfse_exemplo.pdf')}
+                                  className="text-xs py-1 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/40 flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                                  title="Baixar PDF"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Baixar</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
-                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">Código de Tributação</p>
-                          <p className="font-mono text-slate-200">{item.codigo_tributacao || 'Não informado'}</p>
-                        </div>
-
-                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">Código do Serviço</p>
-                          <p className="font-mono font-semibold text-slate-200">{item.codigo_servico || 'Não informado'}</p>
-                        </div>
-
-                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">CNAE</p>
-                          <p className="font-mono text-slate-200">{item.cnae || 'Não informado'}</p>
-                        </div>
-
-                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">Código NBS</p>
-                          <p className="font-mono text-slate-200">{item.codigo_nbs || 'Não informado'}</p>
-                        </div>
-
-                        <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-800">
-                          <p className="text-slate-400 text-[11px] mb-0.5">Emitia RPS Anteriormente?</p>
-                          <p className="font-bold text-slate-200">{item.emitia_rps ? 'Sim' : 'Não'}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 text-center text-slate-400 text-xs">

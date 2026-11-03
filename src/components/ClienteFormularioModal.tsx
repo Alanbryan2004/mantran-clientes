@@ -3,7 +3,8 @@ import {
   Building, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, 
   HelpCircle, Plus, Rocket, Send, Sparkles, Trash2, Upload, Users, 
   X, AlertCircle, FileText, Check, ShieldCheck, MapPin, Truck,
-  KeyRound, Eye, EyeOff, Save, Lock, Download, Clock
+  KeyRound, Eye, EyeOff, Save, Lock, Download, Clock,
+  FileCode, FileCheck
 } from 'lucide-react'
 import { api, checkCheckpointCompleto } from '../lib/api'
 import clsx from 'clsx'
@@ -34,6 +35,12 @@ export interface UsuarioItem {
   funcao: string
 }
 
+export interface NfseArquivoExemplo {
+  arquivo_nome: string
+  arquivo_base64: string
+  arquivo_tamanho?: number
+}
+
 export interface NfseItem {
   id: string
   inscricao_municipal: string
@@ -52,6 +59,9 @@ export interface NfseItem {
     arquivo_tamanho?: number
     senha: string
   }
+  // Exemplos de NFSe já emitida na Prefeitura para conferência
+  exemplo_xml?: NfseArquivoExemplo
+  exemplo_pdf?: NfseArquivoExemplo
 }
 
 export interface PercursoLineHaulItem {
@@ -434,6 +444,53 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
       updated[index] = { ...updated[index], [field]: value }
       return { ...prev, nfse: { ...prev.nfse, parametros: updated } }
     })
+  }
+
+  const handleExemploUpload = (index: number, tipo: 'xml' | 'pdf', e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 15 * 1024 * 1024) {
+      alert(`O arquivo ${tipo.toUpperCase()} é muito grande. O limite é de 15MB.`)
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = reader.result as string
+      setFormData(prev => {
+        const updated = [...prev.nfse.parametros]
+        const campo = tipo === 'xml' ? 'exemplo_xml' : 'exemplo_pdf'
+        updated[index] = {
+          ...updated[index],
+          [campo]: {
+            arquivo_nome: file.name,
+            arquivo_base64: base64,
+            arquivo_tamanho: file.size
+          }
+        }
+        return { ...prev, nfse: { ...prev.nfse, parametros: updated } }
+      })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const handleRemoverExemplo = (index: number, tipo: 'xml' | 'pdf') => {
+    setFormData(prev => {
+      const updated = [...prev.nfse.parametros]
+      const campo = tipo === 'xml' ? 'exemplo_xml' : 'exemplo_pdf'
+      updated[index] = { ...updated[index], [campo]: undefined }
+      return { ...prev, nfse: { ...prev.nfse, parametros: updated } }
+    })
+  }
+
+  const handleDownloadExemplo = (base64?: string, nomePadrao = 'arquivo') => {
+    if (!base64) return
+    const link = document.createElement('a')
+    link.href = base64
+    link.download = nomePadrao
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   // File Upload helpers
@@ -1365,6 +1422,171 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                             >
                               Sim
                             </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Exemplo de NFSe (XML & PDF) para validação */}
+                      <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 space-y-3 mt-3">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-400 flex items-center justify-center shrink-0 mt-0.5">
+                            <FileCheck className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-bold text-sky-400 uppercase tracking-wider">
+                              Exemplo de NFSe Emitida na Prefeitura (XML & PDF)
+                            </h5>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              Anexe 1 XML e 1 PDF de uma nota emitida anteriormente para validarmos alíquotas, tributações e CNAE.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          {/* XML */}
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-semibold text-slate-300">
+                              Arquivo XML da NFSe (.xml)
+                            </label>
+                            <input
+                              type="file"
+                              id={`form-nfse-xml-file-${index}`}
+                              accept=".xml,text/xml,application/xml"
+                              onChange={(e) => handleExemploUpload(index, 'xml', e)}
+                              className="hidden"
+                            />
+                            {n.exemplo_xml?.arquivo_nome ? (
+                              <div className="flex items-center justify-between p-3 bg-slate-800/60 rounded-xl border border-sky-500/40 flex-wrap gap-2">
+                                <div className="flex items-center space-x-2 min-w-0">
+                                  <div className="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                                    <FileCode className="w-4 h-4" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-white truncate max-w-[160px]" title={n.exemplo_xml.arquivo_nome}>
+                                      {n.exemplo_xml.arquivo_nome}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400">
+                                      {n.exemplo_xml.arquivo_tamanho ? `${(n.exemplo_xml.arquivo_tamanho / 1024).toFixed(1)} KB` : 'XML anexado'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  {n.exemplo_xml.arquivo_base64 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadExemplo(n.exemplo_xml!.arquivo_base64, n.exemplo_xml!.arquivo_nome || 'nfse_exemplo.xml')}
+                                      className="text-xs py-1 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1 transition-colors cursor-pointer"
+                                      title="Baixar XML"
+                                    >
+                                      <Download className="w-3.5 h-3.5 text-slate-400" />
+                                      <span className="text-[11px]">Baixar</span>
+                                    </button>
+                                  )}
+                                  <label
+                                    htmlFor={`form-nfse-xml-file-${index}`}
+                                    className="text-xs py-1 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-sky-200 border border-sky-500/40 cursor-pointer transition-colors text-[11px]"
+                                  >
+                                    Substituir
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoverExemplo(index, 'xml')}
+                                    className="p-1 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
+                                    title="Remover XML"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <label
+                                htmlFor={`form-nfse-xml-file-${index}`}
+                                className="border-2 border-dashed border-slate-700 hover:border-sky-500 rounded-xl p-4 bg-slate-900/40 text-center transition-all cursor-pointer flex flex-col items-center space-y-1.5 block group"
+                              >
+                                <div className="w-8 h-8 rounded-full bg-sky-500/10 group-hover:bg-sky-500/20 border border-sky-500/30 text-sky-400 flex items-center justify-center transition-colors">
+                                  <FileCode className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">
+                                    Selecionar XML da NFSe
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 mt-0.5">Formato: .xml</p>
+                                </div>
+                              </label>
+                            )}
+                          </div>
+
+                          {/* PDF */}
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-semibold text-slate-300">
+                              Espelho / PDF da NFSe (.pdf)
+                            </label>
+                            <input
+                              type="file"
+                              id={`form-nfse-pdf-file-${index}`}
+                              accept=".pdf,application/pdf"
+                              onChange={(e) => handleExemploUpload(index, 'pdf', e)}
+                              className="hidden"
+                            />
+                            {n.exemplo_pdf?.arquivo_nome ? (
+                              <div className="flex items-center justify-between p-3 bg-slate-800/60 rounded-xl border border-rose-500/40 flex-wrap gap-2">
+                                <div className="flex items-center space-x-2 min-w-0">
+                                  <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                                    <FileText className="w-4 h-4" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-white truncate max-w-[160px]" title={n.exemplo_pdf.arquivo_nome}>
+                                      {n.exemplo_pdf.arquivo_nome}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400">
+                                      {n.exemplo_pdf.arquivo_tamanho ? `${(n.exemplo_pdf.arquivo_tamanho / 1024).toFixed(1)} KB` : 'PDF anexado'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  {n.exemplo_pdf.arquivo_base64 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadExemplo(n.exemplo_pdf!.arquivo_base64, n.exemplo_pdf!.arquivo_nome || 'nfse_exemplo.pdf')}
+                                      className="text-xs py-1 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1 transition-colors cursor-pointer"
+                                      title="Baixar PDF"
+                                    >
+                                      <Download className="w-3.5 h-3.5 text-slate-400" />
+                                      <span className="text-[11px]">Baixar</span>
+                                    </button>
+                                  )}
+                                  <label
+                                    htmlFor={`form-nfse-pdf-file-${index}`}
+                                    className="text-xs py-1 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-rose-200 border border-rose-500/40 cursor-pointer transition-colors text-[11px]"
+                                  >
+                                    Substituir
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoverExemplo(index, 'pdf')}
+                                    className="p-1 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
+                                    title="Remover PDF"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <label
+                                htmlFor={`form-nfse-pdf-file-${index}`}
+                                className="border-2 border-dashed border-slate-700 hover:border-rose-500 rounded-xl p-4 bg-slate-900/40 text-center transition-all cursor-pointer flex flex-col items-center space-y-1.5 block group"
+                              >
+                                <div className="w-8 h-8 rounded-full bg-rose-500/10 group-hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center transition-colors">
+                                  <FileText className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">
+                                    Selecionar PDF da NFSe
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 mt-0.5">Formato: .pdf</p>
+                                </div>
+                              </label>
+                            )}
                           </div>
                         </div>
                       </div>
