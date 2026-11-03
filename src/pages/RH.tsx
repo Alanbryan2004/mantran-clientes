@@ -37,7 +37,10 @@ import {
   Building2,
   UserCheck,
   ChevronRight,
-  CalendarDays
+  ChevronLeft,
+  CalendarDays,
+  Search,
+  Filter
 } from 'lucide-react'
 import { 
   api, 
@@ -56,6 +59,31 @@ import { ControlePontoModal } from '../components/ControlePontoModal'
 import { HistoricoPontoColaboradorModal } from '../components/HistoricoPontoColaboradorModal'
 import { calcularBancoHoras, formatSaldo } from '../lib/bancoHoras'
 import clsx from 'clsx'
+
+const NOMES_MESES_PT = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+]
+
+function formatarMesAnoPt(mesChave: string): string {
+  if (!mesChave || mesChave === 'todos') return 'Todos os Meses'
+  const partes = mesChave.split('-')
+  if (partes.length < 2) return mesChave
+  const ano = partes[0]
+  const mesNum = parseInt(partes[1], 10)
+  const nome = NOMES_MESES_PT[mesNum - 1] || partes[1]
+  return `${nome} de ${ano}`
+}
+
+function formatarMesAnoCurtoPt(mesChave: string): string {
+  if (!mesChave || mesChave === 'todos') return 'Todos'
+  const partes = mesChave.split('-')
+  if (partes.length < 2) return mesChave
+  const ano = partes[0]
+  const mesNum = parseInt(partes[1], 10)
+  const nome = NOMES_MESES_PT[mesNum - 1] || partes[1]
+  return `${nome.substring(0, 3)}/${ano}`
+}
 
 export function RH() {
   const user = getLoggedUser()
@@ -95,6 +123,10 @@ export function RH() {
 
   // Filtros & Buscas
   const [anoVigencia, setAnoVigencia] = useState(new Date().getFullYear())
+  const [mesFiltroFaltas, setMesFiltroFaltas] = useState<string>('todos')
+  const [statusFiltroFaltas, setStatusFiltroFaltas] = useState<string>('todos')
+  const [buscaColaboradorFaltas, setBuscaColaboradorFaltas] = useState<string>('')
+  const [mesFiltroMinhasFaltas, setMesFiltroMinhasFaltas] = useState<string>('todos')
 
   // Modal Solicitar / Editar Férias
   const [isFeriasModalOpen, setIsFeriasModalOpen] = useState(false)
@@ -449,6 +481,161 @@ export function RH() {
       (user?.nome && f.usuario_nome?.toLowerCase() === user?.nome?.toLowerCase())
     )
   }, [todasFaltasEquipe, user])
+
+  // ================= CONTROLE DE MESES E FILTROS DE FALTAS & ATESTADOS =================
+  const mesesDisponiveisFaltas = useMemo(() => {
+    const mapa = new Map<string, { count: number; diasTotal: number }>()
+    todasFaltasEquipe.forEach(f => {
+      const chave = f.data_falta_inicio ? f.data_falta_inicio.substring(0, 7) : ''
+      if (chave && chave.length === 7) {
+        const atual = mapa.get(chave) || { count: 0, diasTotal: 0 }
+        atual.count += 1
+        atual.diasTotal += (f.dias_afastamento || 1)
+        mapa.set(chave, atual)
+      }
+    })
+    return Array.from(mapa.entries())
+      .map(([mesChave, info]) => ({
+        mesChave,
+        count: info.count,
+        diasTotal: info.diasTotal,
+        label: formatarMesAnoPt(mesChave),
+        labelCurto: formatarMesAnoCurtoPt(mesChave)
+      }))
+      .sort((a, b) => b.mesChave.localeCompare(a.mesChave))
+  }, [todasFaltasEquipe])
+
+  const irParaMesAnteriorFaltas = () => {
+    let ano: number
+    let mes: number
+    if (mesFiltroFaltas === 'todos') {
+      const ref = mesesDisponiveisFaltas[0]?.mesChave || new Date().toISOString().substring(0, 7)
+      const [a, m] = ref.split('-').map(Number)
+      ano = a
+      mes = m - 1
+    } else {
+      const [a, m] = mesFiltroFaltas.split('-').map(Number)
+      ano = a
+      mes = m - 1
+    }
+    if (mes < 1) {
+      mes = 12
+      ano -= 1
+    }
+    setMesFiltroFaltas(`${ano}-${String(mes).padStart(2, '0')}`)
+  }
+
+  const irParaProximoMesFaltas = () => {
+    let ano: number
+    let mes: number
+    if (mesFiltroFaltas === 'todos') {
+      const ref = mesesDisponiveisFaltas[0]?.mesChave || new Date().toISOString().substring(0, 7)
+      const [a, m] = ref.split('-').map(Number)
+      ano = a
+      mes = m + 1
+    } else {
+      const [a, m] = mesFiltroFaltas.split('-').map(Number)
+      ano = a
+      mes = m + 1
+    }
+    if (mes > 12) {
+      mes = 1
+      ano += 1
+    }
+    setMesFiltroFaltas(`${ano}-${String(mes).padStart(2, '0')}`)
+  }
+
+  const irParaMesAtualFaltas = () => {
+    const d = new Date()
+    setMesFiltroFaltas(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+
+  const faltasFiltradasEquipe = useMemo(() => {
+    return todasFaltasEquipe.filter(item => {
+      // 1. Filtro de Mês
+      if (mesFiltroFaltas !== 'todos') {
+        const inicioMes = item.data_falta_inicio ? item.data_falta_inicio.substring(0, 7) : ''
+        const fimMes = item.data_falta_fim ? item.data_falta_fim.substring(0, 7) : inicioMes
+        const pertenceAoMes = (inicioMes === mesFiltroFaltas) || (fimMes === mesFiltroFaltas)
+        if (!pertenceAoMes) return false
+      }
+
+      // 2. Filtro de Status
+      if (statusFiltroFaltas !== 'todos') {
+        if (item.status !== statusFiltroFaltas) return false
+      }
+
+      // 3. Busca textual
+      if (buscaColaboradorFaltas.trim()) {
+        const termo = buscaColaboradorFaltas.toLowerCase().trim()
+        const matchNome = item.usuario_nome?.toLowerCase().includes(termo)
+        const matchMotivo = item.motivo?.toLowerCase().includes(termo)
+        const matchDesc = item.descricao?.toLowerCase().includes(termo)
+        if (!matchNome && !matchMotivo && !matchDesc) return false
+      }
+
+      return true
+    })
+  }, [todasFaltasEquipe, mesFiltroFaltas, statusFiltroFaltas, buscaColaboradorFaltas])
+
+  const resumoFaltasPeriodo = useMemo(() => {
+    const total = faltasFiltradasEquipe.length
+    const dias = faltasFiltradasEquipe.reduce((acc, f) => acc + (f.dias_afastamento || 1), 0)
+    const pendentes = faltasFiltradasEquipe.filter(f => f.status === 'Pendente' || f.status === 'Em Análise').length
+    const abonados = faltasFiltradasEquipe.filter(f => f.status === 'Abonado / Aprovado').length
+    const recusados = faltasFiltradasEquipe.filter(f => f.status === 'Recusado').length
+    return { total, dias, pendentes, abonados, recusados }
+  }, [faltasFiltradasEquipe])
+
+  const faltasEquipeAgrupadasPorMes = useMemo(() => {
+    const mapa = new Map<string, FaltaAtestado[]>()
+    faltasFiltradasEquipe.forEach(f => {
+      const chave = f.data_falta_inicio ? f.data_falta_inicio.substring(0, 7) : 'sem_data'
+      if (!mapa.has(chave)) mapa.set(chave, [])
+      mapa.get(chave)!.push(f)
+    })
+
+    return Array.from(mapa.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([mesChave, itens]) => ({
+        mesChave,
+        label: mesChave === 'sem_data' ? 'Sem data definida' : formatarMesAnoPt(mesChave),
+        itens,
+        diasTotal: itens.reduce((acc, cur) => acc + (cur.dias_afastamento || 1), 0)
+      }))
+  }, [faltasFiltradasEquipe])
+
+  // Minhas Faltas: Filtro por Mês
+  const mesesDisponiveisMinhasFaltas = useMemo(() => {
+    const mapa = new Map<string, { count: number; diasTotal: number }>()
+    minhasFaltas.forEach(f => {
+      const chave = f.data_falta_inicio ? f.data_falta_inicio.substring(0, 7) : ''
+      if (chave && chave.length === 7) {
+        const atual = mapa.get(chave) || { count: 0, diasTotal: 0 }
+        atual.count += 1
+        atual.diasTotal += (f.dias_afastamento || 1)
+        mapa.set(chave, atual)
+      }
+    })
+    return Array.from(mapa.entries())
+      .map(([mesChave, info]) => ({
+        mesChave,
+        count: info.count,
+        diasTotal: info.diasTotal,
+        label: formatarMesAnoPt(mesChave),
+        labelCurto: formatarMesAnoCurtoPt(mesChave)
+      }))
+      .sort((a, b) => b.mesChave.localeCompare(a.mesChave))
+  }, [minhasFaltas])
+
+  const minhasFaltasFiltradas = useMemo(() => {
+    if (mesFiltroMinhasFaltas === 'todos') return minhasFaltas
+    return minhasFaltas.filter(item => {
+      const inicioMes = item.data_falta_inicio ? item.data_falta_inicio.substring(0, 7) : ''
+      const fimMes = item.data_falta_fim ? item.data_falta_fim.substring(0, 7) : inicioMes
+      return (inicioMes === mesFiltroMinhasFaltas) || (fimMes === mesFiltroMinhasFaltas)
+    })
+  }, [minhasFaltas, mesFiltroMinhasFaltas])
 
   const meuHomeOffice = useMemo(() => {
     return todasEscalasEquipe.find(h => 
@@ -2723,65 +2910,119 @@ export function RH() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {minhasFaltas.map((item) => (
-                    <div 
-                      key={item.id}
-                      className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white">{item.motivo}</span>
-                          {getStatusBadge(item.status)}
-                        </div>
-
-                        <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                          <div>
-                            <span className="text-slate-400 block text-[11px]">Período:</span>
-                            <span className="font-semibold text-white">
-                              {formatDateDisplay(item.data_falta_inicio)}
-                              {item.data_falta_fim && item.data_falta_fim !== item.data_falta_inicio && (
-                                ` até ${formatDateDisplay(item.data_falta_fim)}`
-                              )}
-                            </span>
-                          </div>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold border border-brand-500/20">
-                            {item.dias_afastamento}d
-                          </span>
-                        </div>
-
-                        {item.descricao && (
-                          <p className="text-xs text-slate-300 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40">
-                            {item.descricao}
-                          </p>
+                <div className="space-y-4">
+                  {/* Se houver mais de um mês com faltas registradas, exibe seletor de mês */}
+                  {mesesDisponiveisMinhasFaltas.length > 1 && (
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-clean">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+                        <Filter className="w-3 h-3" /> Filtrar Mês:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setMesFiltroMinhasFaltas('todos')}
+                        className={clsx(
+                          "px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border",
+                          mesFiltroMinhasFaltas === 'todos'
+                            ? "bg-brand-500/20 text-brand-300 border-brand-500/40 shadow-sm"
+                            : "bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800"
                         )}
-                      </div>
-
-                      <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                        {item.arquivo_atestado_url ? (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewAtestado(item)}
-                            className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                          >
-                            <Paperclip className="w-3.5 h-3.5" />
-                            <span className="truncate max-w-[200px]">Ver Comprovante Anexado</span>
-                          </button>
-                        ) : (
-                          <div className="text-center py-1.5 text-[11px] text-slate-500 italic">
-                            Sem documento anexado
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between text-[10px] text-slate-500">
-                          <span>{formatDateDisplay(item.created_at)}</span>
-                          {item.aprovado_por && (
-                            <span>RH: <strong className="text-slate-300">{item.aprovado_por}</strong></span>
+                      >
+                        Todos ({minhasFaltas.length})
+                      </button>
+                      {mesesDisponiveisMinhasFaltas.map(m => (
+                        <button
+                          key={m.mesChave}
+                          type="button"
+                          onClick={() => setMesFiltroMinhasFaltas(m.mesChave)}
+                          className={clsx(
+                            "px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border flex items-center gap-1.5",
+                            mesFiltroMinhasFaltas === m.mesChave
+                              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm"
+                              : "bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800"
                           )}
-                        </div>
-                      </div>
+                        >
+                          <span>{m.labelCurto}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-slate-800 text-slate-400">
+                            {m.count}
+                          </span>
+                        </button>
+                      ))}
                     </div>
-                  ))}
+                  )}
+
+                  {minhasFaltasFiltradas.length === 0 ? (
+                    <div className="bg-dark-card border border-slate-800 rounded-3xl p-6 sm:p-8 text-center text-slate-400 space-y-2">
+                      <p className="text-sm font-semibold text-white">Nenhum atestado no mês selecionado.</p>
+                      <button
+                        type="button"
+                        onClick={() => setMesFiltroMinhasFaltas('todos')}
+                        className="text-xs text-brand-400 underline cursor-pointer"
+                      >
+                        Ver todos os meses
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {minhasFaltasFiltradas.map((item) => (
+                        <div 
+                          key={item.id}
+                          className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white">{item.motivo}</span>
+                              {getStatusBadge(item.status)}
+                            </div>
+
+                            <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                              <div>
+                                <span className="text-slate-400 block text-[11px]">Período:</span>
+                                <span className="font-semibold text-white">
+                                  {formatDateDisplay(item.data_falta_inicio)}
+                                  {item.data_falta_fim && item.data_falta_fim !== item.data_falta_inicio && (
+                                    ` até ${formatDateDisplay(item.data_falta_fim)}`
+                                  )}
+                                </span>
+                              </div>
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold border border-brand-500/20">
+                                {item.dias_afastamento}d
+                              </span>
+                            </div>
+
+                            {item.descricao && (
+                              <p className="text-xs text-slate-300 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40">
+                                {item.descricao}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                            {item.arquivo_atestado_url ? (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewAtestado(item)}
+                                className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                              >
+                                <Paperclip className="w-3.5 h-3.5" />
+                                <span className="truncate max-w-[200px]">Ver Comprovante Anexado</span>
+                              </button>
+                            ) : (
+                              <div className="text-center py-1.5 text-[11px] text-slate-500 italic">
+                                Sem documento anexado
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between text-[10px] text-slate-500">
+                              <span>{formatDateDisplay(item.created_at)}</span>
+                              {item.aprovado_por && (
+                                <span>RH: <strong className="text-slate-300">{item.aprovado_por}</strong></span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3390,77 +3631,539 @@ export function RH() {
 
           {/* TAB: FALTAS & ATESTADOS EQUIPE */}
           {tab === 'faltas_equipe' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {todasFaltasEquipe.map((item) => (
-                  <div 
-                    key={item.id}
-                    className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-white">👤 {item.usuario_nome}</span>
-                        {getStatusBadge(item.status)}
-                      </div>
-
-                      <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                        <div>
-                          <span className="text-slate-400 block text-[11px]">{item.motivo}</span>
-                          <span className="font-semibold text-white">
-                            {formatDateDisplay(item.data_falta_inicio)}
-                            {item.data_falta_fim && item.data_falta_fim !== item.data_falta_inicio && (
-                              ` a ${formatDateDisplay(item.data_falta_fim)}`
-                            )}
-                          </span>
-                        </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold border border-brand-500/20">
-                          {item.dias_afastamento}d
-                        </span>
-                      </div>
+            <div className="space-y-5">
+              {/* Cabeçalho principal com Seletor e Navegação por Mês */}
+              <div className="bg-dark-card border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl space-y-4">
+                
+                {/* Linha superior: Título e Botão Nova Falta */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-sm shrink-0">
+                      <FileText className="w-5 h-5" />
                     </div>
-
-                    <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                      {item.arquivo_atestado_url && (
-                        <button
-                          type="button"
-                          onClick={() => setPreviewAtestado(item)}
-                          className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Paperclip className="w-3.5 h-3.5" />
-                          <span>Ver Atestado Anexado</span>
-                        </button>
-                      )}
-
-                      <div className="flex items-center justify-between text-[10px] text-slate-500">
-                        <span>{formatDateDisplay(item.created_at)}</span>
-                        <div className="flex items-center gap-3">
-                          {isGestorRh && (
-                            <button
-                              type="button"
-                              onClick={() => handleAbrirEdicaoFalta(item)}
-                              className="text-xs font-bold text-slate-300 hover:text-white underline cursor-pointer flex items-center gap-1"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-brand-400" />
-                              Corrigir
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setItemAvaliacao({ type: 'falta', item })
-                              setStatusAvaliacao(item.status || 'Abonado / Aprovado')
-                              setRespostaRh(item.observacoes_rh || '')
-                            }}
-                            className="text-xs font-bold text-brand-400 hover:text-brand-300 underline cursor-pointer"
-                          >
-                            Avaliar
-                          </button>
-                        </div>
-                      </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        <span>Faltas e Atestados da Equipe</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
+                          {todasFaltasEquipe.length}
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        {mesFiltroFaltas === 'todos' 
+                          ? `Visualizando histórico completo (${todasFaltasEquipe.length} ocorrências)` 
+                          : `Visualizando ausências em ${formatarMesAnoPt(mesFiltroFaltas)} (${faltasFiltradasEquipe.length} registro(s))`
+                        }
+                      </p>
                     </div>
                   </div>
-                ))}
+
+                  <div className="flex items-center gap-2 self-end sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingFaltaId(null)
+                        setFaltaUsuarioId('')
+                        setFaltaUsuarioNome('')
+                        setFaltaInicio('')
+                        setFaltaFim('')
+                        setMotivoFalta('Doença / Atestado Médico')
+                        setDescricaoFalta('')
+                        setArquivoUrl('')
+                        setArquivoNome('')
+                        setIsFaltaModalOpen(true)
+                      }}
+                      className="btn-primary py-2 px-3.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Lançar Falta / Atestado</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Linha de Navegação de Mês */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
+                  
+                  {/* Seletor & Setas de Mês */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Botão Mês Anterior */}
+                    <button
+                      type="button"
+                      onClick={irParaMesAnteriorFaltas}
+                      className="p-2 rounded-xl bg-slate-900 border border-slate-700/80 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      title="Mês Anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span className="hidden sm:inline">Anterior</span>
+                    </button>
+
+                    {/* Mostrador do Mês com seletor nativo embutido */}
+                    <div className="relative flex items-center">
+                      <div className="px-3.5 py-2 rounded-xl bg-slate-900/90 border border-emerald-500/30 flex items-center gap-2 text-xs font-bold text-white shadow-inner">
+                        <CalendarDays className="w-4 h-4 text-emerald-400" />
+                        <span className="min-w-[120px] text-center font-bold">
+                          {mesFiltroFaltas === 'todos' ? 'Todos os Meses' : formatarMesAnoPt(mesFiltroFaltas)}
+                        </span>
+                      </div>
+                      <input
+                        type="month"
+                        value={mesFiltroFaltas === 'todos' ? '' : mesFiltroFaltas}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setMesFiltroFaltas(e.target.value)
+                          }
+                        }}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        title="Clique para escolher qualquer mês e ano"
+                      />
+                    </div>
+
+                    {/* Botão Próximo Mês */}
+                    <button
+                      type="button"
+                      onClick={irParaProximoMesFaltas}
+                      className="p-2 rounded-xl bg-slate-900 border border-slate-700/80 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      title="Próximo Mês"
+                    >
+                      <span className="hidden sm:inline">Próximo</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+
+                    {/* Atalho Mês Atual */}
+                    <button
+                      type="button"
+                      onClick={irParaMesAtualFaltas}
+                      className={clsx(
+                        "px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border",
+                        mesFiltroFaltas === new Date().toISOString().substring(0, 7)
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                          : "bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-800"
+                      )}
+                      title="Ir para o mês atual"
+                    >
+                      Mês Atual
+                    </button>
+
+                    {/* Atalho Ver Todos */}
+                    <button
+                      type="button"
+                      onClick={() => setMesFiltroFaltas('todos')}
+                      className={clsx(
+                        "px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border",
+                        mesFiltroFaltas === 'todos'
+                          ? "bg-brand-500/20 text-brand-300 border-brand-500/40 shadow-sm"
+                          : "bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-800"
+                      )}
+                      title="Exibir todos os meses agrupados"
+                    >
+                      Todos os Meses
+                    </button>
+                  </div>
+
+                  {/* Campo de Busca de Colaborador */}
+                  <div className="relative flex-1 max-w-xs">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={buscaColaboradorFaltas}
+                      onChange={(e) => setBuscaColaboradorFaltas(e.target.value)}
+                      placeholder="Buscar colaborador ou motivo..."
+                      className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                    />
+                    {buscaColaboradorFaltas && (
+                      <button
+                        type="button"
+                        onClick={() => setBuscaColaboradorFaltas('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pílulas rápidas dos Meses com Ocorrências */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-clean">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+                    <Filter className="w-3 h-3" /> Meses:
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setMesFiltroFaltas('todos')}
+                    className={clsx(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border",
+                      mesFiltroFaltas === 'todos'
+                        ? "bg-brand-500/20 text-brand-300 border-brand-500/40"
+                        : "bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700"
+                    )}
+                  >
+                    Todos ({todasFaltasEquipe.length})
+                  </button>
+
+                  {mesesDisponiveisFaltas.map(m => {
+                    const ativo = mesFiltroFaltas === m.mesChave
+                    return (
+                      <button
+                        key={m.mesChave}
+                        type="button"
+                        onClick={() => setMesFiltroFaltas(m.mesChave)}
+                        className={clsx(
+                          "px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border flex items-center gap-1.5",
+                          ativo
+                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm"
+                            : "bg-slate-900/80 text-slate-400 hover:text-slate-200 border-slate-800 hover:border-slate-700"
+                        )}
+                      >
+                        <span>{m.labelCurto}</span>
+                        <span className={clsx(
+                          "text-[10px] px-1.5 py-0.2 rounded-full font-mono",
+                          ativo ? "bg-emerald-500/30 text-emerald-200" : "bg-slate-800 text-slate-400"
+                        )}>
+                          {m.count}
+                        </span>
+                      </button>
+                    )
+                  })}
+
+                  {/* Se o mês atualmente selecionado não está na lista de meses com dados, exibe pílula com (0) */}
+                  {mesFiltroFaltas !== 'todos' && !mesesDisponiveisFaltas.some(m => m.mesChave === mesFiltroFaltas) && (
+                    <button
+                      type="button"
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 border bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm flex items-center gap-1.5"
+                    >
+                      <span>{formatarMesAnoCurtoPt(mesFiltroFaltas)}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-emerald-500/30 text-emerald-200">
+                        0
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtros de Status (Pills) */}
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-800/60 overflow-x-auto pb-1">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1">
+                    Status:
+                  </span>
+                  {[
+                    { id: 'todos', label: 'Todos' },
+                    { id: 'Pendente', label: 'Pendentes', dot: 'bg-amber-400' },
+                    { id: 'Abonado / Aprovado', label: 'Abonados / Aprovados', dot: 'bg-emerald-400' },
+                    { id: 'Recusado', label: 'Recusados', dot: 'bg-rose-400' }
+                  ].map(st => {
+                    const ativo = statusFiltroFaltas === st.id
+                    return (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setStatusFiltroFaltas(st.id)}
+                        className={clsx(
+                          "px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer border flex items-center gap-1.5",
+                          ativo
+                            ? "bg-slate-800 text-white border-slate-600 shadow-sm"
+                            : "bg-slate-900/60 text-slate-400 hover:text-slate-300 border-slate-800"
+                        )}
+                      >
+                        {st.dot && <span className={clsx("w-2 h-2 rounded-full", st.dot)} />}
+                        <span>{st.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
+
+              {/* Indicadores / Resumo do Período */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-dark-card border border-slate-800 rounded-2xl p-3.5 shadow-sm">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 block font-bold">
+                    Ocorrências
+                  </span>
+                  <div className="text-lg font-black text-white mt-0.5 tabular-nums">
+                    {resumoFaltasPeriodo.total}
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    {mesFiltroFaltas === 'todos' ? 'no histórico geral' : `em ${formatarMesAnoCurtoPt(mesFiltroFaltas)}`}
+                  </span>
+                </div>
+
+                <div className="bg-dark-card border border-slate-800 rounded-2xl p-3.5 shadow-sm">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 block font-bold">
+                    Dias de Afastamento
+                  </span>
+                  <div className="text-lg font-black text-brand-400 mt-0.5 tabular-nums">
+                    {resumoFaltasPeriodo.dias}d
+                  </div>
+                  <span className="text-[10px] text-slate-400">total acumulado</span>
+                </div>
+
+                <div className="bg-dark-card border border-slate-800 rounded-2xl p-3.5 shadow-sm">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 block font-bold">
+                    Pendentes de Avaliação
+                  </span>
+                  <div className={clsx(
+                    "text-lg font-black mt-0.5 tabular-nums",
+                    resumoFaltasPeriodo.pendentes > 0 ? "text-amber-400" : "text-slate-400"
+                  )}>
+                    {resumoFaltasPeriodo.pendentes}
+                  </div>
+                  <span className="text-[10px] text-slate-400">aguardando RH</span>
+                </div>
+
+                <div className="bg-dark-card border border-slate-800 rounded-2xl p-3.5 shadow-sm">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 block font-bold">
+                    Abonados / Justificados
+                  </span>
+                  <div className="text-lg font-black text-emerald-400 mt-0.5 tabular-nums">
+                    {resumoFaltasPeriodo.abonados}
+                  </div>
+                  <span className="text-[10px] text-slate-400">validados pelo RH</span>
+                </div>
+              </div>
+
+              {/* LISTAGEM DE CARDS */}
+              {mesFiltroFaltas !== 'todos' ? (
+                /* VISÃO DE UM MÊS ESPECÍFICO */
+                faltasFiltradasEquipe.length === 0 ? (
+                  <div className="bg-dark-card border border-slate-800 rounded-3xl p-8 sm:p-12 text-center text-slate-400 space-y-4">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/60 mx-auto flex items-center justify-center text-slate-500">
+                      <CalendarDays className="w-7 h-7 opacity-60" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-base font-bold text-white">
+                        Nenhum atestado ou falta em {formatarMesAnoPt(mesFiltroFaltas)}
+                      </h3>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto">
+                        Não encontramos registros de ausência para a equipe no mês selecionado.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setMesFiltroFaltas('todos')}
+                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+                      >
+                        Ver todos os meses
+                      </button>
+                      {mesesDisponiveisFaltas.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setMesFiltroFaltas(mesesDisponiveisFaltas[0].mesChave)}
+                          className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold border border-emerald-500/40 transition-colors cursor-pointer"
+                        >
+                          Ir para {mesesDisponiveisFaltas[0].label} ({mesesDisponiveisFaltas[0].count})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {faltasFiltradasEquipe.map((item) => (
+                      <div 
+                        key={item.id}
+                        className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-white">👤 {item.usuario_nome}</span>
+                            {getStatusBadge(item.status)}
+                          </div>
+
+                          <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                            <div>
+                              <span className="text-slate-400 block text-[11px]">{item.motivo}</span>
+                              <span className="font-semibold text-white">
+                                {formatDateDisplay(item.data_falta_inicio)}
+                                {item.data_falta_fim && item.data_falta_fim !== item.data_falta_inicio && (
+                                  ` a ${formatDateDisplay(item.data_falta_fim)}`
+                                )}
+                              </span>
+                            </div>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold border border-brand-500/20">
+                              {item.dias_afastamento}d
+                            </span>
+                          </div>
+
+                          {item.descricao && (
+                            <p className="text-xs text-slate-300 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40 line-clamp-2">
+                              {item.descricao}
+                            </p>
+                          )}
+
+                          {item.observacoes_rh && (
+                            <div className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 p-2 rounded-lg">
+                              <strong className="block text-[10px] uppercase tracking-wider text-amber-400 font-bold">Obs. RH:</strong>
+                              <span>{item.observacoes_rh}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                          {item.arquivo_atestado_url && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewAtestado(item)}
+                              className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Paperclip className="w-3.5 h-3.5" />
+                              <span>Ver Atestado Anexado</span>
+                            </button>
+                          )}
+
+                          <div className="flex items-center justify-between text-[10px] text-slate-500">
+                            <span>{formatDateDisplay(item.created_at)}</span>
+                            <div className="flex items-center gap-3">
+                              {isGestorRh && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAbrirEdicaoFalta(item)}
+                                  className="text-xs font-bold text-slate-300 hover:text-white underline cursor-pointer flex items-center gap-1"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-brand-400" />
+                                  Corrigir
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setItemAvaliacao({ type: 'falta', item })
+                                  setStatusAvaliacao(item.status || 'Abonado / Aprovado')
+                                  setRespostaRh(item.observacoes_rh || '')
+                                }}
+                                className="text-xs font-bold text-brand-400 hover:text-brand-300 underline cursor-pointer"
+                              >
+                                Avaliar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                /* VISÃO DE TODOS OS MESES AGRUPADOS POR MÊS */
+                faltasEquipeAgrupadasPorMes.length === 0 ? (
+                  <div className="bg-dark-card border border-slate-800 rounded-3xl p-8 sm:p-12 text-center text-slate-400 space-y-3">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/60 mx-auto flex items-center justify-center text-slate-500">
+                      <FileText className="w-7 h-7 opacity-60" />
+                    </div>
+                    <h3 className="text-base font-bold text-white">Nenhum registro encontrado</h3>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Tente alterar os termos da busca ou os filtros de status selecionados.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {faltasEquipeAgrupadasPorMes.map(grupo => (
+                      <div key={grupo.mesChave} className="space-y-3">
+                        <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800 px-4 py-2.5 rounded-2xl">
+                          <div className="flex items-center gap-2.5">
+                            <CalendarDays className="w-4 h-4 text-emerald-400" />
+                            <h4 className="text-xs sm:text-sm font-bold text-white">
+                              {grupo.label}
+                            </h4>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono border border-slate-700">
+                              {grupo.itens.length} {grupo.itens.length === 1 ? 'ocorrência' : 'ocorrências'} • {grupo.diasTotal}d
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setMesFiltroFaltas(grupo.mesChave)}
+                            className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <span>Focar neste mês</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {grupo.itens.map((item) => (
+                            <div 
+                              key={item.id}
+                              className="bg-dark-card border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-3.5 hover:border-slate-700 transition-all flex flex-col justify-between"
+                            >
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-white">👤 {item.usuario_nome}</span>
+                                  {getStatusBadge(item.status)}
+                                </div>
+
+                                <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                                  <div>
+                                    <span className="text-slate-400 block text-[11px]">{item.motivo}</span>
+                                    <span className="font-semibold text-white">
+                                      {formatDateDisplay(item.data_falta_inicio)}
+                                      {item.data_falta_fim && item.data_falta_fim !== item.data_falta_inicio && (
+                                        ` a ${formatDateDisplay(item.data_falta_fim)}`
+                                      )}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 font-bold border border-brand-500/20">
+                                    {item.dias_afastamento}d
+                                  </span>
+                                </div>
+
+                                {item.descricao && (
+                                  <p className="text-xs text-slate-300 bg-slate-900/40 p-2.5 rounded-lg border border-slate-800/40 line-clamp-2">
+                                    {item.descricao}
+                                  </p>
+                                )}
+
+                                {item.observacoes_rh && (
+                                  <div className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 p-2 rounded-lg">
+                                    <strong className="block text-[10px] uppercase tracking-wider text-amber-400 font-bold">Obs. RH:</strong>
+                                    <span>{item.observacoes_rh}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                                {item.arquivo_atestado_url && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewAtestado(item)}
+                                    className="w-full py-2 px-3 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                                  >
+                                    <Paperclip className="w-3.5 h-3.5" />
+                                    <span>Ver Atestado Anexado</span>
+                                  </button>
+                                )}
+
+                                <div className="flex items-center justify-between text-[10px] text-slate-500">
+                                  <span>{formatDateDisplay(item.created_at)}</span>
+                                  <div className="flex items-center gap-3">
+                                    {isGestorRh && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAbrirEdicaoFalta(item)}
+                                        className="text-xs font-bold text-slate-300 hover:text-white underline cursor-pointer flex items-center gap-1"
+                                      >
+                                        <Edit3 className="w-3.5 h-3.5 text-brand-400" />
+                                        Corrigir
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setItemAvaliacao({ type: 'falta', item })
+                                        setStatusAvaliacao(item.status || 'Abonado / Aprovado')
+                                        setRespostaRh(item.observacoes_rh || '')
+                                      }}
+                                      className="text-xs font-bold text-brand-400 hover:text-brand-300 underline cursor-pointer"
+                                    >
+                                      Avaliar
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
             </div>
           )}
 
