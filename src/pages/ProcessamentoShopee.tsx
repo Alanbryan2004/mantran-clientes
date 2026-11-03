@@ -22,13 +22,6 @@ import clsx from 'clsx'
 export type ProcessoTipo = 'Last Mile' | 'First Mile' | 'Line Haul'
 export type StatusProcessamento = 'FINALIZADO' | 'PROCESSANDO' | 'NAO_INICIADO'
 
-interface TransportadoraShopee {
-  id: string
-  nome_empresa: string
-  tipo: string
-  nome_base?: string
-}
-
 export interface ShopeeProcessamentoDB {
   id: string
   transportadora_id?: string | null
@@ -122,55 +115,12 @@ export function ProcessamentoShopee() {
   const [statusFiltro, setStatusFiltro] = useState<'TODOS' | StatusProcessamento>('TODOS')
   const [searchQuery, setSearchQuery] = useState('')
 
-  const [transportadoras, setTransportadoras] = useState<TransportadoraShopee[]>([])
   const [processamentosDB, setProcessamentosDB] = useState<ShopeeProcessamentoDB[]>([])
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [ultimaSincronizacao, setUltimaSincronizacao] = useState<string>(() =>
     new Date().toLocaleTimeString('pt-BR')
   )
-
-  const fetchTransportadorasShopee = async () => {
-    try {
-      // 1. Prioriza o catálogo oficial de shopee_transportadoras
-      const { data: dataShopee, error: errShopee } = await supabase
-        .from('shopee_transportadoras')
-        .select('id, nome_empresa, nome_base, cnpj, ativo')
-        .order('nome_empresa', { ascending: true })
-
-      if (!errShopee && dataShopee && dataShopee.length > 0) {
-        const formatted: TransportadoraShopee[] = dataShopee.map(t => ({
-          id: t.id,
-          nome_empresa: t.nome_empresa,
-          tipo: 'SHOPEE',
-          nome_base: t.nome_base || 'dbMantran'
-        }))
-        setTransportadoras(formatted)
-        return
-      }
-
-      // 2. Fallback para clientes se shopee_transportadoras estiver vazia
-      const { data, error } = await supabase
-        .from('clientes')
-        .select('id, nome_empresa, tipo, bases ( nome_base )')
-        .eq('tipo', 'SHOPEE')
-        .order('nome_empresa', { ascending: true })
-
-      if (error) throw error
-
-      if (data) {
-        const formatted: TransportadoraShopee[] = data.map((c: any) => ({
-          id: c.id,
-          nome_empresa: c.nome_empresa,
-          tipo: c.tipo,
-          nome_base: c.bases?.[0]?.nome_base || 'dbMantran'
-        }))
-        setTransportadoras(formatted)
-      }
-    } catch (err) {
-      console.error('Erro ao buscar transportadoras Shopee:', err)
-    }
-  }
 
   const fetchProcessamentos = useCallback(async () => {
     try {
@@ -197,14 +147,11 @@ export function ProcessamentoShopee() {
   useEffect(() => {
     const carregarTudo = async () => {
       setLoading(true)
-      await Promise.all([
-        fetchTransportadorasShopee(),
-        fetchProcessamentos()
-      ])
+      await fetchProcessamentos()
       setLoading(false)
     }
     carregarTudo()
-  }, [])
+  }, [fetchProcessamentos])
 
   // Atualiza processamentos ao alterar filtros de competência (quinzena, mês, ano)
   useEffect(() => {
@@ -229,163 +176,94 @@ export function ProcessamentoShopee() {
     }
   }, [fetchProcessamentos])
 
-  // Cruzamento dos dados reais de shopee_processamentos com as transportadoras
-  const dadosProcessamento = useMemo(() => {
-    if (transportadoras.length === 0 && processamentosDB.length === 0) return []
-
-    const items: ItemProcessamento[] = []
-    const processosList: ProcessoTipo[] = ['Last Mile', 'First Mile', 'Line Haul']
-
-    const norm = (s?: string | null) => (s || '').trim().toLowerCase()
-
-    // Mapas de busca rápida para registros do banco
-    const dbMapById = new Map<string, ShopeeProcessamentoDB>()
-    const dbMapByName = new Map<string, ShopeeProcessamentoDB>()
-    const dbMatchedIds = new Set<string>()
-
+  // Transportadoras únicas presentes nos processamentos da competência selecionada
+  const transportadorasDisponiveis = useMemo(() => {
+    const map = new Map<string, string>()
     processamentosDB.forEach(p => {
-      if (p.transportadora_id) {
-        dbMapById.set(`${p.transportadora_id}_${p.processo}`, p)
-      }
-      if (p.nome_empresa) {
-        dbMapByName.set(`${norm(p.nome_empresa)}_${p.processo}`, p)
+      const id = p.transportadora_id || p.id
+      if (id && p.nome_empresa && !map.has(id)) {
+        map.set(id, p.nome_empresa)
       }
     })
+    return Array.from(map.entries())
+      .map(([id, nome_empresa]) => ({ id, nome_empresa }))
+      .sort((a, b) => a.nome_empresa.localeCompare(b.nome_empresa))
+  }, [processamentosDB])
 
-    // 1. Processa todas as transportadoras conhecidas do cadastro Shopee
-    transportadoras.forEach(transp => {
-      // Se selecionou uma transportadora específica e não for esta, pula
-      if (transportadoraFiltro !== 'TODAS' && transp.id !== transportadoraFiltro) {
-        return
+  // Ajusta filtro de transportadora caso a selecionada não exista na nova competência
+  useEffect(() => {
+    if (transportadoraFiltro !== 'TODAS') {
+      const existe = transportadorasDisponiveis.some(t => t.id === transportadoraFiltro)
+      if (!existe) {
+        setTransportadoraFiltro('TODAS')
       }
+    }
+  }, [transportadorasDisponiveis, transportadoraFiltro])
 
-      processosList.forEach(proc => {
-        // Se filtrou por processo e não for este, pula
-        if (processoFiltro !== 'TODOS' && proc !== processoFiltro) {
-          return
+  // Processamentos reais da tabela shopee_processamentos para a competência selecionada
+  const dadosProcessamento = useMemo<ItemProcessamento[]>(() => {
+    if (processamentosDB.length === 0) return []
+
+    return processamentosDB
+      .filter(p => {
+        // Filtro por processo
+        if (processoFiltro !== 'TODOS' && p.processo !== processoFiltro) {
+          return false
         }
-
-        // Tenta encontrar registro no banco por ID da transportadora ou por Nome
-        const procDB = dbMapById.get(`${transp.id}_${proc}`) || dbMapByName.get(`${norm(transp.nome_empresa)}_${proc}`)
-
-        if (procDB) {
-          if (procDB.id) dbMatchedIds.add(procDB.id)
-
-          const status: StatusProcessamento = procDB.status || 'NAO_INICIADO'
-          let segs = procDB.segundos_processamento || 0
-          let tempoStr = '-'
-
-          if (status === 'FINALIZADO') {
-            if (segs > 0) {
-              tempoStr = formatarTempoSegundos(segs)
-            } else if (procDB.data_inicio && procDB.data_fim) {
-              const diff = Math.max(0, Math.floor((new Date(procDB.data_fim).getTime() - new Date(procDB.data_inicio).getTime()) / 1000))
-              tempoStr = formatarTempoSegundos(diff)
-              segs = diff
-            } else {
-              tempoStr = '00h 00m 00s'
-            }
-          } else if (status === 'PROCESSANDO') {
-            if (segs > 0) {
-              tempoStr = formatarTempoSegundos(segs)
-            } else if (procDB.data_inicio) {
-              const diff = Math.max(0, Math.floor((Date.now() - new Date(procDB.data_inicio).getTime()) / 1000))
-              tempoStr = formatarTempoSegundos(diff)
-              segs = diff
-            } else {
-              tempoStr = 'Em andamento...'
-            }
-          } else {
-            tempoStr = '-'
-            segs = 0
+        // Filtro por transportadora
+        if (transportadoraFiltro !== 'TODAS') {
+          const id = p.transportadora_id || p.id
+          if (id !== transportadoraFiltro) {
+            return false
           }
+        }
+        return true
+      })
+      .map(procDB => {
+        const status: StatusProcessamento = procDB.status || 'NAO_INICIADO'
+        let segs = procDB.segundos_processamento || 0
+        let tempoStr = '-'
 
-          items.push({
-            id: procDB.id || `${transp.id}_${proc}`,
-            transportadora_id: transp.id,
-            transportadora_nome: transp.nome_empresa,
-            base_nome: procDB.nome_base || transp.nome_base || 'dbMantran',
-            processo: proc,
-            status,
-            tempo_processamento: tempoStr,
-            segundos_processamento: segs,
-            registros_processados: procDB.registros_processados || 0,
-            data_inicio: formatarDataHora(procDB.data_inicio),
-            data_fim: status === 'PROCESSANDO' ? 'Em andamento...' : formatarDataHora(procDB.data_fim)
-          })
+        if (status === 'FINALIZADO') {
+          if (segs > 0) {
+            tempoStr = formatarTempoSegundos(segs)
+          } else if (procDB.data_inicio && procDB.data_fim) {
+            const diff = Math.max(0, Math.floor((new Date(procDB.data_fim).getTime() - new Date(procDB.data_inicio).getTime()) / 1000))
+            tempoStr = formatarTempoSegundos(diff)
+            segs = diff
+          } else {
+            tempoStr = '00h 00m 00s'
+          }
+        } else if (status === 'PROCESSANDO') {
+          if (segs > 0) {
+            tempoStr = formatarTempoSegundos(segs)
+          } else if (procDB.data_inicio) {
+            const diff = Math.max(0, Math.floor((Date.now() - new Date(procDB.data_inicio).getTime()) / 1000))
+            tempoStr = formatarTempoSegundos(diff)
+            segs = diff
+          } else {
+            tempoStr = 'Em andamento...'
+          }
         } else {
-          // Sem registro na tabela para essa competência -> Não Iniciado
-          items.push({
-            id: `${transp.id}_${proc}`,
-            transportadora_id: transp.id,
-            transportadora_nome: transp.nome_empresa,
-            base_nome: transp.nome_base || 'dbMantran',
-            processo: proc,
-            status: 'NAO_INICIADO',
-            tempo_processamento: '-',
-            segundos_processamento: 0,
-            registros_processados: 0,
-            data_inicio: '-',
-            data_fim: '-'
-          })
+          tempoStr = '-'
+          segs = 0
+        }
+
+        return {
+          id: procDB.id,
+          transportadora_id: procDB.transportadora_id || procDB.id,
+          transportadora_nome: procDB.nome_empresa || 'Transportadora Shopee',
+          base_nome: procDB.nome_base || 'dbMantran',
+          processo: procDB.processo,
+          status,
+          tempo_processamento: tempoStr,
+          segundos_processamento: segs,
+          registros_processados: procDB.registros_processados || 0,
+          data_inicio: formatarDataHora(procDB.data_inicio),
+          data_fim: status === 'PROCESSANDO' ? 'Em andamento...' : formatarDataHora(procDB.data_fim)
         }
       })
-    })
-
-    // 2. Se houver registros na tabela shopee_processamentos que não estão no cadastro de clientes, adiciona também
-    processamentosDB.forEach(procDB => {
-      if (procDB.id && dbMatchedIds.has(procDB.id)) return
-
-      if (processoFiltro !== 'TODOS' && procDB.processo !== processoFiltro) {
-        return
-      }
-      if (transportadoraFiltro !== 'TODAS' && procDB.transportadora_id !== transportadoraFiltro) {
-        return
-      }
-
-      const status: StatusProcessamento = procDB.status || 'NAO_INICIADO'
-      let segs = procDB.segundos_processamento || 0
-      let tempoStr = '-'
-
-      if (status === 'FINALIZADO') {
-        if (segs > 0) {
-          tempoStr = formatarTempoSegundos(segs)
-        } else if (procDB.data_inicio && procDB.data_fim) {
-          const diff = Math.max(0, Math.floor((new Date(procDB.data_fim).getTime() - new Date(procDB.data_inicio).getTime()) / 1000))
-          tempoStr = formatarTempoSegundos(diff)
-          segs = diff
-        } else {
-          tempoStr = '00h 00m 00s'
-        }
-      } else if (status === 'PROCESSANDO') {
-        if (segs > 0) {
-          tempoStr = formatarTempoSegundos(segs)
-        } else if (procDB.data_inicio) {
-          const diff = Math.max(0, Math.floor((Date.now() - new Date(procDB.data_inicio).getTime()) / 1000))
-          tempoStr = formatarTempoSegundos(diff)
-          segs = diff
-        } else {
-          tempoStr = 'Em andamento...'
-        }
-      }
-
-      items.push({
-        id: procDB.id,
-        transportadora_id: procDB.transportadora_id || procDB.id,
-        transportadora_nome: procDB.nome_empresa || 'Transportadora Shopee',
-        base_nome: procDB.nome_base || 'dbMantran',
-        processo: procDB.processo,
-        status,
-        tempo_processamento: tempoStr,
-        segundos_processamento: segs,
-        registros_processados: procDB.registros_processados || 0,
-        data_inicio: formatarDataHora(procDB.data_inicio),
-        data_fim: status === 'PROCESSANDO' ? 'Em andamento...' : formatarDataHora(procDB.data_fim)
-      })
-    })
-
-    return items
-  }, [transportadoras, processamentosDB, quinzena, mes, ano, processoFiltro, transportadoraFiltro])
+  }, [processamentosDB, processoFiltro, transportadoraFiltro])
 
   // Filtro de busca por texto e status
   const filteredItems = useMemo(() => {
@@ -498,10 +376,7 @@ export function ProcessamentoShopee() {
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      await Promise.all([
-        fetchTransportadorasShopee(),
-        fetchProcessamentos()
-      ])
+      await fetchProcessamentos()
       setUltimaSincronizacao(new Date().toLocaleTimeString('pt-BR'))
     } catch (err) {
       console.error('Erro ao atualizar dados:', err)
@@ -762,8 +637,8 @@ export function ProcessamentoShopee() {
               onChange={e => setTransportadoraFiltro(e.target.value)}
               className="input-field py-2 px-3 text-xs w-full bg-slate-800/80 border-slate-700 text-white cursor-pointer truncate"
             >
-              <option value="TODAS">Todas as Transportadoras ({transportadoras.length})</option>
-              {transportadoras.map(t => (
+              <option value="TODAS">Todas as Transportadoras ({transportadorasDisponiveis.length})</option>
+              {transportadorasDisponiveis.map(t => (
                 <option key={t.id} value={t.id}>
                   {t.nome_empresa}
                 </option>
