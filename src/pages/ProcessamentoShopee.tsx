@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { 
   ShoppingBag, 
   Search, 
@@ -27,6 +27,51 @@ interface TransportadoraShopee {
   nome_empresa: string
   tipo: string
   nome_base?: string
+}
+
+export interface ShopeeProcessamentoDB {
+  id: string
+  transportadora_id?: string | null
+  nome_empresa: string
+  nome_base?: string | null
+  cnpj?: string | null
+  quinzena: number
+  mes: number
+  ano: number
+  processo: ProcessoTipo
+  status: StatusProcessamento
+  segundos_processamento?: number | null
+  registros_processados?: number | null
+  data_inicio?: string | null
+  data_fim?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+function formatarTempoSegundos(totalSegundos?: number | null): string {
+  if (totalSegundos === undefined || totalSegundos === null || totalSegundos <= 0) return '-'
+  const h = Math.floor(totalSegundos / 3600)
+  const m = Math.floor((totalSegundos % 3600) / 60)
+  const s = totalSegundos % 60
+  return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
+}
+
+function formatarDataHora(isoString?: string | null): string {
+  if (!isoString) return '-'
+  try {
+    const d = new Date(isoString)
+    if (isNaN(d.getTime())) return isoString
+    return d.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  } catch {
+    return isoString
+  }
 }
 
 interface ItemProcessamento {
@@ -78,18 +123,14 @@ export function ProcessamentoShopee() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const [transportadoras, setTransportadoras] = useState<TransportadoraShopee[]>([])
+  const [processamentosDB, setProcessamentosDB] = useState<ShopeeProcessamentoDB[]>([])
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
-
-  // Seed aleatório para atualização do mock
-  const [refreshSeed, setRefreshSeed] = useState(1)
-
-  useEffect(() => {
-    fetchTransportadorasShopee()
-  }, [])
+  const [ultimaSincronizacao, setUltimaSincronizacao] = useState<string>(() =>
+    new Date().toLocaleTimeString('pt-BR')
+  )
 
   const fetchTransportadorasShopee = async () => {
-    setLoading(true)
     try {
       const { data, error } = await supabase
         .from('clientes')
@@ -110,83 +151,223 @@ export function ProcessamentoShopee() {
       }
     } catch (err) {
       console.error('Erro ao buscar transportadoras Shopee:', err)
-    } finally {
-      setLoading(false)
     }
   }
 
-  // Gera dados mockados coerentes baseados nos filtros
+  const fetchProcessamentos = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('shopee_processamentos')
+        .select('*')
+        .eq('quinzena', Number(quinzena))
+        .eq('mes', Number(mes))
+        .eq('ano', Number(ano))
+
+      if (error) {
+        console.error('Erro ao buscar shopee_processamentos:', error)
+        return
+      }
+
+      setProcessamentosDB((data as ShopeeProcessamentoDB[]) || [])
+      setUltimaSincronizacao(new Date().toLocaleTimeString('pt-BR'))
+    } catch (err) {
+      console.error('Erro ao buscar shopee_processamentos:', err)
+    }
+  }, [quinzena, mes, ano])
+
+  // Carga inicial
+  useEffect(() => {
+    const carregarTudo = async () => {
+      setLoading(true)
+      await Promise.all([
+        fetchTransportadorasShopee(),
+        fetchProcessamentos()
+      ])
+      setLoading(false)
+    }
+    carregarTudo()
+  }, [])
+
+  // Atualiza processamentos ao alterar filtros de competência (quinzena, mês, ano)
+  useEffect(() => {
+    fetchProcessamentos()
+  }, [fetchProcessamentos])
+
+  // Inscrição Realtime no Supabase para a tabela shopee_processamentos
+  useEffect(() => {
+    const channel = supabase
+      .channel('shopee_processamentos_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'shopee_processamentos' },
+        () => {
+          fetchProcessamentos()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchProcessamentos])
+
+  // Cruzamento dos dados reais de shopee_processamentos com as transportadoras
   const dadosProcessamento = useMemo(() => {
-    if (transportadoras.length === 0) return []
+    if (transportadoras.length === 0 && processamentosDB.length === 0) return []
 
     const items: ItemProcessamento[] = []
     const processosList: ProcessoTipo[] = ['Last Mile', 'First Mile', 'Line Haul']
 
-    transportadoras.forEach((transp, transpIdx) => {
+    const norm = (s?: string | null) => (s || '').trim().toLowerCase()
+
+    // Mapas de busca rápida para registros do banco
+    const dbMapById = new Map<string, ShopeeProcessamentoDB>()
+    const dbMapByName = new Map<string, ShopeeProcessamentoDB>()
+    const dbMatchedIds = new Set<string>()
+
+    processamentosDB.forEach(p => {
+      if (p.transportadora_id) {
+        dbMapById.set(`${p.transportadora_id}_${p.processo}`, p)
+      }
+      if (p.nome_empresa) {
+        dbMapByName.set(`${norm(p.nome_empresa)}_${p.processo}`, p)
+      }
+    })
+
+    // 1. Processa todas as transportadoras conhecidas do cadastro Shopee
+    transportadoras.forEach(transp => {
       // Se selecionou uma transportadora específica e não for esta, pula
       if (transportadoraFiltro !== 'TODAS' && transp.id !== transportadoraFiltro) {
         return
       }
 
-      processosList.forEach((proc, procIdx) => {
+      processosList.forEach(proc => {
         // Se filtrou por processo e não for este, pula
         if (processoFiltro !== 'TODOS' && proc !== processoFiltro) {
           return
         }
 
-        // Pseudo-random determinístico com base nos filtros
-        const hash = (transpIdx * 17 + procIdx * 31 + parseInt(mes) * 13 + parseInt(quinzena) * 7 + refreshSeed) % 100
+        // Tenta encontrar registro no banco por ID da transportadora ou por Nome
+        const procDB = dbMapById.get(`${transp.id}_${proc}`) || dbMapByName.get(`${norm(transp.nome_empresa)}_${proc}`)
 
-        let status: StatusProcessamento = 'FINALIZADO'
-        let tempoStr = '00h 00m 00s'
-        let segs = 0
-        let registros = 0
-        let dataInicio = `${ano}-${mes}-${quinzena === '1' ? '05' : '20'} 08:30:00`
-        let dataFim = `${ano}-${mes}-${quinzena === '1' ? '05' : '20'} 09:15:24`
+        if (procDB) {
+          if (procDB.id) dbMatchedIds.add(procDB.id)
 
-        if (hash < 25) {
-          status = 'NAO_INICIADO'
-          tempoStr = '-'
-          segs = 0
-          registros = 0
-          dataInicio = '-'
-          dataFim = '-'
-        } else if (hash < 48) {
-          status = 'PROCESSANDO'
-          segs = (hash * 45) + 300 // entre 5m e 40m
-          const m = Math.floor(segs / 60)
-          const s = segs % 60
-          tempoStr = `00h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
-          registros = hash * 120 + 450
-          dataFim = 'Em andamento...'
+          const status: StatusProcessamento = procDB.status || 'NAO_INICIADO'
+          let segs = procDB.segundos_processamento || 0
+          let tempoStr = '-'
+
+          if (status === 'FINALIZADO') {
+            if (segs > 0) {
+              tempoStr = formatarTempoSegundos(segs)
+            } else if (procDB.data_inicio && procDB.data_fim) {
+              const diff = Math.max(0, Math.floor((new Date(procDB.data_fim).getTime() - new Date(procDB.data_inicio).getTime()) / 1000))
+              tempoStr = formatarTempoSegundos(diff)
+              segs = diff
+            } else {
+              tempoStr = '00h 00m 00s'
+            }
+          } else if (status === 'PROCESSANDO') {
+            if (segs > 0) {
+              tempoStr = formatarTempoSegundos(segs)
+            } else if (procDB.data_inicio) {
+              const diff = Math.max(0, Math.floor((Date.now() - new Date(procDB.data_inicio).getTime()) / 1000))
+              tempoStr = formatarTempoSegundos(diff)
+              segs = diff
+            } else {
+              tempoStr = 'Em andamento...'
+            }
+          } else {
+            tempoStr = '-'
+            segs = 0
+          }
+
+          items.push({
+            id: procDB.id || `${transp.id}_${proc}`,
+            transportadora_id: transp.id,
+            transportadora_nome: transp.nome_empresa,
+            base_nome: procDB.nome_base || transp.nome_base || 'dbMantran',
+            processo: proc,
+            status,
+            tempo_processamento: tempoStr,
+            segundos_processamento: segs,
+            registros_processados: procDB.registros_processados || 0,
+            data_inicio: formatarDataHora(procDB.data_inicio),
+            data_fim: status === 'PROCESSANDO' ? 'Em andamento...' : formatarDataHora(procDB.data_fim)
+          })
         } else {
-          status = 'FINALIZADO'
-          segs = (hash * 75) + 600 // entre 10m e 2h
-          const h = Math.floor(segs / 3600)
-          const m = Math.floor((segs % 3600) / 60)
-          const s = segs % 60
-          tempoStr = `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`
-          registros = (hash * 230) + 1200
+          // Sem registro na tabela para essa competência -> Não Iniciado
+          items.push({
+            id: `${transp.id}_${proc}`,
+            transportadora_id: transp.id,
+            transportadora_nome: transp.nome_empresa,
+            base_nome: transp.nome_base || 'dbMantran',
+            processo: proc,
+            status: 'NAO_INICIADO',
+            tempo_processamento: '-',
+            segundos_processamento: 0,
+            registros_processados: 0,
+            data_inicio: '-',
+            data_fim: '-'
+          })
         }
+      })
+    })
 
-        items.push({
-          id: `${transp.id}_${proc}`,
-          transportadora_id: transp.id,
-          transportadora_nome: transp.nome_empresa,
-          base_nome: transp.nome_base || 'dbMantran',
-          processo: proc,
-          status,
-          tempo_processamento: tempoStr,
-          segundos_processamento: segs,
-          registros_processados: registros,
-          data_inicio: dataInicio,
-          data_fim: dataFim
-        })
+    // 2. Se houver registros na tabela shopee_processamentos que não estão no cadastro de clientes, adiciona também
+    processamentosDB.forEach(procDB => {
+      if (procDB.id && dbMatchedIds.has(procDB.id)) return
+
+      if (processoFiltro !== 'TODOS' && procDB.processo !== processoFiltro) {
+        return
+      }
+      if (transportadoraFiltro !== 'TODAS' && procDB.transportadora_id !== transportadoraFiltro) {
+        return
+      }
+
+      const status: StatusProcessamento = procDB.status || 'NAO_INICIADO'
+      let segs = procDB.segundos_processamento || 0
+      let tempoStr = '-'
+
+      if (status === 'FINALIZADO') {
+        if (segs > 0) {
+          tempoStr = formatarTempoSegundos(segs)
+        } else if (procDB.data_inicio && procDB.data_fim) {
+          const diff = Math.max(0, Math.floor((new Date(procDB.data_fim).getTime() - new Date(procDB.data_inicio).getTime()) / 1000))
+          tempoStr = formatarTempoSegundos(diff)
+          segs = diff
+        } else {
+          tempoStr = '00h 00m 00s'
+        }
+      } else if (status === 'PROCESSANDO') {
+        if (segs > 0) {
+          tempoStr = formatarTempoSegundos(segs)
+        } else if (procDB.data_inicio) {
+          const diff = Math.max(0, Math.floor((Date.now() - new Date(procDB.data_inicio).getTime()) / 1000))
+          tempoStr = formatarTempoSegundos(diff)
+          segs = diff
+        } else {
+          tempoStr = 'Em andamento...'
+        }
+      }
+
+      items.push({
+        id: procDB.id,
+        transportadora_id: procDB.transportadora_id || procDB.id,
+        transportadora_nome: procDB.nome_empresa || 'Transportadora Shopee',
+        base_nome: procDB.nome_base || 'dbMantran',
+        processo: procDB.processo,
+        status,
+        tempo_processamento: tempoStr,
+        segundos_processamento: segs,
+        registros_processados: procDB.registros_processados || 0,
+        data_inicio: formatarDataHora(procDB.data_inicio),
+        data_fim: status === 'PROCESSANDO' ? 'Em andamento...' : formatarDataHora(procDB.data_fim)
       })
     })
 
     return items
-  }, [transportadoras, quinzena, mes, ano, processoFiltro, transportadoraFiltro, refreshSeed])
+  }, [transportadoras, processamentosDB, quinzena, mes, ano, processoFiltro, transportadoraFiltro])
 
   // Filtro de busca por texto e status
   const filteredItems = useMemo(() => {
@@ -296,12 +477,19 @@ export function ProcessamentoShopee() {
     doc.save(`processamento_shopee_${quinzena}Q_${mes}_${ano}.pdf`)
   }
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true)
-    setTimeout(() => {
-      setRefreshSeed(prev => prev + 1)
+    try {
+      await Promise.all([
+        fetchTransportadorasShopee(),
+        fetchProcessamentos()
+      ])
+      setUltimaSincronizacao(new Date().toLocaleTimeString('pt-BR'))
+    } catch (err) {
+      console.error('Erro ao atualizar dados:', err)
+    } finally {
       setIsRefreshing(false)
-    }, 500)
+    }
   }
 
   return (
@@ -739,7 +927,7 @@ export function ProcessamentoShopee() {
         <div className="p-3 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
           <span>Exibindo <strong>{filteredItems.length}</strong> de <strong>{dadosProcessamento.length}</strong> processos da {quinzena}ª Quinzena</span>
           <span className="text-[11px] text-slate-500">
-            Última sincronização: {new Date().toLocaleTimeString('pt-BR')}
+            Última sincronização: {ultimaSincronizacao}
           </span>
         </div>
       </div>
