@@ -132,6 +132,24 @@ export function ProcessamentoShopee() {
 
   const fetchTransportadorasShopee = async () => {
     try {
+      // 1. Prioriza o catálogo oficial de shopee_transportadoras
+      const { data: dataShopee, error: errShopee } = await supabase
+        .from('shopee_transportadoras')
+        .select('id, nome_empresa, nome_base, cnpj, ativo')
+        .order('nome_empresa', { ascending: true })
+
+      if (!errShopee && dataShopee && dataShopee.length > 0) {
+        const formatted: TransportadoraShopee[] = dataShopee.map(t => ({
+          id: t.id,
+          nome_empresa: t.nome_empresa,
+          tipo: 'SHOPEE',
+          nome_base: t.nome_base || 'dbMantran'
+        }))
+        setTransportadoras(formatted)
+        return
+      }
+
+      // 2. Fallback para clientes se shopee_transportadoras estiver vazia
       const { data, error } = await supabase
         .from('clientes')
         .select('id, nome_empresa, tipo, bases ( nome_base )')
