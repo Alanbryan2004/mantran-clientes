@@ -12,25 +12,25 @@ export interface PerfilPermissao {
 export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Administrador: {
     perfil: 'Administrador',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/academia', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Tecnico: {
     perfil: 'Tecnico',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/academia', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Suporte: {
     perfil: 'Suporte',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa', '/academia'],
     projeto_especifico_id: null,
     read_only: false
   },
   Usuario: {
     perfil: 'Usuario',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/academia'],
     projeto_especifico_id: null,
     read_only: true
   },
@@ -43,13 +43,13 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Comercial: {
     perfil: 'Comercial',
-    rotas: ['/comercial', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/calendario', '/implantacoes', '/rh'],
+    rotas: ['/comercial', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/calendario', '/implantacoes', '/rh'],
     projeto_especifico_id: null,
     read_only: false
   },
   Cliente: {
     perfil: 'Cliente',
-    rotas: ['/tickets', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/implantacoes'],
+    rotas: ['/tickets', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/implantacoes'],
     projeto_especifico_id: null,
     read_only: true
   }
@@ -186,14 +186,6 @@ export const permissionsApi = {
 
     // FAQ: liberado para consulta pública (e para todos os usuários logados, exceto Parceiro).
     if (normPath.startsWith('/faq')) {
-      if (!user || !user.perfil) return true
-      const p = user.perfil.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      return p !== 'parceiro'
-    }
-
-    // Academia Mantran (vídeos de treinamento): mesma regra do FAQ — consulta pública
-    // e liberada para todos os usuários logados, exceto Parceiro.
-    if (normPath.startsWith('/academia')) {
       if (!user || !user.perfil) return true
       const p = user.perfil.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       return p !== 'parceiro'

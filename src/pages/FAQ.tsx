@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom'
 import {
   BookOpen, Search, Plus, Pencil, Trash2, X, Save, ChevronRight,
   Image as ImageIcon, GripVertical, Bold, FolderPlus, ArrowLeft,
@@ -196,11 +196,54 @@ function atendeBusca(p: FaqProcedimento, cat: FaqCategoria, buscaStr: string): b
     return regex.test(tNorm) || regex.test(mNorm) || regex.test(cNorm) || regex.test(modNorm) || regex.test(objNorm)
   })
 }
+/**
+ * Converte o título do procedimento em um slug limpo e amigável para URL.
+ * Exemplo: "COMO ALTERAR DEVEDOR NA FATURA" -> "COMO_ALTERAR_DEVEDOR_NA_FATURA"
+ * Exemplo: "Cadastro de motorista" -> "CADASTRO_DE_MOTORISTA"
+ */
+export function gerarSlugFaq(titulo: string): string {
+  if (!titulo) return ''
+  return titulo
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_') // substitui espaços e símbolos por _
+    .replace(/^_+|_+$/g, '') // remove _ do início e fim
+}
+
+/**
+ * Verifica se um parâmetro (slug amigável, ID ou título) corresponde ao procedimento.
+ */
+export function matchSlugFaq(param: string, proc: { id: string; titulo: string }): boolean {
+  if (!param) return false
+  // 1. Match direto por ID (ex: 58601e90-4286-427c-9023-58f8e1c97c49)
+  if (proc.id.toLowerCase() === param.toLowerCase()) return true
+
+  // 2. Normaliza o parâmetro recebido
+  const normParam = param
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+
+  const slugProc = gerarSlugFaq(proc.titulo)
+  if (slugProc === normParam) return true
+
+  // 3. Fallback sem separador (caso usuário digite com hífen ou espaços)
+  const normParamSemSep = normParam.replace(/_/g, '')
+  const slugProcSemSep = slugProc.replace(/_/g, '')
+  return slugProcSemSep.length > 0 && slugProcSemSep === normParamSemSep
+}
 
 export function FAQ() {
   const user = getLoggedUser()
   const podeEditar = canEditFaq()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { slug } = useParams<{ slug?: string }>()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [categorias, setCategorias] = useState<FaqCategoria[]>([])
   const [loading, setLoading] = useState(true)
@@ -252,34 +295,43 @@ export function FAQ() {
     )
   }, [procSelecionado])
 
-  // Sincroniza o procedimento selecionado a partir da URL (?p=ID ou ?manual=slug/titulo)
+  // Sincroniza o procedimento selecionado a partir da URL (/faq/SLUG ou ?p=ID ou ?manual=slug/titulo)
   useEffect(() => {
-    const param = searchParams.get('p') || searchParams.get('id') || searchParams.get('manual')
+    const param = slug || searchParams.get('p') || searchParams.get('id') || searchParams.get('manual')
     if (param && todosProcs.length > 0) {
-      const pNorm = normalizarBusca(param)
-      const encontrado = todosProcs.find(p => 
-        p.id === param || 
-        normalizarBusca(p.titulo) === pNorm ||
-        normalizarBusca(p.titulo).replace(/[^a-z0-9]+/g, '-') === pNorm
-      )
-      if (encontrado && procSelecionadoId !== encontrado.id) {
-        setProcSelecionadoId(encontrado.id)
+      const encontrado = todosProcs.find(p => matchSlugFaq(param, p))
+      if (encontrado) {
+        if (procSelecionadoId !== encontrado.id) {
+          setProcSelecionadoId(encontrado.id)
+        }
+        // Se entrou via query param antigo (?p=...), redireciona para a URL amigável /faq/SLUG
+        if (!slug && searchParams.has('p')) {
+          navigate(`/faq/${gerarSlugFaq(encontrado.titulo)}`, { replace: true })
+        }
       }
+    } else if (!param && procSelecionadoId) {
+      setProcSelecionadoId(null)
     }
-  }, [todosProcs, searchParams])
+  }, [todosProcs, slug, searchParams, procSelecionadoId, navigate])
 
   const selecionarProcedimento = (id: string | null) => {
     setProcSelecionadoId(id)
     if (id) {
-      setSearchParams({ p: id }, { replace: true })
+      const proc = todosProcs.find(p => p.id === id)
+      if (proc) {
+        navigate(`/faq/${gerarSlugFaq(proc.titulo)}`)
+      } else {
+        navigate(`/faq?p=${encodeURIComponent(id)}`)
+      }
     } else {
-      setSearchParams({}, { replace: true })
+      navigate('/faq')
     }
   }
 
   const handleCopiarLink = async () => {
     if (!procSelecionado) return
-    const url = `${window.location.origin}/faq?p=${encodeURIComponent(procSelecionado.id)}`
+    const slugProc = gerarSlugFaq(procSelecionado.titulo)
+    const url = `${window.location.origin}/faq/${slugProc}`
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(url)

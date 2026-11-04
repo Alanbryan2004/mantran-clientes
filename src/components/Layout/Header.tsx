@@ -175,14 +175,14 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
                   ? 'Juntar Planilhas Shopee 4PL'
                   : location.pathname.startsWith('/separador') 
                     ? 'Separador de Planilhas Shopee' 
-                    : (location.pathname.startsWith('/cidades') ? 'Cidades & Faixas de CEP' : (location.pathname.startsWith('/academia') ? 'Academia Mantran' : 'FAQ & Procedimentos Mantran'))}
+                    : (location.pathname.startsWith('/cidades') ? 'Cidades & Faixas de CEP' : 'FAQ & Procedimentos Mantran')}
               </span>
               <span className="text-[10px] text-slate-400">
                 {location.pathname.startsWith('/juntar')
                   ? 'Unificação de pré-faturas e garantia de integridade'
                   : location.pathname.startsWith('/separador') 
                     ? 'Validação de 53 colunas e divisão por operação' 
-                    : (location.pathname.startsWith('/cidades') ? 'Consulta pública de CEP e IBGE' : (location.pathname.startsWith('/academia') ? 'Vídeos de treinamento' : 'Base de conhecimento e autoatendimento'))}
+                    : (location.pathname.startsWith('/cidades') ? 'Consulta pública de CEP e IBGE' : 'Base de conhecimento e autoatendimento')}
               </span>
             </div>
           </div>

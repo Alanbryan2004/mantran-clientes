@@ -149,7 +149,6 @@ export function Sidebar() {
       if (!user) {
         setAllowedNavItems([
           { name: 'FAQ', path: '/faq', icon: BookOpen },
-          { name: 'Academia Mantran', path: '/academia', icon: GraduationCap },
           { name: 'Cidades', path: '/cidades', icon: MapPin },
           { name: 'Separador de Planilhas', path: '/separador-planilhas', icon: FileSpreadsheet },
           { name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack },
@@ -170,8 +169,10 @@ export function Sidebar() {
         const clienteItems = [
           { name: 'Meus Chamados', path: '/tickets', icon: Ticket },
           { name: 'FAQ', path: '/faq', icon: BookOpen },
-          { name: 'Academia Mantran', path: '/academia', icon: GraduationCap },
         ]
+        if (permissionsApi.canAccessRoute('/academia')) {
+          clienteItems.push({ name: 'Academia Mantran', path: '/academia', icon: GraduationCap })
+        }
         if (permissionsApi.canAccessRoute('/cidades')) {
           clienteItems.push({ name: 'Cidades', path: '/cidades', icon: MapPin })
         }
@@ -191,8 +192,10 @@ export function Sidebar() {
         const clienteItems = [
           { name: 'Minha Implantação', path: directPath, icon: Rocket },
           { name: 'FAQ', path: '/faq', icon: BookOpen },
-          { name: 'Academia Mantran', path: '/academia', icon: GraduationCap },
         ]
+        if (permissionsApi.canAccessRoute('/academia')) {
+          clienteItems.push({ name: 'Academia Mantran', path: '/academia', icon: GraduationCap })
+        }
         if (permissionsApi.canAccessRoute('/cidades')) {
           clienteItems.push({ name: 'Cidades', path: '/cidades', icon: MapPin })
         }
@@ -214,8 +217,10 @@ export function Sidebar() {
               const updatedItems = [
                 { name: 'Minha Implantação', path: `/implantacoes/${impl.id}`, icon: Rocket },
                 { name: 'FAQ', path: '/faq', icon: BookOpen },
-                { name: 'Academia Mantran', path: '/academia', icon: GraduationCap },
               ]
+              if (permissionsApi.canAccessRoute('/academia')) {
+                updatedItems.push({ name: 'Academia Mantran', path: '/academia', icon: GraduationCap })
+              }
               if (permissionsApi.canAccessRoute('/cidades')) {
                 updatedItems.push({ name: 'Cidades', path: '/cidades', icon: MapPin })
               }

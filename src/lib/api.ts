@@ -4520,6 +4520,59 @@ export const api = {
     if (error) throw error
   },
 
+  // Progresso de visualização por usuário (tabela academia_visualizacoes).
+  // Tolerante: se a tabela ainda não existir, devolve vazio e não quebra a tela.
+  async getAcademiaProgresso(usuarioChave: string): Promise<Record<string, { assistido: boolean; progresso_pct: number }>> {
+    if (!usuarioChave) return {}
+    try {
+      const { data, error } = await supabase
+        .from('academia_visualizacoes')
+        .select('video_id, assistido, progresso_pct')
+        .eq('usuario_chave', usuarioChave)
+      if (error) {
+        console.warn('Progresso da Academia indisponível (tabela academia_visualizacoes existe?):', error.message)
+        return {}
+      }
+      const mapa: Record<string, { assistido: boolean; progresso_pct: number }> = {}
+      ;(data || []).forEach((r: any) => {
+        mapa[r.video_id] = { assistido: !!r.assistido, progresso_pct: Number(r.progresso_pct) || 0 }
+      })
+      return mapa
+    } catch {
+      return {}
+    }
+  },
+
+  // `concluidoAgora` só deve ser true na PRIMEIRA vez que o vídeo é concluído:
+  // assim a data original de conclusão é preservada nos salvamentos seguintes.
+  async salvarAcademiaProgresso(p: {
+    usuario_chave: string
+    usuario_nome?: string | null
+    video_id: string
+    progresso_pct: number
+    assistido: boolean
+    concluidoAgora?: boolean
+  }): Promise<void> {
+    if (!p.usuario_chave || !p.video_id) return
+    try {
+      const row: any = {
+        usuario_chave: p.usuario_chave,
+        usuario_nome: p.usuario_nome ?? null,
+        video_id: p.video_id,
+        progresso_pct: Math.max(0, Math.min(100, Math.round(p.progresso_pct))),
+        assistido: p.assistido,
+        ultima_vez: new Date().toISOString()
+      }
+      if (p.concluidoAgora) row.concluido_em = new Date().toISOString()
+      const { error } = await supabase
+        .from('academia_visualizacoes')
+        .upsert(row, { onConflict: 'usuario_chave,video_id' })
+      if (error) console.warn('Não foi possível salvar o progresso da Academia:', error.message)
+    } catch (e) {
+      console.warn('Não foi possível salvar o progresso da Academia:', e)
+    }
+  },
+
   // --- Vínculos Diretos entre Empresas do mesmo Cliente/Grupo ---
   async getEmpresaVinculos(): Promise<EmpresaVinculoItem[]> {
     try {

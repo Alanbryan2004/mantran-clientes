@@ -1,19 +1,28 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   GraduationCap, Search, Play, Plus, Pencil, Trash2, X, Save,
-  Loader2, AlertCircle, Video, ExternalLink
+  Loader2, AlertCircle, Video, ExternalLink, Settings, CheckCircle2
 } from 'lucide-react'
 import clsx from 'clsx'
 import { api, type AcademiaVideo } from '../lib/api'
 import { getLoggedUser, canEditFaq } from '../lib/auth'
-import { extrairYoutubeId, youtubeThumb, youtubeEmbedUrl } from '../lib/youtube'
+import { extrairYoutubeId, youtubeThumb, youtubeEmbedUrl, carregarYoutubeApi } from '../lib/youtube'
+
+type ProgressoVideo = { assistido: boolean; progresso_pct: number }
+
+// Considera o vídeo "assistido" ao chegar a esta porcentagem (ou ao fim).
+const PCT_ASSISTIDO = 90
+// Salva o progresso parcial a cada avanço deste tamanho (em %).
+const PASSO_SALVAR_PCT = 20
 
 // ============================================================
 // Academia Mantran — vídeos de treinamento (YouTube "Não listado")
-// Consulta liberada para clientes e equipe; cadastro só para Admin e Suporte.
+// Acesso controlado por permissão de perfil; cadastro só para Admin e Suporte.
 // ============================================================
 export function AcademiaMantran() {
   const podeEditar = canEditFaq()
+  const usuario = getLoggedUser()
+  const usuarioChave = usuario?.id ? String(usuario.id) : ''
 
   const [videos, setVideos] = useState<AcademiaVideo[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,6 +30,10 @@ export function AcademiaMantran() {
   const [busca, setBusca] = useState('')
   const [assistindo, setAssistindo] = useState<AcademiaVideo | null>(null)
   const [editando, setEditando] = useState<AcademiaVideo | 'novo' | null>(null)
+  const [progresso, setProgresso] = useState<Record<string, ProgressoVideo>>({})
+  const progressoRef = useRef<Record<string, ProgressoVideo>>({})
+
+  useEffect(() => { progressoRef.current = progresso }, [progresso])
 
   const carregar = async () => {
     setLoading(true)
@@ -36,6 +49,37 @@ export function AcademiaMantran() {
   }
 
   useEffect(() => { carregar() }, [])
+
+  // Progresso do usuário logado (quais vídeos já assistiu)
+  useEffect(() => {
+    if (!usuarioChave) return
+    api.getAcademiaProgresso(usuarioChave).then(setProgresso)
+  }, [usuarioChave])
+
+  // Atualiza o selo na hora e grava no banco. Nunca "desfaz" um vídeo já assistido
+  // e guarda sempre o maior percentual alcançado.
+  const registrarProgresso = (v: AcademiaVideo, pct: number, concluido: boolean) => {
+    if (!usuarioChave) return
+    const atual = progressoRef.current[v.id]
+    const jaAssistido = !!atual?.assistido
+    const assistido = jaAssistido || concluido
+    const novoPct = assistido
+      ? 100
+      : Math.max(atual?.progresso_pct ?? 0, Math.min(PCT_ASSISTIDO - 1, Math.round(pct)))
+    if (atual && atual.assistido === assistido && atual.progresso_pct === novoPct) return
+
+    const novo: ProgressoVideo = { assistido, progresso_pct: novoPct }
+    progressoRef.current = { ...progressoRef.current, [v.id]: novo }
+    setProgresso(prev => ({ ...prev, [v.id]: novo }))
+    api.salvarAcademiaProgresso({
+      usuario_chave: usuarioChave,
+      usuario_nome: usuario?.nome || usuario?.login || null,
+      video_id: v.id,
+      progresso_pct: novoPct,
+      assistido,
+      concluidoAgora: assistido && !jaAssistido
+    })
+  }
 
   // Fecha o player com a tecla Esc
   useEffect(() => {
@@ -148,118 +192,92 @@ export function AcademiaMantran() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtrados.map(v => (
-            <article
-              key={v.id}
-              className="group bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-brand-300 transition-all flex flex-col"
-            >
-              <button
-                type="button"
-                onClick={() => setAssistindo(v)}
-                aria-label={`Assistir: ${v.titulo}`}
-                className="relative block w-full aspect-video bg-slate-200 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          {filtrados.map(v => {
+            const prog = progresso[v.id]
+            const statusTexto = prog?.assistido
+              ? ' (já assistido)'
+              : prog ? ` (em andamento, ${prog.progresso_pct}%)` : ''
+            return (
+              <article
+                key={v.id}
+                className="group bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-brand-300 transition-all flex flex-col"
               >
-                <img
-                  src={youtubeThumb(v.youtube_id)}
-                  alt=""
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <span className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/25 transition-colors">
-                  <span className="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                    <Play className="w-5 h-5 ml-0.5 fill-white" />
-                  </span>
-                </span>
-              </button>
-
-              <div className="p-4 flex flex-col flex-1">
                 <button
                   type="button"
                   onClick={() => setAssistindo(v)}
-                  className="text-left text-sm font-bold text-slate-900 hover:text-brand-600 transition-colors cursor-pointer line-clamp-2"
+                  aria-label={`Assistir: ${v.titulo}${statusTexto}`}
+                  className="relative block w-full aspect-video bg-slate-200 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 >
-                  {v.titulo}
-                </button>
-                {v.descricao && (
-                  <p className="text-xs text-slate-500 mt-1.5 line-clamp-2">{v.descricao}</p>
-                )}
+                  <img
+                    src={youtubeThumb(v.youtube_id)}
+                    alt=""
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
 
-                {podeEditar && (
-                  <div className="flex items-center gap-1 mt-auto pt-3">
-                    <button
-                      type="button"
-                      onClick={() => setEditando(v)}
-                      className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 hover:text-brand-600 hover:bg-slate-100 flex items-center gap-1.5 cursor-pointer transition-colors"
-                    >
-                      <Pencil className="w-3.5 h-3.5" /> Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => excluir(v)}
-                      className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 hover:text-red-600 hover:bg-red-50 flex items-center gap-1.5 cursor-pointer transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Excluir
-                    </button>
-                  </div>
-                )}
-              </div>
-            </article>
-          ))}
+                  {/* Selo de progresso do usuário */}
+                  {prog?.assistido ? (
+                    <span className="absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-bold shadow">
+                      <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Assistido
+                    </span>
+                  ) : prog ? (
+                    <span className="absolute top-2 left-2 z-10 px-2 py-1 rounded-full bg-amber-500 text-white text-[11px] font-bold shadow">
+                      Em andamento • {prog.progresso_pct}%
+                    </span>
+                  ) : null}
+
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/25 transition-colors">
+                    <span className="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <Play className="w-5 h-5 ml-0.5 fill-white" />
+                    </span>
+                  </span>
+                </button>
+
+                <div className="p-4 flex flex-col flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setAssistindo(v)}
+                    className="text-left text-sm font-bold text-slate-900 hover:text-brand-600 transition-colors cursor-pointer line-clamp-2"
+                  >
+                    {v.titulo}
+                  </button>
+                  {v.descricao && (
+                    <p className="text-xs text-slate-500 mt-1.5 line-clamp-2">{v.descricao}</p>
+                  )}
+
+                  {podeEditar && (
+                    <div className="flex items-center gap-1 mt-auto pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setEditando(v)}
+                        className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 hover:text-brand-600 hover:bg-slate-100 flex items-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => excluir(v)}
+                        className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 hover:text-red-600 hover:bg-red-50 flex items-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Excluir
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </article>
+            )
+          })}
         </div>
       )}
 
       {/* Player */}
       {assistindo && (
-        <div
-          className="fixed inset-0 z-[10000] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setAssistindo(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label={assistindo.titulo}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 px-5 py-3 border-b border-slate-200">
-              <div className="min-w-0">
-                <h2 className="text-base font-bold text-slate-900 truncate">{assistindo.titulo}</h2>
-                {assistindo.descricao && <p className="text-xs text-slate-500 mt-0.5">{assistindo.descricao}</p>}
-              </div>
-              <button
-                type="button"
-                onClick={() => setAssistindo(null)}
-                aria-label="Fechar vídeo"
-                className="shrink-0 text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="aspect-video bg-black">
-              <iframe
-                key={assistindo.id}
-                title={assistindo.titulo}
-                src={youtubeEmbedUrl(assistindo.youtube_id, true)}
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-              />
-            </div>
-
-            <div className="px-5 py-2.5 border-t border-slate-200 flex justify-end">
-              <a
-                href={assistindo.youtube_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[11px] font-semibold text-slate-500 hover:text-brand-600 flex items-center gap-1.5"
-              >
-                <ExternalLink className="w-3.5 h-3.5" /> Não carregou? Abrir no YouTube
-              </a>
-            </div>
-          </div>
-        </div>
+        <PlayerModal
+          key={assistindo.id}
+          video={assistindo}
+          onClose={() => setAssistindo(null)}
+          onProgresso={(pct, concluido) => registrarProgresso(assistindo, pct, concluido)}
+        />
       )}
 
       {/* Cadastro / edição */}
@@ -267,6 +285,7 @@ export function AcademiaMantran() {
         <VideoFormModal
           video={editando === 'novo' ? null : editando}
           proximaOrdem={proximaOrdem}
+          videosExistentes={videos}
           onClose={() => setEditando(null)}
           onSaved={() => { setEditando(null); carregar() }}
         />
@@ -276,14 +295,188 @@ export function AcademiaMantran() {
 }
 
 // ============================================================
+// Player do vídeo + registro de progresso
+// Usa a IFrame Player API oficial só para saber quando toca, o tempo atual e o fim.
+// Marca "assistido" ao chegar a 90% ou ao terminar. Se a API não carregar, cai num
+// player simples (sem registrar conclusão, só que o vídeo foi aberto).
+// ============================================================
+function PlayerModal({ video, onClose, onProgresso }: {
+  video: AcademiaVideo
+  onClose: () => void
+  onProgresso: (pct: number, concluido: boolean) => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [semApi, setSemApi] = useState(false)
+
+  // Mantém sempre a versão mais recente do callback sem recriar o player
+  const onProgressoRef = useRef(onProgresso)
+  useEffect(() => { onProgressoRef.current = onProgresso }, [onProgresso])
+
+  useEffect(() => {
+    let cancelado = false
+    let player: any = null
+    let timer: number | undefined
+    let ultimoSalvo = 0
+    let concluiu = false
+
+    const pctAtual = (): number => {
+      try {
+        const duracao = player?.getDuration?.() || 0
+        const atual = player?.getCurrentTime?.() || 0
+        return duracao > 0 ? (atual / duracao) * 100 : 0
+      } catch {
+        return 0
+      }
+    }
+
+    const verificar = () => {
+      if (concluiu) return
+      const pct = pctAtual()
+      if (pct >= PCT_ASSISTIDO) {
+        concluiu = true
+        onProgressoRef.current(100, true)
+      } else if (pct - ultimoSalvo >= PASSO_SALVAR_PCT) {
+        ultimoSalvo = Math.floor(pct)
+        onProgressoRef.current(pct, false)
+      }
+    }
+
+    const pararTimer = () => {
+      if (timer !== undefined) { window.clearInterval(timer); timer = undefined }
+    }
+
+    carregarYoutubeApi()
+      .then(YT => {
+        if (cancelado || !containerRef.current) return
+        const alvo = document.createElement('div')
+        containerRef.current.appendChild(alvo)
+        player = new YT.Player(alvo, {
+          videoId: video.youtube_id,
+          host: 'https://www.youtube-nocookie.com',
+          width: '100%',
+          height: '100%',
+          playerVars: { rel: 0, modestbranding: 1, playsinline: 1, autoplay: 1, origin: window.location.origin },
+          events: {
+            onReady: (e: any) => {
+              try { e.target.getIframe().title = video.titulo } catch { /* sem título no iframe */ }
+            },
+            onStateChange: (e: any) => {
+              const estados = YT.PlayerState
+              if (e.data === estados.PLAYING) {
+                // registra que começou (1%) e acompanha o avanço
+                onProgressoRef.current(Math.max(1, pctAtual()), false)
+                pararTimer()
+                timer = window.setInterval(verificar, 4000)
+              } else if (e.data === estados.ENDED) {
+                pararTimer()
+                concluiu = true
+                onProgressoRef.current(100, true)
+              } else {
+                pararTimer()
+                verificar()
+              }
+            }
+          }
+        })
+      })
+      .catch(() => { if (!cancelado) setSemApi(true) })
+
+    return () => {
+      cancelado = true
+      pararTimer()
+      if (player) {
+        verificar() // guarda o ponto alcançado ao fechar
+        try { player.destroy() } catch { /* já destruído */ }
+      }
+      if (containerRef.current) containerRef.current.innerHTML = ''
+    }
+  }, [video.id, video.youtube_id, video.titulo])
+
+  // Sem a API não dá para medir; ao menos registra que o vídeo foi aberto
+  useEffect(() => {
+    if (semApi) onProgressoRef.current(1, false)
+  }, [semApi])
+
+  return (
+    <div
+      className="fixed inset-0 z-[10000] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={video.titulo}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl overflow-hidden"
+        // Player grande (até 1280px de largura), sem passar da altura da tela.
+        // O YouTube escolhe a resolução também pelo tamanho do player.
+        style={{ width: 'min(96vw, 1280px, calc((100vh - 10rem) * 16 / 9))' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 px-5 py-3 border-b border-slate-200">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-slate-900 truncate">{video.titulo}</h2>
+            {video.descricao && <p className="text-xs text-slate-500 mt-0.5">{video.descricao}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar vídeo"
+            className="shrink-0 text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {semApi ? (
+          <div className="aspect-video bg-black">
+            <iframe
+              title={video.titulo}
+              src={youtubeEmbedUrl(video.youtube_id, true)}
+              className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          </div>
+        ) : (
+          <div ref={containerRef} className="aspect-video bg-black [&_iframe]:w-full [&_iframe]:h-full" />
+        )}
+
+        <div className="px-5 py-2.5 border-t border-slate-200 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+          <p className="text-xs text-slate-600 flex items-start gap-1.5">
+            <Settings className="w-4 h-4 text-slate-400 shrink-0 mt-px" aria-hidden="true" />
+            <span>
+              <strong>A imagem está borrada?</strong> Toque na engrenagem do vídeo, abra <strong>Qualidade</strong> e selecione <strong>1080p (HD)</strong>.
+            </span>
+          </p>
+          <a
+            href={video.youtube_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] font-semibold text-slate-500 hover:text-brand-600 flex items-center gap-1.5"
+          >
+            <ExternalLink className="w-3.5 h-3.5" /> Não carregou? Abrir no YouTube
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
 // Modal: cadastrar / editar vídeo
 // ============================================================
-function VideoFormModal({ video, proximaOrdem, onClose, onSaved }: {
+function VideoFormModal({ video, proximaOrdem, videosExistentes, onClose, onSaved }: {
   video: AcademiaVideo | null
   proximaOrdem: number
+  videosExistentes: AcademiaVideo[]
   onClose: () => void
   onSaved: () => void
 }) {
+  // Trava síncrona contra clique duplo: o estado "salvando" só atualiza no próximo
+  // render, então dois cliques rápidos ainda passariam. O ref bloqueia na hora.
+  const enviandoRef = useRef(false)
+
   const [titulo, setTitulo] = useState(video?.titulo || '')
   const [url, setUrl] = useState(video?.youtube_url || '')
   const [descricao, setDescricao] = useState(video?.descricao || '')
@@ -297,11 +490,20 @@ function VideoFormModal({ video, proximaOrdem, onClose, onSaved }: {
   const labelCls = 'block text-xs font-bold text-slate-600 mb-1'
 
   const salvar = async () => {
+    if (enviandoRef.current) return
     if (!titulo.trim()) { setErro('Informe o título do treinamento.'); return }
     if (!videoId) { setErro('Link do YouTube inválido. Cole o link do vídeo (ex.: https://youtu.be/...).'); return }
+
+    // Mesmo vídeo já cadastrado (ignora o próprio registro ao editar)
+    const duplicado = videosExistentes.find(v => v.youtube_id === videoId && v.id !== video?.id)
+    if (duplicado) {
+      setErro(`Este vídeo já está cadastrado como "${duplicado.titulo}".`)
+      return
+    }
     const ordemNum = Number.parseInt(ordem, 10)
 
     setErro('')
+    enviandoRef.current = true
     setSalvando(true)
     try {
       const dados = {
@@ -321,6 +523,7 @@ function VideoFormModal({ video, proximaOrdem, onClose, onSaved }: {
     } catch (e: any) {
       setErro('Erro ao salvar: ' + (e?.message || 'desconhecido'))
     } finally {
+      enviandoRef.current = false
       setSalvando(false)
     }
   }
@@ -384,7 +587,8 @@ function VideoFormModal({ video, proximaOrdem, onClose, onSaved }: {
             type="button"
             onClick={salvar}
             disabled={salvando}
-            className={clsx('px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold flex items-center gap-2 cursor-pointer', salvando && 'opacity-60')}
+            aria-busy={salvando}
+            className={clsx('px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold flex items-center gap-2', salvando ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer')}
           >
             {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {salvando ? 'Salvando…' : 'Salvar'}
