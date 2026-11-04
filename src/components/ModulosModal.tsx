@@ -229,107 +229,159 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome, clienteT
   const integracoesList = modulosDisponiveis.filter(m => m.tipo === 'INTEGRAÇÃO' && m.nome !== MANTRAN_WEB_NOME)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-dark-card border border-slate-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4">
+      <div className="bg-dark-card border border-slate-800 rounded-xl shadow-2xl w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden">
         
-        <div className="flex items-center justify-between p-5 border-b border-slate-800 shrink-0">
+        {/* Header Compacto */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
           <div>
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-xl font-bold text-white">Módulos e Integrações</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-white tracking-wide">Módulos e Integrações</h2>
               {isShopee && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30">
                   <Truck className="w-3 h-3" /> Shopee
                 </span>
               )}
             </div>
-            <p className="text-sm text-slate-400">{clienteNome}</p>
+            <p className="text-xs text-slate-400">{clienteNome}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
-            <X className="w-6 h-6" />
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1">
-          {/* FLAG MANTRANWEB NO TOPO */}
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 flex flex-col gap-3">
+          
+          {/* BARRA SUPERIOR INTEGRADA: MantranWeb + Processos Shopee lado a lado */}
           {!loading && (
-            <div className={`mb-6 p-4 rounded-xl border transition-all duration-300 flex items-center justify-between gap-4 ${
-              isMantranWeb 
-                ? 'bg-gradient-to-r from-cyan-950/50 via-slate-900 to-slate-900 border-cyan-500/50 shadow-lg shadow-cyan-950/20' 
-                : 'bg-slate-800/40 border-slate-700/70 hover:border-slate-600'
-            }`}>
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border transition-all ${
-                  isMantranWeb 
-                    ? 'bg-gradient-to-br from-cyan-400 to-emerald-500 text-slate-950 border-cyan-300 shadow-md shadow-cyan-500/25' 
-                    : 'bg-slate-800 text-slate-400 border-slate-700'
-                }`}>
-                  <Globe className="w-6 h-6" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base font-bold text-white tracking-wide">MantranWeb</h3>
-                    {isMantranWeb ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-xs">
-                        <Check className="w-3 h-3 text-cyan-400" /> Migrado para a Web
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
-                        Ambiente C# (Desktop Legado)
-                      </span>
-                    )}
+            <div className={`grid grid-cols-1 ${isShopee || mostrarProcessosShopee ? 'lg:grid-cols-2' : 'grid-cols-1'} gap-2.5`}>
+              
+              {/* CARD MANTRANWEB (Compacto) */}
+              <div className={`px-3 py-2 rounded-lg border transition-all flex items-center justify-between gap-3 ${
+                isMantranWeb 
+                  ? 'bg-gradient-to-r from-cyan-950/40 via-slate-900 to-slate-900 border-cyan-500/40 shadow-xs' 
+                  : 'bg-slate-800/40 border-slate-700/70 hover:border-slate-600'
+              }`}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
+                    isMantranWeb 
+                      ? 'bg-gradient-to-br from-cyan-400 to-emerald-500 text-slate-950 border-cyan-300' 
+                      : 'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}>
+                    <Globe className="w-4 h-4" />
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {isMantranWeb 
-                      ? 'Este cliente já foi migrado com sucesso e está operando na nova plataforma 100% Web.' 
-                      : 'Marque esta flag quando o cliente for migrado do C# para a nova plataforma totalmente Web.'}
-                  </p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-bold text-white tracking-wide">MantranWeb</span>
+                      {isMantranWeb ? (
+                        <span className="inline-flex items-center gap-0.5 px-2 py-0.2 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                          <Check className="w-2.5 h-2.5 text-cyan-400" /> 100% Web
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                          C# Desktop
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] font-medium text-slate-400 hidden sm:inline">
+                    {isMantranWeb ? 'Ativo' : 'Inativo'}
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={isMantranWeb}
+                      disabled={!clienteId || isReadOnlyUser()}
+                      onChange={(e) => handleToggle(MANTRAN_WEB_NOME, e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className={`w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all cursor-pointer ${
+                      isMantranWeb ? 'peer-checked:bg-gradient-to-r peer-checked:from-cyan-500 peer-checked:to-emerald-500' : ''
+                    }`}></div>
+                  </label>
                 </div>
               </div>
 
-              {/* Flag / Switch */}
-              <div className="flex items-center gap-2.5 shrink-0">
-                <span className="text-xs font-semibold text-slate-400 hidden sm:inline">
-                  {isMantranWeb ? 'Ativo' : 'Inativo'}
-                </span>
-                <label className="relative inline-flex items-center cursor-pointer select-none">
-                  <input 
-                    type="checkbox" 
-                    checked={isMantranWeb}
-                    disabled={!clienteId || isReadOnlyUser()}
-                    onChange={(e) => handleToggle(MANTRAN_WEB_NOME, e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className={`w-14 h-8 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all cursor-pointer ${
-                    isMantranWeb ? 'peer-checked:bg-gradient-to-r peer-checked:from-cyan-500 peer-checked:to-emerald-500 shadow-md shadow-cyan-500/20' : ''
-                  }`}></div>
-                </label>
-              </div>
+              {/* CARD PROCESSOS SHOPEE (Compacto - 4 botões na mesma linha) */}
+              {(isShopee || mostrarProcessosShopee) ? (
+                <div className="px-3 py-2 rounded-lg bg-gradient-to-r from-orange-950/30 via-slate-900 to-slate-900 border border-orange-500/40 flex items-center justify-between gap-2.5 shadow-xs">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-orange-500/20 border border-orange-500/40 flex items-center justify-center text-orange-400 shrink-0">
+                      <Truck className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold text-white hidden sm:inline">Processos</span>
+                    <span className="text-[10px] font-bold text-orange-300/90 bg-orange-500/15 px-1.5 py-0.5 rounded border border-orange-500/30">
+                      {clienteProcessos.length}/4
+                    </span>
+                  </div>
+
+                  {/* 4 Botões Inline */}
+                  <div className="grid grid-cols-4 gap-1.5 flex-1 min-w-0">
+                    {PROCESSOS_SHOPEE.map(processo => {
+                      const isChecked = clienteProcessos.includes(processo)
+                      const isSaving = savingProcesso === processo
+                      return (
+                        <button
+                          key={processo}
+                          type="button"
+                          disabled={!clienteId || isReadOnlyUser() || !!savingProcesso}
+                          onClick={() => handleToggleProcesso(processo, !isChecked)}
+                          className={`py-1 px-1.5 rounded-md border text-[11px] font-semibold transition-all flex items-center justify-center gap-1 select-none truncate cursor-pointer ${
+                            isChecked 
+                              ? 'bg-orange-500/25 border-orange-500/70 text-orange-200 shadow-xs' 
+                              : 'bg-slate-800/50 border-slate-700/70 hover:bg-slate-800 hover:border-slate-500 text-slate-400'
+                          } ${isSaving ? 'opacity-60 animate-pulse' : ''}`}
+                          title={processo}
+                        >
+                          <span className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 text-[9px] ${
+                            isChecked ? 'bg-orange-500 text-slate-950 font-black' : 'border border-slate-600 bg-slate-900/60'
+                          }`}>
+                            {isChecked ? <Check className="w-2.5 h-2.5 stroke-[3]" /> : null}
+                          </span>
+                          <span className="truncate">{processo}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* Link discreto para clientes não-Shopee */
+                <div className="flex items-center justify-end px-2">
+                  <button
+                    type="button"
+                    onClick={() => setMostrarProcessosShopee(true)}
+                    className="text-xs text-slate-400 hover:text-orange-400 transition-colors inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800/40 border border-slate-700/60 hover:border-orange-500/40"
+                  >
+                    <Truck className="w-3.5 h-3.5" />
+                    <span>Vincular Processos Shopee</span>
+                  </button>
+                </div>
+              )}
+
             </div>
           )}
-          {/* Faixa de ação: aparece quando NFSE/MELI marcado E ainda não existe
-              implantação dedicada daquele módulo. Some após criar. */}
+
+          {/* Faixa de ação: Criar implantação dedicada (Compacta) */}
           {!loading && ((temNfse && !jaTemImplNfse) || (temMeli && !jaTemImplMeli)) && !isReadOnlyUser() && (
-            <div className="mb-6 p-4 rounded-xl bg-brand-500/10 border border-brand-500/30 flex flex-col gap-3">
-              <div className="flex items-start gap-2.5">
-                <Rocket className="w-5 h-5 text-brand-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-bold text-brand-200">Criar implantação dedicada</p>
-                  <p className="text-xs text-brand-200/70">
-                    Cada módulo gera uma implantação própria com os cards: Checkpoint, Configurar Base, Testes e o treinamento correspondente.
-                  </p>
-                  {implMsg && <p className="text-[11px] text-brand-300 mt-1 font-semibold">{implMsg}</p>}
-                </div>
+            <div className="px-3 py-2 rounded-lg bg-brand-500/10 border border-brand-500/30 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <Rocket className="w-4 h-4 text-brand-400 shrink-0" />
+                <span className="text-brand-200 font-semibold truncate">Criar implantação dedicada para módulos ativos</span>
+                {implMsg && <span className="text-brand-300 font-bold truncate">({implMsg})</span>}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {temNfse && !jaTemImplNfse && (
                   <button
                     type="button"
                     onClick={() => criarImplantacaoDedicada('NFSE')}
                     disabled={implBusy}
-                    className="px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 rounded-lg shadow-lg shadow-brand-600/25 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                    className="px-2.5 py-1 text-[11px] font-bold text-white bg-brand-600 hover:bg-brand-500 rounded-md shadow flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
                   >
-                    <Rocket className="w-3.5 h-3.5" />
-                    <span>{implBusy ? 'Processando...' : 'Criar Implantação NFSE'}</span>
+                    <Rocket className="w-3 h-3" />
+                    <span>{implBusy ? '...' : 'Implantação NFSE'}</span>
                   </button>
                 )}
                 {temMeli && !jaTemImplMeli && (
@@ -337,10 +389,10 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome, clienteT
                     type="button"
                     onClick={() => criarImplantacaoDedicada('MELI')}
                     disabled={implBusy}
-                    className="px-4 py-2 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 rounded-lg shadow-lg shadow-amber-600/25 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                    className="px-2.5 py-1 text-[11px] font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 rounded-md shadow flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
                   >
-                    <Rocket className="w-3.5 h-3.5" />
-                    <span>{implBusy ? 'Processando...' : 'Criar Implantação MELI'}</span>
+                    <Rocket className="w-3 h-3" />
+                    <span>{implBusy ? '...' : 'Implantação MELI'}</span>
                   </button>
                 )}
               </div>
@@ -348,109 +400,39 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome, clienteT
           )}
 
           {loading ? (
-            <div className="flex justify-center items-center h-32">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+            <div className="flex justify-center items-center h-40">
+              <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-brand-500"></div>
             </div>
           ) : (
-            <div className="flex flex-col gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
-              {/* SEÇÃO PROCESSOS SHOPEE */}
-              {(isShopee || mostrarProcessosShopee) && (
-                <div className="p-4 rounded-xl bg-gradient-to-r from-orange-950/30 via-slate-900/90 to-slate-900/90 border border-orange-500/30 shadow-lg shadow-orange-950/15">
-                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-orange-500/20">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500/30 to-amber-500/20 border border-orange-500/40 flex items-center justify-center text-orange-400 shadow-sm shrink-0">
-                        <Truck className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-base font-bold text-white tracking-wide">Processos</h3>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40">
-                            Shopee
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          Processos operacionais que este cliente trabalha na malha Shopee (vinculado às implantações)
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs font-semibold text-orange-300/90 bg-orange-500/15 px-2.5 py-1 rounded-full border border-orange-500/30">
-                        {clienteProcessos.length} de {PROCESSOS_SHOPEE.length} ativo{clienteProcessos.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {PROCESSOS_SHOPEE.map(processo => {
-                      const isChecked = clienteProcessos.includes(processo)
-                      const isSaving = savingProcesso === processo
-                      return (
-                        <label 
-                          key={processo} 
-                          className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all duration-200 select-none ${
-                            isChecked 
-                              ? 'bg-orange-500/20 border-orange-500/60 text-orange-200 shadow-md shadow-orange-950/25' 
-                              : 'bg-slate-800/40 border-slate-700/80 hover:bg-slate-800 hover:border-slate-600 text-slate-300'
-                          } ${isSaving ? 'opacity-70 animate-pulse' : ''}`}
-                        >
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-colors ${
-                            isChecked ? 'bg-orange-500 border-orange-500 text-slate-950 font-bold' : 'border-slate-500 bg-slate-900/50'
-                          }`}>
-                            {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                          </div>
-                          <input
-                            type="checkbox"
-                            className="hidden"
-                            disabled={!clienteId || isReadOnlyUser() || !!savingProcesso}
-                            checked={isChecked}
-                            onChange={(e) => handleToggleProcesso(processo, e.target.checked)}
-                          />
-                          <span className="text-sm font-semibold tracking-tight">{processo}</span>
-                        </label>
-                      )
-                    })}
-                  </div>
+              {/* Seção Módulos Mantran */}
+              <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800/80">
+                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Módulos Mantran
+                  </h3>
+                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                    {modulosList.filter(m => clienteModulos.includes(m.nome)).length} de {modulosList.length}
+                  </span>
                 </div>
-              )}
-
-              {/* Botão sutil para clientes não-Shopee que queiram vincular processos */}
-              {!isShopee && (
-                <div className="flex justify-end -mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setMostrarProcessosShopee(prev => !prev)}
-                    className="text-xs text-slate-400 hover:text-orange-400 transition-colors inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/60 hover:border-orange-500/40"
-                  >
-                    <Truck className="w-3.5 h-3.5" />
-                    <span>{mostrarProcessosShopee ? 'Ocultar Processos Shopee' : 'Vincular Processos Shopee'}</span>
-                  </button>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              
-              {/* Seção Módulos */}
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-4 pb-2 border-b border-slate-800">
-                  Módulos Mantran
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                
+                <div className="grid grid-cols-2 gap-1.5">
                   {modulosList.map(modulo => {
                     const isChecked = clienteModulos.includes(modulo.nome)
                     return (
                       <label 
                         key={modulo.id} 
-                        className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
+                        className={`flex items-center py-1.5 px-2.5 rounded-md border cursor-pointer transition-all duration-150 select-none ${
                           isChecked 
-                            ? 'bg-brand-500/10 border-brand-500/50 text-brand-300' 
-                            : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800 hover:border-slate-600 text-slate-300'
+                            ? 'bg-brand-500/15 border-brand-500/50 text-brand-300' 
+                            : 'bg-slate-800/40 border-slate-700/70 hover:bg-slate-800 hover:border-slate-600 text-slate-300'
                         }`}
                       >
-                        <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-colors ${
-                          isChecked ? 'bg-brand-500 border-brand-500 text-white' : 'border-slate-500 bg-slate-900/50'
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center mr-2 shrink-0 transition-colors ${
+                          isChecked ? 'bg-brand-500 border-brand-500 text-white' : 'border-slate-500 bg-slate-900/60'
                         }`}>
-                          {isChecked && <Check className="w-3.5 h-3.5" />}
+                          {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                         </div>
                         <input
                           type="checkbox"
@@ -458,7 +440,7 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome, clienteT
                           checked={isChecked}
                           onChange={(e) => handleToggle(modulo.nome, e.target.checked)}
                         />
-                        <span className="text-sm font-medium">{modulo.nome}</span>
+                        <span className="text-xs font-medium truncate">{modulo.nome}</span>
                       </label>
                     )
                   })}
@@ -466,26 +448,32 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome, clienteT
               </div>
 
               {/* Seção Integrações */}
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-4 pb-2 border-b border-slate-800">
-                  Integrações
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800/80">
+                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Integrações
+                  </h3>
+                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                    {integracoesList.filter(m => clienteModulos.includes(m.nome)).length} de {integracoesList.length}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-1.5">
                   {integracoesList.map(modulo => {
                     const isChecked = clienteModulos.includes(modulo.nome)
                     return (
                       <label 
                         key={modulo.id} 
-                        className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
+                        className={`flex items-center py-1.5 px-2.5 rounded-md border cursor-pointer transition-all duration-150 select-none ${
                           isChecked 
-                            ? 'bg-purple-500/10 border-purple-500/50 text-purple-300' 
-                            : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800 hover:border-slate-600 text-slate-300'
+                            ? 'bg-purple-500/15 border-purple-500/50 text-purple-300' 
+                            : 'bg-slate-800/40 border-slate-700/70 hover:bg-slate-800 hover:border-slate-600 text-slate-300'
                         }`}
                       >
-                        <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-colors ${
-                          isChecked ? 'bg-purple-500 border-purple-500 text-white' : 'border-slate-500 bg-slate-900/50'
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center mr-2 shrink-0 transition-colors ${
+                          isChecked ? 'bg-purple-500 border-purple-500 text-white' : 'border-slate-500 bg-slate-900/60'
                         }`}>
-                          {isChecked && <Check className="w-3.5 h-3.5" />}
+                          {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                         </div>
                         <input
                           type="checkbox"
@@ -493,14 +481,13 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome, clienteT
                           checked={isChecked}
                           onChange={(e) => handleToggle(modulo.nome, e.target.checked)}
                         />
-                        <span className="text-sm font-medium">{modulo.nome}</span>
+                        <span className="text-xs font-medium truncate">{modulo.nome}</span>
                       </label>
                     )
                   })}
                 </div>
               </div>
 
-              </div>
             </div>
           )}
         </div>
