@@ -13,6 +13,7 @@ export interface BaseMantran {
   arquivo_aditivo_nome?: string | null;
   arquivo_aditivo_base64?: string | null;
   arquivo_aditivo_tamanho?: number | null;
+  processos_shopee?: string[];
 }
 
 const initialBases: BaseMantran[] = [

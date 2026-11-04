@@ -223,6 +223,9 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
           operacoes_shopee: selectedOperacoes,
           created_at: novaDataIso
         })
+        if (implantacao.cliente_id) {
+          api.updateClienteProcessosShopee(implantacao.cliente_id, selectedOperacoes, implantacao.nome_empresa).catch(() => {})
+        }
       } else {
         await api.updateImplantacao(implantacao.id, { 
           modulos_normal: selectedModulos,

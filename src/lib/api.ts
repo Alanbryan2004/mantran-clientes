@@ -278,6 +278,104 @@ export const api = {
     if (error) throw error
   },
 
+  // Busca processos/operações Shopee do cliente (com fallback para implantacoes)
+  async getClienteProcessosShopee(clienteId: string, clienteNome?: string): Promise<{ tipo: string; processos: string[] }> {
+    if (!clienteId) return { tipo: '', processos: [] }
+
+    let tipo = ''
+    let processos: string[] = []
+
+    // 1. Tentar ler do cadastro do cliente
+    try {
+      const { data: cliente, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('id', clienteId)
+        .maybeSingle()
+
+      if (!error && cliente) {
+        tipo = cliente.tipo || ''
+        if (Array.isArray(cliente.processos_shopee) && cliente.processos_shopee.length > 0) {
+          processos = cliente.processos_shopee
+        }
+      }
+    } catch (err) {
+      console.warn('Aviso ao buscar cliente para processos:', err)
+    }
+
+    // 2. Se processos ainda vazios, tentar ler das implantações desse cliente
+    if (processos.length === 0) {
+      try {
+        let { data: imp } = await supabase
+          .from('implantacoes')
+          .select('id, tipo_cliente, operacoes_shopee')
+          .eq('cliente_id', clienteId)
+          .maybeSingle()
+
+        // Fallback por nome se cliente_id não encontrar
+        if (!imp && clienteNome) {
+          const { data: impNome } = await supabase
+            .from('implantacoes')
+            .select('id, tipo_cliente, operacoes_shopee')
+            .ilike('nome_empresa', clienteNome.trim())
+            .maybeSingle()
+          imp = impNome
+        }
+
+        if (imp) {
+          if (!tipo && imp.tipo_cliente) tipo = imp.tipo_cliente
+          if (Array.isArray(imp.operacoes_shopee) && imp.operacoes_shopee.length > 0) {
+            processos = imp.operacoes_shopee
+            // Sincroniza de volta no cliente silenciosamente
+            try {
+              await supabase
+                .from('clientes')
+                .update({ processos_shopee: processos })
+                .eq('id', clienteId)
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.warn('Aviso ao buscar fallback de processos em implantacoes:', err)
+      }
+    }
+
+    return { tipo, processos }
+  },
+
+  // Atualiza processos Shopee do cliente e mantém sincronizado com a tabela de implantações
+  async updateClienteProcessosShopee(clienteId: string, processos: string[], clienteNome?: string): Promise<void> {
+    if (!clienteId) return
+
+    // 1. Atualizar na tabela clientes
+    try {
+      await supabase
+        .from('clientes')
+        .update({ processos_shopee: processos })
+        .eq('id', clienteId)
+    } catch (err) {
+      console.warn('Aviso ao atualizar clientes.processos_shopee:', err)
+    }
+
+    // 2. Sincronizar na tabela implantacoes (se existir para este cliente)
+    try {
+      const { data: impAtualizada } = await supabase
+        .from('implantacoes')
+        .update({ operacoes_shopee: processos })
+        .eq('cliente_id', clienteId)
+        .select('id')
+
+      if ((!impAtualizada || impAtualizada.length === 0) && clienteNome) {
+        await supabase
+          .from('implantacoes')
+          .update({ operacoes_shopee: processos })
+          .ilike('nome_empresa', clienteNome.trim())
+      }
+    } catch (err) {
+      console.warn('Aviso ao sincronizar operacoes_shopee em implantacoes:', err)
+    }
+  },
+
   async deleteCliente(clienteId: string) {
     const { error } = await supabase
       .from('clientes')

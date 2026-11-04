@@ -27,6 +27,7 @@ export function Clientes() {
   
   const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null)
   const [selectedClienteNome, setSelectedClienteNome] = useState('')
+  const [selectedClienteTipo, setSelectedClienteTipo] = useState('')
   const [selectedBaseId, setSelectedBaseId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -136,9 +137,10 @@ export function Clientes() {
     setIsUsuariosOpen(true)
   }
 
-  const handleOpenModulos = (id: string, nome: string) => {
+  const handleOpenModulos = (id: string, nome: string, tipo?: string) => {
     setSelectedClienteId(id)
     setSelectedClienteNome(nome)
+    setSelectedClienteTipo(tipo || '')
     setIsModulosOpen(true)
   }
 
@@ -503,6 +505,7 @@ export function Clientes() {
         onClose={() => setIsModulosOpen(false)}
         clienteId={selectedClienteId}
         clienteNome={selectedClienteNome}
+        clienteTipo={selectedClienteTipo}
       />
     </div>
   )

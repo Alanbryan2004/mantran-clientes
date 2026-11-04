@@ -7,7 +7,7 @@ interface ClientesTableProps {
   clientes: BaseMantran[]
   mantranWebIds?: Set<string>
   onOpenUsuarios: (clienteDbId: string, clienteNome: string, baseId: string) => void
-  onOpenModulos: (clienteDbId: string, clienteNome: string) => void
+  onOpenModulos: (clienteDbId: string, clienteNome: string, clienteTipo?: string) => void
   onEdit: (cliente: BaseMantran) => void
   onDelete: (clienteDbId: string, baseId: string, empresa: string) => void
   onVisualizarAditivo?: (cliente: BaseMantran) => void
@@ -114,7 +114,7 @@ export function ClientesTable({ clientes, mantranWebIds, onOpenUsuarios, onOpenM
               <td className="px-4 py-2 text-center">
                 {cliente.empresa && cliente.clienteDbId ? (
                   <button 
-                    onClick={() => onOpenModulos(cliente.clienteDbId!, cliente.empresa)}
+                    onClick={() => onOpenModulos(cliente.clienteDbId!, cliente.empresa, cliente.tipo)}
                     className="p-1.5 bg-slate-800 text-slate-300 hover:text-blue-400 hover:bg-slate-700 rounded transition-colors inline-flex"
                     title="Gerenciar Módulos"
                   >
