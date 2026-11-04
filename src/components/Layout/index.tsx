@@ -63,6 +63,7 @@ export function Layout() {
                        location.pathname.startsWith('/qa-testes') || 
                        location.pathname.startsWith('/cronograma') || 
                        location.pathname.startsWith('/faq') ||
+                       location.pathname.startsWith('/academia') ||
                        location.pathname.startsWith('/cidades') ||
                        location.pathname.startsWith('/separador') ||
                        location.pathname.startsWith('/juntar')

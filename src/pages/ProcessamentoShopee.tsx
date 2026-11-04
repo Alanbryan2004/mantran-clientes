@@ -237,24 +237,13 @@ export function ProcessamentoShopee() {
     return counts
   }, [clientesShopee])
 
-  // Transportadoras únicas disponíveis (priorizando clientes Shopee)
+  // Transportadoras únicas disponíveis (exatamente os clientes Shopee cadastrados)
   const transportadorasDisponiveis = useMemo(() => {
-    const map = new Map<string, string>()
-    clientesShopee.forEach(c => {
-      if (c.id && c.nome_empresa) {
-        map.set(c.id, c.nome_empresa)
-      }
-    })
-    processamentosDB.forEach(p => {
-      const id = p.transportadora_id || p.id
-      if (id && p.nome_empresa && !map.has(id)) {
-        map.set(id, p.nome_empresa)
-      }
-    })
-    return Array.from(map.entries())
-      .map(([id, nome_empresa]) => ({ id, nome_empresa }))
+    return clientesShopee
+      .filter(c => c.id && c.nome_empresa)
+      .map(c => ({ id: c.id, nome_empresa: c.nome_empresa }))
       .sort((a, b) => a.nome_empresa.localeCompare(b.nome_empresa))
-  }, [clientesShopee, processamentosDB])
+  }, [clientesShopee])
 
   // Ajusta filtro de transportadora caso a selecionada não exista na nova competência
   useEffect(() => {
@@ -268,24 +257,27 @@ export function ProcessamentoShopee() {
 
   // Processamentos esperados dos clientes Shopee mesclados com status real de shopee_processamentos
   const dadosProcessamento = useMemo<ItemProcessamento[]>(() => {
-    // 1. Indexar registros existentes no banco para busca rápida
+    // 1. Indexar registros existentes no banco para busca rápida por base, id e nome_empresa
     const mapDB = new Map<string, ShopeeProcessamentoDB>()
     processamentosDB.forEach(p => {
-      if (p.nome_base && p.processo) {
-        mapDB.set(`${p.nome_base.trim().toLowerCase()}|${p.processo.trim().toLowerCase()}`, p)
-      }
-      if (p.transportadora_id && p.processo) {
-        mapDB.set(`${p.transportadora_id.trim().toLowerCase()}|${p.processo.trim().toLowerCase()}`, p)
-      }
-      if (p.nome_empresa && p.processo) {
-        mapDB.set(`${p.nome_empresa.trim().toLowerCase()}|${p.processo.trim().toLowerCase()}`, p)
-      }
+      if (!p.processo) return
+      const procKey = p.processo.trim().toLowerCase()
+      const keys: string[] = []
+      if (p.nome_base) keys.push(`${p.nome_base.trim().toLowerCase()}|${procKey}`)
+      if (p.transportadora_id) keys.push(`${p.transportadora_id.trim().toLowerCase()}|${procKey}`)
+      if (p.nome_empresa) keys.push(`${p.nome_empresa.trim().toLowerCase()}|${procKey}`)
+
+      keys.forEach(k => {
+        const existing = mapDB.get(k)
+        if (!existing || p.status === 'FINALIZADO' || (p.status === 'PROCESSANDO' && existing.status !== 'FINALIZADO')) {
+          mapDB.set(k, p)
+        }
+      })
     })
 
     const itens: ItemProcessamento[] = []
-    const chavesProcessadas = new Set<string>()
 
-    // 2. Gerar processos a partir dos clientes Shopee (a fonte da verdade!)
+    // 2. Gerar processos a partir dos clientes Shopee (a fonte da verdade absoluta!)
     clientesShopee.forEach(cliente => {
       const nomeBase = basesMapPorCliente.get(cliente.id) || 'dbMantran'
       const procs = Array.isArray(cliente.processos_shopee) ? cliente.processos_shopee : []
@@ -301,10 +293,9 @@ export function ProcessamentoShopee() {
         const keyId = `${cliente.id.trim().toLowerCase()}|${proc.trim().toLowerCase()}`
         const keyEmpresa = `${cliente.nome_empresa.trim().toLowerCase()}|${proc.trim().toLowerCase()}`
 
-        const procDB = mapDB.get(keyBase) || mapDB.get(keyId) || mapDB.get(keyEmpresa)
+        const procDB = (nomeBase ? mapDB.get(keyBase) : null) || mapDB.get(keyId) || mapDB.get(keyEmpresa)
 
         if (procDB) {
-          chavesProcessadas.add(procDB.id)
           const status: StatusProcessamento = procDB.status || 'NAO_INICIADO'
           let segs = procDB.segundos_processamento || 0
           let tempoStr = '-'
@@ -358,53 +349,6 @@ export function ProcessamentoShopee() {
             data_fim: '-'
           })
         }
-      })
-    })
-
-    // 3. Incluir registros adicionais de shopee_processamentos se houver
-    processamentosDB.forEach(procDB => {
-      if (chavesProcessadas.has(procDB.id)) return
-
-      if (processoFiltro !== 'TODOS' && procDB.processo !== processoFiltro) return
-      const idTransp = procDB.transportadora_id || procDB.id
-      if (transportadoraFiltro !== 'TODAS' && idTransp !== transportadoraFiltro) return
-
-      const status: StatusProcessamento = procDB.status || 'NAO_INICIADO'
-      let segs = procDB.segundos_processamento || 0
-      let tempoStr = '-'
-
-      if (status === 'FINALIZADO') {
-        if (segs > 0) tempoStr = formatarTempoSegundos(segs)
-        else if (procDB.data_inicio && procDB.data_fim) {
-          const diff = Math.max(0, Math.floor((new Date(procDB.data_fim).getTime() - new Date(procDB.data_inicio).getTime()) / 1000))
-          tempoStr = formatarTempoSegundos(diff)
-          segs = diff
-        } else {
-          tempoStr = '00h 00m 00s'
-        }
-      } else if (status === 'PROCESSANDO') {
-        if (segs > 0) tempoStr = formatarTempoSegundos(segs)
-        else if (procDB.data_inicio) {
-          const diff = Math.max(0, Math.floor((Date.now() - new Date(procDB.data_inicio).getTime()) / 1000))
-          tempoStr = formatarTempoSegundos(diff)
-          segs = diff
-        } else {
-          tempoStr = 'Em andamento...'
-        }
-      }
-
-      itens.push({
-        id: procDB.id,
-        transportadora_id: idTransp,
-        transportadora_nome: procDB.nome_empresa || 'Transportadora Shopee',
-        base_nome: procDB.nome_base || 'dbMantran',
-        processo: procDB.processo,
-        status,
-        tempo_processamento: tempoStr,
-        segundos_processamento: segs,
-        registros_processados: procDB.registros_processados || 0,
-        data_inicio: formatarDataHora(procDB.data_inicio),
-        data_fim: status === 'PROCESSANDO' ? 'Em andamento...' : formatarDataHora(procDB.data_fim)
       })
     })
 

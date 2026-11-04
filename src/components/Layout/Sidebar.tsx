@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
   Rocket, Shield, ShoppingBag, UserCog, Users2, Ticket,
   ChevronDown, Code2, Clock, FlaskConical, ListFilter, CheckCircle2,
-  Calendar, PlusCircle, BookOpen, LogIn, MapPin, FileSpreadsheet, FileStack
+  Calendar, PlusCircle, BookOpen, LogIn, MapPin, FileSpreadsheet, FileStack, GraduationCap
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
@@ -23,6 +23,7 @@ const allNavItems = [
   { name: 'Léo Madeiras', path: '/leo-madeiras', icon: Cloud },
   { name: 'Gestão de RH', path: '/rh', icon: Users2 },
   { name: 'FAQ', path: '/faq', icon: BookOpen },
+  { name: 'Academia Mantran', path: '/academia', icon: GraduationCap },
   { name: 'Cidades', path: '/cidades', icon: MapPin },
   { name: 'Separador de Planilhas', path: '/separador-planilhas', icon: FileSpreadsheet },
   { name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack },
@@ -148,6 +149,7 @@ export function Sidebar() {
       if (!user) {
         setAllowedNavItems([
           { name: 'FAQ', path: '/faq', icon: BookOpen },
+          { name: 'Academia Mantran', path: '/academia', icon: GraduationCap },
           { name: 'Cidades', path: '/cidades', icon: MapPin },
           { name: 'Separador de Planilhas', path: '/separador-planilhas', icon: FileSpreadsheet },
           { name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack },
@@ -168,6 +170,7 @@ export function Sidebar() {
         const clienteItems = [
           { name: 'Meus Chamados', path: '/tickets', icon: Ticket },
           { name: 'FAQ', path: '/faq', icon: BookOpen },
+          { name: 'Academia Mantran', path: '/academia', icon: GraduationCap },
         ]
         if (permissionsApi.canAccessRoute('/cidades')) {
           clienteItems.push({ name: 'Cidades', path: '/cidades', icon: MapPin })
@@ -188,6 +191,7 @@ export function Sidebar() {
         const clienteItems = [
           { name: 'Minha Implantação', path: directPath, icon: Rocket },
           { name: 'FAQ', path: '/faq', icon: BookOpen },
+          { name: 'Academia Mantran', path: '/academia', icon: GraduationCap },
         ]
         if (permissionsApi.canAccessRoute('/cidades')) {
           clienteItems.push({ name: 'Cidades', path: '/cidades', icon: MapPin })
@@ -210,6 +214,7 @@ export function Sidebar() {
               const updatedItems = [
                 { name: 'Minha Implantação', path: `/implantacoes/${impl.id}`, icon: Rocket },
                 { name: 'FAQ', path: '/faq', icon: BookOpen },
+                { name: 'Academia Mantran', path: '/academia', icon: GraduationCap },
               ]
               if (permissionsApi.canAccessRoute('/cidades')) {
                 updatedItems.push({ name: 'Cidades', path: '/cidades', icon: MapPin })

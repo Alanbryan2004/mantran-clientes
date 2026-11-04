@@ -191,6 +191,14 @@ export const permissionsApi = {
       return p !== 'parceiro'
     }
 
+    // Academia Mantran (vídeos de treinamento): mesma regra do FAQ — consulta pública
+    // e liberada para todos os usuários logados, exceto Parceiro.
+    if (normPath.startsWith('/academia')) {
+      if (!user || !user.perfil) return true
+      const p = user.perfil.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      return p !== 'parceiro'
+    }
+
     // Cidades: liberado para consulta pública direta no site quando não logado.
     if (normPath.startsWith('/cidades')) {
       if (!user || !user.perfil) return true

@@ -13,6 +13,7 @@ import { ImplantacaoDetalhes } from './pages/ImplantacaoDetalhes'
 import { Tickets } from './pages/Tickets'
 import { Calendario } from './pages/Calendario'
 import { FAQ } from './pages/FAQ'
+import { AcademiaMantran } from './pages/AcademiaMantran'
 import { Cidades } from './pages/Cidades'
 import { SeparadorPlanilhas } from './pages/SeparadorPlanilhas'
 import { JuntarPlanilhas } from './pages/JuntarPlanilhas'
@@ -121,6 +122,7 @@ function App() {
   // No Celular / Mobile: se não autenticado e não for tela pública (FAQ, Cidades, Separador ou Juntar Planilhas), vai direto para o Login.
   // Permite que clientes e visitantes acessem o FAQ, consulta de Cidades, Separador e Juntar Planilhas diretamente no celular.
   const isPublicPath = window.location.pathname.startsWith('/faq') || 
+                       window.location.pathname.startsWith('/academia') ||
                        window.location.pathname.startsWith('/cidades') ||
                        window.location.pathname.startsWith('/separador-planilhas') ||
                        window.location.pathname.startsWith('/separador') ||
@@ -146,6 +148,7 @@ function App() {
           <Route path="/" element={<Layout />}>
             <Route index element={<RootRoute />} />
             <Route path="faq" element={<FAQ />} />
+            <Route path="academia" element={<AcademiaMantran />} />
             <Route path="cidades" element={<Cidades />} />
             <Route path="separador-planilhas" element={<SeparadorPlanilhas />} />
             <Route path="separador" element={<Navigate to="/separador-planilhas" replace />} />

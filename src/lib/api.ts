@@ -4460,6 +4460,66 @@ export const api = {
     return data.publicUrl
   },
 
+  // ===================== Academia Mantran (vídeos de treinamento) =====================
+  // Guardamos só o link do YouTube. Lança erro se a tabela ainda não existir,
+  // para a tela poder orientar quem cadastra.
+  async getAcademiaVideos(): Promise<AcademiaVideo[]> {
+    const { data, error } = await supabase
+      .from('academia_videos')
+      .select('*')
+      .eq('ativo', true)
+      .order('ordem', { ascending: true })
+      .order('titulo', { ascending: true })
+    if (error) throw error
+    return (data || []) as AcademiaVideo[]
+  },
+
+  async createAcademiaVideo(payload: {
+    titulo: string
+    descricao?: string | null
+    youtube_url: string
+    youtube_id: string
+    ordem?: number
+    criado_por_nome?: string | null
+  }): Promise<AcademiaVideo> {
+    const { data, error } = await supabase
+      .from('academia_videos')
+      .insert({
+        titulo: payload.titulo.trim(),
+        descricao: payload.descricao?.trim() || null,
+        youtube_url: payload.youtube_url.trim(),
+        youtube_id: payload.youtube_id,
+        ordem: payload.ordem ?? 0,
+        criado_por_nome: payload.criado_por_nome ?? null
+      })
+      .select('*')
+      .single()
+    if (error) throw error
+    return data as AcademiaVideo
+  },
+
+  async updateAcademiaVideo(id: string, payload: {
+    titulo?: string
+    descricao?: string | null
+    youtube_url?: string
+    youtube_id?: string
+    ordem?: number
+  }): Promise<void> {
+    const patch: any = { updated_at: new Date().toISOString() }
+    if (payload.titulo !== undefined) patch.titulo = payload.titulo.trim()
+    if (payload.descricao !== undefined) patch.descricao = payload.descricao?.trim() || null
+    if (payload.youtube_url !== undefined) patch.youtube_url = payload.youtube_url.trim()
+    if (payload.youtube_id !== undefined) patch.youtube_id = payload.youtube_id
+    if (payload.ordem !== undefined) patch.ordem = payload.ordem
+    const { error } = await supabase.from('academia_videos').update(patch).eq('id', id)
+    if (error) throw error
+  },
+
+  async deleteAcademiaVideo(id: string): Promise<void> {
+    const { error } = await supabase.from('academia_videos').delete().eq('id', id)
+    if (error) throw error
+  },
+
   // --- Vínculos Diretos entre Empresas do mesmo Cliente/Grupo ---
   async getEmpresaVinculos(): Promise<EmpresaVinculoItem[]> {
     try {
@@ -4579,6 +4639,19 @@ export const api = {
     } catch {}
     return true
   }
+}
+
+export interface AcademiaVideo {
+  id: string
+  titulo: string
+  descricao?: string | null
+  youtube_url: string
+  youtube_id: string
+  ordem: number
+  ativo?: boolean
+  criado_por_nome?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 export interface FaqPasso {
