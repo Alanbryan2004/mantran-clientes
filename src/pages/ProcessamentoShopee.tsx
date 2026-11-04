@@ -19,7 +19,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import clsx from 'clsx'
 
-export type ProcessoTipo = 'Last Mile' | 'First Mile' | 'Line Haul'
+export type ProcessoTipo = 'Last Mile' | 'First Mile' | 'Line Haul' | 'Mobile Hub'
 export type StatusProcessamento = 'FINALIZADO' | 'PROCESSANDO' | 'NAO_INICIADO'
 
 export interface ShopeeProcessamentoDB {
@@ -101,8 +101,9 @@ const ANOS = ['2026', '2025', '2024']
 const PROCESSOS: { id: 'TODOS' | ProcessoTipo; label: string }[] = [
   { id: 'TODOS', label: 'Todos os Processos' },
   { id: 'Last Mile', label: 'Last Mile' },
+  { id: 'Line Haul', label: 'Line Haul' },
   { id: 'First Mile', label: 'First Mile' },
-  { id: 'Line Haul', label: 'Line Haul' }
+  { id: 'Mobile Hub', label: 'Mobile Hub' }
 ]
 
 export function ProcessamentoShopee() {
@@ -115,12 +116,33 @@ export function ProcessamentoShopee() {
   const [statusFiltro, setStatusFiltro] = useState<'TODOS' | StatusProcessamento>('TODOS')
   const [searchQuery, setSearchQuery] = useState('')
 
+  const [clientesShopee, setClientesShopee] = useState<any[]>([])
+  const [bases, setBases] = useState<any[]>([])
   const [processamentosDB, setProcessamentosDB] = useState<ShopeeProcessamentoDB[]>([])
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [ultimaSincronizacao, setUltimaSincronizacao] = useState<string>(() =>
     new Date().toLocaleTimeString('pt-BR')
   )
+
+  const fetchDadosClientesShopee = useCallback(async () => {
+    try {
+      const [resClientes, resBases] = await Promise.all([
+        supabase
+          .from('clientes')
+          .select('id, nome_empresa, tipo, processos_shopee')
+          .eq('tipo', 'SHOPEE'),
+        supabase
+          .from('bases')
+          .select('id, nome_base, cliente_id')
+      ])
+
+      if (resClientes.data) setClientesShopee(resClientes.data)
+      if (resBases.data) setBases(resBases.data)
+    } catch (err) {
+      console.error('Erro ao buscar clientes Shopee e bases:', err)
+    }
+  }, [])
 
   const fetchProcessamentos = useCallback(async () => {
     try {
@@ -147,18 +169,18 @@ export function ProcessamentoShopee() {
   useEffect(() => {
     const carregarTudo = async () => {
       setLoading(true)
-      await fetchProcessamentos()
+      await Promise.all([fetchProcessamentos(), fetchDadosClientesShopee()])
       setLoading(false)
     }
     carregarTudo()
-  }, [fetchProcessamentos])
+  }, [fetchProcessamentos, fetchDadosClientesShopee])
 
   // Atualiza processamentos ao alterar filtros de competência (quinzena, mês, ano)
   useEffect(() => {
     fetchProcessamentos()
   }, [fetchProcessamentos])
 
-  // Inscrição Realtime no Supabase para a tabela shopee_processamentos
+  // Inscrição Realtime no Supabase para a tabela shopee_processamentos e clientes
   useEffect(() => {
     const channel = supabase
       .channel('shopee_processamentos_realtime')
@@ -169,16 +191,60 @@ export function ProcessamentoShopee() {
           fetchProcessamentos()
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'clientes' },
+        () => {
+          fetchDadosClientesShopee()
+        }
+      )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [fetchProcessamentos])
+  }, [fetchProcessamentos, fetchDadosClientesShopee])
 
-  // Transportadoras únicas presentes nos processamentos da competência selecionada
+  // Mapeamento de base por cliente
+  const basesMapPorCliente = useMemo(() => {
+    const map = new Map<string, string>()
+    bases.forEach(b => {
+      if (b.cliente_id) map.set(b.cliente_id, b.nome_base)
+    })
+    return map
+  }, [bases])
+
+  // Contagem real de processos cadastrados nos Clientes Shopee (base para o Total de Processos e Combobox)
+  const contagemProcessosClientes = useMemo(() => {
+    const counts = {
+      TODOS: 0,
+      'Last Mile': 0,
+      'Line Haul': 0,
+      'First Mile': 0,
+      'Mobile Hub': 0
+    }
+
+    clientesShopee.forEach(c => {
+      const procs = Array.isArray(c.processos_shopee) ? c.processos_shopee : []
+      procs.forEach((p: ProcessoTipo) => {
+        if (counts[p] !== undefined) {
+          counts[p]++
+          counts.TODOS++
+        }
+      })
+    })
+
+    return counts
+  }, [clientesShopee])
+
+  // Transportadoras únicas disponíveis (priorizando clientes Shopee)
   const transportadorasDisponiveis = useMemo(() => {
     const map = new Map<string, string>()
+    clientesShopee.forEach(c => {
+      if (c.id && c.nome_empresa) {
+        map.set(c.id, c.nome_empresa)
+      }
+    })
     processamentosDB.forEach(p => {
       const id = p.transportadora_id || p.id
       if (id && p.nome_empresa && !map.has(id)) {
@@ -188,7 +254,7 @@ export function ProcessamentoShopee() {
     return Array.from(map.entries())
       .map(([id, nome_empresa]) => ({ id, nome_empresa }))
       .sort((a, b) => a.nome_empresa.localeCompare(b.nome_empresa))
-  }, [processamentosDB])
+  }, [clientesShopee, processamentosDB])
 
   // Ajusta filtro de transportadora caso a selecionada não exista na nova competência
   useEffect(() => {
@@ -200,70 +266,154 @@ export function ProcessamentoShopee() {
     }
   }, [transportadorasDisponiveis, transportadoraFiltro])
 
-  // Processamentos reais da tabela shopee_processamentos para a competência selecionada
+  // Processamentos esperados dos clientes Shopee mesclados com status real de shopee_processamentos
   const dadosProcessamento = useMemo<ItemProcessamento[]>(() => {
-    if (processamentosDB.length === 0) return []
+    // 1. Indexar registros existentes no banco para busca rápida
+    const mapDB = new Map<string, ShopeeProcessamentoDB>()
+    processamentosDB.forEach(p => {
+      if (p.nome_base && p.processo) {
+        mapDB.set(`${p.nome_base.trim().toLowerCase()}|${p.processo.trim().toLowerCase()}`, p)
+      }
+      if (p.transportadora_id && p.processo) {
+        mapDB.set(`${p.transportadora_id.trim().toLowerCase()}|${p.processo.trim().toLowerCase()}`, p)
+      }
+      if (p.nome_empresa && p.processo) {
+        mapDB.set(`${p.nome_empresa.trim().toLowerCase()}|${p.processo.trim().toLowerCase()}`, p)
+      }
+    })
 
-    return processamentosDB
-      .filter(p => {
+    const itens: ItemProcessamento[] = []
+    const chavesProcessadas = new Set<string>()
+
+    // 2. Gerar processos a partir dos clientes Shopee (a fonte da verdade!)
+    clientesShopee.forEach(cliente => {
+      const nomeBase = basesMapPorCliente.get(cliente.id) || 'dbMantran'
+      const procs = Array.isArray(cliente.processos_shopee) ? cliente.processos_shopee : []
+
+      procs.forEach((proc: ProcessoTipo) => {
         // Filtro por processo
-        if (processoFiltro !== 'TODOS' && p.processo !== processoFiltro) {
-          return false
-        }
+        if (processoFiltro !== 'TODOS' && proc !== processoFiltro) return
+
         // Filtro por transportadora
-        if (transportadoraFiltro !== 'TODAS') {
-          const id = p.transportadora_id || p.id
-          if (id !== transportadoraFiltro) {
-            return false
-          }
-        }
-        return true
-      })
-      .map(procDB => {
-        const status: StatusProcessamento = procDB.status || 'NAO_INICIADO'
-        let segs = procDB.segundos_processamento || 0
-        let tempoStr = '-'
+        if (transportadoraFiltro !== 'TODAS' && cliente.id !== transportadoraFiltro) return
 
-        if (status === 'FINALIZADO') {
-          if (segs > 0) {
-            tempoStr = formatarTempoSegundos(segs)
-          } else if (procDB.data_inicio && procDB.data_fim) {
-            const diff = Math.max(0, Math.floor((new Date(procDB.data_fim).getTime() - new Date(procDB.data_inicio).getTime()) / 1000))
-            tempoStr = formatarTempoSegundos(diff)
-            segs = diff
-          } else {
-            tempoStr = '00h 00m 00s'
+        const keyBase = `${nomeBase.trim().toLowerCase()}|${proc.trim().toLowerCase()}`
+        const keyId = `${cliente.id.trim().toLowerCase()}|${proc.trim().toLowerCase()}`
+        const keyEmpresa = `${cliente.nome_empresa.trim().toLowerCase()}|${proc.trim().toLowerCase()}`
+
+        const procDB = mapDB.get(keyBase) || mapDB.get(keyId) || mapDB.get(keyEmpresa)
+
+        if (procDB) {
+          chavesProcessadas.add(procDB.id)
+          const status: StatusProcessamento = procDB.status || 'NAO_INICIADO'
+          let segs = procDB.segundos_processamento || 0
+          let tempoStr = '-'
+
+          if (status === 'FINALIZADO') {
+            if (segs > 0) tempoStr = formatarTempoSegundos(segs)
+            else if (procDB.data_inicio && procDB.data_fim) {
+              const diff = Math.max(0, Math.floor((new Date(procDB.data_fim).getTime() - new Date(procDB.data_inicio).getTime()) / 1000))
+              tempoStr = formatarTempoSegundos(diff)
+              segs = diff
+            } else {
+              tempoStr = '00h 00m 00s'
+            }
+          } else if (status === 'PROCESSANDO') {
+            if (segs > 0) tempoStr = formatarTempoSegundos(segs)
+            else if (procDB.data_inicio) {
+              const diff = Math.max(0, Math.floor((Date.now() - new Date(procDB.data_inicio).getTime()) / 1000))
+              tempoStr = formatarTempoSegundos(diff)
+              segs = diff
+            } else {
+              tempoStr = 'Em andamento...'
+            }
           }
-        } else if (status === 'PROCESSANDO') {
-          if (segs > 0) {
-            tempoStr = formatarTempoSegundos(segs)
-          } else if (procDB.data_inicio) {
-            const diff = Math.max(0, Math.floor((Date.now() - new Date(procDB.data_inicio).getTime()) / 1000))
-            tempoStr = formatarTempoSegundos(diff)
-            segs = diff
-          } else {
-            tempoStr = 'Em andamento...'
-          }
+
+          itens.push({
+            id: procDB.id,
+            transportadora_id: cliente.id,
+            transportadora_nome: cliente.nome_empresa,
+            base_nome: nomeBase,
+            processo: proc,
+            status,
+            tempo_processamento: tempoStr,
+            segundos_processamento: segs,
+            registros_processados: procDB.registros_processados || 0,
+            data_inicio: formatarDataHora(procDB.data_inicio),
+            data_fim: status === 'PROCESSANDO' ? 'Em andamento...' : formatarDataHora(procDB.data_fim)
+          })
         } else {
-          tempoStr = '-'
-          segs = 0
-        }
-
-        return {
-          id: procDB.id,
-          transportadora_id: procDB.transportadora_id || procDB.id,
-          transportadora_nome: procDB.nome_empresa || 'Transportadora Shopee',
-          base_nome: procDB.nome_base || 'dbMantran',
-          processo: procDB.processo,
-          status,
-          tempo_processamento: tempoStr,
-          segundos_processamento: segs,
-          registros_processados: procDB.registros_processados || 0,
-          data_inicio: formatarDataHora(procDB.data_inicio),
-          data_fim: status === 'PROCESSANDO' ? 'Em andamento...' : formatarDataHora(procDB.data_fim)
+          // Processo do cliente Shopee ainda não iniciado na competência selecionada
+          itens.push({
+            id: `${cliente.id}-${proc}`,
+            transportadora_id: cliente.id,
+            transportadora_nome: cliente.nome_empresa,
+            base_nome: nomeBase,
+            processo: proc,
+            status: 'NAO_INICIADO',
+            tempo_processamento: '-',
+            segundos_processamento: 0,
+            registros_processados: 0,
+            data_inicio: '-',
+            data_fim: '-'
+          })
         }
       })
-  }, [processamentosDB, processoFiltro, transportadoraFiltro])
+    })
+
+    // 3. Incluir registros adicionais de shopee_processamentos se houver
+    processamentosDB.forEach(procDB => {
+      if (chavesProcessadas.has(procDB.id)) return
+
+      if (processoFiltro !== 'TODOS' && procDB.processo !== processoFiltro) return
+      const idTransp = procDB.transportadora_id || procDB.id
+      if (transportadoraFiltro !== 'TODAS' && idTransp !== transportadoraFiltro) return
+
+      const status: StatusProcessamento = procDB.status || 'NAO_INICIADO'
+      let segs = procDB.segundos_processamento || 0
+      let tempoStr = '-'
+
+      if (status === 'FINALIZADO') {
+        if (segs > 0) tempoStr = formatarTempoSegundos(segs)
+        else if (procDB.data_inicio && procDB.data_fim) {
+          const diff = Math.max(0, Math.floor((new Date(procDB.data_fim).getTime() - new Date(procDB.data_inicio).getTime()) / 1000))
+          tempoStr = formatarTempoSegundos(diff)
+          segs = diff
+        } else {
+          tempoStr = '00h 00m 00s'
+        }
+      } else if (status === 'PROCESSANDO') {
+        if (segs > 0) tempoStr = formatarTempoSegundos(segs)
+        else if (procDB.data_inicio) {
+          const diff = Math.max(0, Math.floor((Date.now() - new Date(procDB.data_inicio).getTime()) / 1000))
+          tempoStr = formatarTempoSegundos(diff)
+          segs = diff
+        } else {
+          tempoStr = 'Em andamento...'
+        }
+      }
+
+      itens.push({
+        id: procDB.id,
+        transportadora_id: idTransp,
+        transportadora_nome: procDB.nome_empresa || 'Transportadora Shopee',
+        base_nome: procDB.nome_base || 'dbMantran',
+        processo: procDB.processo,
+        status,
+        tempo_processamento: tempoStr,
+        segundos_processamento: segs,
+        registros_processados: procDB.registros_processados || 0,
+        data_inicio: formatarDataHora(procDB.data_inicio),
+        data_fim: status === 'PROCESSANDO' ? 'Em andamento...' : formatarDataHora(procDB.data_fim)
+      })
+    })
+
+    return itens.sort((a, b) => {
+      const cmp = a.transportadora_nome.localeCompare(b.transportadora_nome)
+      if (cmp !== 0) return cmp
+      return a.processo.localeCompare(b.processo)
+    })
+  }, [clientesShopee, basesMapPorCliente, processamentosDB, processoFiltro, transportadoraFiltro])
 
   // Filtro de busca por texto e status
   const filteredItems = useMemo(() => {
@@ -620,9 +770,14 @@ export function ProcessamentoShopee() {
               onChange={e => setProcessoFiltro(e.target.value as any)}
               className="input-field py-2 px-3 text-xs w-full bg-slate-800/80 border-slate-700 text-white cursor-pointer font-medium"
             >
-              {PROCESSOS.map(p => (
-                <option key={p.id} value={p.id}>{p.label}</option>
-              ))}
+              {PROCESSOS.map(p => {
+                const count = contagemProcessosClientes[p.id] ?? 0
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.label} ({count})
+                  </option>
+                )
+              })}
             </select>
           </div>
 
@@ -682,20 +837,33 @@ export function ProcessamentoShopee() {
 
           {/* Process Shortcut Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
-            {PROCESSOS.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setProcessoFiltro(p.id)}
-                className={clsx(
-                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 border",
-                  processoFiltro === p.id
-                    ? "bg-brand-500/20 text-brand-300 border-brand-500/40 shadow-sm"
-                    : "bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200"
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
+            {PROCESSOS.map(p => {
+              const count = contagemProcessosClientes[p.id] ?? 0
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setProcessoFiltro(p.id)}
+                  className={clsx(
+                    "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 border flex items-center gap-1.5",
+                    processoFiltro === p.id
+                      ? "bg-brand-500/20 text-brand-300 border-brand-500/40 shadow-sm"
+                      : "bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200"
+                  )}
+                >
+                  <span>{p.label}</span>
+                  <span
+                    className={clsx(
+                      "px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold",
+                      processoFiltro === p.id
+                        ? "bg-brand-500/40 text-brand-200"
+                        : "bg-slate-800 text-slate-400"
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
           </div>
 
         </div>
@@ -759,6 +927,8 @@ export function ProcessamentoShopee() {
                           ? "bg-purple-500/10 text-purple-300 border-purple-500/20"
                           : item.processo === 'First Mile'
                           ? "bg-cyan-500/10 text-cyan-300 border-cyan-500/20"
+                          : item.processo === 'Mobile Hub'
+                          ? "bg-amber-500/10 text-amber-300 border-amber-500/20"
                           : "bg-blue-500/10 text-blue-300 border-blue-500/20"
                       )}>
                         <Layers className="w-3 h-3 opacity-70" />
