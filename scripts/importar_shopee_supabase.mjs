@@ -33,6 +33,10 @@ async function run() {
 
   console.log(`Carregados do JSON: ${transportadoras.length} transportadoras e ${processamentos.length} processamentos.`)
 
+  // Buscar clientes existentes para validar integridade da FK
+  const { data: clientesExistentes } = await supabase.from('clientes').select('id')
+  const setClientes = new Set((clientesExistentes || []).map(c => c.id))
+
   // 1. Inserir transportadoras
   console.log('\n--- Inserindo shopee_transportadoras no Supabase ---')
   const BATCH_SIZE = 50
@@ -41,7 +45,7 @@ async function run() {
   for (let i = 0; i < transportadoras.length; i += BATCH_SIZE) {
     const batch = transportadoras.slice(i, i + BATCH_SIZE).map(t => ({
       id: t.id,
-      cliente_id: t.cliente_id || null,
+      cliente_id: (t.cliente_id && setClientes.has(t.cliente_id)) ? t.cliente_id : null,
       base_id: t.base_id || null,
       nome_empresa: t.nome_empresa,
       nome_base: t.nome_base || null,

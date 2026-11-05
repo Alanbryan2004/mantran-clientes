@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { api, type FaqCategoria, type FaqProcedimento, type FaqPasso, type FaqBotao } from '../lib/api'
 import { getLoggedUser, canEditFaq } from '../lib/auth'
+import { registrarVisualizacaoFaq } from '../lib/analytics'
 import clsx from 'clsx'
 
 // Renderiza texto do passo permitindo apenas <b>/<strong> (resto escapado).
@@ -294,6 +295,18 @@ export function FAQ() {
       tituloNorm.includes('IMPORTACAO DE PLANILHA FATURA')
     )
   }, [procSelecionado])
+
+  // Tracking automático de leitura e consulta ao procedimento do FAQ
+  useEffect(() => {
+    if (procSelecionado) {
+      registrarVisualizacaoFaq(
+        procSelecionado.id,
+        procSelecionado.titulo,
+        (procSelecionado as any)._categoria,
+        slug ? 'link_direto' : busca ? 'busca' : 'menu'
+      )
+    }
+  }, [procSelecionado, slug, busca])
 
   // Botões de download exibidos no procedimento. Combina:
   //  - os botões configurados pelo usuário (procSelecionado.botoes), com URL higienizada;
@@ -614,18 +627,6 @@ export function FAQ() {
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                    {botoesDoProc.map((b, i) => (
-                      <a
-                        key={i}
-                        href={b.href}
-                        {...(b.download ? { download: b.filename || true } : { target: '_blank', rel: 'noopener noreferrer' })}
-                        className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all cursor-pointer"
-                        title={b.label}
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>{b.label}</span>
-                      </a>
-                    ))}
                     <button
                       type="button"
                       onClick={handleCopiarLink}

@@ -19,6 +19,7 @@ import { SeparadorPlanilhas } from './pages/SeparadorPlanilhas'
 import { JuntarPlanilhas } from './pages/JuntarPlanilhas'
 import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
 import { CampanhaEmail } from './pages/CampanhaEmail'
+import { AnalyticsAcessos } from './pages/AnalyticsAcessos'
 import { Login } from './pages/Login'
 import MinhasTarefas from './pages/dev/MinhasTarefas'
 import QATestes from './pages/dev/QATestes'
@@ -168,6 +169,8 @@ function App() {
             <Route path="leo-madeiras" element={<LeoMadeiras />} />
             <Route path="usuarios" element={<Usuarios />} />
             <Route path="rh" element={<RH />} />
+            <Route path="analytics" element={<AnalyticsAcessos />} />
+            <Route path="metricas" element={<Navigate to="/analytics" replace />} />
 
             {/* Módulos de Desenvolvimento & QA (Mantran Web API Integrado) */}
             <Route path="dev/tarefas" element={<MinhasTarefas />} />

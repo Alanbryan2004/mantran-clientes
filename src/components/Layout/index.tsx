@@ -5,6 +5,7 @@ import { permissionsApi } from '../../lib/permissions'
 import { getLoggedUser } from '../../lib/auth'
 import { Login } from '../../pages/Login'
 import { useEffect, useState } from 'react'
+import { registrarAcessoTela } from '../../lib/analytics'
 
 export function Layout() {
   const location = useLocation()
@@ -16,6 +17,11 @@ export function Layout() {
     window.addEventListener('mantran:open-login', handleOpenLogin)
     return () => window.removeEventListener('mantran:open-login', handleOpenLogin)
   }, [])
+
+  // Tracking automático e assíncrono de acessos às telas
+  useEffect(() => {
+    registrarAcessoTela(location.pathname)
+  }, [location.pathname])
 
   useEffect(() => {
     const user = getLoggedUser()

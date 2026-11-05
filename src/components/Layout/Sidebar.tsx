@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
   Rocket, Shield, ShoppingBag, UserCog, Users2, Ticket,
   ChevronDown, Code2, Clock, FlaskConical, ListFilter, CheckCircle2,
-  Calendar, PlusCircle, BookOpen, LogIn, MapPin, FileSpreadsheet, FileStack, GraduationCap
+  Calendar, PlusCircle, BookOpen, LogIn, MapPin, FileSpreadsheet, FileStack, GraduationCap,
+  BarChart3
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
@@ -650,6 +651,24 @@ export function Sidebar() {
                 </div>
               )}
             </div>
+
+            {/* Link direto para Métricas & Analytics */}
+            <NavLink
+              to="/analytics"
+              className={({ isActive }) =>
+                clsx(
+                  'flex items-center rounded-xl transition-all duration-200 group',
+                  isActive
+                    ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent',
+                  isExpanded ? 'px-3.5 py-2 space-x-3' : 'justify-center p-2.5'
+                )
+              }
+              title="Métricas de Acesso & Engajamento"
+            >
+              <BarChart3 className="w-[18px] h-[18px] flex-shrink-0 text-amber-400" />
+              {isExpanded && <span className="font-medium whitespace-nowrap text-[13px] truncate">Métricas de Acesso</span>}
+            </NavLink>
           </div>
         )}
       </nav>
