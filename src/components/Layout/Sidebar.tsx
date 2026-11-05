@@ -15,6 +15,7 @@ import clsx from 'clsx'
 
 const allNavItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { name: 'Métricas de Acesso', path: '/analytics', icon: BarChart3 },
   { name: 'Tickets', path: '/tickets', icon: Ticket },
   // { name: 'Comercial', path: '/comercial', icon: TrendingUp }, // Oculto temporariamente para todos
   { name: 'Clientes', path: '/clientes', icon: Users },
@@ -183,6 +184,9 @@ export function Sidebar() {
         if (permissionsApi.canAccessRoute('/juntar-planilhas')) {
           clienteItems.push({ name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack })
         }
+        if (permissionsApi.canAccessRoute('/analytics')) {
+          clienteItems.push({ name: 'Métricas de Acesso', path: '/analytics', icon: BarChart3 })
+        }
         setAllowedNavItems(clienteItems)
         return
       }
@@ -205,6 +209,9 @@ export function Sidebar() {
         }
         if (permissionsApi.canAccessRoute('/juntar-planilhas')) {
           clienteItems.push({ name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack })
+        }
+        if (permissionsApi.canAccessRoute('/analytics')) {
+          clienteItems.push({ name: 'Métricas de Acesso', path: '/analytics', icon: BarChart3 })
         }
         setAllowedNavItems(clienteItems)
 
@@ -230,6 +237,9 @@ export function Sidebar() {
               }
               if (permissionsApi.canAccessRoute('/juntar-planilhas')) {
                 updatedItems.push({ name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack })
+              }
+              if (permissionsApi.canAccessRoute('/analytics')) {
+                updatedItems.push({ name: 'Métricas de Acesso', path: '/analytics', icon: BarChart3 })
               }
               setAllowedNavItems(updatedItems)
             }
@@ -651,24 +661,6 @@ export function Sidebar() {
                 </div>
               )}
             </div>
-
-            {/* Link direto para Métricas & Analytics */}
-            <NavLink
-              to="/analytics"
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center rounded-xl transition-all duration-200 group',
-                  isActive
-                    ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent',
-                  isExpanded ? 'px-3.5 py-2 space-x-3' : 'justify-center p-2.5'
-                )
-              }
-              title="Métricas de Acesso & Engajamento"
-            >
-              <BarChart3 className="w-[18px] h-[18px] flex-shrink-0 text-amber-400" />
-              {isExpanded && <span className="font-medium whitespace-nowrap text-[13px] truncate">Métricas de Acesso</span>}
-            </NavLink>
           </div>
         )}
       </nav>

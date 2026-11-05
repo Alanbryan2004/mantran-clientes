@@ -12,7 +12,7 @@ export interface PerfilPermissao {
 export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Administrador: {
     perfil: 'Administrador',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/academia', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/analytics', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/academia', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
@@ -183,6 +183,7 @@ export const permissionsApi = {
     if (normPath === '/qa-testes' || normPath.startsWith('/qa-testes/')) normPath = '/dev/qa'
     if (normPath === '/minhas-tarefas' || normPath.startsWith('/minhas-tarefas/')) normPath = '/dev/tarefas'
     if (normPath === '/cronograma' || normPath.startsWith('/cronograma/')) normPath = '/dev/cronograma'
+    if (normPath === '/metricas' || normPath.startsWith('/metricas/')) normPath = '/analytics'
 
     // FAQ: liberado para consulta pública (e para todos os usuários logados, exceto Parceiro).
     if (normPath.startsWith('/faq')) {

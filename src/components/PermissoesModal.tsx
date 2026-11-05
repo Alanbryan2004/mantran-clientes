@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, Ticket, Clock, FlaskConical, Code2, MapPin, FileSpreadsheet, FileStack, GraduationCap } from 'lucide-react'
+import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, Ticket, Clock, FlaskConical, Code2, MapPin, FileSpreadsheet, FileStack, GraduationCap, BarChart3 } from 'lucide-react'
 import { permissionsApi, DEFAULT_PERMISSOES } from '../lib/permissions'
 import type { PerfilPermissao } from '../lib/permissions'
 import { supabase } from '../lib/supabase'
@@ -22,6 +22,7 @@ const AVAILABLE_PROFILES = [
 
 const AVAILABLE_MODULES = [
   { path: '/', label: 'Dashboard', desc: 'Métricas gerais e visão executiva', icon: LayoutDashboard },
+  { path: '/analytics', label: 'Métricas de Acesso', desc: 'Painel executivo de acessos, telas mais usadas e engajamento', icon: BarChart3 },
   { path: '/cidades', label: 'Cidades', desc: 'Consulta de faixas de CEP e códigos IBGE', icon: MapPin },
   { path: '/tickets', label: 'Tickets', desc: 'Central de chamados e suporte a tickets', icon: Ticket },
   { path: '/academia', label: 'Academia Mantran', desc: 'Vídeos de treinamento para consulta e aprendizado', icon: GraduationCap },

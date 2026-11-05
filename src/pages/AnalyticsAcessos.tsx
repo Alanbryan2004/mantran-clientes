@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
-  BarChart3, Users, BookOpen, Video, Eye, RefreshCw, Monitor, Trophy, ExternalLink
+  BarChart3, Users, BookOpen, Video, Eye, RefreshCw, Monitor, Trophy, ExternalLink, Lock
 } from 'lucide-react'
 import { getAnalyticsMetricas, type AnalyticsResumo } from '../lib/analytics'
+import { permissionsApi } from '../lib/permissions'
 import { Link } from 'react-router-dom'
 import { gerarSlugFaq } from './FAQ'
 import clsx from 'clsx'
 
 export function AnalyticsAcessos() {
+  const canAccess = permissionsApi.canAccessRoute('/analytics')
   const [periodo, setPeriodo] = useState<'hoje' | '7dias' | '30dias' | 'tudo'>('30dias')
   const [abaAtiva, setAbaAtiva] = useState<'geral' | 'faq' | 'academia' | 'telas' | 'clientes'>('geral')
   const [loading, setLoading] = useState(true)
@@ -29,8 +31,10 @@ export function AnalyticsAcessos() {
   }
 
   useEffect(() => {
-    carregarDados(periodo)
-  }, [periodo])
+    if (canAccess) {
+      carregarDados(periodo)
+    }
+  }, [periodo, canAccess])
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -52,6 +56,20 @@ export function AnalyticsAcessos() {
     if (!metricas?.topVideos || metricas.topVideos.length === 0) return 1
     return Math.max(...metricas.topVideos.map(v => v.visualizacoes), 1)
   }, [metricas])
+
+  if (!canAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 bg-slate-900 border border-slate-800 rounded-2xl text-center shadow-xl">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-4 text-rose-400">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Acesso Restrito</h2>
+        <p className="text-slate-400 max-w-md text-sm">
+          Seu perfil de usuário não possui permissão para visualizar o painel de Métricas de Acesso. Solicite a liberação a um Administrador na gestão de permissões de perfis.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 max-w-full">
