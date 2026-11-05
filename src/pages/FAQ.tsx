@@ -4,9 +4,9 @@ import {
   BookOpen, Search, Plus, Pencil, Trash2, X, Save, ChevronRight,
   Image as ImageIcon, GripVertical, Bold, FolderPlus, ArrowLeft,
   FileCode, Upload, CheckCircle2, AlertCircle, Loader2, Sparkles, FileText,
-  Share2, Check, Link2, Maximize2, Minimize2, FileSpreadsheet, Download
+  Share2, Check, Link2, Maximize2, Minimize2, Download
 } from 'lucide-react'
-import { api, type FaqCategoria, type FaqProcedimento, type FaqPasso } from '../lib/api'
+import { api, type FaqCategoria, type FaqProcedimento, type FaqPasso, type FaqBotao } from '../lib/api'
 import { getLoggedUser, canEditFaq } from '../lib/auth'
 import clsx from 'clsx'
 
@@ -294,6 +294,32 @@ export function FAQ() {
       tituloNorm.includes('IMPORTACAO DE PLANILHA FATURA')
     )
   }, [procSelecionado])
+
+  // Botões de download exibidos no procedimento. Combina:
+  //  - os botões configurados pelo usuário (procSelecionado.botoes), com URL higienizada;
+  //  - o modelo fixo legado da "Importação de Planilha Fatura", se o proc não tiver botão próprio.
+  const botoesDoProc = useMemo(() => {
+    const normalizarHref = (url: string): { href: string; download: boolean } | null => {
+      const u = (url || '').trim()
+      if (!u) return null
+      // Arquivos do nosso Storage e links http(s): download só quando é arquivo nosso
+      const seguro = urlSeguraFaq(u)
+      if (!seguro) return null
+      const ehArquivoNosso = /\/storage\/v1\/object\/public\/faq\//i.test(seguro)
+      return { href: seguro, download: ehArquivoNosso }
+    }
+    const lista = (procSelecionado?.botoes || [])
+      .map(b => {
+        const h = normalizarHref(b.url)
+        return h ? { label: b.label, href: h.href, download: h.download, filename: b.filename || null } : null
+      })
+      .filter((b): b is { label: string; href: string; download: boolean; filename: string | null } => !!b)
+
+    if (lista.length === 0 && isManualImportacaoFatura) {
+      lista.push({ label: 'Baixar Planilha Modelo', href: '/Modelo_Importacao_Fatura.xlsx', download: true, filename: 'Modelo_Importacao_Fatura.xlsx' })
+    }
+    return lista
+  }, [procSelecionado, isManualImportacaoFatura])
 
   // Sincroniza o procedimento selecionado a partir da URL (/faq/SLUG ou ?p=ID ou ?manual=slug/titulo)
   useEffect(() => {
@@ -588,17 +614,18 @@ export function FAQ() {
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                    {isManualImportacaoFatura && (
+                    {botoesDoProc.map((b, i) => (
                       <a
-                        href="/Modelo_Importacao_Fatura.xlsx"
-                        download="Modelo_Importacao_Fatura.xlsx"
+                        key={i}
+                        href={b.href}
+                        {...(b.download ? { download: b.filename || true } : { target: '_blank', rel: 'noopener noreferrer' })}
                         className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all cursor-pointer"
-                        title="Baixar Modelo de Planilha de Fatura (.xlsx)"
+                        title={b.label}
                       >
-                        <FileSpreadsheet className="w-3.5 h-3.5" />
-                        <span>Baixar Planilha Modelo</span>
+                        <Download className="w-3.5 h-3.5" />
+                        <span>{b.label}</span>
                       </a>
-                    )}
+                    ))}
                     <button
                       type="button"
                       onClick={handleCopiarLink}
@@ -635,33 +662,33 @@ export function FAQ() {
                   </div>
                 </div>
 
-                {isManualImportacaoFatura && (
+                {botoesDoProc.length > 0 && (
                   <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-teal-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
                     <div className="flex items-start sm:items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 flex items-center justify-center shrink-0">
-                        <FileSpreadsheet className="w-5 h-5" />
+                        <Download className="w-5 h-5" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-sm font-bold text-slate-900">Modelo de Planilha de Fatura (.xlsx)</h4>
-                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wide">
-                            Arquivo Oficial
-                          </span>
-                        </div>
+                        <h4 className="text-sm font-bold text-slate-900">Arquivos para download</h4>
                         <p className="text-xs text-slate-600 mt-0.5">
-                          Baixe a planilha modelo oficial com todas as colunas pré-formatadas para preenchimento e importação no Mantran.
+                          Baixe os arquivos disponibilizados para este procedimento.
                         </p>
                       </div>
                     </div>
 
-                    <a
-                      href="/Modelo_Importacao_Fatura.xlsx"
-                      download="Modelo_Importacao_Fatura.xlsx"
-                      className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-xs flex items-center gap-2 transition-all shadow-sm shrink-0 cursor-pointer"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Baixar Planilha Modelo (.xlsx)</span>
-                    </a>
+                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                      {botoesDoProc.map((b, i) => (
+                        <a
+                          key={i}
+                          href={b.href}
+                          {...(b.download ? { download: b.filename || true } : { target: '_blank', rel: 'noopener noreferrer' })}
+                          className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>{b.label}</span>
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -675,19 +702,6 @@ export function FAQ() {
                         <div className="min-w-0 flex-1">
                           {passo.texto && (
                             <div className="text-sm text-slate-700 leading-relaxed [&_b]:text-slate-900 [&_b]:font-bold [&_a]:text-brand-600 [&_a]:font-semibold [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-brand-700" dangerouslySetInnerHTML={renderTextoPasso(passo.texto)} />
-                          )}
-                          {isManualImportacaoFatura && idx === 0 && (
-                            <div className="mt-2.5">
-                              <a
-                                href="/Modelo_Importacao_Fatura.xlsx"
-                                download="Modelo_Importacao_Fatura.xlsx"
-                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 text-xs font-bold transition-all shadow-2xs"
-                              >
-                                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                                <span>Clique aqui para baixar o Modelo da Planilha (.xlsx)</span>
-                                <Download className="w-3.5 h-3.5 text-emerald-600 ml-0.5" />
-                              </a>
-                            </div>
                           )}
                           {passo.imagem_url && (
                             <img src={passo.imagem_url} alt={`Passo ${idx + 1}`} onClick={() => setImgZoom(passo.imagem_url!)} className="mt-3 block w-auto h-auto max-w-full sm:max-w-xl max-h-80 object-contain object-left rounded-lg border border-slate-200 cursor-zoom-in hover:border-brand-400 transition-colors shadow-sm" />
@@ -989,9 +1003,27 @@ function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, dado
       _localId: Math.random().toString(36).slice(2)
     }))
   })
+  const [botoes, setBotoes] = useState<FaqBotao[]>(() => (proc?.botoes || []).map(b => ({ ...b })))
+  const [uploadingBotaoIdx, setUploadingBotaoIdx] = useState<number | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null)
   const [modalImportarInterno, setModalImportarInterno] = useState(false)
+
+  const addBotao = () => setBotoes(prev => [...prev, { label: '', url: '', filename: null }])
+  const removeBotao = (i: number) => setBotoes(prev => prev.filter((_, idx) => idx !== i))
+  const setBotaoCampo = (i: number, campo: 'label' | 'url', v: string) =>
+    setBotoes(prev => prev.map((b, idx) => idx === i ? { ...b, ...(campo === 'url' ? { url: v, filename: null } : { label: v }) } : b))
+
+  const uploadBotaoArquivo = async (i: number, file: File) => {
+    setUploadingBotaoIdx(i)
+    try {
+      const url = await api.uploadFaqArquivo(file, file.name)
+      setBotoes(prev => prev.map((b, idx) =>
+        idx === i ? { ...b, url, filename: file.name, label: b.label.trim() || `Baixar ${file.name}` } : b
+      ))
+    } catch (e: any) { alert('Erro ao enviar arquivo: ' + (e?.message || e)) }
+    finally { setUploadingBotaoIdx(null) }
+  }
 
   const modulosExistentes = useMemo(() => {
     const set = new Set<string>()
@@ -1061,12 +1093,15 @@ function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, dado
         })
         catId = novaCat.id
       }
+      const botoesLimpos = botoes
+        .map(b => ({ label: (b.label || '').trim(), url: (b.url || '').trim(), filename: b.filename || null }))
+        .filter(b => b.label && b.url)
       let procId = proc?.id
       if (proc) {
-        await api.updateFaqProcedimento(proc.id, { categoria_id: catId, titulo, descricao: descricao || null, caminho_menu: caminhoMenu || null })
+        await api.updateFaqProcedimento(proc.id, { categoria_id: catId, titulo, descricao: descricao || null, caminho_menu: caminhoMenu || null, botoes: botoesLimpos })
       } else {
         const novo = await api.createFaqProcedimento({
-          categoria_id: catId, titulo, descricao: descricao || null, caminho_menu: caminhoMenu || null,
+          categoria_id: catId, titulo, descricao: descricao || null, caminho_menu: caminhoMenu || null, botoes: botoesLimpos,
           criado_por_id: usuario?.id || null, criado_por_nome: usuario?.nome || usuario?.login || null
         })
         procId = novo.id
@@ -1204,6 +1239,67 @@ function ProcedimentoModal({ proc, categoriaIdInicial, categorias, usuario, dado
             <label className="block text-xs font-bold text-slate-600 mb-1.5">Caminho no menu (breadcrumb)</label>
             <input value={caminhoMenu} onChange={e => setCaminhoMenu(e.target.value)} placeholder="Ex: Módulo Shopee › Cadastros › Veículo" className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-slate-800 text-sm focus:border-brand-500 focus:outline-none" />
             <p className="text-[11px] text-slate-400 mt-1">Separe os níveis com › (ou &gt;). Ex.: Módulo Operação › Cadastros › Motorista</p>
+          </div>
+
+          <div className="pt-2 border-t border-slate-200">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h4 className="text-sm font-black text-slate-800">Botões de download ({botoes.length})</h4>
+                <p className="text-[11px] text-slate-400">Disponibilize um arquivo (planilha modelo, PDF…) ou link em um botão no topo do procedimento.</p>
+              </div>
+              <button type="button" onClick={addBotao} className="py-1.5 px-3 flex items-center gap-1.5 text-xs font-bold rounded-lg bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 cursor-pointer shrink-0"><Plus className="w-3.5 h-3.5" /> Adicionar botão</button>
+            </div>
+
+            {botoes.length === 0 ? (
+              <div className="text-xs text-slate-400 italic py-4 text-center border border-dashed border-slate-300 rounded-lg">Nenhum botão. Clique em "Adicionar botão" para disponibilizar um arquivo.</div>
+            ) : (
+              <div className="space-y-3">
+                {botoes.map((b, i) => (
+                  <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> Botão {i + 1}</span>
+                      <button type="button" onClick={() => removeBotao(i)} className="p-1 text-slate-500 hover:text-red-500 cursor-pointer" title="Remover botão"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 mb-1">Texto do botão</label>
+                        <input
+                          value={b.label}
+                          onChange={e => setBotaoCampo(i, 'label', e.target.value)}
+                          placeholder="Ex: Baixar Planilha Modelo"
+                          className="w-full px-2.5 py-1.5 rounded-md bg-white border border-slate-300 text-slate-800 text-xs focus:border-brand-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 mb-1">Arquivo ou link</label>
+                        {b.url ? (
+                          <div className="flex items-center gap-2">
+                            <a href={b.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 truncate px-2.5 py-1.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold" title={b.filename || b.url}>
+                              {b.filename || 'Link definido'}
+                            </a>
+                            <button type="button" onClick={() => setBotaoCampo(i, 'url', '')} className="shrink-0 p-1.5 text-slate-500 hover:text-red-500 cursor-pointer" title="Trocar arquivo/link"><X className="w-3.5 h-3.5" /></button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1.5">
+                            <label className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-300 rounded-md text-xs text-slate-500 hover:border-brand-400 hover:text-brand-600 cursor-pointer bg-white">
+                              <Upload className="w-3.5 h-3.5" />
+                              {uploadingBotaoIdx === i ? 'Enviando…' : 'Enviar arquivo'}
+                              <input type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadBotaoArquivo(i, f) }} />
+                            </label>
+                            <input
+                              value={b.url}
+                              onChange={e => setBotaoCampo(i, 'url', e.target.value)}
+                              placeholder="ou cole um link (https://…)"
+                              className="w-full px-2.5 py-1.5 rounded-md bg-white border border-slate-300 text-slate-800 text-xs focus:border-brand-500 focus:outline-none"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="pt-2 border-t border-slate-200">

@@ -4338,7 +4338,7 @@ export const api = {
 
     const procPorCat = new Map<string, FaqProcedimento[]>()
     ;(procedimentos || []).forEach((pr: any) => {
-      const comPassos = { ...pr, passos: passosPorProc.get(pr.id) || [] }
+      const comPassos = { ...pr, botoes: parseFaqBotoes(pr.botoes), passos: passosPorProc.get(pr.id) || [] }
       const arr = procPorCat.get(pr.categoria_id) || []
       arr.push(comPassos)
       procPorCat.set(pr.categoria_id, arr)
@@ -4385,24 +4385,31 @@ export const api = {
     descricao?: string | null
     caminho_menu?: string | null
     ordem?: number
+    botoes?: FaqBotao[]
     criado_por_id?: string | null
     criado_por_nome?: string | null
   }): Promise<FaqProcedimento> {
-    const { data, error } = await supabase
+    const base: any = {
+      categoria_id: payload.categoria_id,
+      titulo: payload.titulo.trim(),
+      descricao: payload.descricao || null,
+      caminho_menu: payload.caminho_menu || null,
+      ordem: payload.ordem ?? 0,
+      criado_por_id: payload.criado_por_id || null,
+      criado_por_nome: payload.criado_por_nome || null
+    }
+    let { data, error } = await supabase
       .from('faq_procedimentos')
-      .insert({
-        categoria_id: payload.categoria_id,
-        titulo: payload.titulo.trim(),
-        descricao: payload.descricao || null,
-        caminho_menu: payload.caminho_menu || null,
-        ordem: payload.ordem ?? 0,
-        criado_por_id: payload.criado_por_id || null,
-        criado_por_nome: payload.criado_por_nome || null
-      })
+      .insert({ ...base, botoes: limparFaqBotoes(payload.botoes) })
       .select()
       .single()
+    // Coluna botoes ainda não criada no banco: grava sem ela
+    if (error && /botoes/i.test(error.message || '')) {
+      console.warn('Coluna botoes ausente em faq_procedimentos. Execute scripts/adicionar_botoes_faq.sql')
+      ;({ data, error } = await supabase.from('faq_procedimentos').insert(base).select().single())
+    }
     if (error) throw error
-    return data
+    return { ...data, botoes: parseFaqBotoes(data.botoes) }
   },
 
   async updateFaqProcedimento(id: string, payload: {
@@ -4412,6 +4419,7 @@ export const api = {
     caminho_menu?: string | null
     ordem?: number
     ativo?: boolean
+    botoes?: FaqBotao[]
   }): Promise<void> {
     const patch: any = { updated_at: new Date().toISOString() }
     if (payload.categoria_id !== undefined) patch.categoria_id = payload.categoria_id
@@ -4420,7 +4428,15 @@ export const api = {
     if (payload.caminho_menu !== undefined) patch.caminho_menu = payload.caminho_menu
     if (payload.ordem !== undefined) patch.ordem = payload.ordem
     if (payload.ativo !== undefined) patch.ativo = payload.ativo
-    const { error } = await supabase.from('faq_procedimentos').update(patch).eq('id', id)
+    const comBotoes = payload.botoes !== undefined
+      ? { ...patch, botoes: limparFaqBotoes(payload.botoes) }
+      : patch
+    let { error } = await supabase.from('faq_procedimentos').update(comBotoes).eq('id', id)
+    // Coluna botoes ainda não criada no banco: grava sem ela
+    if (error && /botoes/i.test(error.message || '')) {
+      console.warn('Coluna botoes ausente em faq_procedimentos. Execute scripts/adicionar_botoes_faq.sql')
+      ;({ error } = await supabase.from('faq_procedimentos').update(patch).eq('id', id))
+    }
     if (error) throw error
   },
 
@@ -4460,6 +4476,22 @@ export const api = {
     return data.publicUrl
   },
 
+  // Upload de arquivo (modelo .xlsx, .pdf etc.) para o botão de download do FAQ.
+  // Mesmo bucket "faq", prefixo "botoes/". Retorna a URL pública.
+  async uploadFaqArquivo(file: File, nomeSugerido?: string): Promise<string> {
+    const nome = nomeSugerido || (file as File).name || 'arquivo'
+    const ext = nome.includes('.') ? nome.split('.').pop() : 'bin'
+    const path = `botoes/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const { error } = await supabase.storage.from('faq').upload(path, file, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: file.type || 'application/octet-stream'
+    })
+    if (error) throw error
+    const { data } = supabase.storage.from('faq').getPublicUrl(path)
+    return data.publicUrl
+  },
+
   // ===================== Academia Mantran (vídeos de treinamento) =====================
   // Guardamos só o link do YouTube. Lança erro se a tabela ainda não existir,
   // para a tela poder orientar quem cadastra.
@@ -4471,7 +4503,7 @@ export const api = {
       .order('ordem', { ascending: true })
       .order('titulo', { ascending: true })
     if (error) throw error
-    return (data || []) as AcademiaVideo[]
+    return (data || []).map(normalizarAcademiaVideo)
   },
 
   async createAcademiaVideo(payload: {
@@ -4480,22 +4512,31 @@ export const api = {
     youtube_url: string
     youtube_id: string
     ordem?: number
+    modulos?: string[]
+    secao?: string | null
     criado_por_nome?: string | null
   }): Promise<AcademiaVideo> {
-    const { data, error } = await supabase
-      .from('academia_videos')
-      .insert({
-        titulo: payload.titulo.trim(),
-        descricao: payload.descricao?.trim() || null,
-        youtube_url: payload.youtube_url.trim(),
-        youtube_id: payload.youtube_id,
-        ordem: payload.ordem ?? 0,
-        criado_por_nome: payload.criado_por_nome ?? null
-      })
-      .select('*')
-      .single()
+    const base: any = {
+      titulo: payload.titulo.trim(),
+      descricao: payload.descricao?.trim() || null,
+      youtube_url: payload.youtube_url.trim(),
+      youtube_id: payload.youtube_id,
+      ordem: payload.ordem ?? 0,
+      criado_por_nome: payload.criado_por_nome ?? null
+    }
+    const comClassificacao = {
+      ...base,
+      modulos: payload.modulos ?? [],
+      secao: payload.secao?.trim() || null
+    }
+    let { data, error } = await supabase.from('academia_videos').insert(comClassificacao).select('*').single()
+    // Colunas modulos/secao ainda não criadas no banco: grava sem elas
+    if (error && /modulos?|secao/i.test(error.message || '')) {
+      console.warn('Colunas modulos/secao ausentes em academia_videos. Execute scripts/adicionar_modulo_secao_academia.sql')
+      ;({ data, error } = await supabase.from('academia_videos').insert(base).select('*').single())
+    }
     if (error) throw error
-    return data as AcademiaVideo
+    return normalizarAcademiaVideo(data)
   },
 
   async updateAcademiaVideo(id: string, payload: {
@@ -4504,6 +4545,8 @@ export const api = {
     youtube_url?: string
     youtube_id?: string
     ordem?: number
+    modulos?: string[]
+    secao?: string | null
   }): Promise<void> {
     const patch: any = { updated_at: new Date().toISOString() }
     if (payload.titulo !== undefined) patch.titulo = payload.titulo.trim()
@@ -4511,8 +4554,78 @@ export const api = {
     if (payload.youtube_url !== undefined) patch.youtube_url = payload.youtube_url.trim()
     if (payload.youtube_id !== undefined) patch.youtube_id = payload.youtube_id
     if (payload.ordem !== undefined) patch.ordem = payload.ordem
-    const { error } = await supabase.from('academia_videos').update(patch).eq('id', id)
+    const classificacao: any = {}
+    if (payload.modulos !== undefined) classificacao.modulos = payload.modulos
+    if (payload.secao !== undefined) classificacao.secao = payload.secao?.trim() || null
+    let { error } = await supabase.from('academia_videos').update({ ...patch, ...classificacao }).eq('id', id)
+    // Colunas modulos/secao ainda não criadas no banco: grava sem elas
+    if (error && /modulos?|secao/i.test(error.message || '')) {
+      console.warn('Colunas modulos/secao ausentes em academia_videos. Execute scripts/adicionar_modulo_secao_academia.sql')
+      ;({ error } = await supabase.from('academia_videos').update(patch).eq('id', id))
+    }
     if (error) throw error
+  },
+
+  // Módulos contratados pelo cliente logado (para filtrar os vídeos da Academia).
+  // Caminhos para achar o cliente:
+  //  - login legado (@mantran): implantacao_id -> implantacoes.cliente_id
+  //  - login por e-mail (portal): ticket_contatos.email -> empresa_id (clientes.id) ou nome da empresa
+  // Módulos vêm da tabela `modulos` (ativos). Cliente do tipo SHOPEE também recebe "Shopee".
+  // `resolvido=false` quando não foi possível identificar o cliente.
+  async getModulosContratadosDoUsuario(user: { implantacao_id?: string | null; cliente_email?: string | null } | null): Promise<{ resolvido: boolean; modulos: string[] }> {
+    const clienteIds = new Set<string>()
+    const extras = new Set<string>()
+    let modulosImplantacao: string[] = []
+
+    try {
+      if (user?.implantacao_id) {
+        const { data } = await supabase
+          .from('implantacoes')
+          .select('cliente_id, tipo_cliente, modulos_normal')
+          .eq('id', user.implantacao_id)
+          .maybeSingle()
+        if (data?.cliente_id) clienteIds.add(data.cliente_id)
+        if (String(data?.tipo_cliente || '').toUpperCase() === 'SHOPEE') extras.add('Shopee')
+        if (Array.isArray(data?.modulos_normal)) modulosImplantacao = data.modulos_normal
+      } else if (user?.cliente_email) {
+        const email = user.cliente_email.trim().toLowerCase()
+        const { data: contatos } = await supabase
+          .from('ticket_contatos')
+          .select('empresa_id, empresa_nome')
+          .or(`email.ilike.${email},email_secundario.ilike.${email}`)
+        for (const ct of contatos || []) {
+          if (ct.empresa_id) {
+            clienteIds.add(ct.empresa_id)
+          } else if (ct.empresa_nome) {
+            const { data: cli } = await supabase
+              .from('clientes')
+              .select('id')
+              .ilike('nome_empresa', ct.empresa_nome.trim())
+            if (cli?.length === 1) clienteIds.add(cli[0].id)
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Academia: não foi possível identificar o cliente:', e)
+    }
+
+    if (clienteIds.size === 0) return { resolvido: false, modulos: [...extras] }
+
+    const ids = [...clienteIds]
+    const nomes = new Set<string>(extras)
+    try {
+      const [{ data: mods }, { data: clis }] = await Promise.all([
+        supabase.from('modulos').select('nome_modulo, ativo').in('cliente_id', ids),
+        supabase.from('clientes').select('id, tipo').in('id', ids)
+      ])
+      ;(mods || []).forEach((m: any) => { if (m.ativo !== false && m.nome_modulo) nomes.add(String(m.nome_modulo)) })
+      ;(clis || []).forEach((c: any) => { if (String(c.tipo || '').toUpperCase() === 'SHOPEE') nomes.add('Shopee') })
+    } catch (e) {
+      console.warn('Academia: erro ao ler módulos contratados:', e)
+    }
+    // Cliente sem nenhum módulo cadastrado: usa os escolhidos na implantação
+    if (nomes.size === extras.size) modulosImplantacao.forEach(m => nomes.add(String(m)))
+    return { resolvido: true, modulos: [...nomes] }
   },
 
   async deleteAcademiaVideo(id: string): Promise<void> {
@@ -4694,6 +4807,18 @@ export const api = {
   }
 }
 
+// `modulos` vem como array (Supabase/jsonb) ou como texto JSON (SQL Server). Padroniza em array.
+function normalizarAcademiaVideo(row: any): AcademiaVideo {
+  let mods: unknown = row?.modulos
+  if (typeof mods === 'string') {
+    try { mods = JSON.parse(mods) } catch { mods = [] }
+  }
+  const lista = Array.isArray(mods)
+    ? mods.filter((m): m is string => typeof m === 'string' && m.trim() !== '').map(m => m.trim())
+    : []
+  return { ...row, modulos: lista } as AcademiaVideo
+}
+
 export interface AcademiaVideo {
   id: string
   titulo: string
@@ -4701,6 +4826,8 @@ export interface AcademiaVideo {
   youtube_url: string
   youtube_id: string
   ordem: number
+  modulos?: string[]
+  secao?: string | null
   ativo?: boolean
   criado_por_nome?: string | null
   created_at?: string
@@ -4716,6 +4843,30 @@ export interface FaqPasso {
   created_at?: string
 }
 
+// Botão de download configurável no procedimento (ex.: "Baixar Planilha Modelo")
+export interface FaqBotao {
+  label: string            // texto do botão
+  url: string              // URL do arquivo (Supabase Storage) ou link externo
+  filename?: string | null // nome sugerido ao baixar (quando for arquivo)
+}
+
+// `botoes` vem como array (jsonb) ou texto JSON (SQL Server). Padroniza em array seguro.
+function parseFaqBotoes(raw: any): FaqBotao[] {
+  let v = raw
+  if (typeof v === 'string') { try { v = JSON.parse(v) } catch { v = [] } }
+  if (!Array.isArray(v)) return []
+  return v
+    .filter((b: any) => b && typeof b.url === 'string' && b.url.trim() && typeof b.label === 'string')
+    .map((b: any) => ({ label: String(b.label).trim(), url: String(b.url).trim(), filename: b.filename ? String(b.filename) : null }))
+}
+
+// Normaliza antes de gravar: descarta botões sem label ou sem url.
+function limparFaqBotoes(botoes?: FaqBotao[]): FaqBotao[] {
+  return (botoes || [])
+    .map(b => ({ label: (b.label || '').trim(), url: (b.url || '').trim(), filename: b.filename?.trim() || null }))
+    .filter(b => b.label && b.url)
+}
+
 export interface FaqProcedimento {
   id: string
   categoria_id: string
@@ -4724,6 +4875,7 @@ export interface FaqProcedimento {
   caminho_menu?: string | null
   ordem: number
   ativo?: boolean
+  botoes?: FaqBotao[]
   criado_por_id?: string | null
   criado_por_nome?: string | null
   passos?: FaqPasso[]
