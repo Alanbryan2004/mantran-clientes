@@ -494,14 +494,37 @@ export function ProcessamentoShopee() {
     setIsSyncingSqlServer(true)
     setSyncFeedback(null)
     try {
-      const response = await fetch('/api/sincronizar-shopee', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
+      let data: any = null
 
-      const data = await response.json()
-      if (!response.ok || !data.ok) {
-        throw new Error(data.erro || 'Falha ao sincronizar com o SQL Server.')
+      // 1. Tenta prioritariamente via serviço local direto (127.0.0.1:3333), que possui acesso à rede interna/SQL Server
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 2000)
+        const checkLocal = await fetch('http://127.0.0.1:3333/health', { signal: controller.signal })
+        clearTimeout(timeoutId)
+
+        if (checkLocal.ok) {
+          const respLocal = await fetch('http://127.0.0.1:3333/api/sincronizar-shopee', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          data = await respLocal.json()
+        }
+      } catch (_) {
+        // Segue para tentativa na nuvem se o serviço local não responder
+      }
+
+      // 2. Fallback para rota serverless da nuvem
+      if (!data) {
+        const response = await fetch('/api/sincronizar-shopee', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        data = await response.json()
+      }
+
+      if (!data || !data.ok) {
+        throw new Error(data?.erro || 'Falha ao sincronizar com o SQL Server.')
       }
 
       setSyncFeedback({
@@ -520,7 +543,7 @@ export function ProcessamentoShopee() {
       setIsSyncingSqlServer(false)
       setTimeout(() => {
         setSyncFeedback(null)
-      }, 7000)
+      }, 8000)
     }
   }
 
