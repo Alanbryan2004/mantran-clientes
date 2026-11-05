@@ -30,3 +30,10 @@ mantranwebapi/
 mantranwebapi
 scratch/
 *.zip
+*.apk
+MantranClientes.apk
+*.rar
+scripts/
+docs/
+public/MANUAIS_MANTRAN_ATE_26_10/
+public/Alteracao_Devedor_Fatura_MANTRAN.html
