@@ -39,6 +39,17 @@ async function run() {
     .select('*', { count: 'exact', head: true })
   console.log(`Contagem atual no Supabase (antes da sincronização): ${countAntes}`)
 
+  // Buscar transportadoras existentes no Supabase para integridade de FK
+  const { data: transpsExistentes, error: errTransp } = await supabase
+    .from('shopee_transportadoras')
+    .select('id')
+  
+  if (errTransp) {
+    console.warn('Aviso ao buscar transportadoras:', errTransp.message)
+  }
+  const setTransp = new Set((transpsExistentes || []).map(t => t.id))
+  console.log(`Transportadoras ativas no Supabase para validação de FK: ${setTransp.size}`)
+
   const BATCH_SIZE = 50
   let totalProcessado = 0
 
@@ -47,7 +58,7 @@ async function run() {
   for (let i = 0; i < processamentos.length; i += BATCH_SIZE) {
     const chunk = processamentos.slice(i, i + BATCH_SIZE).map(p => ({
       id: p.id,
-      transportadora_id: p.transportadora_id || null,
+      transportadora_id: (p.transportadora_id && setTransp.has(p.transportadora_id)) ? p.transportadora_id : null,
       nome_empresa: p.nome_empresa,
       nome_base: p.nome_base || null,
       cnpj: p.cnpj || null,

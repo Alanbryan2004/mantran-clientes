@@ -11,9 +11,11 @@ import {
   FileText,
   Truck,
   Layers,
-  Calendar
+  Calendar,
+  Database
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { isAdminUser } from '../lib/auth'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -121,6 +123,9 @@ export function ProcessamentoShopee() {
   const [processamentosDB, setProcessamentosDB] = useState<ShopeeProcessamentoDB[]>([])
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isSyncingSqlServer, setIsSyncingSqlServer] = useState(false)
+  const [syncFeedback, setSyncFeedback] = useState<{ tipo: 'sucesso' | 'erro', texto: string } | null>(null)
+  const isAdmin = isAdminUser()
   const [ultimaSincronizacao, setUltimaSincronizacao] = useState<string>(() =>
     new Date().toLocaleTimeString('pt-BR')
   )
@@ -479,6 +484,46 @@ export function ProcessamentoShopee() {
     }
   }
 
+  const handleSyncSqlServer = async () => {
+    if (isSyncingSqlServer) return
+    const confirma = window.confirm(
+      'Deseja sincronizar a tabela shopee_processamentos do SQL Server (dbSuporte) diretamente para o Supabase agora?'
+    )
+    if (!confirma) return
+
+    setIsSyncingSqlServer(true)
+    setSyncFeedback(null)
+    try {
+      const response = await fetch('/api/sincronizar-shopee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await response.json()
+      if (!response.ok || !data.ok) {
+        throw new Error(data.erro || 'Falha ao sincronizar com o SQL Server.')
+      }
+
+      setSyncFeedback({
+        tipo: 'sucesso',
+        texto: data.mensagem || `${data.total} registros sincronizados com sucesso!`
+      })
+      await fetchProcessamentos()
+      setUltimaSincronizacao(new Date().toLocaleTimeString('pt-BR'))
+    } catch (err: any) {
+      console.error('Erro na sincronização:', err)
+      setSyncFeedback({
+        tipo: 'erro',
+        texto: err.message || 'Erro ao sincronizar dados com o SQL Server.'
+      })
+    } finally {
+      setIsSyncingSqlServer(false)
+      setTimeout(() => {
+        setSyncFeedback(null)
+      }, 7000)
+    }
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden flex flex-col">
       
@@ -505,6 +550,33 @@ export function ProcessamentoShopee() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+          {/* Botão Exclusivo Administrador: Sincronizar com SQL Server */}
+          {isAdmin && (
+            <button
+              onClick={handleSyncSqlServer}
+              disabled={isSyncingSqlServer}
+              className={clsx(
+                "px-3.5 py-2 text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer border select-none",
+                isSyncingSqlServer
+                  ? "bg-amber-500/20 text-amber-300 border-amber-500/30 cursor-wait"
+                  : "bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 hover:from-amber-500/30 hover:via-orange-500/30 hover:to-red-500/30 text-amber-300 border-amber-500/40 hover:border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+              )}
+              title="Sincronizar tabela shopee_processamentos do SQL Server (dbSuporte) para o Supabase (Exclusivo Administrador)"
+            >
+              {isSyncingSqlServer ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  <span>Sincronizando SQL Server...</span>
+                </>
+              ) : (
+                <>
+                  <Database className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Sincronizar SQL Server</span>
+                </>
+              )}
+            </button>
+          )}
+
           <div className="flex items-center bg-slate-900/90 border border-slate-800 rounded-xl p-1 shadow-sm">
             <button
               onClick={exportToExcel}
@@ -538,6 +610,31 @@ export function ProcessamentoShopee() {
           </button>
         </div>
       </div>
+
+      {/* Feedback de Sincronização */}
+      {syncFeedback && (
+        <div className={clsx(
+          "p-3.5 rounded-xl border flex items-center justify-between gap-3 text-xs font-semibold animate-in fade-in slide-in-from-top-2 duration-200 shadow-lg",
+          syncFeedback.tipo === 'sucesso' 
+            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+            : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+        )}>
+          <div className="flex items-center gap-2.5">
+            {syncFeedback.tipo === 'sucesso' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
+            <span>{syncFeedback.texto}</span>
+          </div>
+          <button
+            onClick={() => setSyncFeedback(null)}
+            className="text-slate-400 hover:text-white text-xs px-2 py-0.5 rounded cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Metric Cards Banner */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
