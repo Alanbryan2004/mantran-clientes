@@ -98,7 +98,27 @@ const MESES = [
   { valor: '12', nome: 'Dezembro' }
 ]
 
-const ANOS = ['2026', '2025', '2024']
+const ANOS = Array.from(
+  new Set([String(new Date().getFullYear() + 1), String(new Date().getFullYear()), '2026', '2025', '2024'])
+).sort((a, b) => Number(b) - Number(a))
+
+/**
+ * Retorna a quinzena, mês e ano padrão para pesquisa.
+ * Regra: 15 dias antes da data atual (quinzena imediatamente anterior que acabou de fechar).
+ * Exemplo: Em 05/11/2026 -> 2ª Quinzena de Outubro de 2026.
+ */
+function obterCompetenciaPadraoShopee(): { quinzena: '1' | '2', mes: string, ano: string } {
+  const agora = new Date()
+  const dataAlvo = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 15)
+
+  const dia = dataAlvo.getDate()
+  const quinzena: '1' | '2' = dia <= 15 ? '1' : '2'
+  const mesNum = dataAlvo.getMonth() + 1
+  const mes = String(mesNum).padStart(2, '0')
+  const ano = String(dataAlvo.getFullYear())
+
+  return { quinzena, mes, ano }
+}
 
 const PROCESSOS: { id: 'TODOS' | ProcessoTipo; label: string }[] = [
   { id: 'TODOS', label: 'Todos os Processos' },
@@ -109,10 +129,12 @@ const PROCESSOS: { id: 'TODOS' | ProcessoTipo; label: string }[] = [
 ]
 
 export function ProcessamentoShopee() {
-  // Filtros
-  const [quinzena, setQuinzena] = useState<'1' | '2'>('1')
-  const [mes, setMes] = useState('09')
-  const [ano, setAno] = useState('2026')
+  const competenciaPadrao = useMemo(() => obterCompetenciaPadraoShopee(), [])
+
+  // Filtros inicializados com a quinzena passada (15 dias antes da data atual)
+  const [quinzena, setQuinzena] = useState<'1' | '2'>(competenciaPadrao.quinzena)
+  const [mes, setMes] = useState(competenciaPadrao.mes)
+  const [ano, setAno] = useState(competenciaPadrao.ano)
   const [processoFiltro, setProcessoFiltro] = useState<'TODOS' | ProcessoTipo>('TODOS')
   const [transportadoraFiltro, setTransportadoraFiltro] = useState<string>('TODAS')
   const [statusFiltro, setStatusFiltro] = useState<'TODOS' | StatusProcessamento>('TODOS')
