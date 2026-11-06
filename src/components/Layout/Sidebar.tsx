@@ -1,19 +1,30 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { 
   LayoutDashboard, Database, Users, LogOut, Menu, Cloud, 
   Rocket, Shield, ShoppingBag, UserCog, Users2, Ticket,
   ChevronDown, Code2, Clock, FlaskConical, ListFilter, CheckCircle2,
   Calendar, PlusCircle, BookOpen, LogIn, MapPin, FileSpreadsheet, FileStack, GraduationCap,
-  BarChart3
+  BarChart3, Wrench
 } from 'lucide-react'
-import { getLoggedUser, isAdminUser } from '../../lib/auth'
+import { getLoggedUser, isAdminUser, isFuncionarioUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
 import { api } from '../../lib/api'
 import { PermissoesModal } from '../PermissoesModal'
 import clsx from 'clsx'
 
-const allNavItems = [
+interface NavItem {
+  name: string
+  path: string
+  icon: any
+  // Prefixos de rota que também deixam o item "ativo" (ex.: Utilitários agrupa 3 telas)
+  matchPrefixes?: string[]
+}
+
+// Telas agrupadas em "Utilitários" para funcionários (Suporte, Técnico, Administrador...)
+const UTILITARIOS_PATHS = ['/cidades', '/separador-planilhas', '/juntar-planilhas']
+
+const allNavItems: NavItem[] = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
   { name: 'Métricas de Acesso', path: '/analytics', icon: BarChart3 },
   { name: 'Tickets', path: '/tickets', icon: Ticket },
@@ -69,7 +80,7 @@ const devNavItems: DevNavItem[] = [
 export function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isPermissoesModalOpen, setIsPermissoesModalOpen] = useState(false)
-  const [allowedNavItems, setAllowedNavItems] = useState(allNavItems)
+  const [allowedNavItems, setAllowedNavItems] = useState<NavItem[]>(allNavItems)
 
   const user = getLoggedUser()
   const isAdmin = isAdminUser()
@@ -84,8 +95,6 @@ export function Sidebar() {
                       location.pathname.startsWith('/qa-testes') || 
                       location.pathname.startsWith('/cronograma')
   const [isDevDropdownOpen, setIsDevDropdownOpen] = useState(isDevActive || isTecnico)
-  const [isCollapsedDevMenuOpen, setIsCollapsedDevMenuOpen] = useState(false)
-  const collapsedDevMenuRef = useRef<HTMLDivElement>(null)
 
   const isCronogramaActive = location.pathname.startsWith('/dev/cronograma') || 
                              location.pathname.startsWith('/cronograma')
@@ -99,8 +108,6 @@ export function Sidebar() {
 
   const isUsuariosActive = location.pathname.startsWith('/usuarios')
   const [isUsuariosDropdownOpen, setIsUsuariosDropdownOpen] = useState(isUsuariosActive)
-  const [isCollapsedMenuOpen, setIsCollapsedMenuOpen] = useState(false)
-  const collapsedMenuRef = useRef<HTMLDivElement>(null)
 
   // Auto-abre o dropdown quando estiver na rota /usuarios ou /dev
   useEffect(() => {
@@ -114,32 +121,6 @@ export function Sidebar() {
       setIsDevDropdownOpen(true)
     }
   }, [isDevActive])
-
-  // Fecha o menu flutuante colapsado ao clicar fora
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (collapsedMenuRef.current && !collapsedMenuRef.current.contains(event.target as Node)) {
-        setIsCollapsedMenuOpen(false)
-      }
-      if (collapsedDevMenuRef.current && !collapsedDevMenuRef.current.contains(event.target as Node)) {
-        setIsCollapsedDevMenuOpen(false)
-      }
-    }
-    if (isCollapsedMenuOpen || isCollapsedDevMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isCollapsedMenuOpen, isCollapsedDevMenuOpen])
-
-  // Fecha os menus flutuantes quando a sidebar se expande
-  useEffect(() => {
-    if (isExpanded) {
-      setIsCollapsedMenuOpen(false)
-      setIsCollapsedDevMenuOpen(false)
-    }
-  }, [isExpanded])
 
   useEffect(() => {
     let isMounted = true
@@ -249,10 +230,29 @@ export function Sidebar() {
       }
 
       // Filter accessible navigation items
-      const filtered = allNavItems.filter(item => {
+      let filtered: NavItem[] = allNavItems.filter(item => {
         if (item.path === '/comercial') return false
         return permissionsApi.canAccessRoute(item.path)
       })
+
+      // Funcionários (Suporte, Técnico, Administrador...): Cidades, Separador e Juntar Planilhas
+      // saem da barra e ficam agrupados em "Utilitários". Parceiro e demais perfis seguem como antes.
+      if (isFuncionarioUser()) {
+        const temUtilitario = filtered.some(item => UTILITARIOS_PATHS.includes(item.path))
+        if (temUtilitario) {
+          const idxPrimeiro = filtered.findIndex(item => UTILITARIOS_PATHS.includes(item.path))
+          const semUtilitarios = filtered.filter(item => !UTILITARIOS_PATHS.includes(item.path))
+          // posição do primeiro utilitário removido, ajustada pelos itens que saíram antes dele
+          const posicao = filtered.slice(0, idxPrimeiro).filter(item => !UTILITARIOS_PATHS.includes(item.path)).length
+          semUtilitarios.splice(posicao, 0, {
+            name: 'Utilitários',
+            path: '/utilitarios',
+            icon: Wrench,
+            matchPrefixes: UTILITARIOS_PATHS
+          })
+          filtered = semUtilitarios
+        }
+      }
       
       // If user has a specific restricted project (e.g. Parceiro), link directly to that project
       const specificProjId = permissionsApi.getAllowedProjectForUser()
@@ -328,6 +328,7 @@ export function Sidebar() {
       <nav className="flex-1 py-3 space-y-1 overflow-y-auto overflow-x-hidden px-3 mt-1">
         {allowedNavItems.map((item) => {
           const Icon = item.icon
+          const ativoPorPrefixo = !!item.matchPrefixes?.some(p => location.pathname.startsWith(p))
           return (
             <NavLink
               key={item.path}
@@ -337,7 +338,7 @@ export function Sidebar() {
                 clsx(
                   'flex items-center rounded-xl transition-all duration-200',
                   isExpanded ? 'px-3.5 py-2 space-x-3' : 'p-2.5 justify-center',
-                  isActive 
+                  (isActive || ativoPorPrefixo)
                     ? 'bg-brand-500/10 text-brand-400 border border-brand-500/20' 
                     : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'
                 )
@@ -352,7 +353,7 @@ export function Sidebar() {
         {/* Módulo Desenvolvimento & QA */}
         {allowedDevItems.length > 0 && (
           <div className="pt-2.5 mt-2.5 border-t border-slate-800/80 space-y-1">
-            <div className="relative" ref={collapsedDevMenuRef}>
+            <div className="relative">
               <div
                 className={clsx(
                   'flex items-center rounded-xl transition-all duration-200 group',
@@ -394,7 +395,10 @@ export function Sidebar() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setIsCollapsedDevMenuOpen(!isCollapsedDevMenuOpen)}
+                    onClick={() => {
+                      setIsExpanded(true)
+                      setIsDevDropdownOpen(true)
+                    }}
                     title="Desenvolvimento & QA"
                     className="p-2.5 flex items-center justify-center cursor-pointer focus:outline-none w-full"
                   >
@@ -488,72 +492,7 @@ export function Sidebar() {
                 </div>
               )}
 
-              {/* Menu Flutuante Popover quando sidebar recolhida (!isExpanded) */}
-              {!isExpanded && isCollapsedDevMenuOpen && (
-                <div className="absolute left-full top-0 ml-3 w-56 bg-[#131622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1 max-h-[calc(100vh-80px)] overflow-y-auto">
-                  <div className="px-3 py-1.5 border-b border-slate-800/80 text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                    <Code2 className="w-3.5 h-3.5" />
-                    <span>Dev & QA</span>
-                  </div>
-                  {allowedDevItems.map((item) => {
-                    const ItemIcon = item.icon
-                    const hasSubitems = Array.isArray(item.subitems) && item.subitems.length > 0
 
-                    if (hasSubitems) {
-                      const filteredSub = (item.subitems || []).filter(sub => {
-                        if (sub.adminOnly && !isAdmin) return false
-                        if (sub.tecnicoOrAdminOnly && !isAdmin && !isTecnico) return false
-                        return true
-                      })
-                      return (
-                        <div key={item.name} className="pt-1.5 mt-1.5 border-t border-slate-800/80 space-y-1">
-                          <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                            <ItemIcon className="w-3.5 h-3.5" />
-                            <span>{item.name}</span>
-                          </div>
-                          {filteredSub.map(sub => (
-                            <NavLink
-                              key={sub.path}
-                              to={sub.path}
-                              onClick={() => setIsCollapsedDevMenuOpen(false)}
-                              className={({ isActive }) =>
-                                clsx(
-                                  'flex items-center gap-2 pl-5 pr-3 py-1.5 rounded-xl text-xs font-medium transition-colors',
-                                  isActive
-                                    ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30 font-bold'
-                                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                                )
-                              }
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                              <span>{sub.name}</span>
-                            </NavLink>
-                          ))}
-                        </div>
-                      )
-                    }
-
-                    return (
-                      <NavLink
-                        key={item.path}
-                        to={item.path}
-                        onClick={() => setIsCollapsedDevMenuOpen(false)}
-                        className={({ isActive }) =>
-                          clsx(
-                            'flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors',
-                            isActive
-                              ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30 font-semibold'
-                              : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                          )
-                        }
-                      >
-                        <ItemIcon className={clsx("w-4 h-4 shrink-0", item.color)} />
-                        <span>{item.name}</span>
-                      </NavLink>
-                    )
-                  })}
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -561,7 +500,7 @@ export function Sidebar() {
         {/* Admin only: Usuários com Dropdown de Permissões */}
         {isAdmin && (
           <div className="pt-2.5 mt-2.5 border-t border-slate-800/80 space-y-1">
-            <div className="relative" ref={collapsedMenuRef}>
+            <div className="relative">
               <div
                 className={clsx(
                   'flex items-center rounded-xl transition-all duration-200 group',
@@ -603,7 +542,10 @@ export function Sidebar() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setIsCollapsedMenuOpen(!isCollapsedMenuOpen)}
+                    onClick={() => {
+                      setIsExpanded(true)
+                      setIsUsuariosDropdownOpen(true)
+                    }}
                     title="Usuários & Permissões"
                     className="p-2.5 flex items-center justify-center cursor-pointer focus:outline-none w-full"
                   >
@@ -622,41 +564,6 @@ export function Sidebar() {
                   >
                     <Shield className="w-3.5 h-3.5 text-brand-400 flex-shrink-0 group-hover:scale-110 transition-transform" />
                     <span className="truncate">Permissões de Acesso</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Menu Flutuante Popover quando sidebar recolhida (!isExpanded) */}
-              {!isExpanded && isCollapsedMenuOpen && (
-                <div className="absolute left-full top-0 ml-3 w-52 bg-[#131622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1">
-                  <div className="px-3 py-1.5 border-b border-slate-800/80 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Usuários
-                  </div>
-                  <NavLink
-                    to="/usuarios"
-                    onClick={() => setIsCollapsedMenuOpen(false)}
-                    className={({ isActive }) =>
-                      clsx(
-                        "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors",
-                        isActive
-                          ? "bg-brand-500/20 text-brand-300 border border-brand-500/30"
-                          : "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                      )
-                    }
-                  >
-                    <UserCog className="w-4 h-4 text-cyan-400 shrink-0" />
-                    <span>Usuários do Sistema</span>
-                  </NavLink>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCollapsedMenuOpen(false)
-                      setIsPermissoesModalOpen(true)
-                    }}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors w-full text-left cursor-pointer"
-                  >
-                    <Shield className="w-4 h-4 text-brand-400 shrink-0" />
-                    <span>Permissões de Acesso</span>
                   </button>
                 </div>
               )}

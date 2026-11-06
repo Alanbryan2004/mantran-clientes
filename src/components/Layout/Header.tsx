@@ -34,7 +34,8 @@ import {
   MapPin,
   FileSpreadsheet,
   FileStack,
-  GraduationCap
+  GraduationCap,
+  Wrench
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -116,6 +117,9 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
     }
     if (path.startsWith('/academia')) {
       return { title: 'Academia Mantran', icon: GraduationCap, subtitle: 'Vídeos de treinamento para você aprender no seu ritmo' }
+    }
+    if (path.startsWith('/utilitarios')) {
+      return { title: 'Utilitários', icon: Wrench, subtitle: 'Cidades, Separador e Juntar Planilhas' }
     }
     if (path === '/') {
       return { title: 'Dashboard Geral', icon: LayoutDashboard, subtitle: 'Métricas, bases e status em tempo real' }

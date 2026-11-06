@@ -14,6 +14,7 @@ import { Tickets } from './pages/Tickets'
 import { Calendario } from './pages/Calendario'
 import { FAQ } from './pages/FAQ'
 import { AcademiaMantran } from './pages/AcademiaMantran'
+import { Utilitarios } from './pages/Utilitarios'
 import { Cidades } from './pages/Cidades'
 import { SeparadorPlanilhas } from './pages/SeparadorPlanilhas'
 import { JuntarPlanilhas } from './pages/JuntarPlanilhas'
@@ -150,6 +151,7 @@ function App() {
             <Route path="faq" element={<FAQ />} />
             <Route path="faq/:slug" element={<FAQ />} />
             <Route path="academia" element={<AcademiaMantran />} />
+            <Route path="utilitarios" element={<Utilitarios />} />
             <Route path="cidades" element={<Cidades />} />
             <Route path="separador-planilhas" element={<SeparadorPlanilhas />} />
             <Route path="separador" element={<Navigate to="/separador-planilhas" replace />} />

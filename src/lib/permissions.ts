@@ -209,6 +209,12 @@ export const permissionsApi = {
 
     if (!user || !user.perfil) return false
 
+    // Utilitários: tela-índice que agrupa Cidades, Separador e Juntar Planilhas.
+    // Não tem permissão própria: abre para quem acessa ao menos uma das três.
+    if (normPath === '/utilitarios' || normPath.startsWith('/utilitarios/')) {
+      return ['/cidades', '/separador-planilhas', '/juntar-planilhas'].some(r => this.canAccessRoute(r))
+    }
+
     const perfilName = user.perfil.trim()
     if (perfilName.toLowerCase() === 'administrador') return true
 
