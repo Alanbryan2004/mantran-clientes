@@ -72,9 +72,9 @@ function RootRoute() {
   }, [isCliente, isClientePortalTickets])
 
   if (isCliente) {
-    // Portal de tickets do cliente
+    // Cliente do portal (login por e-mail): vai para a 1ª tela liberada ("Meus Chamados" só se estiver habilitado)
     if (isClientePortalTickets) {
-      return <Navigate to="/tickets" replace />
+      return <Navigate to={permissionsApi.getFirstAllowedRouteForUser()} replace />
     }
     if (resolving) {
       return <div className="flex items-center justify-center p-12 text-slate-400">Carregando implantação...</div>

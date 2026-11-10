@@ -18,11 +18,12 @@ import {
   CalendarClock,
   Ticket as TicketIcon,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  UserPlus
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { supabase } from '../lib/supabase'
-import { getLoggedUser, isClienteUser, isAdminUser, isTecnicoUser, isFuncionarioUser } from '../lib/auth'
+import { getLoggedUser, isClienteUser, isAdminUser, isSuporteUser, isTecnicoUser, isFuncionarioUser } from '../lib/auth'
 import { avaliarLembretesPonto } from '../lib/lembretesPonto'
 import { avaliarAniversarios } from '../lib/aniversarios'
 import { avaliarLembretesCalendario } from '../lib/lembretesCalendario'
@@ -128,6 +129,9 @@ export function NotificationsPopover() {
       const userList = (rawList || [])
         .filter((n: any) => {
           if (deletedIds.has(n.id)) return false
+
+          // Aviso de novo cliente cadastrado: só quem libera acessos (Administrador e Suporte)
+          if (n.tipo === 'novo_cadastro_cliente') return isAdmin || isSuporteUser()
 
           // 0. Notificações do Módulo de QA (Reprovações e Retornos para Validação)
           const isQa = n.tipo?.startsWith('qa_') || n.dados_extras?.modulo === 'qa'
@@ -521,7 +525,11 @@ export function NotificationsPopover() {
     }
     setIsOpen(false)
 
-    if (item.tipo?.startsWith('qa_') || item.dados_extras?.modulo === 'qa') {
+    if (item.tipo === 'novo_cadastro_cliente') {
+      // Novo cliente cadastrado: abre Contatos já filtrado pelos novos cadastros
+      navigate('/tickets?view=contatos&novos=1')
+      return
+    } else if (item.tipo?.startsWith('qa_') || item.dados_extras?.modulo === 'qa') {
       // Notificação de QA: abre o modal com todos os detalhes do apontamento ou correção
       setModalQaDetalhes(item)
       return
@@ -769,6 +777,60 @@ export function NotificationsPopover() {
                 const isConcluido = item.titulo?.includes('Concluído') || item.dados_extras?.isCompleto
                 const nomeCliente = item.dados_extras?.nome_empresa || 'Cliente'
                 const colaboradorNome = item.dados_extras?.usuario_nome || 'Colaborador'
+
+                // Novo cliente cadastrado pela tela de login
+                if (item.tipo === 'novo_cadastro_cliente') {
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleOpenNotificacao(item)}
+                      className={clsx(
+                        "p-3.5 transition-all duration-150 cursor-pointer group flex items-start gap-3 relative hover:bg-slate-800/60",
+                        !item.lida ? "bg-cyan-500/5 border-l-2 border-cyan-400" : "opacity-80 hover:opacity-100"
+                      )}
+                    >
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5 shadow-sm bg-cyan-500/15 border-cyan-500/30 text-cyan-400 shadow-cyan-500/10">
+                        <UserPlus className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md border bg-cyan-950/40 text-cyan-300 border-cyan-500/30">
+                              🏢 {nomeCliente}
+                            </span>
+                            <span className="text-xs font-bold text-white truncate">{item.titulo}</span>
+                          </div>
+                          {!item.lida && <span className="w-2 h-2 rounded-full shrink-0 bg-cyan-400 shadow-[0_0_6px_#22d3ee]" />}
+                        </div>
+                        <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed mb-2">{item.mensagem}</p>
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="flex items-center gap-1 text-slate-500">
+                            <Clock className="w-3 h-3" />
+                            {formatRelativeTime(item.created_at)}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleOpenNotificacao(item) }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded border text-[11px] font-semibold transition-all cursor-pointer bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              Visualize aqui
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDelete(item.id, e)}
+                              title="Remover das minhas notificações"
+                              className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
 
                 return (
                   <div

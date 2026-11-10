@@ -149,9 +149,11 @@ export function Sidebar() {
       
       // Cliente do portal de tickets (logou com o próprio e-mail): "Meus Chamados" + FAQ + Cidades + Separador de Planilhas + Juntar Planilhas
       if (isCliente && user?.cliente_email) {
-        const clienteItems = [
-          { name: 'Meus Chamados', path: '/tickets', icon: Ticket },
-        ]
+        const clienteItems: NavItem[] = []
+        // "Meus Chamados" só aparece quando "Tickets" está habilitado para o perfil Cliente (Permissões de Acesso)
+        if (permissionsApi.canAccessRoute('/tickets')) {
+          clienteItems.push({ name: 'Meus Chamados', path: '/tickets', icon: Ticket })
+        }
         if (permissionsApi.canAccessRoute('/faq')) {
           clienteItems.push({ name: 'FAQ', path: '/faq', icon: BookOpen })
         }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
-  BarChart3, Users, BookOpen, Video, Eye, RefreshCw, Monitor, Trophy, ExternalLink, Lock
+  BarChart3, Users, UserPlus, BookOpen, Video, Eye, RefreshCw, Monitor, Trophy, ExternalLink, Lock
 } from 'lucide-react'
 import { getAnalyticsMetricas, type AnalyticsResumo } from '../lib/analytics'
 import { permissionsApi } from '../lib/permissions'
@@ -148,7 +148,7 @@ export function AnalyticsAcessos() {
       </div>
 
       {/* Cards de Métricas Principais */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Total Acessos */}
         <div className="bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-slate-700 transition-all flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
@@ -202,6 +202,20 @@ export function AnalyticsAcessos() {
               {loading ? '…' : (metricas?.totalUsuariosAtivos || 0).toLocaleString('pt-BR')}
             </div>
             <span className="text-[10px] text-amber-400/70 block truncate">Clientes e equipe no período</span>
+          </div>
+        </div>
+
+        {/* Novos Usuários Cadastrados */}
+        <div className="bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-slate-700 transition-all flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+            <UserPlus className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider block">Novos Usuários</span>
+            <div className="text-2xl font-black text-cyan-300 mt-0.5">
+              {loading ? '…' : (metricas?.totalNovosUsuarios || 0).toLocaleString('pt-BR')}
+            </div>
+            <span className="text-[10px] text-cyan-400/70 block truncate">Cadastrados no período</span>
           </div>
         </div>
       </div>

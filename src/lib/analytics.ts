@@ -30,6 +30,7 @@ export interface AnalyticsResumo {
   totalFaqLidos: number
   totalVideosAssistidos: number
   totalUsuariosAtivos: number
+  totalNovosUsuarios: number
   topFaq: { id: string; titulo: string; categoria: string; acessos: number }[]
   topVideos: { id: string; titulo: string; instrutor: string; visualizacoes: number; concluidos: number }[]
   topTelas: { rota: string; tela_nome: string; acessos: number }[]
@@ -178,12 +179,21 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
   if (dataFiltro) queryFaq = queryFaq.gte('created_at', dataFiltro.toISOString())
   const { data: faqs = [] } = await queryFaq
 
-  // 3. Consultar academia_visualizacoes e academia_videos
+  // 3. Consultar academia_visualizacoes, academia_videos e novos usuários (tabela usuario)
   let queryAcademia = supabase.from('academia_visualizacoes').select('*')
   if (dataFiltro) queryAcademia = queryAcademia.gte('ultima_vez', dataFiltro.toISOString())
-  const [{ data: visualizacoesVideos = [] }, { data: videosCatalogo = [] }] = await Promise.all([
+
+  let queryNovosUsuarios = supabase.from('usuario').select('*', { count: 'exact', head: true })
+  if (dataFiltro) queryNovosUsuarios = queryNovosUsuarios.gte('created_at', dataFiltro.toISOString())
+
+  const [
+    { data: visualizacoesVideos = [] },
+    { data: videosCatalogo = [] },
+    { count: totalNovosUsuarios = 0 }
+  ] = await Promise.all([
     queryAcademia,
-    supabase.from('academia_videos').select('id, titulo, instrutor')
+    supabase.from('academia_videos').select('id, titulo, instrutor'),
+    queryNovosUsuarios
   ])
 
   // Contagem de telas
@@ -259,6 +269,7 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
     totalFaqLidos: (faqs || []).length,
     totalVideosAssistidos: (visualizacoesVideos || []).length,
     totalUsuariosAtivos: usuariosUnicos.size,
+    totalNovosUsuarios: totalNovosUsuarios || 0,
     topFaq: Array.from(mapaFaq.values()).sort((a, b) => b.acessos - a.acessos).slice(0, 15),
     topVideos: Array.from(mapaVideos.values()).sort((a, b) => b.visualizacoes - a.visualizacoes).slice(0, 15),
     topTelas: Array.from(mapaTelas.values()).sort((a, b) => b.acessos - a.acessos).slice(0, 15),

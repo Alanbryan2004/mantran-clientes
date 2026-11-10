@@ -49,7 +49,9 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Cliente: {
     perfil: 'Cliente',
-    rotas: ['/tickets', '/faq', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/implantacoes'],
+    // '/tickets' fica FORA do padrão do Cliente: a tela "Meus Chamados" ainda não foi liberada.
+    // Para liberar, marque "Tickets" no perfil Cliente em Permissões de Acesso.
+    rotas: ['/faq', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/implantacoes'],
     projeto_especifico_id: null,
     read_only: true
   }
@@ -295,7 +297,11 @@ export const permissionsApi = {
     
     // Perfil Cliente
     if (perfilName.toLowerCase() === 'cliente') {
-      if (user.cliente_email) return '/tickets'
+      if (user.cliente_email) {
+        // Cliente do portal (login por e-mail): 1ª tela liberada para o perfil. "Meus Chamados" só se estiver habilitado.
+        const preferidas = ['/tickets', '/academia', '/faq', '/cidades', '/separador-planilhas', '/juntar-planilhas']
+        return preferidas.find(r => this.canAccessRoute(r)) || '/faq'
+      }
       if (user.implantacao_id) return `/implantacoes/${user.implantacao_id}`
       return '/implantacoes'
     }

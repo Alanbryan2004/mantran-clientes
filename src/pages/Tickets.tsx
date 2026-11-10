@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useSearchParams, useParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   Ticket as TicketIcon,
   Plus,
@@ -41,7 +41,8 @@ import {
   Link2,
   Unlink,
   Check,
-  KeyRound
+  KeyRound,
+  UserPlus
 } from 'lucide-react'
 import clsx from 'clsx'
 import {
@@ -53,7 +54,8 @@ import {
   type TicketHistorico,
   type ConfigEmail,
   type UsuarioSistema,
-  type EmpresaVinculoItem
+  type EmpresaVinculoItem,
+  type AcessoPortal
 } from '../lib/api'
 import { getLoggedUser, isClienteUser, isAdminUser, isSuporteUser } from '../lib/auth'
 import { formatTelefone } from '../lib/telefone'
@@ -209,6 +211,11 @@ export function Tickets() {
   if (isClienteUser() && usuarioLogado?.cliente_email) {
     return <ClientePortalTickets email={usuarioLogado.cliente_email} nome={usuarioLogado.nome || usuarioLogado.login} />
   }
+  // Cliente SEM e-mail de portal (login antigo @mantran) nunca pode ver a tela de agentes (todos os chamados),
+  // mesmo que "Tickets" seja habilitado para o perfil Cliente nas Permissões de Acesso.
+  if (isClienteUser()) {
+    return <Navigate to="/faq" replace />
+  }
   return <TicketsAgente />
 }
 
@@ -241,6 +248,11 @@ function TicketsAgente() {
   const [mesclandoLista, setMesclandoLista] = useState(false)
   // Barra flutuante de navegação (estilo Freshdesk): view atual + expandido
   const [view, setView] = useState<'painel' | 'tickets' | 'contatos' | 'empresas' | 'admin'>('tickets')
+  // Link direto para uma aba (ex.: notificação de novo cadastro abre /tickets?view=contatos&novos=1)
+  useEffect(() => {
+    const v = searchParams.get('view')
+    if (v === 'contatos' || v === 'empresas' || v === 'painel' || v === 'admin') setView(v)
+  }, [searchParams])
   const [railAberto, setRailAberto] = useState(false)
   const [agentes, setAgentes] = useState<UsuarioSistema[]>([])
   const [tecnicos, setTecnicos] = useState<UsuarioSistema[]>([])
@@ -624,7 +636,7 @@ function TicketsAgente() {
       {view === 'painel' ? (
         <PainelControleView tickets={tickets} agentes={agentes} tecnicos={tecnicos} loading={loading} />
       ) : view === 'contatos' ? (
-        <ContatosView clientes={clientes} grupos={cadastros.grupos} emailsFuncionarios={emailsFuncionarios} onChange={() => api.getContatos().then(cs => setContatos(cs || [])).catch(() => {})} />
+        <ContatosView clientes={clientes} grupos={cadastros.grupos} emailsFuncionarios={emailsFuncionarios} somenteNovosInicial={searchParams.get('novos') === '1'} onChange={() => api.getContatos().then(cs => setContatos(cs || [])).catch(() => {})} />
       ) : view === 'empresas' ? (
         <EmpresasView
           clientes={clientes}
@@ -1917,11 +1929,15 @@ function TendenciasChart({ hoje, ontem }: { hoje: number[]; ontem: number[] }) {
 // ============================================================
 // View: Contatos (lista + perfil)
 // ============================================================
-function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
+// Janela do filtro "Novos cadastros"
+const DIAS_NOVOS_CADASTROS = 30
+
+function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteNovosInicial = false }: {
   clientes: any[]
   grupos: any[]
   emailsFuncionarios: string[]
   onChange: () => void
+  somenteNovosInicial?: boolean // vem do link da notificação (?view=contatos&novos=1)
 }) {
   const [contatos, setContatos] = useState<TicketContato[]>([])
   const [loading, setLoading] = useState(true)
@@ -1936,9 +1952,19 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
 
   // Acesso ao portal (login = e-mail do contato). Só Administrador e Suporte liberam acessos.
   const podeLiberarAcesso = isAdminUser() || isSuporteUser()
-  const [acessos, setAcessos] = useState<Record<string, 'ativo' | 'pendente'>>({})
+  const [acessos, setAcessos] = useState<Record<string, AcessoPortal>>({})
+  const [temOrigem, setTemOrigem] = useState(true) // false = colunas de origem/data ainda não criadas no banco
+  const [soNovos, setSoNovos] = useState(somenteNovosInicial)
   const [liberandoId, setLiberandoId] = useState<string | null>(null)
   const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null)
+
+  // Quando chega pelo sino de notificações, liga/desliga o filtro conforme o link
+  useEffect(() => { setSoNovos(somenteNovosInicial) }, [somenteNovosInicial])
+
+  const recarregarAcessos = () =>
+    api.getAcessosPortal()
+      .then(r => { setAcessos(r.mapa); setTemOrigem(r.temOrigem) })
+      .catch(err => console.error('Erro ao carregar acessos:', err))
 
   const alternarOrdenacao = (campo: OrdenarCampo) => {
     if (ordenarPor === campo) {
@@ -1960,7 +1986,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
       setLoading(false)
     }
     // Situação dos acessos (não bloqueia a lista se falhar)
-    api.getAcessosPortal().then(setAcessos).catch(err => console.error('Erro ao carregar acessos:', err))
+    recarregarAcessos()
   }
 
   useEffect(() => { carregar() }, [])
@@ -1971,7 +1997,31 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
   const situacaoAcesso = (c: TicketContato): 'interno' | 'ativo' | 'pendente' | 'sem' => {
     const email = emailDe(c)
     if (email && emailsFuncionarios.includes(email)) return 'interno'
-    return acessos[email] || 'sem'
+    return acessos[email]?.estado || 'sem'
+  }
+
+  const fmtDataCadastro = (iso?: string | null) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+
+  // Data do cadastro do acesso (confirmação do e-mail / criação da senha); sem as colunas novas, usa a criação do registro
+  const dataCadastro = (c: TicketContato): string | null => {
+    const a = acessos[emailDe(c)]
+    if (!a || a.estado !== 'ativo') return null
+    return a.ativadoEm || a.criadoEm || null
+  }
+
+  // "Novo cadastro": acesso ativo, criado pela tela de login, nos últimos DIAS_NOVOS_CADASTROS dias.
+  // Enquanto as colunas de origem não existem no banco, vale qualquer acesso ativo recente.
+  const ehNovoCadastro = (c: TicketContato): boolean => {
+    const a = acessos[emailDe(c)]
+    if (!a || a.estado !== 'ativo') return false
+    if (temOrigem && a.origem !== 'autocadastro') return false
+    const iso = dataCadastro(c)
+    if (!iso) return false
+    return Date.now() - new Date(iso).getTime() <= DIAS_NOVOS_CADASTROS * 24 * 60 * 60 * 1000
   }
 
   // Motivo pelo qual o botão não pode ser usado (null = pode).
@@ -2002,7 +2052,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
       const r = await api.redefinirSenhaContato(c.id)
       if (!r.ok) {
         setAviso({ tipo: 'erro', texto: r.erro || 'Não foi possível enviar o link.' })
-        api.getAcessosPortal().then(setAcessos).catch(() => {})
+        recarregarAcessos()
         return
       }
       setAviso({ tipo: 'sucesso', texto: `Link de redefinição enviado para ${r.email || c.email}.` })
@@ -2016,7 +2066,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
     const motivo = motivoSemBotao(c, true)
     if (motivo) { setAviso({ tipo: 'erro', texto: motivo }); return }
 
-    const reenvio = acessos[emailDe(c)] === 'pendente'
+    const reenvio = acessos[emailDe(c)]?.estado === 'pendente'
     const empresa = clientes.find(cl => cl.id === c.empresa_id)?.nome_empresa || ''
     const pergunta =
       `${reenvio ? 'Reenviar o convite de acesso' : 'Liberar o acesso'} para ${c.nome} (${c.email}) da empresa ${empresa}?\n\n` +
@@ -2030,10 +2080,13 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
       if (!r.ok) {
         setAviso({ tipo: 'erro', texto: r.erro || 'Não foi possível liberar o acesso.' })
         // Pode já ter mudado (ex.: já tinha acesso): atualiza a situação
-        api.getAcessosPortal().then(setAcessos).catch(() => {})
+        recarregarAcessos()
         return
       }
-      setAcessos(prev => ({ ...prev, [emailDe(c)]: 'pendente' }))
+      setAcessos(prev => ({
+        ...prev,
+        [emailDe(c)]: { estado: 'pendente', origem: prev[emailDe(c)]?.origem ?? 'convite', ativadoEm: null, criadoEm: new Date().toISOString() }
+      }))
       setAviso({ tipo: 'sucesso', texto: `Convite enviado para ${r.email || c.email}. Ele precisa abrir o e-mail e criar a senha.` })
     } finally {
       setLiberandoId(null)
@@ -2058,19 +2111,33 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
-    if (!termo) return contatos
-    return contatos.filter(c =>
+    const base = soNovos ? contatos.filter(ehNovoCadastro) : contatos
+    if (!termo) return base
+    return base.filter(c =>
       (c.nome || '').toLowerCase().includes(termo) ||
       (c.email || '').toLowerCase().includes(termo) ||
       empresaNome(c).toLowerCase().includes(termo) ||
       grupoNome(c).toLowerCase().includes(termo)
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contatos, busca, clientes, grupos])
+  }, [contatos, busca, clientes, grupos, soNovos, acessos, temOrigem])
+
+  // Quantos "novos cadastros" existem (contador do botão do filtro)
+  const qtdNovos = useMemo(
+    () => contatos.filter(ehNovoCadastro).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contatos, acessos, temOrigem]
+  )
 
   // Ordenação pela coluna clicada no cabeçalho
   const ordenados = useMemo(() => {
-    if (!ordenarPor) return filtrados
+    if (!ordenarPor) {
+      // No filtro "Novos cadastros", os mais recentes primeiro
+      if (soNovos) {
+        return [...filtrados].sort((a, b) => (dataCadastro(b) || '').localeCompare(dataCadastro(a) || ''))
+      }
+      return filtrados
+    }
     const valor = (c: TicketContato): string => {
       switch (ordenarPor) {
         case 'contato': return c.nome || ''
@@ -2094,10 +2161,10 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
       return va.localeCompare(vb, 'pt-BR', { sensitivity: 'base', numeric: true }) * fator
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtrados, ordenarPor, direcao, clientes, grupos, emailsFuncionarios])
+  }, [filtrados, ordenarPor, direcao, clientes, grupos, emailsFuncionarios, soNovos, acessos])
 
   // Volta para a página 1 ao filtrar, ordenar ou mudar itens por página
-  useEffect(() => { setPagina(1) }, [busca, porPagina, ordenarPor, direcao])
+  useEffect(() => { setPagina(1) }, [busca, porPagina, ordenarPor, direcao, soNovos])
 
   const totalRegistros = ordenados.length
   const totalPaginas = Math.max(1, Math.ceil(totalRegistros / porPagina))
@@ -2116,7 +2183,10 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
         'E-mail': c.email || '',
         'E-mail secundário': c.email_secundario || '',
         'Telemóvel': formatTelefone(c.celular),
-        'Telefone fixo': formatTelefone(c.telefone_comercial)
+        'Telefone fixo': formatTelefone(c.telefone_comercial),
+        'Acesso': ({ interno: 'Interno', ativo: 'Ativo', pendente: 'Convite enviado', sem: 'Sem acesso' } as const)[situacaoAcesso(c)],
+        'Origem do cadastro': acessos[emailDe(c)]?.origem === 'autocadastro' ? 'Autocadastro' : acessos[emailDe(c)]?.origem === 'convite' ? 'Convite do Suporte' : '',
+        'Cadastro em': fmtDataCadastro(dataCadastro(c))
       }))
       const ws = XLSX.utils.json_to_sheet(linhas)
       const wb = XLSX.utils.book_new()
@@ -2128,7 +2198,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
     }
   }
 
-  const COLS = 'minmax(200px,1.6fr) minmax(90px,0.8fr) minmax(180px,1.4fr) minmax(120px,1fr) minmax(200px,1.6fr) minmax(130px,1fr) minmax(130px,1fr) minmax(170px,1.1fr)'
+  const COLS = 'minmax(200px,1.6fr) minmax(90px,0.8fr) minmax(180px,1.4fr) minmax(120px,1fr) minmax(200px,1.6fr) minmax(130px,1fr) minmax(130px,1fr) minmax(170px,1.1fr) minmax(110px,0.7fr)'
 
   return (
     <div className="max-w-none w-full min-w-0 flex flex-col flex-1 min-h-0 pl-12">
@@ -2173,6 +2243,32 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
           />
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSoNovos(v => !v)}
+            aria-pressed={soNovos}
+            title={`Contatos que se cadastraram sozinhos pela tela de login nos últimos ${DIAS_NOVOS_CADASTROS} dias`}
+            className={clsx(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer',
+              soNovos
+                ? 'bg-brand-600 border-brand-600 text-white'
+                : 'bg-white border-slate-300 text-slate-600 hover:border-brand-400 hover:text-brand-600'
+            )}
+          >
+            <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+            Novos cadastros
+            <span className={clsx('px-1.5 rounded-full text-[10px]', soNovos ? 'bg-white/25' : 'bg-slate-100 text-slate-600')}>{qtdNovos}</span>
+          </button>
+          {soNovos && (
+            <span className="text-[11px] text-slate-500">
+              {temOrigem
+                ? `Cadastros pela tela de login nos últimos ${DIAS_NOVOS_CADASTROS} dias, do mais recente ao mais antigo.`
+                : 'Atenção: rode o script scripts/adicionar_origem_cadastro_usuario.sql para separar cadastros pela tela de login. Por enquanto aparecem todos os acessos ativos recentes.'}
+            </span>
+          )}
+        </div>
+
         {aviso && (
           <div
             role={aviso.tipo === 'erro' ? 'alert' : 'status'}
@@ -2199,7 +2295,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
       {/* Tabela com cabeçalho fixo e scroll interno */}
       <div className="flex-1 min-h-0 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
         <div className="flex-1 min-h-0 overflow-auto scrollbar-clean">
-          <div className="min-w-[1210px]">
+          <div className="min-w-[1330px]">
             {/* Cabeçalho (sempre visível) — clique para ordenar */}
             <div
               className="grid sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase tracking-wide text-slate-500"
@@ -2232,6 +2328,9 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
               ))}
               <div className="px-4 py-3 flex items-center text-left uppercase tracking-wide text-slate-500">
                 <span className="truncate">Acesso</span>
+              </div>
+              <div className="px-4 py-3 flex items-center text-left uppercase tracking-wide text-slate-500">
+                <span className="truncate">Cadastro em</span>
               </div>
             </div>
 
@@ -2323,6 +2422,9 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
                         </button>
                       )
                     })()}
+                  </div>
+                  <div className="px-4 py-3 truncate text-xs" title={acessos[emailDe(c)]?.origem === 'autocadastro' ? 'Cadastrou-se pela tela de login' : acessos[emailDe(c)]?.origem === 'convite' ? 'Acesso liberado pelo Suporte' : undefined}>
+                    {fmtDataCadastro(dataCadastro(c)) || '- -'}
                   </div>
                 </div>
               ))

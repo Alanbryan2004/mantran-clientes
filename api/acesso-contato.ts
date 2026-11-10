@@ -130,6 +130,56 @@ async function usuariosComEmail(supabase: SupabaseClient, email: string) {
   )
 }
 
+// Colunas de origem/data do cadastro (scripts/adicionar_origem_cadastro_usuario.sql). Se ainda não existirem
+// no banco, grava sem elas e o acesso funciona normalmente (só não registra origem/data).
+const COLUNAS_ORIGEM = /origem_cadastro|acesso_ativado_em/i
+
+async function inserirUsuario(supabase: SupabaseClient, base: Record<string, unknown>, extras: Record<string, unknown>): Promise<{ id: string }> {
+  let { data, error } = await supabase.from('usuario').insert({ ...base, ...extras }).select('id').single()
+  if (error && COLUNAS_ORIGEM.test(error.message || '')) {
+    console.warn('Colunas origem_cadastro/acesso_ativado_em ausentes em usuario. Execute scripts/adicionar_origem_cadastro_usuario.sql')
+    ;({ data, error } = await supabase.from('usuario').insert(base).select('id').single())
+  }
+  if (error) throw error
+  return data as { id: string }
+}
+
+async function atualizarUsuario(supabase: SupabaseClient, id: string, base: Record<string, unknown>, extras: Record<string, unknown>): Promise<void> {
+  let { error } = await supabase.from('usuario').update({ ...base, ...extras }).eq('id', id)
+  if (error && COLUNAS_ORIGEM.test(error.message || '')) {
+    console.warn('Colunas origem_cadastro/acesso_ativado_em ausentes em usuario. Execute scripts/adicionar_origem_cadastro_usuario.sql')
+    ;({ error } = await supabase.from('usuario').update(base).eq('id', id))
+  }
+  if (error) throw error
+}
+
+// Aviso para a equipe (sino de notificações): "novo usuário da empresa X se cadastrou". Não derruba o cadastro se falhar.
+export async function notificarNovoCadastro(
+  supabase: SupabaseClient,
+  d: { empresa: string; clienteId: string; nome: string; email: string; usuarioId: string; contatoId: string | null }
+): Promise<void> {
+  try {
+    const { error } = await supabase.from('notificacoes').insert({
+      titulo: `Novo cadastro: ${d.empresa}`,
+      mensagem: `Um novo usuário da empresa ${d.empresa} acabou de se cadastrar: ${d.nome} (${d.email}).`,
+      tipo: 'novo_cadastro_cliente',
+      lida: false,
+      cliente_id: d.clienteId,
+      dados_extras: {
+        modulo: 'cadastro_cliente',
+        nome_empresa: d.empresa,
+        usuario_nome: d.nome,
+        usuario_email: d.email,
+        usuario_id: d.usuarioId,
+        contato_id: d.contatoId
+      }
+    })
+    if (error) console.error('Autocadastro: falha ao criar notificação:', error)
+  } catch (e) {
+    console.error('Autocadastro: falha ao criar notificação:', e)
+  }
+}
+
 export type ResultadoEmpresa =
   | { status: 'ok'; clienteId: string; empresaNome: string }
   | { status: 'nao_encontrado' }
@@ -247,21 +297,16 @@ export async function prepararConvite(supabase: SupabaseClient, secret: string, 
     return { usuarioId: pendente.id, criado: false, email, nome: contato.nome, empresa, marcadorUso: marcador(secret, provisorio) }
   }
 
-  const { data, error: eIns } = await supabase
-    .from('usuario')
-    .insert({
-      nome: contato.nome,
-      login: email,
-      senha: provisorio,
-      perfil: 'Cliente',
-      ativo: false,
-      e_tecnico: false,
-      meta_semanal: 0,
-      email_pessoal: email
-    })
-    .select('id')
-    .single()
-  if (eIns) throw eIns
+  const data = await inserirUsuario(supabase, {
+    nome: contato.nome,
+    login: email,
+    senha: provisorio,
+    perfil: 'Cliente',
+    ativo: false,
+    e_tecnico: false,
+    meta_semanal: 0,
+    email_pessoal: email
+  }, { origem_cadastro: 'convite' })
   return { usuarioId: data.id, criado: true, email, nome: contato.nome, empresa, marcadorUso: marcador(secret, provisorio) }
 }
 
@@ -336,12 +381,13 @@ export async function definirSenha(
     marcador(secret, u.senha) === p.v // senha ainda é a mesma de quando o link foi emitido (uso único)
   if (!u || !valido) throw new ErroAcesso(400, 'Este link já foi usado ou foi substituído por um mais novo. Peça um novo link ao suporte da Mantran.')
 
-  // Redefinição NÃO reativa conta: só troca a senha
-  const { error: eUp } = await supabase
-    .from('usuario')
-    .update(redefinicao ? { senha } : { senha, ativo: true })
-    .eq('id', u.id)
-  if (eUp) throw eUp
+  // Redefinição NÃO reativa conta: só troca a senha. Convite: ativa e registra a data do cadastro.
+  if (redefinicao) {
+    const { error: eUp } = await supabase.from('usuario').update({ senha }).eq('id', u.id)
+    if (eUp) throw eUp
+  } else {
+    await atualizarUsuario(supabase, u.id, { senha, ativo: true }, { acesso_ativado_em: new Date().toISOString() })
+  }
   return { login: u.login, redefinicao }
 }
 
@@ -404,16 +450,14 @@ export async function iniciarCadastro(
   let criado = false
   const pendente = existentes[0]
   if (pendente) {
-    const { error } = await supabase.from('usuario').update({ nome, senha }).eq('id', pendente.id)
-    if (error) throw error
+    await atualizarUsuario(supabase, pendente.id, { nome, senha }, { origem_cadastro: 'autocadastro' })
     usuarioId = pendente.id
   } else {
-    const { data, error } = await supabase
-      .from('usuario')
-      .insert({ nome, login: email, senha, perfil: 'Cliente', ativo: false, e_tecnico: false, meta_semanal: 0, email_pessoal: email })
-      .select('id')
-      .single()
-    if (error) throw error
+    const data = await inserirUsuario(
+      supabase,
+      { nome, login: email, senha, perfil: 'Cliente', ativo: false, e_tecnico: false, meta_semanal: 0, email_pessoal: email },
+      { origem_cadastro: 'autocadastro' }
+    )
     usuarioId = data.id
     criado = true
   }
@@ -462,11 +506,23 @@ export async function confirmarCadastro(
 
   const contato = await resolverContato(supabase, { email, nome: u.nome, clienteId: cli.id, empresaNome: cli.nome_empresa || '', criar: true })
 
-  const { error: eUp } = await supabase.from('usuario').update({ ativo: true }).eq('id', u.id)
-  if (eUp) {
+  try {
+    // Ativa e registra a data do cadastro (usada no filtro "Novos cadastros" e nas métricas)
+    await atualizarUsuario(supabase, u.id, { ativo: true }, { acesso_ativado_em: new Date().toISOString(), origem_cadastro: 'autocadastro' })
+  } catch (eUp) {
     if (contato.criado && contato.contatoId) await supabase.from('ticket_contatos').delete().eq('id', contato.contatoId)
     throw eUp
   }
+
+  // Avisa a equipe no sino de notificações (só quando acabou de ativar, não no 2º clique)
+  await notificarNovoCadastro(supabase, {
+    empresa: cli.nome_empresa || 'Empresa',
+    clienteId: cli.id,
+    nome: u.nome,
+    email,
+    usuarioId: u.id,
+    contatoId: contato.contatoId
+  })
   return { login: u.login, jaConfirmado: false }
 }
 

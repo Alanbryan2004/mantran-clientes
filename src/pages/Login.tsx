@@ -76,7 +76,7 @@ export function Login({ isModal = false, isOpen = true, onClose, onSuccess }: Lo
           // Cliente que logou com o próprio e-mail vai para o portal de tickets;
           // cliente legado (por implantação) vai para a implantação dele.
           const dest = (data as any).cliente_email
-            ? '/tickets'
+            ? permissionsApi.getFirstAllowedRouteForUser() // "Meus Chamados" só se estiver habilitado para o Cliente
             : data.implantacao_id ? `/implantacoes/${data.implantacao_id}` : '/implantacoes'
           window.location.href = dest
         } else {

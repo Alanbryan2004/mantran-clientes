@@ -202,25 +202,47 @@ export const api = {
   },
 
   // Situação do acesso de cada contato (chave = e-mail em minúsculas).
-  // 'ativo' = já criou a senha | 'pendente' = convite enviado, aguardando a pessoa criar a senha.
+  // estado: 'ativo' = já criou a senha | 'pendente' = convite enviado, aguardando a pessoa criar a senha.
+  // origem: 'autocadastro' | 'convite' | null | ativadoEm: data do cadastro (confirmação do e-mail / criação da senha).
+  // temOrigem = false quando as colunas ainda não existem no banco (scripts/adicionar_origem_cadastro_usuario.sql).
   // Nunca lê a coluna de senha.
-  async getAcessosPortal(): Promise<Record<string, 'ativo' | 'pendente'>> {
-    const mapa: Record<string, 'ativo' | 'pendente'> = {}
+  async getAcessosPortal(): Promise<{ mapa: Record<string, AcessoPortal>; temOrigem: boolean }> {
+    const mapa: Record<string, AcessoPortal> = {}
+    let temOrigem = true
     for (let de = 0; ; de += 1000) {
-      const { data, error } = await supabase
+      const r1 = await supabase
         .from('usuario')
-        .select('login, ativo, email_pessoal')
+        .select('login, ativo, email_pessoal, created_at, origem_cadastro, acesso_ativado_em')
         .eq('perfil', 'Cliente')
         .not('email_pessoal', 'is', null)
         .range(de, de + 999)
+      let data: any[] | null = r1.data as any[] | null
+      let error = r1.error
+      if (error && /origem_cadastro|acesso_ativado_em/i.test(error.message || '')) {
+        temOrigem = false
+        const r2 = await supabase
+          .from('usuario')
+          .select('login, ativo, email_pessoal, created_at')
+          .eq('perfil', 'Cliente')
+          .not('email_pessoal', 'is', null)
+          .range(de, de + 999)
+        data = r2.data as any[] | null
+        error = r2.error
+      }
       if (error) throw error
-      for (const u of data || []) {
+      for (const u of (data || []) as any[]) {
         const email = String(u.email_pessoal || u.login || '').trim().toLowerCase()
-        if (email) mapa[email] = u.ativo ? 'ativo' : 'pendente'
+        if (!email) continue
+        mapa[email] = {
+          estado: u.ativo ? 'ativo' : 'pendente',
+          origem: u.origem_cadastro ?? null,
+          ativadoEm: u.acesso_ativado_em ?? null,
+          criadoEm: u.created_at ?? null
+        }
       }
       if (!data || data.length < 1000) break
     }
-    return mapa
+    return { mapa, temOrigem }
   },
 
   // --- Bases ---
@@ -4922,6 +4944,14 @@ export interface FaqPasso {
   texto: string | null
   imagem_url: string | null
   created_at?: string
+}
+
+// Acesso de um contato ao portal do cliente (ver api.getAcessosPortal)
+export interface AcessoPortal {
+  estado: 'ativo' | 'pendente'
+  origem: string | null       // 'autocadastro' | 'convite' | null
+  ativadoEm: string | null    // data do cadastro (confirmação do e-mail / criação da senha)
+  criadoEm: string | null
 }
 
 // Botão de download configurável no procedimento (ex.: "Baixar Planilha Modelo")
