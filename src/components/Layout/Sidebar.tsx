@@ -151,8 +151,10 @@ export function Sidebar() {
       if (isCliente && user?.cliente_email) {
         const clienteItems = [
           { name: 'Meus Chamados', path: '/tickets', icon: Ticket },
-          { name: 'FAQ', path: '/faq', icon: BookOpen },
         ]
+        if (permissionsApi.canAccessRoute('/faq')) {
+          clienteItems.push({ name: 'FAQ', path: '/faq', icon: BookOpen })
+        }
         if (permissionsApi.canAccessRoute('/academia')) {
           clienteItems.push({ name: 'Academia Mantran', path: '/academia', icon: GraduationCap })
         }
@@ -177,8 +179,10 @@ export function Sidebar() {
         const directPath = user?.implantacao_id ? `/implantacoes/${user.implantacao_id}` : '/implantacoes'
         const clienteItems = [
           { name: 'Minha Implantação', path: directPath, icon: Rocket },
-          { name: 'FAQ', path: '/faq', icon: BookOpen },
         ]
+        if (permissionsApi.canAccessRoute('/faq')) {
+          clienteItems.push({ name: 'FAQ', path: '/faq', icon: BookOpen })
+        }
         if (permissionsApi.canAccessRoute('/academia')) {
           clienteItems.push({ name: 'Academia Mantran', path: '/academia', icon: GraduationCap })
         }
@@ -205,8 +209,10 @@ export function Sidebar() {
               }
               const updatedItems = [
                 { name: 'Minha Implantação', path: `/implantacoes/${impl.id}`, icon: Rocket },
-                { name: 'FAQ', path: '/faq', icon: BookOpen },
               ]
+              if (permissionsApi.canAccessRoute('/faq')) {
+                updatedItems.push({ name: 'FAQ', path: '/faq', icon: BookOpen })
+              }
               if (permissionsApi.canAccessRoute('/academia')) {
                 updatedItems.push({ name: 'Academia Mantran', path: '/academia', icon: GraduationCap })
               }

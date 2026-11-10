@@ -131,6 +131,7 @@ export const api = {
       }
     }
 
+
     // Cliente "legado" por implantação (login termina em @mantran)
     if (loginLower.endsWith('@mantran') && (user.perfil === 'Usuario' || user.perfil === 'Cliente')) {
       const clienteImpl = await api.getImplantacaoForLoggedCliente(user.nome || user.login).catch(() => null)
@@ -143,6 +144,84 @@ export const api = {
     return user
   },
 
+
+  // --- Acesso de contatos ao portal (função serverless /api/acesso-contato) ---
+  // Lê a resposta com segurança: se a rota não existir neste ambiente (ex.: `npm run dev`),
+  // o corpo vem vazio/HTML e não deve quebrar com "Unexpected end of JSON input".
+  async _postAcessoContato(payload: Record<string, unknown>): Promise<{ ok: boolean; erro?: string; [k: string]: any }> {
+    let resp: Response
+    try {
+      resp = await fetch('/api/acesso-contato', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+    } catch {
+      return { ok: false, erro: 'Sem conexão com o servidor. Verifique sua internet e tente novamente.' }
+    }
+    const texto = await resp.text()
+    try {
+      const json = JSON.parse(texto)
+      return json && typeof json === 'object' ? json : { ok: false, erro: 'Resposta inesperada do servidor.' }
+    } catch {
+      return { ok: false, erro: 'O serviço de acesso não está disponível neste ambiente. Use o site publicado ou fale com o suporte.' }
+    }
+  },
+
+  // "Cadastre-se" na tela de login: CNPJ (acha a empresa), nome, e-mail e senha.
+  // Cria o acesso pendente e envia o e-mail de confirmação.
+  async cadastrarCliente(dados: { cnpj: string; nome: string; email: string; senha: string; confirmarSenha: string; website?: string }) {
+    return api._postAcessoContato({ acao: 'cadastrar', ...dados })
+  },
+
+  // Passo 1 do "Cadastre-se": confirma que o CNPJ é de uma empresa cadastrada na Mantran.
+  // Em caso de sucesso devolve { ok: true, empresa: 'NOME' }; senão { ok: false, erro }.
+  async validarCnpjCliente(cnpj: string) {
+    return api._postAcessoContato({ acao: 'validar-cnpj', cnpj })
+  },
+
+  // Link do e-mail de confirmação: cria/vincula o contato à empresa e ativa o acesso.
+  async confirmarCadastroCliente(token: string) {
+    return api._postAcessoContato({ acao: 'confirmar', token })
+  },
+
+  // Botão "Liberar Acesso" da tela de Contatos: envia ao e-mail do contato o link para criar a senha.
+  async liberarAcessoContato(contatoId: string) {
+    return api._postAcessoContato({ acao: 'liberar', contatoId })
+  },
+
+  // Botão "Redefinir senha" (acesso já ativo): envia ao contato um link para criar uma nova senha.
+  // A senha atual continua valendo até ele usar o link.
+  async redefinirSenhaContato(contatoId: string) {
+    return api._postAcessoContato({ acao: 'redefinir', contatoId })
+  },
+
+  // Página aberta pelo link do e-mail: a pessoa define a própria senha.
+  async definirSenhaAcesso(token: string, senha: string, confirmarSenha: string) {
+    return api._postAcessoContato({ acao: 'definir-senha', token, senha, confirmarSenha })
+  },
+
+  // Situação do acesso de cada contato (chave = e-mail em minúsculas).
+  // 'ativo' = já criou a senha | 'pendente' = convite enviado, aguardando a pessoa criar a senha.
+  // Nunca lê a coluna de senha.
+  async getAcessosPortal(): Promise<Record<string, 'ativo' | 'pendente'>> {
+    const mapa: Record<string, 'ativo' | 'pendente'> = {}
+    for (let de = 0; ; de += 1000) {
+      const { data, error } = await supabase
+        .from('usuario')
+        .select('login, ativo, email_pessoal')
+        .eq('perfil', 'Cliente')
+        .not('email_pessoal', 'is', null)
+        .range(de, de + 999)
+      if (error) throw error
+      for (const u of data || []) {
+        const email = String(u.email_pessoal || u.login || '').trim().toLowerCase()
+        if (email) mapa[email] = u.ativo ? 'ativo' : 'pendente'
+      }
+      if (!data || data.length < 1000) break
+    }
+    return mapa
+  },
 
   // --- Bases ---
   async getBasesWithClientes() {
@@ -1806,6 +1885,8 @@ export const api = {
       const uNome = (u.nome || '').trim().toLowerCase()
       const uLogin = (u.login || '').trim().toLowerCase()
       const isClientLogin = uLogin.endsWith('@mantran')
+      // Ignora quem se cadastrou sozinho (email_pessoal): não é o acesso da implantação
+      if (u.email_pessoal) return false
       return (isClientLogin || u.perfil === 'Cliente') && (
         uNome === cleanNome || 
         uLogin === expectedLogin || 

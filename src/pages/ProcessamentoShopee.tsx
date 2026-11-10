@@ -519,30 +519,34 @@ export function ProcessamentoShopee() {
       let data: any = null
 
       // 1. Tenta prioritariamente via serviço local direto (127.0.0.1:3333), que possui acesso à rede interna/SQL Server
+      let localDisponivel = false
       try {
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 2000)
+        const timeoutId = setTimeout(() => controller.abort(), 3500)
         const checkLocal = await fetch('http://127.0.0.1:3333/health', { signal: controller.signal })
         clearTimeout(timeoutId)
-
-        if (checkLocal.ok) {
-          const respLocal = await fetch('http://127.0.0.1:3333/api/sincronizar-shopee', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-          })
-          data = await respLocal.json()
-        }
+        localDisponivel = checkLocal.ok
       } catch (_) {
-        // Segue para tentativa na nuvem se o serviço local não responder
+        localDisponivel = false
       }
 
-      // 2. Fallback para rota serverless da nuvem
-      if (!data) {
-        const response = await fetch('/api/sincronizar-shopee', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+      if (localDisponivel) {
+        const respLocal = await fetch('http://127.0.0.1:3333/api/sincronizar-shopee', {
+          method: 'POST'
         })
-        data = await response.json()
+        data = await respLocal.json()
+      } else {
+        // 2. Fallback para rota serverless da nuvem
+        try {
+          const response = await fetch('/api/sincronizar-shopee', {
+            method: 'POST'
+          })
+          data = await response.json()
+        } catch (_) {
+          throw new Error(
+            'O serviço local de sincronização (porta 3333) não está ativo nesta máquina. Execute iniciar_servico_sincronizacao.bat para sincronizar com o SQL Server.'
+          )
+        }
       }
 
       if (!data || !data.ok) {

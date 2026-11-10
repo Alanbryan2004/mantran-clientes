@@ -15,6 +15,8 @@ import { Calendario } from './pages/Calendario'
 import { FAQ } from './pages/FAQ'
 import { AcademiaMantran } from './pages/AcademiaMantran'
 import { Utilitarios } from './pages/Utilitarios'
+import { DefinirSenha } from './pages/DefinirSenha'
+import { ConfirmarCadastro } from './pages/ConfirmarCadastro'
 import { Cidades } from './pages/Cidades'
 import { SeparadorPlanilhas } from './pages/SeparadorPlanilhas'
 import { JuntarPlanilhas } from './pages/JuntarPlanilhas'
@@ -124,6 +126,8 @@ function App() {
   // No Celular / Mobile: se não autenticado e não for tela pública (FAQ, Cidades, Separador ou Juntar Planilhas), vai direto para o Login.
   // Permite que clientes e visitantes acessem o FAQ, consulta de Cidades, Separador e Juntar Planilhas diretamente no celular.
   const isPublicPath = window.location.pathname.startsWith('/faq') || 
+                       window.location.pathname.startsWith('/definir-senha') ||
+                       window.location.pathname.startsWith('/confirmar-cadastro') ||
                        window.location.pathname.startsWith('/cidades') ||
                        window.location.pathname.startsWith('/separador-planilhas') ||
                        window.location.pathname.startsWith('/separador') ||
@@ -146,6 +150,9 @@ function App() {
       <BrowserRouter>
         {isAuthenticated && <CalendarioToast />}
         <Routes>
+          {/* Página pública aberta pelo link do e-mail "Liberar Acesso" (fora do Layout) */}
+          <Route path="/definir-senha" element={<DefinirSenha />} />
+          <Route path="/confirmar-cadastro" element={<ConfirmarCadastro />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<RootRoute />} />
             <Route path="faq" element={<FAQ />} />

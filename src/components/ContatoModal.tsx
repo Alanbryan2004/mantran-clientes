@@ -29,10 +29,16 @@ interface ContatoModalProps {
   onClose: () => void
   onChange: () => void
   onAbrirTicket?: (ticketId: string) => void
+  // Acesso ao portal (login = e-mail do contato)
+  acesso?: 'interno' | 'ativo' | 'pendente' | 'sem'
+  onLiberarAcesso?: () => void | Promise<void> // ausente = perfil sem permissão para liberar
+  onRedefinirSenha?: () => void | Promise<void> // idem, para quem já tem acesso ativo
+  liberarBloqueadoMotivo?: string | null // ex.: contato sem empresa vinculada
+  liberandoAcesso?: boolean
 }
 
 // Modal de PERFIL do contato: dados, histórico de tickets e ações
-export function ContatoModal({ contato, clientes, grupos, onClose, onChange, onAbrirTicket }: ContatoModalProps) {
+export function ContatoModal({ contato, clientes, grupos, onClose, onChange, onAbrirTicket, acesso, onLiberarAcesso, onRedefinirSenha, liberarBloqueadoMotivo, liberandoAcesso }: ContatoModalProps) {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [editando, setEditando] = useState(false)
@@ -74,7 +80,7 @@ export function ContatoModal({ contato, clientes, grupos, onClose, onChange, onA
     }
   }
 
-  const emBreve = () => alert('Disponível na integração de e-mail/portal (em breve).')
+  const emBreve = () => alert('Disponível apenas para contatos com acesso ativo.')
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -91,12 +97,35 @@ export function ContatoModal({ contato, clientes, grupos, onClose, onChange, onA
             <button onClick={emBreve} title="Disponível em breve" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 cursor-not-allowed">
               <GitMerge className="w-3.5 h-3.5" /> Mesclar
             </button>
-            <button onClick={emBreve} title="Disponível em breve" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 cursor-not-allowed">
-              <Send className="w-3.5 h-3.5" /> Enviar e-mail de ativação
-            </button>
-            <button onClick={emBreve} title="Disponível em breve" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 cursor-not-allowed">
-              <KeyRound className="w-3.5 h-3.5" /> Alterar senha
-            </button>
+            {onLiberarAcesso && (acesso === 'sem' || acesso === 'pendente') ? (
+              <button
+                onClick={() => onLiberarAcesso()}
+                disabled={liberandoAcesso || !!liberarBloqueadoMotivo}
+                title={liberarBloqueadoMotivo || 'Enviar e-mail para o contato criar a senha de acesso'}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-brand-600 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {liberandoAcesso ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                {acesso === 'pendente' ? 'Reenviar convite de acesso' : 'Liberar acesso'}
+              </button>
+            ) : acesso === 'ativo' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-600">
+                <Send className="w-3.5 h-3.5" /> Acesso ativo
+              </span>
+            ) : null}
+            {onRedefinirSenha && acesso === 'ativo' ? (
+              <button
+                onClick={() => onRedefinirSenha()}
+                disabled={liberandoAcesso}
+                title="Enviar ao contato um link para criar uma nova senha"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-brand-600 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {liberandoAcesso ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />} Redefinir senha
+              </button>
+            ) : (
+              <button onClick={emBreve} title="Disponível apenas para contatos com acesso ativo" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 cursor-not-allowed">
+                <KeyRound className="w-3.5 h-3.5" /> Redefinir senha
+              </button>
+            )}
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100">
             <X className="w-5 h-5" />

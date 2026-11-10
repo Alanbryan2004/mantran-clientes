@@ -40,7 +40,8 @@ import {
   Loader2 as Spinner,
   Link2,
   Unlink,
-  Check
+  Check,
+  KeyRound
 } from 'lucide-react'
 import clsx from 'clsx'
 import {
@@ -54,7 +55,7 @@ import {
   type UsuarioSistema,
   type EmpresaVinculoItem
 } from '../lib/api'
-import { getLoggedUser, isClienteUser } from '../lib/auth'
+import { getLoggedUser, isClienteUser, isAdminUser, isSuporteUser } from '../lib/auth'
 import { formatTelefone } from '../lib/telefone'
 import { ContatoModal } from '../components/ContatoModal'
 import { RichTextEditor } from '../components/RichTextEditor'
@@ -1933,6 +1934,12 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
   const [ordenarPor, setOrdenarPor] = useState<OrdenarCampo | null>(null)
   const [direcao, setDirecao] = useState<'asc' | 'desc'>('asc')
 
+  // Acesso ao portal (login = e-mail do contato). Só Administrador e Suporte liberam acessos.
+  const podeLiberarAcesso = isAdminUser() || isSuporteUser()
+  const [acessos, setAcessos] = useState<Record<string, 'ativo' | 'pendente'>>({})
+  const [liberandoId, setLiberandoId] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null)
+
   const alternarOrdenacao = (campo: OrdenarCampo) => {
     if (ordenarPor === campo) {
       setDirecao(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -1952,9 +1959,86 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
     } finally {
       setLoading(false)
     }
+    // Situação dos acessos (não bloqueia a lista se falhar)
+    api.getAcessosPortal().then(setAcessos).catch(err => console.error('Erro ao carregar acessos:', err))
   }
 
   useEffect(() => { carregar() }, [])
+
+  const emailDe = (c: TicketContato) => (c.email || '').trim().toLowerCase()
+
+  // 'interno' = e-mail de funcionário da Mantran (já tem login próprio)
+  const situacaoAcesso = (c: TicketContato): 'interno' | 'ativo' | 'pendente' | 'sem' => {
+    const email = emailDe(c)
+    if (email && emailsFuncionarios.includes(email)) return 'interno'
+    return acessos[email] || 'sem'
+  }
+
+  // Motivo pelo qual o botão não pode ser usado (null = pode).
+  // Liberar acesso exige e-mail válido E empresa vinculada; redefinir senha só o e-mail
+  // (quem já tem acesso foi liberado com empresa).
+  const motivoSemBotao = (c: TicketContato, exigirEmpresa = false): string | null => {
+    if (!/^[^\s@,;<>()|]+@[^\s@,;<>()|]+\.[^\s@,;<>()|]{2,}$/.test(emailDe(c))) {
+      return 'O e-mail deste contato está vazio, inválido ou tem mais de um endereço. Ajuste o contato antes de liberar o acesso.'
+    }
+    if (exigirEmpresa && !(c.empresa_id && clientes.some(cl => cl.id === c.empresa_id))) {
+      return 'Informe a empresa deste contato (Editar contato) antes de liberar o acesso.'
+    }
+    return null
+  }
+
+  const redefinirSenha = async (c: TicketContato) => {
+    if (liberandoId) return
+    const motivo = motivoSemBotao(c)
+    if (motivo) { setAviso({ tipo: 'erro', texto: motivo }); return }
+    const pergunta =
+      `Enviar um link de redefinição de senha para ${c.nome} (${c.email})?\n\n` +
+      `A senha atual continua valendo até ele criar a nova. O link vale por 24 horas.`
+    if (!window.confirm(pergunta)) return
+
+    setLiberandoId(c.id)
+    setAviso(null)
+    try {
+      const r = await api.redefinirSenhaContato(c.id)
+      if (!r.ok) {
+        setAviso({ tipo: 'erro', texto: r.erro || 'Não foi possível enviar o link.' })
+        api.getAcessosPortal().then(setAcessos).catch(() => {})
+        return
+      }
+      setAviso({ tipo: 'sucesso', texto: `Link de redefinição enviado para ${r.email || c.email}.` })
+    } finally {
+      setLiberandoId(null)
+    }
+  }
+
+  const liberarAcesso = async (c: TicketContato) => {
+    if (liberandoId) return
+    const motivo = motivoSemBotao(c, true)
+    if (motivo) { setAviso({ tipo: 'erro', texto: motivo }); return }
+
+    const reenvio = acessos[emailDe(c)] === 'pendente'
+    const empresa = clientes.find(cl => cl.id === c.empresa_id)?.nome_empresa || ''
+    const pergunta =
+      `${reenvio ? 'Reenviar o convite de acesso' : 'Liberar o acesso'} para ${c.nome} (${c.email}) da empresa ${empresa}?\n\n` +
+      `Ele receberá um e-mail com um link para criar a própria senha. O login será o e-mail dele.`
+    if (!window.confirm(pergunta)) return
+
+    setLiberandoId(c.id)
+    setAviso(null)
+    try {
+      const r = await api.liberarAcessoContato(c.id)
+      if (!r.ok) {
+        setAviso({ tipo: 'erro', texto: r.erro || 'Não foi possível liberar o acesso.' })
+        // Pode já ter mudado (ex.: já tinha acesso): atualiza a situação
+        api.getAcessosPortal().then(setAcessos).catch(() => {})
+        return
+      }
+      setAcessos(prev => ({ ...prev, [emailDe(c)]: 'pendente' }))
+      setAviso({ tipo: 'sucesso', texto: `Convite enviado para ${r.email || c.email}. Ele precisa abrir o e-mail e criar a senha.` })
+    } finally {
+      setLiberandoId(null)
+    }
+  }
 
   const empresaNome = (c: TicketContato) => {
     const email = (c.email || '').trim().toLowerCase()
@@ -2044,7 +2128,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
     }
   }
 
-  const COLS = 'minmax(200px,1.6fr) minmax(90px,0.8fr) minmax(180px,1.4fr) minmax(120px,1fr) minmax(200px,1.6fr) minmax(130px,1fr) minmax(130px,1fr)'
+  const COLS = 'minmax(200px,1.6fr) minmax(90px,0.8fr) minmax(180px,1.4fr) minmax(120px,1fr) minmax(200px,1.6fr) minmax(130px,1fr) minmax(130px,1fr) minmax(170px,1.1fr)'
 
   return (
     <div className="max-w-none w-full min-w-0 flex flex-col flex-1 min-h-0 pl-12">
@@ -2088,12 +2172,34 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
             className="w-full pl-9 pr-3 py-2.5 text-sm bg-white border border-slate-300 rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 shadow-sm"
           />
         </div>
+
+        {aviso && (
+          <div
+            role={aviso.tipo === 'erro' ? 'alert' : 'status'}
+            className={clsx(
+              'flex items-start justify-between gap-3 px-3.5 py-2.5 rounded-xl border text-sm',
+              aviso.tipo === 'sucesso'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-700'
+            )}
+          >
+            <span className="flex items-start gap-2">
+              {aviso.tipo === 'sucesso'
+                ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+                : <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />}
+              {aviso.texto}
+            </span>
+            <button type="button" onClick={() => setAviso(null)} aria-label="Fechar aviso" className="shrink-0 opacity-60 hover:opacity-100 cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabela com cabeçalho fixo e scroll interno */}
       <div className="flex-1 min-h-0 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
         <div className="flex-1 min-h-0 overflow-auto scrollbar-clean">
-          <div className="min-w-[1040px]">
+          <div className="min-w-[1210px]">
             {/* Cabeçalho (sempre visível) — clique para ordenar */}
             <div
               className="grid sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase tracking-wide text-slate-500"
@@ -2124,6 +2230,9 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
                     : <ArrowUp className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-40" />}
                 </button>
               ))}
+              <div className="px-4 py-3 flex items-center text-left uppercase tracking-wide text-slate-500">
+                <span className="truncate">Acesso</span>
+              </div>
             </div>
 
             {/* Linhas */}
@@ -2155,6 +2264,66 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
                   <div className="px-4 py-3 truncate">{c.email || '- -'}</div>
                   <div className="px-4 py-3 truncate">{formatTelefone(c.celular) || '- -'}</div>
                   <div className="px-4 py-3 truncate">{formatTelefone(c.telefone_comercial) || '- -'}</div>
+                  <div className="px-4 py-2 flex items-center">
+                    {(() => {
+                      const sit = situacaoAcesso(c)
+                      if (sit === 'interno') {
+                        return <span className="text-xs text-slate-400" title="Funcionário Mantran: usa o login interno">Interno</span>
+                      }
+                      if (sit === 'ativo') {
+                        const motivoReset = motivoSemBotao(c)
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+                              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> Acesso ativo
+                            </span>
+                            {podeLiberarAcesso && (
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); redefinirSenha(c) }}
+                                disabled={!!motivoReset || !!liberandoId}
+                                title={motivoReset || 'Redefinir senha: envia um link para o contato criar uma nova senha'}
+                                aria-label={`Redefinir senha de ${c.nome}`}
+                                className={clsx(
+                                  'inline-flex items-center justify-center w-7 h-7 rounded-lg border border-slate-300 bg-white text-slate-500 hover:text-brand-600 hover:border-brand-400 transition-colors',
+                                  (motivoReset || liberandoId) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                                )}
+                              >
+                                {liberandoId === c.id
+                                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                                  : <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />}
+                              </button>
+                            )}
+                          </div>
+                        )
+                      }
+                      if (!podeLiberarAcesso) {
+                        return <span className="text-xs text-slate-400">{sit === 'pendente' ? 'Convite enviado' : 'Sem acesso'}</span>
+                      }
+                      const motivo = motivoSemBotao(c, true)
+                      const carregando = liberandoId === c.id
+                      return (
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); liberarAcesso(c) }}
+                          disabled={!!motivo || !!liberandoId}
+                          title={motivo || (sit === 'pendente' ? 'Convite enviado, aguardando a criação da senha. Clique para reenviar.' : 'Enviar e-mail para o contato criar a senha de acesso')}
+                          className={clsx(
+                            'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors',
+                            sit === 'pendente'
+                              ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                              : 'bg-white border-brand-300 text-brand-700 hover:bg-brand-50',
+                            (motivo || liberandoId) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                          )}
+                        >
+                          {carregando
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                            : <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />}
+                          {carregando ? 'Enviando…' : sit === 'pendente' ? 'Reenviar convite' : 'Liberar Acesso'}
+                        </button>
+                      )
+                    })()}
+                  </div>
                 </div>
               ))
             )}
@@ -2209,6 +2378,20 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange }: {
           grupos={grupos}
           onClose={() => setSelecionado(null)}
           onChange={() => { carregar(); onChange() }}
+          acesso={situacaoAcesso(selecionado)}
+          liberarBloqueadoMotivo={motivoSemBotao(selecionado, true)}
+          liberandoAcesso={liberandoId === selecionado.id}
+          onLiberarAcesso={podeLiberarAcesso ? async () => {
+            // Fecha o perfil para o resultado (aviso no topo da lista) ficar visível
+            const alvo = selecionado
+            setSelecionado(null)
+            await liberarAcesso(alvo)
+          } : undefined}
+          onRedefinirSenha={podeLiberarAcesso ? async () => {
+            const alvo = selecionado
+            setSelecionado(null)
+            await redefinirSenha(alvo)
+          } : undefined}
         />
       )}
 

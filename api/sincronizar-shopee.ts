@@ -51,8 +51,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // 1. Conectar ao SQL Server dbSuporte
-    pool = await sql.connect(SQL_CONFIG)
+    // 1. Conectar ao SQL Server dbSuporte com instância dedicada de ConnectionPool
+    const poolInstance = new sql.ConnectionPool(SQL_CONFIG)
+    pool = await poolInstance.connect()
 
     const result = await pool.request().query(`
       SELECT 
@@ -85,11 +86,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return
     }
 
-    // 2. Buscar IDs de transportadoras válidas no Supabase (para integridade de FK)
+    // 2. Buscar IDs de transportadoras válidas no Supabase (para integridade de FK, case-insensitive)
     const { data: transpsExistentes } = await supabase
       .from('shopee_transportadoras')
       .select('id')
-    const setTransp = new Set((transpsExistentes || []).map(t => t.id))
+    const mapTransp = new Map(
+      (transpsExistentes || []).map(t => [String(t.id).toLowerCase(), String(t.id)])
+    )
 
     // 3. Contagem antes no Supabase
     const { count: countAntes } = await supabase
@@ -101,24 +104,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let totalProcessado = 0
 
     for (let i = 0; i < registrosSql.length; i += BATCH_SIZE) {
-      const batch = registrosSql.slice(i, i + BATCH_SIZE).map((p: any) => ({
-        id: String(p.id),
-        transportadora_id: (p.transportadora_id && setTransp.has(String(p.transportadora_id))) ? String(p.transportadora_id) : null,
-        nome_empresa: p.nome_empresa || '',
-        nome_base: p.nome_base || null,
-        cnpj: p.cnpj || null,
-        quinzena: Number(p.quinzena) || 1,
-        mes: Number(p.mes) || 1,
-        ano: Number(p.ano) || 2026,
-        processo: p.processo || 'Last Mile',
-        status: p.status || 'NAO_INICIADO',
-        segundos_processamento: Number(p.segundos_processamento) || 0,
-        registros_processados: Number(p.registros_processados) || 0,
-        data_inicio: p.data_inicio ? new Date(p.data_inicio).toISOString() : null,
-        data_fim: p.data_fim ? new Date(p.data_fim).toISOString() : null,
-        created_at: p.created_at ? new Date(p.created_at).toISOString() : new Date().toISOString(),
-        updated_at: p.updated_at ? new Date(p.updated_at).toISOString() : new Date().toISOString()
-      }))
+      const batch = registrosSql.slice(i, i + BATCH_SIZE).map((p: any) => {
+        const rawTranspId = p.transportadora_id ? String(p.transportadora_id).toLowerCase() : null
+        return {
+          id: String(p.id).toLowerCase(),
+          transportadora_id: (rawTranspId && mapTransp.has(rawTranspId)) ? mapTransp.get(rawTranspId) : null,
+          nome_empresa: p.nome_empresa || '',
+          nome_base: p.nome_base || null,
+          cnpj: p.cnpj || null,
+          quinzena: Number(p.quinzena) || 1,
+          mes: Number(p.mes) || 1,
+          ano: Number(p.ano) || 2026,
+          processo: p.processo || 'Last Mile',
+          status: p.status || 'NAO_INICIADO',
+          segundos_processamento: Number(p.segundos_processamento) || 0,
+          registros_processados: Number(p.registros_processados) || 0,
+          data_inicio: p.data_inicio ? new Date(p.data_inicio).toISOString() : null,
+          data_fim: p.data_fim ? new Date(p.data_fim).toISOString() : null,
+          created_at: p.created_at ? new Date(p.created_at).toISOString() : new Date().toISOString(),
+          updated_at: p.updated_at ? new Date(p.updated_at).toISOString() : new Date().toISOString()
+        }
+      })
 
       const { error: upsertError } = await supabase
         .from('shopee_processamentos')
@@ -129,6 +135,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       totalProcessado += batch.length
+    }
+
+    // Remover registros órfãos no Supabase que não existem mais no SQL Server
+    const sqlIdsSet = new Set(registrosSql.map((r: any) => String(r.id).toLowerCase()))
+    const allSupabaseIds: string[] = []
+    let from = 0
+    while (true) {
+      const { data: page } = await supabase
+        .from('shopee_processamentos')
+        .select('id')
+        .range(from, from + 999)
+      if (!page || page.length === 0) break
+      allSupabaseIds.push(...page.map((x: any) => String(x.id)))
+      if (page.length < 1000) break
+      from += 1000
+    }
+
+    const orphanIds = allSupabaseIds.filter(id => !sqlIdsSet.has(id.toLowerCase()))
+    for (let i = 0; i < orphanIds.length; i += 100) {
+      const chunk = orphanIds.slice(i, i + 100)
+      await supabase.from('shopee_processamentos').delete().in('id', chunk)
     }
 
     // 5. Contagem depois no Supabase

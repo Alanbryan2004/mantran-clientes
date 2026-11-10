@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, Ticket, Clock, FlaskConical, Code2, MapPin, FileSpreadsheet, FileStack, GraduationCap, BarChart3 } from 'lucide-react'
+import { X, Shield, Check, Lock, Database, LayoutDashboard, Users, Rocket, Cloud, CheckCircle2, Save, ShoppingBag, Ticket, Clock, FlaskConical, Code2, MapPin, FileSpreadsheet, FileStack, GraduationCap, BarChart3, BookOpen } from 'lucide-react'
 import { permissionsApi, DEFAULT_PERMISSOES } from '../lib/permissions'
 import type { PerfilPermissao } from '../lib/permissions'
 import { supabase } from '../lib/supabase'
@@ -25,6 +25,7 @@ const AVAILABLE_MODULES = [
   { path: '/analytics', label: 'Métricas de Acesso', desc: 'Painel executivo de acessos, telas mais usadas e engajamento', icon: BarChart3 },
   { path: '/cidades', label: 'Cidades', desc: 'Consulta de faixas de CEP e códigos IBGE', icon: MapPin },
   { path: '/tickets', label: 'Tickets', desc: 'Central de chamados e suporte a tickets', icon: Ticket },
+  { path: '/faq', label: 'FAQ', desc: 'Central de ajuda, tutoriais e dúvidas frequentes', icon: BookOpen },
   { path: '/academia', label: 'Academia Mantran', desc: 'Vídeos de treinamento para consulta e aprendizado', icon: GraduationCap },
   { path: '/dev/tarefas', label: 'Minhas Tarefas (Dev)', desc: 'Apontamento de horas e execução de tarefas de API', icon: Clock },
   { path: '/dev/qa', label: 'QA & Testes', desc: 'Validação e reprovação de cenários de teste de tela', icon: FlaskConical },

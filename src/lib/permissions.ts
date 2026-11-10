@@ -12,25 +12,25 @@ export interface PerfilPermissao {
 export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Administrador: {
     perfil: 'Administrador',
-    rotas: ['/', '/analytics', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/academia', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/analytics', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/faq', '/academia', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Tecnico: {
     perfil: 'Tecnico',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/academia', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/faq', '/academia', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Suporte: {
     perfil: 'Suporte',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa', '/academia'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/faq', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa', '/academia'],
     projeto_especifico_id: null,
     read_only: false
   },
   Usuario: {
     perfil: 'Usuario',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/academia'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/faq', '/academia'],
     projeto_especifico_id: null,
     read_only: true
   },
@@ -43,13 +43,13 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Comercial: {
     perfil: 'Comercial',
-    rotas: ['/comercial', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/calendario', '/implantacoes', '/rh'],
+    rotas: ['/comercial', '/faq', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/calendario', '/implantacoes', '/clientes', '/leo-madeiras', '/rh'],
     projeto_especifico_id: null,
     read_only: false
   },
   Cliente: {
     perfil: 'Cliente',
-    rotas: ['/tickets', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/implantacoes'],
+    rotas: ['/tickets', '/faq', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/implantacoes'],
     projeto_especifico_id: null,
     read_only: true
   }
@@ -185,11 +185,10 @@ export const permissionsApi = {
     if (normPath === '/cronograma' || normPath.startsWith('/cronograma/')) normPath = '/dev/cronograma'
     if (normPath === '/metricas' || normPath.startsWith('/metricas/')) normPath = '/analytics'
 
-    // FAQ: liberado para consulta pública (e para todos os usuários logados, exceto Parceiro).
+    // FAQ: liberado para consulta pública direta no site quando não logado.
+    // Quando logado, obedece às permissões configuradas para o perfil.
     if (normPath.startsWith('/faq')) {
       if (!user || !user.perfil) return true
-      const p = user.perfil.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      return p !== 'parceiro'
     }
 
     // Cidades: liberado para consulta pública direta no site quando não logado.
