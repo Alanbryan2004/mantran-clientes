@@ -1994,7 +1994,9 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
   const emailDe = (c: TicketContato) => (c.email || '').trim().toLowerCase()
 
   // 'interno' = e-mail de funcionário da Mantran (já tem login próprio)
-  const situacaoAcesso = (c: TicketContato): 'interno' | 'ativo' | 'pendente' | 'sem' => {
+  // 'inativo' = contato ou usuário desativado
+  const situacaoAcesso = (c: TicketContato): 'interno' | 'inativo' | 'ativo' | 'pendente' | 'sem' => {
+    if (c.ativo === false) return 'inativo'
     const email = emailDe(c)
     if (email && emailsFuncionarios.includes(email)) return 'interno'
     return acessos[email]?.estado || 'sem'
@@ -2184,7 +2186,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
         'E-mail secundário': c.email_secundario || '',
         'Telemóvel': formatTelefone(c.celular),
         'Telefone fixo': formatTelefone(c.telefone_comercial),
-        'Acesso': ({ interno: 'Interno', ativo: 'Ativo', pendente: 'Convite enviado', sem: 'Sem acesso' } as const)[situacaoAcesso(c)],
+        'Acesso': ({ interno: 'Interno', inativo: 'Inativo', ativo: 'Ativo', pendente: 'Convite enviado', sem: 'Sem acesso' } as const)[situacaoAcesso(c)],
         'Origem do cadastro': acessos[emailDe(c)]?.origem === 'autocadastro' ? 'Autocadastro' : acessos[emailDe(c)]?.origem === 'convite' ? 'Convite do Suporte' : '',
         'Cadastro em': fmtDataCadastro(dataCadastro(c))
       }))
@@ -2351,7 +2353,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
                     <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 uppercase shrink-0 overflow-hidden">
                       {c.foto_url ? <img src={c.foto_url} alt={c.nome} className="w-full h-full object-cover" /> : (c.nome || '?').charAt(0)}
                     </div>
-                    <span className="font-semibold text-brand-700 truncate">{c.nome}</span>
+                    <span className={clsx("font-semibold truncate", c.ativo === false ? "text-slate-400 line-through" : "text-brand-700")}>{c.nome}</span>
                   </div>
                   <div className="px-4 py-3 truncate">{classificacaoCliente(c) || '- -'}</div>
                   <div className="px-4 py-3 truncate">{empresaNome(c) || '- -'}</div>
@@ -2368,6 +2370,13 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
                       const sit = situacaoAcesso(c)
                       if (sit === 'interno') {
                         return <span className="text-xs text-slate-400" title="Funcionário Mantran: usa o login interno">Interno</span>
+                      }
+                      if (sit === 'inativo') {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold" title="Usuário/contato desativado">
+                            <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" /> Inativo
+                          </span>
+                        )
                       }
                       if (sit === 'ativo') {
                         const motivoReset = motivoSemBotao(c)

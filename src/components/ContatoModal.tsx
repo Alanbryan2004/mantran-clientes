@@ -30,7 +30,7 @@ interface ContatoModalProps {
   onChange: () => void
   onAbrirTicket?: (ticketId: string) => void
   // Acesso ao portal (login = e-mail do contato)
-  acesso?: 'interno' | 'ativo' | 'pendente' | 'sem'
+  acesso?: 'interno' | 'inativo' | 'ativo' | 'pendente' | 'sem'
   onLiberarAcesso?: () => void | Promise<void> // ausente = perfil sem permissão para liberar
   onRedefinirSenha?: () => void | Promise<void> // idem, para quem já tem acesso ativo
   liberarBloqueadoMotivo?: string | null // ex.: contato sem empresa vinculada
@@ -110,6 +110,10 @@ export function ContatoModal({ contato, clientes, grupos, onClose, onChange, onA
             ) : acesso === 'ativo' ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-600">
                 <Send className="w-3.5 h-3.5" /> Acesso ativo
+              </span>
+            ) : acesso === 'inativo' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-600">
+                <Send className="w-3.5 h-3.5" /> Acesso inativo
               </span>
             ) : null}
             {onRedefinirSenha && acesso === 'ativo' ? (

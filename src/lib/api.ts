@@ -7,6 +7,69 @@ import { supabase } from './supabase'
 
 // Retorna o dia civil (YYYY-MM-DD) no fuso de Brasília, independente do fuso do ambiente/servidor.
 // Evita que um ponto batido à noite (ex.: 22:19) seja gravado no dia seguinte por causa do UTC.
+// Extrai todos os e-mails válidos associados a um registro da tabela `usuario`
+function extrairEmailsDoUsuario(u?: { login?: string | null; email_pessoal?: string | null; email_corporativo?: string | null } | null): string[] {
+  if (!u) return []
+  const candidatos = [u.login, u.email_pessoal, u.email_corporativo]
+  const emails = new Set<string>()
+  for (const c of candidatos) {
+    const limpo = String(c || '').trim().toLowerCase()
+    if (limpo && limpo.includes('@') && !limpo.endsWith('@mantran')) {
+      emails.add(limpo)
+    }
+  }
+  return [...emails]
+}
+
+// Busca contatos na tabela `ticket_contatos` que correspondam a qualquer um dos e-mails informados
+async function buscarContatosPorEmails(emails: string[]): Promise<{ id: string; email: string | null; email_secundario: string | null }[]> {
+  const limpos = [...new Set(emails.map(e => String(e || '').trim().toLowerCase()).filter(Boolean))]
+  if (limpos.length === 0) return []
+  const filtros: string[] = []
+  for (const e of limpos) {
+    filtros.push(`email.ilike.${e}`, `email_secundario.ilike.${e}`)
+  }
+  const { data, error } = await supabase
+    .from('ticket_contatos')
+    .select('id, email, email_secundario')
+    .or(filtros.join(','))
+  if (error || !data) return []
+  const setEmails = new Set(limpos)
+  return data.filter((ct: any) => {
+    const e1 = String(ct.email || '').trim().toLowerCase()
+    const e2 = String(ct.email_secundario || '').trim().toLowerCase()
+    return setEmails.has(e1) || setEmails.has(e2)
+  })
+}
+
+// Exclui os contatos vinculados aos e-mails informados (desvinculando os tickets antes)
+async function excluirContatosPorEmails(emails: string[]): Promise<void> {
+  try {
+    const contatos = await buscarContatosPorEmails(emails)
+    for (const ct of contatos) {
+      await supabase.from('tickets').update({ contato_id: null }).eq('contato_id', ct.id)
+      await supabase.from('ticket_contatos').delete().eq('id', ct.id)
+    }
+  } catch (err) {
+    console.warn('Falha ao sincronizar exclusão com ticket_contatos:', err)
+  }
+}
+
+// Sincroniza o status ativo/inativo nos contatos vinculados aos e-mails informados
+async function sincronizarStatusContatosPorEmails(emails: string[], ativo: boolean): Promise<void> {
+  try {
+    const contatos = await buscarContatosPorEmails(emails)
+    if (contatos.length === 0) return
+    const ids = contatos.map(c => c.id)
+    await supabase
+      .from('ticket_contatos')
+      .update({ ativo, updated_at: new Date().toISOString() })
+      .in('id', ids)
+  } catch (err) {
+    console.warn('Falha ao sincronizar status ativo com ticket_contatos:', err)
+  }
+}
+
 export function dataBrasilia(d: Date = new Date()): string {
   // en-CA formata como YYYY-MM-DD
   return new Intl.DateTimeFormat('en-CA', {
@@ -233,8 +296,9 @@ export const api = {
       for (const u of (data || []) as any[]) {
         const email = String(u.email_pessoal || u.login || '').trim().toLowerCase()
         if (!email) continue
+        const jaAtivou = !!u.acesso_ativado_em || !u.origem_cadastro
         mapa[email] = {
-          estado: u.ativo ? 'ativo' : 'pendente',
+          estado: u.ativo ? 'ativo' : (jaAtivou ? 'inativo' : 'pendente'),
           origem: u.origem_cadastro ?? null,
           ativadoEm: u.acesso_ativado_em ?? null,
           criadoEm: u.created_at ?? null
@@ -2358,6 +2422,13 @@ export const api = {
       updateData.registra_ponto = !!payload.registra_ponto
     }
 
+    // Busca estado anterior do usuário para sincronizar alterações de e-mail / status com a tela de Contatos
+    const { data: usuarioAntes } = await supabase
+      .from('usuario')
+      .select('id, login, email_pessoal, email_corporativo, ativo')
+      .eq('id', id)
+      .maybeSingle()
+
     const { data, error } = await supabase
       .from('usuario')
       .update(updateData)
@@ -2366,6 +2437,32 @@ export const api = {
       .single()
 
     if (error) throw error
+
+    // Sincronizar com ticket_contatos (Contatos)
+    const emailsAntes = extrairEmailsDoUsuario(usuarioAntes)
+    const emailsDepois = extrairEmailsDoUsuario(data)
+    const emailsRemovidos = emailsAntes.filter(e => !emailsDepois.includes(e))
+
+    if (emailsRemovidos.length > 0) {
+      if (emailsAntes.length === 1 && emailsDepois.length === 1) {
+        // O e-mail foi trocado por outro: atualiza o e-mail no contato correspondente
+        const contatosAntigos = await buscarContatosPorEmails(emailsRemovidos)
+        for (const ct of contatosAntigos) {
+          await supabase
+            .from('ticket_contatos')
+            .update({ email: emailsDepois[0], ativo: data.ativo, updated_at: new Date().toISOString() })
+            .eq('id', ct.id)
+        }
+      } else {
+        // O e-mail foi excluído/limpo do usuário: exclui também da tela de Contatos
+        await excluirContatosPorEmails(emailsRemovidos)
+      }
+    }
+
+    if (payload.ativo !== undefined && emailsDepois.length > 0) {
+      await sincronizarStatusContatosPorEmails(emailsDepois, !!data.ativo)
+    }
+
     return data
   },
 
@@ -2383,16 +2480,39 @@ export const api = {
   },
 
   async toggleUsuarioAtivo(id: string, ativo: boolean): Promise<boolean> {
+    const { data: userRow } = await supabase
+      .from('usuario')
+      .select('id, login, email_pessoal, email_corporativo')
+      .eq('id', id)
+      .maybeSingle()
+
     const { error } = await supabase
       .from('usuario')
       .update({ ativo })
       .eq('id', id)
 
     if (error) throw error
+
+    const emails = extrairEmailsDoUsuario(userRow)
+    if (emails.length > 0) {
+      await sincronizarStatusContatosPorEmails(emails, ativo)
+    }
+
     return true
   },
 
   async deleteUsuarioSistema(id: string): Promise<boolean> {
+    const { data: userRow } = await supabase
+      .from('usuario')
+      .select('id, login, email_pessoal, email_corporativo')
+      .eq('id', id)
+      .maybeSingle()
+
+    const emails = extrairEmailsDoUsuario(userRow)
+    if (emails.length > 0) {
+      await excluirContatosPorEmails(emails)
+    }
+
     const { error } = await supabase
       .from('usuario')
       .delete()
@@ -4025,10 +4145,26 @@ export const api = {
   },
 
   async deleteContato(id: string): Promise<boolean> {
+    const { data: ct } = await supabase
+      .from('ticket_contatos')
+      .select('email, email_secundario')
+      .eq('id', id)
+      .maybeSingle()
+
     // Desvincula os tickets antes de remover o contato
     await supabase.from('tickets').update({ contato_id: null }).eq('contato_id', id)
     const { error } = await supabase.from('ticket_contatos').delete().eq('id', id)
     if (error) throw error
+
+    // Também remove o usuário Cliente correspondente na Gestão de Usuários, se existir
+    const emails = [ct?.email, ct?.email_secundario]
+      .map(e => String(e || '').trim().toLowerCase())
+      .filter(e => e && e.includes('@'))
+    for (const email of emails) {
+      await supabase.from('usuario').delete().eq('perfil', 'Cliente').ilike('login', email)
+      await supabase.from('usuario').delete().eq('perfil', 'Cliente').ilike('email_pessoal', email)
+    }
+
     return true
   },
 
@@ -4948,7 +5084,7 @@ export interface FaqPasso {
 
 // Acesso de um contato ao portal do cliente (ver api.getAcessosPortal)
 export interface AcessoPortal {
-  estado: 'ativo' | 'pendente'
+  estado: 'ativo' | 'pendente' | 'inativo'
   origem: string | null       // 'autocadastro' | 'convite' | null
   ativadoEm: string | null    // data do cadastro (confirmação do e-mail / criação da senha)
   criadoEm: string | null

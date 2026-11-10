@@ -1,12 +1,19 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
-  BarChart3, Users, UserPlus, BookOpen, Video, Eye, RefreshCw, Monitor, Trophy, ExternalLink, Lock
+  BarChart3, Users, UserPlus, BookOpen, Video, Eye, RefreshCw, Monitor, Trophy, ExternalLink, Lock, X
 } from 'lucide-react'
 import { getAnalyticsMetricas, type AnalyticsResumo } from '../lib/analytics'
 import { permissionsApi } from '../lib/permissions'
 import { Link } from 'react-router-dom'
 import { gerarSlugFaq } from './FAQ'
 import clsx from 'clsx'
+
+const ROTULO_PERIODO: Record<'hoje' | '7dias' | '30dias' | 'tudo', string> = {
+  hoje: 'Hoje',
+  '7dias': 'Últimos 7 dias',
+  '30dias': 'Últimos 30 dias',
+  tudo: 'Todo o período'
+}
 
 export function AnalyticsAcessos() {
   const canAccess = permissionsApi.canAccessRoute('/analytics')
@@ -16,6 +23,15 @@ export function AnalyticsAcessos() {
   const [metricas, setMetricas] = useState<AnalyticsResumo | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string>(() => new Date().toLocaleTimeString('pt-BR'))
+  const [novosAberto, setNovosAberto] = useState(false) // lista do card "Novos Usuários"
+
+  // Fecha a lista de novos usuários com Esc
+  useEffect(() => {
+    if (!novosAberto) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setNovosAberto(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [novosAberto])
 
   async function carregarDados(filtro = periodo) {
     setLoading(true)
@@ -205,8 +221,15 @@ export function AnalyticsAcessos() {
           </div>
         </div>
 
-        {/* Novos Usuários Cadastrados */}
-        <div className="bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-slate-700 transition-all flex items-center gap-3.5">
+        {/* Novos Usuários Cadastrados (clique abre a lista de contatos e empresas) */}
+        <button
+          type="button"
+          onClick={() => setNovosAberto(true)}
+          disabled={loading}
+          aria-haspopup="dialog"
+          title="Ver quais contatos se cadastraram no período"
+          className="w-full text-left bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-cyan-500/50 hover:bg-slate-800/40 transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:cursor-wait"
+        >
           <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
             <UserPlus className="w-5 h-5" />
           </div>
@@ -215,9 +238,9 @@ export function AnalyticsAcessos() {
             <div className="text-2xl font-black text-cyan-300 mt-0.5">
               {loading ? '…' : (metricas?.totalNovosUsuarios || 0).toLocaleString('pt-BR')}
             </div>
-            <span className="text-[10px] text-cyan-400/70 block truncate">Cadastrados no período</span>
+            <span className="text-[10px] text-cyan-400/70 block truncate">Cadastrados no período · clique para ver</span>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Navegação entre Abas de Rankings */}
@@ -572,6 +595,96 @@ export function AnalyticsAcessos() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Lista dos novos usuários (card "Novos Usuários") */}
+      {novosAberto && (
+        <div
+          className="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setNovosAberto(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="novos-usuarios-titulo"
+            className="bg-dark-card border border-slate-700 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[88vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 p-5 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                  <UserPlus className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <h2 id="novos-usuarios-titulo" className="text-base font-black text-white">Novos usuários</h2>
+                  <p className="text-xs text-slate-400">
+                    {ROTULO_PERIODO[periodo]} · {(metricas?.totalNovosUsuarios || 0).toLocaleString('pt-BR')} contato(s) com acesso ao portal
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNovosAberto(false)}
+                aria-label="Fechar"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto custom-scrollbar">
+              {(metricas?.novosUsuarios || []).length === 0 ? (
+                <div className="py-16 px-6 text-center text-slate-400 text-sm">
+                  Nenhum contato novo com acesso ao portal neste período.
+                </div>
+              ) : (
+                <table className="w-full text-sm min-w-[720px]">
+                  <thead className="sticky top-0 bg-slate-900 text-[11px] uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th scope="col" className="text-left font-bold px-5 py-3">Contato</th>
+                      <th scope="col" className="text-left font-bold px-4 py-3">Empresa</th>
+                      <th scope="col" className="text-left font-bold px-4 py-3">E-mail</th>
+                      <th scope="col" className="text-left font-bold px-4 py-3">Como entrou</th>
+                      <th scope="col" className="text-left font-bold px-4 py-3">Cadastro em</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/70">
+                    {(metricas?.novosUsuarios || []).map(u => (
+                      <tr key={u.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="px-5 py-3 font-semibold text-white">{u.nome}</td>
+                        <td className="px-4 py-3 text-slate-200">{u.empresa || <span className="text-slate-500">Sem empresa</span>}</td>
+                        <td className="px-4 py-3 text-slate-300 break-all">{u.email}</td>
+                        <td className="px-4 py-3">
+                          {u.origem === 'autocadastro' ? (
+                            <span className="inline-flex px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[11px] font-semibold">Cadastrou-se sozinho</span>
+                          ) : u.origem === 'convite' ? (
+                            <span className="inline-flex px-2 py-0.5 rounded-md bg-violet-500/10 border border-violet-500/30 text-violet-300 text-[11px] font-semibold">Liberado pelo Suporte</span>
+                          ) : (
+                            <span className="text-slate-500">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-300 whitespace-nowrap">
+                          {new Date(u.cadastroEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {permissionsApi.canAccessRoute('/tickets') && (
+              <div className="p-4 border-t border-slate-800 flex justify-end shrink-0">
+                <Link
+                  to="/tickets?view=contatos&novos=1"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-300 hover:text-cyan-200"
+                >
+                  Abrir em Contatos <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

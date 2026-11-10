@@ -25,12 +25,23 @@ export interface FaqVisualizacaoItem {
   created_at: string
 }
 
+// Contato que ganhou acesso ao portal no período (card "Novos Usuários")
+export interface NovoUsuario {
+  id: string
+  nome: string                                  // nome do contato
+  email: string
+  empresa: string
+  origem: 'autocadastro' | 'convite' | null     // cadastrou-se sozinho | liberado pelo Suporte
+  cadastroEm: string                            // ISO: confirmação do e-mail / criação da senha
+}
+
 export interface AnalyticsResumo {
   totalAcessos: number
   totalFaqLidos: number
   totalVideosAssistidos: number
   totalUsuariosAtivos: number
   totalNovosUsuarios: number
+  novosUsuarios: NovoUsuario[]
   topFaq: { id: string; titulo: string; categoria: string; acessos: number }[]
   topVideos: { id: string; titulo: string; instrutor: string; visualizacoes: number; concluidos: number }[]
   topTelas: { rota: string; tela_nome: string; acessos: number }[]
@@ -155,6 +166,81 @@ export async function registrarVisualizacaoFaq(
 }
 
 /**
+ * Novos contatos com acesso ao portal (clientes que criaram a senha) dentro do período.
+ * Fonte: usuários de perfil Cliente ativos com e-mail (os que entram pela tela de Contatos),
+ * ligados ao contato e à empresa. Não conta funcionários nem os logins antigos de implantação (Empresa@Mantran).
+ * A data é a da ativação do acesso; se as colunas novas ainda não existirem no banco, usa a criação do registro.
+ */
+export async function buscarNovosUsuarios(dataFiltro: Date | null): Promise<NovoUsuario[]> {
+  // 1) Acessos ativos de clientes (tolerante à ausência das colunas de origem/data)
+  let linhas: any[] = []
+  const r1 = await supabase
+    .from('usuario')
+    .select('id, nome, login, email_pessoal, created_at, origem_cadastro, acesso_ativado_em')
+    .eq('perfil', 'Cliente')
+    .eq('ativo', true)
+    .not('email_pessoal', 'is', null)
+    .range(0, 999)
+  if (r1.error) {
+    if (!/origem_cadastro|acesso_ativado_em/i.test(r1.error.message || '')) throw r1.error
+    const r2 = await supabase
+      .from('usuario')
+      .select('id, nome, login, email_pessoal, created_at')
+      .eq('perfil', 'Cliente')
+      .eq('ativo', true)
+      .not('email_pessoal', 'is', null)
+      .range(0, 999)
+    if (r2.error) throw r2.error
+    linhas = r2.data || []
+  } else {
+    linhas = r1.data || []
+  }
+
+  // 2) Período
+  const noPeriodo = linhas
+    .map(u => ({ u, quando: String(u.acesso_ativado_em || u.created_at || '') }))
+    .filter(x => x.quando && (!dataFiltro || new Date(x.quando).getTime() >= dataFiltro.getTime()))
+  if (noPeriodo.length === 0) return []
+
+  // 3) Contato (nome) e empresa de cada e-mail
+  const contatosPorEmail = new Map<string, { nome: string; empresa_id: string | null; empresa_nome: string | null }>()
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase.from('ticket_contatos').select('nome, email, empresa_id, empresa_nome').range(de, de + 999)
+    if (error) throw error
+    for (const c of data || []) {
+      const e = String(c.email || '').trim().toLowerCase()
+      if (e && !contatosPorEmail.has(e)) contatosPorEmail.set(e, c)
+    }
+    if (!data || data.length < 1000) break
+  }
+  const idsEmpresa = [...new Set(
+    noPeriodo.map(x => contatosPorEmail.get(String(x.u.email_pessoal).trim().toLowerCase())?.empresa_id).filter((v): v is string => !!v)
+  )]
+  const nomeEmpresaPorId = new Map<string, string>()
+  if (idsEmpresa.length > 0) {
+    const { data: cls, error: eCli } = await supabase.from('clientes').select('id, nome_empresa').in('id', idsEmpresa)
+    if (eCli) throw eCli
+    ;(cls || []).forEach((c: any) => nomeEmpresaPorId.set(c.id, c.nome_empresa || ''))
+  }
+
+  return noPeriodo
+    .map(({ u, quando }): NovoUsuario => {
+      const email = String(u.email_pessoal).trim().toLowerCase()
+      const contato = contatosPorEmail.get(email)
+      const empresa = (contato?.empresa_id && nomeEmpresaPorId.get(contato.empresa_id)) || contato?.empresa_nome || ''
+      return {
+        id: u.id,
+        nome: contato?.nome || u.nome || email,
+        email,
+        empresa,
+        origem: u.origem_cadastro === 'autocadastro' || u.origem_cadastro === 'convite' ? u.origem_cadastro : null,
+        cadastroEm: quando
+      }
+    })
+    .sort((a, b) => b.cadastroEm.localeCompare(a.cadastroEm)) // mais recentes primeiro
+}
+
+/**
  * Busca e consolida todas as métricas de engajamento para o Painel de Analytics.
  */
 export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' | 'tudo' = '30dias'): Promise<AnalyticsResumo> {
@@ -183,17 +269,18 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
   let queryAcademia = supabase.from('academia_visualizacoes').select('*')
   if (dataFiltro) queryAcademia = queryAcademia.gte('ultima_vez', dataFiltro.toISOString())
 
-  let queryNovosUsuarios = supabase.from('usuario').select('*', { count: 'exact', head: true })
-  if (dataFiltro) queryNovosUsuarios = queryNovosUsuarios.gte('created_at', dataFiltro.toISOString())
-
   const [
     { data: visualizacoesVideos = [] },
     { data: videosCatalogo = [] },
-    { count: totalNovosUsuarios = 0 }
+    novosUsuarios
   ] = await Promise.all([
     queryAcademia,
     supabase.from('academia_videos').select('id, titulo, instrutor'),
-    queryNovosUsuarios
+    // Falha na lista de novos usuários não derruba o restante do painel
+    buscarNovosUsuarios(dataFiltro).catch(err => {
+      console.error('Erro ao buscar novos usuários:', err)
+      return [] as NovoUsuario[]
+    })
   ])
 
   // Contagem de telas
@@ -269,7 +356,8 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
     totalFaqLidos: (faqs || []).length,
     totalVideosAssistidos: (visualizacoesVideos || []).length,
     totalUsuariosAtivos: usuariosUnicos.size,
-    totalNovosUsuarios: totalNovosUsuarios || 0,
+    totalNovosUsuarios: novosUsuarios.length,
+    novosUsuarios,
     topFaq: Array.from(mapaFaq.values()).sort((a, b) => b.acessos - a.acessos).slice(0, 15),
     topVideos: Array.from(mapaVideos.values()).sort((a, b) => b.visualizacoes - a.visualizacoes).slice(0, 15),
     topTelas: Array.from(mapaTelas.values()).sort((a, b) => b.acessos - a.acessos).slice(0, 15),
