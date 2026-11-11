@@ -3445,17 +3445,27 @@ export const api = {
   // --- RH: Controle de Ponto (Registro de Expediente) ---
   async getRegistrosPonto(usuarioId?: string, data?: string): Promise<RegistroPonto[]> {
     try {
-      let query = supabase
-        .from('rh_ponto')
-        .select('*')
-        .order('data_hora', { ascending: true })
+      const todos: RegistroPonto[] = []
+      const pageSize = 1000
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from('rh_ponto')
+          .select('*')
+          .order('data_hora', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, from + pageSize - 1)
 
-      if (usuarioId) query = query.eq('usuario_id', usuarioId)
-      if (data) query = query.eq('data', data)
+        if (usuarioId) query = query.eq('usuario_id', usuarioId)
+        if (data) query = query.eq('data', data)
 
-      const { data: rows, error } = await query
-      if (error) throw error
-      return rows || []
+        const { data: rows, error } = await query
+        if (error) throw error
+        if (rows && rows.length > 0) {
+          todos.push(...rows)
+        }
+        if (!rows || rows.length < pageSize) break
+      }
+      return todos
     } catch {
       const local = localStorage.getItem('@Mantran:rh_ponto')
       let list: RegistroPonto[] = local ? JSON.parse(local) : []
