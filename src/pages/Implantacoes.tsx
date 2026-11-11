@@ -193,6 +193,7 @@ export function Implantacoes() {
   const [activeTab, setActiveTab] = useState<'EM_ANDAMENTO' | 'CONCLUIDOS'>('EM_ANDAMENTO')
   const [filtroPrazo, setFiltroPrazo] = useState<'TODOS' | 'ESTOURADO' | 'ALERTA' | 'NO_PRAZO'>('TODOS')
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedTipoCliente, setSelectedTipoCliente] = useState<'' | 'LEO_MADEIRAS' | 'SHOPEE' | 'NORMAL'>('')
   const [selectedEtapa, setSelectedEtapa] = useState('')
   const [selectedAnalista, setSelectedAnalista] = useState('')
   // Aba de tipo de implantação (topo): CLIENTES (default), MELI ou NFSE
@@ -295,16 +296,33 @@ export function Implantacoes() {
     .sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR', { sensitivity: 'base' }))
 
   // Contagens e dados respeitam a aba de TIPO ativa (Clientes / MELI / NFSE)
-  const emAndamentoDoTipo = emAndamento.filter(i =>
+  const matchesTipoCliente = (impl: any) => {
+    if (!selectedTipoCliente) return true
+    if (selectedTipoCliente === 'LEO_MADEIRAS') return impl.tipo_cliente === 'LEO_MADEIRAS'
+    if (selectedTipoCliente === 'SHOPEE') return impl.tipo_cliente === 'SHOPEE'
+    return impl.tipo_cliente !== 'SHOPEE' && impl.tipo_cliente !== 'LEO_MADEIRAS'
+  }
+
+  const emAndamentoBaseAba = emAndamento.filter(i =>
     tipoImplantacao === 'NFSE' ? isImplNfse(i)
     : tipoImplantacao === 'MELI' ? isImplMeli(i)
     : isImplCliente(i)
   )
-  const concluidosDoTipo = concluidos.filter(i =>
+  const concluidosBaseAba = concluidos.filter(i =>
     tipoImplantacao === 'NFSE' ? isImplNfse(i)
     : tipoImplantacao === 'MELI' ? isImplMeli(i)
     : isImplCliente(i)
   )
+
+  const emAndamentoDoTipo = emAndamentoBaseAba.filter(matchesTipoCliente)
+  const concluidosDoTipo = concluidosBaseAba.filter(matchesTipoCliente)
+
+  // Contagens por tipo de cliente na aba atual (Em Andamento vs Concluídos)
+  const listaBaseParaContagemTipo = activeTab === 'EM_ANDAMENTO' ? emAndamentoBaseAba : concluidosBaseAba
+  const countTipoLeo = listaBaseParaContagemTipo.filter(i => i.tipo_cliente === 'LEO_MADEIRAS').length
+  const countTipoShopee = listaBaseParaContagemTipo.filter(i => i.tipo_cliente === 'SHOPEE').length
+  const countTipoNormal = listaBaseParaContagemTipo.filter(i => i.tipo_cliente !== 'SHOPEE' && i.tipo_cliente !== 'LEO_MADEIRAS').length
+
   const emAndamentoPrazos = emAndamentoDoTipo.map(i => calcularPrazoImplantacao(i.created_at, false))
   const countEstouradas = emAndamentoPrazos.filter(p => p.estourou).length
   const countAlerta = emAndamentoPrazos.filter(p => p.status === 'alerta').length
@@ -321,6 +339,8 @@ export function Implantacoes() {
         const matchName = (impl.nome_empresa || '').toLowerCase().includes(term)
         if (!matchName) return false
       }
+
+      if (!matchesTipoCliente(impl)) return false
 
       if (selectedEtapa !== '') {
         const isShopee = impl.tipo_cliente === 'SHOPEE'
@@ -360,7 +380,7 @@ export function Implantacoes() {
 
   const filteredEmAndamento = filterList(emAndamento)
   const filteredConcluidos = filterList(concluidos)
-  const isFiltering = searchTerm.trim() !== '' || selectedEtapa !== '' || selectedAnalista !== '' || filtroPrazo !== 'TODOS'
+  const isFiltering = searchTerm.trim() !== '' || selectedTipoCliente !== '' || selectedEtapa !== '' || selectedAnalista !== '' || filtroPrazo !== 'TODOS'
 
   if (isCliente) {
     return (
@@ -541,6 +561,24 @@ export function Implantacoes() {
             )}
           </div>
 
+          {/* Filtro por Tipo de Cliente */}
+          <div className="relative w-full sm:w-auto sm:min-w-[175px] flex-1 sm:flex-initial">
+            <Building2 className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <select
+              value={selectedTipoCliente}
+              onChange={(e) => setSelectedTipoCliente(e.target.value as any)}
+              className="w-full pl-8 pr-8 py-2 text-xs bg-slate-900/60 border border-slate-700/80 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all appearance-none cursor-pointer"
+            >
+              <option value="">Todos os Tipos ({listaBaseParaContagemTipo.length})</option>
+              <option value="LEO_MADEIRAS">Léo ({countTipoLeo})</option>
+              <option value="SHOPEE">Shopee ({countTipoShopee})</option>
+              <option value="NORMAL">Normal ({countTipoNormal})</option>
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[10px]">
+              ▼
+            </div>
+          </div>
+
           {/* Filtro por Etapa */}
           <div className="relative w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-initial">
             <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -581,7 +619,7 @@ export function Implantacoes() {
           {/* Limpar filtros */}
           {isFiltering && (
             <button
-              onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); }}
+              onClick={() => { setSearchTerm(''); setSelectedTipoCliente(''); setSelectedEtapa(''); setSelectedAnalista(''); setFiltroPrazo('TODOS'); }}
               className="text-xs text-brand-400 hover:text-brand-300 underline font-semibold flex items-center gap-1 cursor-pointer py-1 px-2 rounded hover:bg-brand-500/10 transition-colors"
             >
               <X className="w-3 h-3" />
@@ -623,7 +661,7 @@ export function Implantacoes() {
                       <p className="text-base font-bold text-white mb-1">Nenhum cliente encontrado com os filtros aplicados</p>
                       <p className="text-xs text-slate-400 mb-4">Tente alterar o termo de busca ou selecionar outra etapa.</p>
                       <button
-                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); }}
+                        onClick={() => { setSearchTerm(''); setSelectedTipoCliente(''); setSelectedEtapa(''); setSelectedAnalista(''); setFiltroPrazo('TODOS'); }}
                         className="btn-primary text-xs py-1.5 px-3 inline-flex items-center gap-1.5"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -642,7 +680,7 @@ export function Implantacoes() {
                 <>
                   {isFiltering && (
                     <div className="text-xs text-slate-400 mb-3 flex items-center justify-between">
-                      <span>Exibindo <strong>{filteredEmAndamento.length}</strong> de <strong>{emAndamentoDoTipo.length}</strong> clientes em andamento</span>
+                      <span>Exibindo <strong>{filteredEmAndamento.length}</strong> de <strong>{emAndamentoBaseAba.length}</strong> clientes em andamento</span>
                     </div>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -940,7 +978,7 @@ export function Implantacoes() {
                       <p className="text-base font-bold text-white mb-1">Nenhuma implantação concluída encontrada com os filtros</p>
                       <p className="text-xs text-slate-400 mb-4">Tente alterar o termo de busca.</p>
                       <button
-                        onClick={() => { setSearchTerm(''); setSelectedEtapa(''); setSelectedAnalista(''); }}
+                        onClick={() => { setSearchTerm(''); setSelectedTipoCliente(''); setSelectedEtapa(''); setSelectedAnalista(''); setFiltroPrazo('TODOS'); }}
                         className="btn-primary text-xs py-1.5 px-3 inline-flex items-center gap-1.5"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -959,7 +997,7 @@ export function Implantacoes() {
                 <>
                   {isFiltering && (
                     <div className="text-xs text-slate-400 mb-3">
-                      <span>Exibindo <strong>{filteredConcluidos.length}</strong> de <strong>{concluidosDoTipo.length}</strong> clientes concluídos</span>
+                      <span>Exibindo <strong>{filteredConcluidos.length}</strong> de <strong>{concluidosBaseAba.length}</strong> clientes concluídos</span>
                     </div>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
