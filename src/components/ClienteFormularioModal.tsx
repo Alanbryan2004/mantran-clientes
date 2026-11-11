@@ -81,6 +81,14 @@ export interface CstConfigData {
   arquivo_aditivo_tamanho?: number
 }
 
+export interface CertificadoDigitalItem {
+  id: string
+  arquivo_nome: string
+  arquivo_base64: string
+  arquivo_tamanho?: number
+  senha: string
+}
+
 export interface CheckpointFormData {
   cnpjs: CnpjItem[]
   processos_shopee: string[]
@@ -109,6 +117,7 @@ export interface CheckpointFormData {
     arquivo_tamanho?: number
     senha: string
   }
+  certificados_digitais?: CertificadoDigitalItem[]
   tabela_frete: {
     arquivo_nome: string
     arquivo_base64: string
@@ -157,7 +166,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
   const [currentSlide, setCurrentSlide] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
-  const [showCertSenha, setShowCertSenha] = useState(false)
+  const [showCertSenha, setShowCertSenha] = useState<Record<number, boolean>>({})
 
   // Form State Initializer
   const [formData, setFormData] = useState<CheckpointFormData>({
@@ -209,6 +218,15 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
       arquivo_base64: '',
       senha: ''
     },
+    certificados_digitais: [
+      {
+        id: '1',
+        arquivo_nome: '',
+        arquivo_base64: '',
+        arquivo_tamanho: 0,
+        senha: ''
+      }
+    ],
     tabela_frete: {
       arquivo_nome: '',
       arquivo_base64: '',
@@ -259,11 +277,43 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
           }
         }
 
+        // Normaliza Certificados Digitais: usa `certificados_digitais` se já existir;
+        // caso contrário, migra o `certificado_digital` único (legado) para o 1º item.
+        let certsNorm: CertificadoDigitalItem[] = [
+          { id: '1', arquivo_nome: '', arquivo_base64: '', arquivo_tamanho: 0, senha: '' }
+        ]
+        if (Array.isArray(dataObj.certificados_digitais) && dataObj.certificados_digitais.length > 0) {
+          certsNorm = dataObj.certificados_digitais.map((c: any, idx: number) => ({
+            id: c.id || String(idx + 1),
+            arquivo_nome: c.arquivo_nome || '',
+            arquivo_base64: c.arquivo_base64 || '',
+            arquivo_tamanho: c.arquivo_tamanho || 0,
+            senha: c.senha || ''
+          }))
+        } else if (dataObj.certificado_digital && (dataObj.certificado_digital.arquivo_nome || dataObj.certificado_digital.arquivo_base64 || dataObj.certificado_digital.senha)) {
+          certsNorm = [{
+            id: '1',
+            arquivo_nome: dataObj.certificado_digital.arquivo_nome || '',
+            arquivo_base64: dataObj.certificado_digital.arquivo_base64 || '',
+            arquivo_tamanho: dataObj.certificado_digital.arquivo_tamanho || 0,
+            senha: dataObj.certificado_digital.senha || ''
+          }]
+        }
+
+        const primeiroCertValido = certsNorm.find(c => c.arquivo_nome || c.senha) || certsNorm[0]
+
         setFormData(prev => ({
           ...prev,
           ...dataObj,
           percursos_line_haul: percursos && percursos.length > 0 ? percursos : prev.percursos_line_haul,
           nfse: nfseNorm,
+          certificados_digitais: certsNorm,
+          certificado_digital: {
+            arquivo_nome: primeiroCertValido?.arquivo_nome || '',
+            arquivo_base64: primeiroCertValido?.arquivo_base64 || '',
+            arquivo_tamanho: primeiroCertValido?.arquivo_tamanho || 0,
+            senha: primeiroCertValido?.senha || ''
+          },
           cst_config: dataObj.cst_config ? {
             ...prev.cst_config,
             ...dataObj.cst_config,
@@ -520,7 +570,64 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
     reader.readAsDataURL(file)
   }
 
-  const handleCertificadoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Helpers de múltiplos Certificados Digitais (.pfx)
+  const syncCertificadosState = (lista: CertificadoDigitalItem[]) => {
+    const garantida = lista.length > 0
+      ? lista
+      : [{ id: '1', arquivo_nome: '', arquivo_base64: '', arquivo_tamanho: 0, senha: '' }]
+    const principal = garantida.find(c => c.arquivo_nome || c.senha) || garantida[0]
+    setFormData(prev => ({
+      ...prev,
+      certificados_digitais: garantida,
+      certificado_digital: {
+        arquivo_nome: principal.arquivo_nome || '',
+        arquivo_base64: principal.arquivo_base64 || '',
+        arquivo_tamanho: principal.arquivo_tamanho || 0,
+        senha: principal.senha || ''
+      }
+    }))
+  }
+
+  const getCertificadosList = (): CertificadoDigitalItem[] => {
+    if (Array.isArray(formData.certificados_digitais) && formData.certificados_digitais.length > 0) {
+      return formData.certificados_digitais
+    }
+    return [{
+      id: '1',
+      arquivo_nome: formData.certificado_digital?.arquivo_nome || '',
+      arquivo_base64: formData.certificado_digital?.arquivo_base64 || '',
+      arquivo_tamanho: formData.certificado_digital?.arquivo_tamanho || 0,
+      senha: formData.certificado_digital?.senha || ''
+    }]
+  }
+
+  const handleAddCertificado = () => {
+    const atual = getCertificadosList()
+    syncCertificadosState([
+      ...atual,
+      {
+        id: String(Date.now()),
+        arquivo_nome: '',
+        arquivo_base64: '',
+        arquivo_tamanho: 0,
+        senha: ''
+      }
+    ])
+  }
+
+  const handleRemoveCertificadoCard = (index: number) => {
+    const atual = getCertificadosList()
+    if (atual.length <= 1) return
+    syncCertificadosState(atual.filter((_, i) => i !== index))
+  }
+
+  const handleUpdateCertificadoPatch = (index: number, patch: Partial<CertificadoDigitalItem>) => {
+    const atual = getCertificadosList()
+    const atualizado = atual.map((c, i) => (i === index ? { ...c, ...patch } : c))
+    syncCertificadosState(atualizado)
+  }
+
+  const handleCertificadoUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -532,17 +639,33 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
     const reader = new FileReader()
     reader.onload = () => {
       const base64 = reader.result as string
-      setFormData(prev => ({
-        ...prev,
-        certificado_digital: {
-          ...prev.certificado_digital,
-          arquivo_nome: file.name,
-          arquivo_base64: base64,
-          arquivo_tamanho: file.size
-        }
-      }))
+      handleUpdateCertificadoPatch(index, {
+        arquivo_nome: file.name,
+        arquivo_base64: base64,
+        arquivo_tamanho: file.size
+      })
     }
     reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const handleClearCertificadoArquivo = (index: number) => {
+    handleUpdateCertificadoPatch(index, {
+      arquivo_nome: '',
+      arquivo_base64: '',
+      arquivo_tamanho: 0
+    })
+  }
+
+  const handleDownloadCertificado = (index: number) => {
+    const cert = getCertificadosList()[index]
+    if (!cert?.arquivo_base64) return
+    const link = document.createElement('a')
+    link.href = cert.arquivo_base64
+    link.download = cert.arquivo_nome || 'certificado.pfx'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const handleAditivoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1607,111 +1730,162 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
           )}
 
           {/* SLIDE 9: CERTIFICADO DIGITAL (.PFX) */}
-          {currentSlideObj.id === 'certificado' && (
-            <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
-              <div>
-                <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <KeyRound className="w-4 h-4" /> Pergunta 9 de 10
-                </div>
-                <h3 className="text-xl sm:text-2xl font-bold text-white">
-                  Importe seu Certificado Digital A1 (.pfx) e informe a Senha
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                  O certificado digital A1 é necessário para a emissão e assinatura eletrônica dos seus CTes e MDF-es na SEFAZ.
-                </p>
-              </div>
-
-              <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-5">
-                {/* Upload do Certificado */}
+          {currentSlideObj.id === 'certificado' && (() => {
+            const listaCerts = getCertificadosList()
+            return (
+              <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-2">
-                    Arquivo do Certificado Digital (.pfx / .p12):
-                  </label>
-
-                  <input
-                    type="file"
-                    id="cert-file"
-                    accept=".pfx,.p12,application/x-pkcs12"
-                    onChange={handleCertificadoUpload}
-                    className="hidden"
-                  />
-
-                  {formData.certificado_digital.arquivo_nome ? (
-                    <div className="flex items-center justify-between p-4 bg-slate-800/60 rounded-xl border border-emerald-500/40">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                          <Lock className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-white flex items-center gap-1.5">
-                            {formData.certificado_digital.arquivo_nome}
-                            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 uppercase">
-                              Anexado
-                            </span>
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {formData.certificado_digital.arquivo_tamanho 
-                              ? `${(formData.certificado_digital.arquivo_tamanho / 1024).toFixed(1)} KB` 
-                              : 'Certificado pronto'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <label
-                        htmlFor="cert-file"
-                        className="btn-secondary text-xs py-1.5 px-3 cursor-pointer"
-                      >
-                        Substituir Certificado
-                      </label>
-                    </div>
-                  ) : (
-                    <label
-                      htmlFor="cert-file"
-                      className="border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-xl p-6 bg-slate-900/40 text-center transition-all cursor-pointer flex flex-col items-center space-y-2 block"
-                    >
-                      <div className="w-12 h-12 rounded-full bg-brand-500/10 border border-brand-500/30 text-brand-400 flex items-center justify-center">
-                        <KeyRound className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-200">Clique para selecionar o certificado (.pfx)</p>
-                        <p className="text-xs text-slate-500 mt-0.5">Formatos suportados: .pfx ou .p12 (Certificado A1)</p>
-                      </div>
-                    </label>
-                  )}
-                </div>
-
-                {/* Senha do Certificado */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Senha do Certificado Digital:
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showCertSenha ? "text" : "password"}
-                      placeholder="Informe a senha do certificado A1..."
-                      value={formData.certificado_digital.senha}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        certificado_digital: { ...prev.certificado_digital, senha: e.target.value }
-                      }))}
-                      className="input-field text-sm pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCertSenha(!showCertSenha)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                      title={showCertSenha ? "Ocultar senha" : "Ver senha"}
-                    >
-                      {showCertSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                  <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
+                    <KeyRound className="w-4 h-4" /> Pergunta 9 de 10
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    🔒 A senha será utilizada unicamente para instalação e emissão dos documentos fiscais no servidor seguro.
+                  <h3 className="text-xl sm:text-2xl font-bold text-white">
+                    Importe seu Certificado Digital A1 (.pfx) e informe a Senha
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                    O certificado digital A1 é necessário para a emissão e assinatura eletrônica dos seus CTes e MDF-es na SEFAZ. Você pode adicionar mais de um certificado caso tenha múltiplas filiais/CNPJs.
                   </p>
                 </div>
+
+                <div className="space-y-4">
+                  {listaCerts.map((cert, index) => (
+                    <div key={cert.id || index} className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-extrabold uppercase px-2.5 py-1 rounded bg-brand-500/15 text-brand-300 border border-brand-500/30">
+                          Certificado Digital #{index + 1}
+                        </span>
+                        {listaCerts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCertificadoCard(index)}
+                            className="text-slate-500 hover:text-red-400 text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Remover este certificado"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="hidden sm:inline">Remover Certificado</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Upload do Certificado */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-2">
+                          Arquivo do Certificado Digital (.pfx / .p12):
+                        </label>
+
+                        <input
+                          type="file"
+                          id={`cert-file-${index}`}
+                          accept=".pfx,.p12,application/x-pkcs12"
+                          onChange={(e) => handleCertificadoUpload(index, e)}
+                          className="hidden"
+                        />
+
+                        {cert.arquivo_nome ? (
+                          <div className="flex items-center justify-between p-4 bg-slate-800/60 rounded-xl border border-emerald-500/40 flex-wrap gap-3">
+                            <div className="flex items-center space-x-3 min-w-0">
+                              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                                <Lock className="w-5 h-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-white flex items-center gap-1.5 flex-wrap">
+                                  <span className="truncate">{cert.arquivo_nome}</span>
+                                  <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 uppercase shrink-0">
+                                    Anexado
+                                  </span>
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  {cert.arquivo_tamanho
+                                    ? `${(cert.arquivo_tamanho / 1024).toFixed(1)} KB`
+                                    : 'Certificado pronto'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {cert.arquivo_base64 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadCertificado(index)}
+                                  className="text-xs py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+                                  title="Baixar certificado"
+                                >
+                                  <Download className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>Baixar</span>
+                                </button>
+                              )}
+                              <label
+                                htmlFor={`cert-file-${index}`}
+                                className="btn-secondary text-xs py-1.5 px-3 cursor-pointer"
+                              >
+                                Substituir Certificado
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => handleClearCertificadoArquivo(index)}
+                                className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
+                                title="Remover arquivo do certificado"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <label
+                            htmlFor={`cert-file-${index}`}
+                            className="border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-xl p-6 bg-slate-900/40 text-center transition-all cursor-pointer flex flex-col items-center space-y-2 block group"
+                          >
+                            <div className="w-12 h-12 rounded-full bg-brand-500/10 group-hover:bg-brand-500/20 border border-brand-500/30 text-brand-400 flex items-center justify-center transition-colors">
+                              <KeyRound className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">Clique para selecionar o certificado (.pfx)</p>
+                              <p className="text-xs text-slate-500 mt-0.5">Formatos suportados: .pfx ou .p12 (Certificado A1)</p>
+                            </div>
+                          </label>
+                        )}
+                      </div>
+
+                      {/* Senha do Certificado */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Senha do Certificado Digital:
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showCertSenha[index] ? 'text' : 'password'}
+                            placeholder="Informe a senha do certificado A1..."
+                            value={cert.senha || ''}
+                            onChange={(e) => handleUpdateCertificadoPatch(index, { senha: e.target.value })}
+                            className="input-field text-sm pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowCertSenha(prev => ({ ...prev, [index]: !prev[index] }))}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                            title={showCertSenha[index] ? 'Ocultar senha' : 'Ver senha'}
+                          >
+                            {showCertSenha[index] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          🔒 A senha será utilizada unicamente para instalação e emissão dos documentos fiscais no servidor seguro.
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={handleAddCertificado}
+                    className="w-full py-2.5 rounded-xl border border-dashed border-slate-700 hover:border-brand-500 bg-slate-900/30 hover:bg-brand-500/10 text-slate-300 hover:text-brand-300 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Adicionar outro Certificado Digital</span>
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* SLIDE 10: TABELA DE FRETE */}
           {currentSlideObj.id === 'tabela_frete' && (
@@ -2017,6 +2191,10 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
           {/* SLIDE 12: CONCLUSÃO E ENVIO */}
           {currentSlideObj.id === 'conclusao' && (() => {
             const { isCompleto, pendencias } = checkCheckpointCompleto(formData, isShopee)
+            const listaCerts = getCertificadosList()
+            const certsComArquivo = listaCerts.filter(c => c.arquivo_nome)
+            const certsPreenchidos = listaCerts.filter(c => c.arquivo_nome || (c.senha || '').trim())
+            const todasSenhasOk = certsPreenchidos.length > 0 && certsPreenchidos.every(c => (c.senha || '').trim())
 
             return (
               <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn py-2">
@@ -2066,10 +2244,15 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
                     <p className="font-bold text-emerald-400 uppercase text-[11px]">Arquivos & Certificado</p>
                     <p className="text-slate-300">
-                      <strong>Certificado:</strong> {formData.certificado_digital.arquivo_nome ? '✓ Anexado' : 'Pendente'}
+                      <strong>Certificado:</strong>{' '}
+                      {certsComArquivo.length > 1
+                        ? `✓ ${certsComArquivo.length} Anexados`
+                        : certsComArquivo.length === 1
+                        ? '✓ Anexado'
+                        : 'Pendente'}
                     </p>
                     <p className="text-slate-300">
-                      <strong>Senha Certificado:</strong> {formData.certificado_digital.senha ? '✓ Informada' : 'Pendente'}
+                      <strong>Senha Certificado:</strong> {todasSenhasOk ? '✓ Informada' : 'Pendente'}
                     </p>
                     <p className="text-slate-300">
                       <strong>Tabela Frete:</strong> {formData.tabela_frete.arquivo_nome ? '✓ Anexada' : 'Pendente'}

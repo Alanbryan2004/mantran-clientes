@@ -119,7 +119,7 @@ export function Clientes() {
   }
 
   const handleDeleteCliente = async (clienteDbId: string, baseNome: string, empresa: string) => {
-    if (!confirm(`Tem certeza que deseja DESATIVAR a empresa ${empresa}?\n\nOs dados completos serão migrados para a tabela de Clientes Desativados para histórico e a base ${baseNome} será liberada.`)) return
+    if (!confirm(`Tem certeza que deseja DESATIVAR a empresa ${empresa}?\n\nOs dados completos serão migrados para a tabela de Clientes Desativados para histórico e a base ${baseNome} será liberada.\n\nOs usuários da base e os acessos ao portal desta empresa (login da empresa e contatos com acesso) serão EXCLUÍDOS. Os contatos continuam cadastrados, como inativos.`)) return
     
     try {
       await api.desativarCliente(clienteDbId, baseNome, empresa)

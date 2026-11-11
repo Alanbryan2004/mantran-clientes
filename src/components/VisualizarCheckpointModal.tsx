@@ -24,8 +24,8 @@ export function VisualizarCheckpointModal({
   onEdit
 }: VisualizarCheckpointModalProps) {
   const [activeTab, setActiveTab] = useState<'cnpjs' | 'shopee' | 'usuarios' | 'nfse' | 'certificado' | 'frete' | 'cst_aditivo'>('cnpjs')
-  const [showCertSenha, setShowCertSenha] = useState(false)
-  const [copiedSenha, setCopiedSenha] = useState(false)
+  const [showCertSenha, setShowCertSenha] = useState<Record<number, boolean>>({})
+  const [copiedSenha, setCopiedSenha] = useState<Record<number, boolean>>({})
 
   if (!isOpen || !checkpoint) return null
 
@@ -51,6 +51,11 @@ export function VisualizarCheckpointModal({
         emitia_rps: nfse.emitia_rps
       }]
   const certificado = dados.certificado_digital || { arquivo_nome: '', arquivo_base64: '', senha: '' }
+  const certificadosLista: any[] = (
+    Array.isArray(dados.certificados_digitais) && dados.certificados_digitais.length > 0
+      ? dados.certificados_digitais
+      : [certificado]
+  ).filter((c: any) => c && (c.arquivo_base64 || c.arquivo_nome || c.senha))
   const frete = dados.tabela_frete || {}
   const cstConfig = dados.cst_config || { habilitar_cst: null, cst_por_processo: {}, arquivo_aditivo_nome: '', arquivo_aditivo_base64: '' }
 
@@ -64,11 +69,11 @@ export function VisualizarCheckpointModal({
     document.body.removeChild(link)
   }
 
-  const downloadCertificado = () => {
-    if (!certificado.arquivo_base64) return
+  const downloadCertificadoItem = (certItem: any) => {
+    if (!certItem?.arquivo_base64) return
     const link = document.createElement('a')
-    link.href = certificado.arquivo_base64
-    link.download = certificado.arquivo_nome || 'certificado.pfx'
+    link.href = certItem.arquivo_base64
+    link.download = certItem.arquivo_nome || 'certificado.pfx'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -102,11 +107,11 @@ export function VisualizarCheckpointModal({
     document.body.removeChild(link)
   }
 
-  const handleCopySenha = () => {
-    if (!certificado.senha) return
-    navigator.clipboard.writeText(certificado.senha)
-    setCopiedSenha(true)
-    setTimeout(() => setCopiedSenha(false), 2000)
+  const handleCopySenha = (idx: number, senha?: string) => {
+    if (!senha) return
+    navigator.clipboard.writeText(senha)
+    setCopiedSenha(prev => ({ ...prev, [idx]: true }))
+    setTimeout(() => setCopiedSenha(prev => ({ ...prev, [idx]: false })), 2000)
   }
 
   return (
@@ -159,7 +164,7 @@ export function VisualizarCheckpointModal({
             { id: 'shopee', label: 'Operações Shopee', icon: Truck },
             { id: 'usuarios', label: `Usuários (${usuarios.length})`, icon: Users },
             { id: 'nfse', label: 'NFSe', icon: FileText },
-            { id: 'certificado', label: 'Certificado Digital', icon: KeyRound },
+            { id: 'certificado', label: certificadosLista.length > 1 ? `Certificado Digital (${certificadosLista.length})` : 'Certificado Digital', icon: KeyRound },
             { id: 'frete', label: 'Tabela de Frete', icon: FileSpreadsheet },
             { id: 'cst_aditivo', label: 'CST & Aditivo', icon: FileText },
           ].map((tab) => {
@@ -477,70 +482,82 @@ export function VisualizarCheckpointModal({
           {activeTab === 'certificado' && (
             <div className="space-y-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Certificado Digital A1 (.pfx)
+                Certificado Digital A1 (.pfx) ({certificadosLista.length})
               </h3>
 
-              {certificado.arquivo_base64 || certificado.arquivo_nome || certificado.senha ? (
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
-                  {/* Arquivo */}
-                  <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700/60">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                        <Lock className="w-5 h-5" />
+              {certificadosLista.length > 0 ? (
+                <div className="space-y-4">
+                  {certificadosLista.map((certItem: any, idx: number) => (
+                    <div key={certItem.id || idx} className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+                      {certificadosLista.length > 1 && (
+                        <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">
+                            Certificado Digital #{idx + 1}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Arquivo */}
+                      <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700/60 flex-wrap gap-3">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                            <Lock className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-white truncate">{certItem.arquivo_nome || 'Certificado Digital .pfx'}</p>
+                            <p className="text-xs text-slate-400">
+                              {certItem.arquivo_tamanho ? `${(certItem.arquivo_tamanho / 1024).toFixed(1)} KB` : 'Pronto para download'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {certItem.arquivo_base64 && (
+                          <button
+                            type="button"
+                            onClick={() => downloadCertificadoItem(certItem)}
+                            className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Baixar Certificado</span>
+                          </button>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-white">{certificado.arquivo_nome || 'Certificado Digital .pfx'}</p>
-                        <p className="text-xs text-slate-400">
-                          {certificado.arquivo_tamanho ? `${(certificado.arquivo_tamanho / 1024).toFixed(1)} KB` : 'Pronto para download'}
-                        </p>
+
+                      {/* Senha */}
+                      <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Senha do Certificado Digital:</p>
+                          <p className="text-sm font-mono font-bold text-emerald-400">
+                            {certItem.senha 
+                              ? (showCertSenha[idx] ? certItem.senha : '••••••••••••') 
+                              : <span className="text-slate-500 italic font-sans font-normal">Não informada</span>}
+                          </p>
+                        </div>
+
+                        {certItem.senha && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowCertSenha(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                              className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+                            >
+                              {showCertSenha[idx] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              <span>{showCertSenha[idx] ? 'Ocultar' : 'Revelar Senha'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleCopySenha(idx, certItem.senha)}
+                              className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>{copiedSenha[idx] ? 'Copiada!' : 'Copiar'}</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
-
-                    {certificado.arquivo_base64 && (
-                      <button
-                        type="button"
-                        onClick={downloadCertificado}
-                        className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Baixar Certificado</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Senha */}
-                  <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Senha do Certificado Digital:</p>
-                      <p className="text-sm font-mono font-bold text-emerald-400">
-                        {certificado.senha 
-                          ? (showCertSenha ? certificado.senha : '••••••••••••') 
-                          : <span className="text-slate-500 italic font-sans font-normal">Não informada</span>}
-                      </p>
-                    </div>
-
-                    {certificado.senha && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowCertSenha(!showCertSenha)}
-                          className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
-                        >
-                          {showCertSenha ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          <span>{showCertSenha ? 'Ocultar' : 'Revelar Senha'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={handleCopySenha}
-                          className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>{copiedSenha ? 'Copiada!' : 'Copiar'}</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  ))}
                 </div>
               ) : (
                 <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-8 text-center text-slate-400 text-xs">

@@ -7,6 +7,60 @@ import { supabase } from './supabase'
 
 // Retorna o dia civil (YYYY-MM-DD) no fuso de Brasília, independente do fuso do ambiente/servidor.
 // Evita que um ponto batido à noite (ex.: 22:19) seja gravado no dia seguinte por causa do UTC.
+const _normNomeEmpresa = (s: string | null | undefined) =>
+  (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+// Acesso de PORTAL (tabela `usuario`, perfil Cliente) que pertence a uma empresa
+export interface UsuarioPortalEmpresa {
+  id: string
+  nome: string
+  login: string
+  email: string | null
+  origem: 'implantacao' | 'contato' // login antigo "<Empresa>@Mantran" | acesso de um contato da empresa
+  ativo: boolean
+}
+
+// Localiza os acessos de portal de uma empresa:
+//  - login antigo da implantação "<Empresa>@Mantran" (nome igual, ignorando acento, maiúsculas e pontuação);
+//  - acessos dos contatos da empresa (login = e-mail do contato, ticket_contatos.empresa_id = empresa).
+// Só considera perfil 'Cliente': nunca toca em funcionários. Não devolve senha.
+// Se outra empresa ATIVA tiver nome equivalente, o login antigo não é incluído (evita apagar o de outra empresa).
+export async function localizarUsuariosPortalDaEmpresa(clienteId: string, nomeEmpresa: string): Promise<UsuarioPortalEmpresa[]> {
+  const alvo = _normNomeEmpresa(nomeEmpresa)
+
+  const [{ data: contatos }, { data: usuarios, error }, { data: outrosClientes }] = await Promise.all([
+    supabase.from('ticket_contatos').select('email').eq('empresa_id', clienteId),
+    supabase.from('usuario').select('id, nome, login, ativo, email_pessoal').eq('perfil', 'Cliente'),
+    supabase.from('clientes').select('id, nome_empresa').neq('id', clienteId)
+  ])
+  if (error) throw error
+
+  const emailsContatos = new Set(
+    (contatos || []).map((c: any) => String(c.email || '').trim().toLowerCase()).filter(Boolean)
+  )
+  const nomeAmbiguo = !!alvo && (outrosClientes || []).some((c: any) => _normNomeEmpresa(c.nome_empresa) === alvo)
+
+  const achados: UsuarioPortalEmpresa[] = []
+  for (const u of (usuarios || []) as any[]) {
+    const login = String(u.login || '').trim()
+    const emailU = String(u.email_pessoal || '').trim().toLowerCase()
+    const ehLegado =
+      !!alvo && !nomeAmbiguo && /@mantran$/i.test(login) &&
+      (_normNomeEmpresa(login.replace(/@mantran$/i, '')) === alvo || _normNomeEmpresa(u.nome) === alvo)
+    const ehContato = !!emailU && emailsContatos.has(emailU)
+    if (!ehLegado && !ehContato) continue
+    achados.push({
+      id: u.id,
+      nome: u.nome || '',
+      login,
+      email: emailU || null,
+      origem: ehContato ? 'contato' : 'implantacao',
+      ativo: !!u.ativo
+    })
+  }
+  return achados
+}
+
 // Extrai todos os e-mails válidos associados a um registro da tabela `usuario`
 function extrairEmailsDoUsuario(u?: { login?: string | null; email_pessoal?: string | null; email_corporativo?: string | null } | null): string[] {
   if (!u) return []
@@ -138,8 +192,12 @@ export function checkCheckpointCompleto(dados: any, isShopee: boolean = true) {
   }
 
   // 8. Certificado Digital
-  const cert = dados?.certificado_digital
-  if (!cert?.arquivo_nome || !cert?.senha) {
+  const certsLista = Array.isArray(dados?.certificados_digitais) && dados.certificados_digitais.length > 0
+    ? dados.certificados_digitais
+    : (dados?.certificado_digital ? [dados.certificado_digital] : [])
+  const certsPreenchidos = certsLista.filter((c: any) => c?.arquivo_nome || (c?.senha || '').trim())
+  const hasValidCert = certsPreenchidos.length > 0 && certsPreenchidos.every((c: any) => c?.arquivo_nome && (c?.senha || '').trim())
+  if (!hasValidCert) {
     pendencias.push('Certificado Digital (.pfx) e Senha')
   }
 
@@ -582,6 +640,10 @@ export const api = {
       .select('*')
       .eq('cliente_id', clienteId)
 
+    // 3b. Coletar os acessos de PORTAL da empresa (login antigo @Mantran e acessos dos contatos).
+    // Entram no histórico (sem senha) e são excluídos junto com a empresa, no passo 9.
+    const usuariosPortal = await localizarUsuariosPortalDaEmpresa(clienteId, cliente?.nome_empresa || nomeEmpresa || '')
+
     // 4. Coletar base vinculada
     const baseData = await api.getBaseByName(baseNome).catch(() => null)
 
@@ -613,6 +675,7 @@ export const api = {
       cliente,
       base: baseData,
       usuarios_gpo: usuariosGpo || [],
+      usuarios_portal: usuariosPortal, // acessos de portal removidos (sem senha)
       modulos: modulos || [],
       implantacao: implantacaoSnapshot,
       desativado_em: new Date().toISOString(),
@@ -665,6 +728,21 @@ export const api = {
     // 9. Excluir dependências ativas
     await api.deleteUsuariosByCliente(clienteId)
     await api.deleteModulosByCliente(clienteId)
+
+    // 9b. Excluir os acessos de portal da empresa (quem tinha login deixa de conseguir entrar).
+    // Os contatos NÃO são apagados (preservam o histórico de chamados); ficam marcados como inativos.
+    if (usuariosPortal.length > 0) {
+      const { error: errPortal } = await supabase
+        .from('usuario')
+        .delete()
+        .in('id', usuariosPortal.map(u => u.id))
+        .eq('perfil', 'Cliente') // trava extra: nunca remove funcionário
+      if (errPortal) throw errPortal
+      await sincronizarStatusContatosPorEmails(
+        usuariosPortal.map(u => u.email || '').filter(Boolean),
+        false
+      )
+    }
 
     // 10. Excluir cliente da tabela ativa
     await api.deleteCliente(clienteId)
@@ -1786,8 +1864,15 @@ export const api = {
       }
 
       // P9. Certificado Digital
-      if (dados?.certificado_digital?.arquivo_nome || dados?.certificado_digital?.senha) {
-        respondidas.push(`P9: Certificado Digital (${dados.certificado_digital.arquivo_nome ? 'Anexado' : 'Senha'})`)
+      const certsResp = Array.isArray(dados?.certificados_digitais) && dados.certificados_digitais.length > 0
+        ? dados.certificados_digitais.filter((c: any) => c?.arquivo_nome || c?.senha)
+        : (dados?.certificado_digital?.arquivo_nome || dados?.certificado_digital?.senha ? [dados.certificado_digital] : [])
+      if (certsResp.length > 0) {
+        respondidas.push(
+          certsResp.length > 1
+            ? `P9: Certificado Digital (${certsResp.length} certificados)`
+            : `P9: Certificado Digital (${certsResp[0].arquivo_nome ? 'Anexado' : 'Senha'})`
+        )
       }
 
       // P10. Tabela de Frete
