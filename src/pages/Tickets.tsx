@@ -2072,7 +2072,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
     const empresa = clientes.find(cl => cl.id === c.empresa_id)?.nome_empresa || ''
     const pergunta =
       `${reenvio ? 'Reenviar o convite de acesso' : 'Liberar o acesso'} para ${c.nome} (${c.email}) da empresa ${empresa}?\n\n` +
-      `Ele receberá um e-mail com um link para criar a própria senha. O login será o e-mail dele.`
+      `Ele receberá um e-mail com o link do Portal Mantran Clientes e o botão para criar a própria senha. O login será o e-mail dele.`
     if (!window.confirm(pergunta)) return
 
     setLiberandoId(c.id)

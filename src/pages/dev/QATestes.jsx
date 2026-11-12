@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import AppShell from "./components/AppShell";
 import { apiGet, apiPost, apiPatch, apiDelete, criarNotificacao } from "./services/api";
 import { useAuth } from "./contexts/AuthContext";
@@ -271,6 +272,37 @@ export default function QATestes() {
   useEffect(() => {
     carregar();
   }, []);
+
+  // Link direto vindo do sino de notificações: /dev/qa?tela=NOME[&cenario=ID]
+  // Abre o DETALHE da tela em questão (e expande o cenário apontado), em vez de só a lista geral.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const nomeTelaParam = searchParams.get("tela");
+    if (!nomeTelaParam || loading) return;
+
+    const norm = (s) => String(s || "").trim().toLowerCase();
+    const alvo = telas.find((t) => t.tela === nomeTelaParam) || telas.find((t) => norm(t.tela) === norm(nomeTelaParam));
+
+    if (alvo) {
+      setTelaExpandida(alvo.tela);
+      const cenarioParam = searchParams.get("cenario");
+      if (cenarioParam) {
+        const c = (cenarios || []).find((x) => String(x.id) === cenarioParam);
+        if (c) {
+          setCenariosExpandidos((prev) => {
+            const next = new Set(prev);
+            next.add(c.id);
+            return next;
+          });
+        }
+      }
+    } else {
+      // Tela não está na lista (ex.: ainda não finalizada): deixa a lista já filtrada pelo nome
+      setBuscaTela(nomeTelaParam);
+    }
+    // Limpa o parâmetro para não reabrir ao voltar para a lista
+    setSearchParams({}, { replace: true });
+  }, [searchParams, loading, telas, cenarios]);
 
   // Default: se o usuário logado for Técnico e tiver telas dele, já traz filtrado apenas as dele.
   // Se for QA e tiver homologações dele, traz filtrado apenas as dele.

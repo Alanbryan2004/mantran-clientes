@@ -66,6 +66,15 @@ export function DefinirSenha() {
             <p className="text-sm text-gray-600">Seu login é o seu e-mail:</p>
             <p className="my-2 inline-block px-4 py-2 rounded bg-slate-100 text-sm font-bold text-slate-900 break-all">{login}</p>
             <p className="text-xs text-gray-500">Entre com a {redefinicao ? 'nova senha' : 'senha que você acabou de criar'}.</p>
+            <div className="mt-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-gray-600">
+              <span className="block font-semibold text-gray-700 mb-0.5">Endereço do Portal Mantran Clientes:</span>
+              <a
+                href={typeof window !== 'undefined' ? window.location.origin : '/'}
+                className="font-bold text-[#8b0000] underline break-all"
+              >
+                {typeof window !== 'undefined' ? window.location.origin : 'https://mantran-clientes-five.vercel.app'}
+              </a>
+            </div>
             <button
               type="button"
               onClick={irParaLogin}

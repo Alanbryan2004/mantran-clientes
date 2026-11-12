@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import AppShell from "./components/AppShell";
 import { apiGet, rpc, apiPatch, limparApontamentosAntigos, criarNotificacao } from "./services/api";
 import { useAuth } from "./contexts/AuthContext";
@@ -314,6 +315,22 @@ export default function MinhasTarefas() {
       tela: tarefa.tela || tarefa.nome_tabela
     });
   }
+
+  // Link direto vindo do sino de notificações: /dev/tarefas?tela=NOME
+  // Abre direto o modal "Apontamentos de Erro do QA" da tela em questão (se ela tiver erro a corrigir).
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const nomeTelaParam = searchParams.get("tela");
+    if (!nomeTelaParam || loading) return;
+
+    const norm = (s) => String(s || "").trim().toLowerCase();
+    const candidatas = (tarefas || []).filter((t) => norm(t.tela || t.nome_tabela) === norm(nomeTelaParam));
+    const comErro = candidatas.find((t) => getErrosQaDaTarefa(t).length > 0);
+    if (comErro) abrirModalQa(comErro);
+
+    // Limpa o parâmetro para não reabrir depois
+    setSearchParams({}, { replace: true });
+  }, [searchParams, loading, tarefas, cenariosQa]);
 
   // Abre o sub-modal de correção de UM cenário (print + descrição)
   function abrirModalCorrecao(cenario) {

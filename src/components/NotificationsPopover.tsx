@@ -574,6 +574,33 @@ export function NotificationsPopover() {
     }
   }
 
+  // Destino do botão do modal de QA: abre DIRETO a tela em questão (e o cenário, quando houver),
+  // não apenas a página geral. QA & Testes e Minhas Tarefas leem ?tela= e ?cenario= da URL.
+  //  - erro apontado (qa_reprovado): o técnico da tela vai direto ao erro em Minhas Tarefas;
+  //    quem não é o técnico (ex.: Administrador) vê a mesma tela em QA & Testes;
+  //  - correção pronta (qa_corrigido) e aprovação: a tela em QA & Testes (técnico: Minhas Tarefas na aprovação).
+  const destinoQa = (n: any): { rota: string; rotulo: string } => {
+    const d = n?.dados_extras || {}
+    const consulta = (comCenario: boolean) => {
+      const p = new URLSearchParams()
+      if (d.tela) p.set('tela', String(d.tela))
+      if (comCenario && d.cenario_id) p.set('cenario', String(d.cenario_id))
+      const s = p.toString()
+      return s ? `?${s}` : ''
+    }
+
+    if (n?.tipo === 'qa_reprovado') {
+      const ehTecnicoDaTela = isTecnico || (!!d.tecnico_id && d.tecnico_id === currentUser?.id)
+      return ehTecnicoDaTela
+        ? { rota: `/dev/tarefas${consulta(true)}`, rotulo: 'Abrir o erro desta tela' }
+        : { rota: `/dev/qa${consulta(true)}`, rotulo: 'Abrir esta tela no QA' }
+    }
+    if (n?.tipo === 'qa_aprovado' && isTecnico) {
+      return { rota: '/dev/tarefas', rotulo: 'Ver em Minhas Tarefas' }
+    }
+    return { rota: `/dev/qa${consulta(false)}`, rotulo: 'Abrir esta tela no QA' }
+  }
+
   const formatRelativeTime = (isoString?: string) => {
     if (!isoString) return ''
     try {
@@ -1233,28 +1260,16 @@ export function NotificationsPopover() {
               <button
                 type="button"
                 onClick={() => {
+                  const destino = destinoQa(modalQaDetalhes)
                   setModalQaDetalhes(null)
                   setIsOpen(false)
-                  if (modalQaDetalhes.tipo === 'qa_reprovado') {
-                    navigate('/dev/tarefas')
-                  } else if (modalQaDetalhes.tipo === 'qa_aprovado') {
-                    if (isTecnico) {
-                      navigate('/dev/tarefas')
-                    } else {
-                      navigate('/dev/qa')
-                    }
-                  } else {
-                    navigate('/dev/qa')
-                  }
+                  navigate(destino.rota)
                 }}
+                title={modalQaDetalhes.dados_extras?.tela ? `Tela: ${modalQaDetalhes.dados_extras.tela}` : undefined}
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                {modalQaDetalhes.tipo === 'qa_reprovado'
-                  ? 'Ir para Minhas Tarefas'
-                  : modalQaDetalhes.tipo === 'qa_aprovado'
-                    ? (isTecnico ? 'Ver em Minhas Tarefas' : 'Ir para QA & Testes')
-                    : 'Ir para QA & Testes'}
+                {destinoQa(modalQaDetalhes).rotulo}
               </button>
             </div>
           </div>

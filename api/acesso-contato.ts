@@ -553,47 +553,63 @@ async function criarTransporte(supabase: SupabaseClient) {
 const botao = (link: string, rotulo: string) =>
   `<p style="margin:24px 0"><a href="${esc(link)}" style="background:#8b0000;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:bold;display:inline-block">${esc(rotulo)}</a></p>`
 const caixaLogin = (email: string) =>
-  `<p style="font-size:16px;font-weight:bold;background:#f1f5f9;padding:10px 14px;border-radius:6px;display:inline-block">${esc(email)}</p>`
+  `<p style="font-size:16px;font-weight:bold;background:#f1f5f9;padding:10px 14px;border-radius:6px;display:inline-block;margin:4px 0 16px">${esc(email)}</p>`
+const caixaSite = (siteUrl: string) =>
+  `<div style="background:#f8fafc;border:1px solid #e2e8f0;padding:12px 16px;border-radius:8px;margin:16px 0">
+     <p style="margin:0 0 4px;font-size:12px;color:#475569;font-weight:bold;text-transform:uppercase">Link de acesso ao Portal Mantran Clientes:</p>
+     <a href="${esc(siteUrl)}" style="font-size:15px;font-weight:bold;color:#8b0000;text-decoration:underline;word-break:break-all">${esc(siteUrl)}</a>
+   </div>`
 const moldura = (titulo: string, corpo: string) =>
   `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1e293b"><h2 style="color:#8b0000;margin:0 0 12px">${esc(titulo)}</h2>${corpo}</div>`
 
-async function enviarEmailConvite(supabase: SupabaseClient, d: { para: string; nome: string; empresa: string; link: string }) {
+async function enviarEmailConvite(supabase: SupabaseClient, d: { para: string; nome: string; empresa: string; link: string; site: string }) {
   const t = await criarTransporte(supabase)
   const empresaTxt = d.empresa ? ` para a empresa <strong>${esc(d.empresa)}</strong>` : ''
   const html = moldura('Seu acesso ao Mantran Clientes',
     `<p>Olá, ${esc(d.nome)}!</p>
-     <p>A Mantran liberou o seu acesso ao <strong>Mantran Clientes</strong>${empresaTxt}. Para começar, crie a sua senha:</p>
+     <p>A Mantran liberou o seu acesso ao <strong>Mantran Clientes</strong>${empresaTxt}. Para começar, crie a sua senha clicando no botão abaixo:</p>
      ${botao(d.link, 'Criar minha senha')}
-     <p>Seu login é o seu e-mail:</p>${caixaLogin(d.para)}
-     <p style="font-size:12px;color:#64748b">O link vale por 7 dias e só pode ser usado uma vez. Se você não reconhece este e-mail, ignore esta mensagem e nada será ativado.</p>`)
+     <p style="margin-bottom:4px">Seu login é o seu e-mail:</p>${caixaLogin(d.para)}
+     ${caixaSite(d.site)}
+     <p style="font-size:12px;color:#64748b">O link de criação de senha vale por 7 dias e só pode ser usado uma vez. Após criar sua senha, acesse o portal sempre pelo link acima. Se você não reconhece este e-mail, ignore esta mensagem e nada será ativado.</p>`)
   const texto = `Olá, ${d.nome}!\n\nA Mantran liberou o seu acesso ao Mantran Clientes${d.empresa ? ` para a empresa ${d.empresa}` : ''}.\n` +
-    `Para criar a sua senha, abra o link (vale por 7 dias, uso único):\n${d.link}\n\nSeu login é o seu e-mail: ${d.para}\n\nSe você não reconhece este e-mail, ignore esta mensagem.`
+    `Para criar a sua senha, abra o link (vale por 7 dias, uso único):\n${d.link}\n\n` +
+    `Seu login é o seu e-mail: ${d.para}\n` +
+    `Link de acesso ao Portal Mantran Clientes: ${d.site}\n\n` +
+    `Se você não reconhece este e-mail, ignore esta mensagem.`
   await t.enviar({ to: d.para, subject: 'Seu acesso ao Mantran Clientes', text: texto, html })
 }
 
-async function enviarEmailRedefinicao(supabase: SupabaseClient, d: { para: string; nome: string; link: string }) {
+async function enviarEmailRedefinicao(supabase: SupabaseClient, d: { para: string; nome: string; link: string; site: string }) {
   const t = await criarTransporte(supabase)
   const html = moldura('Redefinição de senha',
     `<p>Olá, ${esc(d.nome)}!</p>
      <p>A equipe da Mantran enviou este link para você criar uma <strong>nova senha</strong> de acesso ao <strong>Mantran Clientes</strong>:</p>
      ${botao(d.link, 'Criar nova senha')}
-     <p>Seu login continua sendo o seu e-mail:</p>${caixaLogin(d.para)}
+     <p style="margin-bottom:4px">Seu login continua sendo o seu e-mail:</p>${caixaLogin(d.para)}
+     ${caixaSite(d.site)}
      <p style="font-size:12px;color:#64748b">O link vale por 24 horas e só pode ser usado uma vez. Se você não pediu isso, ignore esta mensagem: a sua senha atual continua valendo.</p>`)
   const texto = `Olá, ${d.nome}!\n\nA equipe da Mantran enviou este link para você criar uma nova senha de acesso ao Mantran Clientes (vale por 24 horas, uso único):\n${d.link}\n\n` +
-    `Seu login continua sendo o seu e-mail: ${d.para}\n\nSe você não pediu isso, ignore esta mensagem: a sua senha atual continua valendo.`
+    `Seu login continua sendo o seu e-mail: ${d.para}\n` +
+    `Link de acesso ao Portal Mantran Clientes: ${d.site}\n\n` +
+    `Se você não pediu isso, ignore esta mensagem: a sua senha atual continua valendo.`
   await t.enviar({ to: d.para, subject: 'Redefinição de senha - Mantran Clientes', text: texto, html })
 }
 
-async function enviarEmailConfirmacao(supabase: SupabaseClient, d: { para: string; nome: string; empresa: string; link: string }) {
+async function enviarEmailConfirmacao(supabase: SupabaseClient, d: { para: string; nome: string; empresa: string; link: string; site: string }) {
   const t = await criarTransporte(supabase)
   const html = moldura('Confirme seu cadastro',
     `<p>Olá, ${esc(d.nome)}!</p>
      <p>Recebemos um pedido de cadastro no <strong>Mantran Clientes</strong> para a empresa <strong>${esc(d.empresa)}</strong>. Para ativar o seu acesso, confirme o seu e-mail:</p>
      ${botao(d.link, 'Confirmar meu cadastro')}
-     <p>Depois de confirmar, entre com o seu e-mail como login e a senha que você criou no cadastro:</p>${caixaLogin(d.para)}
+     <p style="margin-bottom:4px">Depois de confirmar, entre com o seu e-mail como login e a senha que você criou no cadastro:</p>${caixaLogin(d.para)}
+     ${caixaSite(d.site)}
      <p style="font-size:12px;color:#64748b">O link vale por 24 horas. Se você não fez este cadastro, ignore esta mensagem e nada será ativado.</p>`)
   const texto = `Olá, ${d.nome}!\n\nRecebemos um pedido de cadastro no Mantran Clientes para a empresa ${d.empresa}.\n` +
-    `Para ativar o seu acesso, abra o link (vale por 24 horas):\n${d.link}\n\nDepois de confirmar, entre com o seu e-mail (${d.para}) e a senha que você criou no cadastro.\n\nSe você não fez este cadastro, ignore esta mensagem.`
+    `Para ativar o seu acesso, abra o link (vale por 24 horas):\n${d.link}\n\n` +
+    `Depois de confirmar, entre com o seu e-mail (${d.para}) e a senha que você criou no cadastro.\n` +
+    `Link de acesso ao Portal Mantran Clientes: ${d.site}\n\n` +
+    `Se você não fez este cadastro, ignore esta mensagem.`
   await t.enviar({ to: d.para, subject: 'Confirme seu cadastro - Mantran Clientes', text: texto, html })
 }
 
@@ -642,7 +658,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const token = assinarToken(secret, { u: convite.usuarioId, e: convite.email, x: Date.now() + VALIDADE_CONVITE_MS, v: convite.marcadorUso })
         const link = `${site}/definir-senha?t=${encodeURIComponent(token)}`
         try {
-          await enviarEmailConvite(supabase, { para: convite.email, nome: convite.nome, empresa: convite.empresa, link })
+          await enviarEmailConvite(supabase, { para: convite.email, nome: convite.nome, empresa: convite.empresa, link, site })
         } catch (e) {
           console.error('Acesso de contatos: falha ao enviar e-mail:', e)
           // Não deixa um usuário "órfão" (sem e-mail enviado) para trás
@@ -663,7 +679,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const token = assinarToken(secret, { u: pedido.usuarioId, e: pedido.email, x: Date.now() + VALIDADE_REDEFINICAO_MS, v: pedido.marcadorUso, r: true })
         const link = `${site}/definir-senha?t=${encodeURIComponent(token)}`
         try {
-          await enviarEmailRedefinicao(supabase, { para: pedido.email, nome: pedido.nome, link })
+          await enviarEmailRedefinicao(supabase, { para: pedido.email, nome: pedido.nome, link, site })
         } catch (e) {
           console.error('Acesso de contatos: falha ao enviar e-mail de redefinição:', e)
           res.status(502).json({ ok: false, erro: 'Não foi possível enviar o e-mail. Verifique a configuração de e-mail e tente novamente.' })
@@ -689,7 +705,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           cnpj: body.cnpj, nome: body.nome, email: body.email, senha: String(body.senha ?? ''), confirmarSenha: String(body.confirmarSenha ?? '')
         }, site)
         try {
-          await enviarEmailConfirmacao(supabase, { para: c.email, nome: c.nome, empresa: c.empresaNome, link: c.link })
+          await enviarEmailConfirmacao(supabase, { para: c.email, nome: c.nome, empresa: c.empresaNome, link: c.link, site })
         } catch (e) {
           console.error('Autocadastro: falha ao enviar e-mail:', e)
           // Não deixa um cadastro "órfão" (sem e-mail de confirmação) para trás

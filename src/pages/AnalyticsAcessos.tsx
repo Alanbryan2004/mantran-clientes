@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
-  BarChart3, Users, UserPlus, BookOpen, Video, Eye, RefreshCw, Monitor, Trophy, ExternalLink, Lock, X
+  BarChart3, Users, UserPlus, BookOpen, Video, Eye, RefreshCw, Monitor, Trophy, ExternalLink, Lock, X,
+  ChevronDown, ChevronUp, Building2, Globe, ShieldCheck
 } from 'lucide-react'
 import { getAnalyticsMetricas, type AnalyticsResumo } from '../lib/analytics'
 import { permissionsApi } from '../lib/permissions'
@@ -24,14 +25,23 @@ export function AnalyticsAcessos() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string>(() => new Date().toLocaleTimeString('pt-BR'))
   const [novosAberto, setNovosAberto] = useState(false) // lista do card "Novos Usuários"
+  const [cardModalAberto, setCardModalAberto] = useState<'acessos' | 'faq' | 'academia' | 'usuarios_ativos' | null>(null)
+  const [filtroModalTipo, setFiltroModalTipo] = useState<'todos' | 'cliente' | 'visitante' | 'equipe'>('todos')
+  const [faqExpandido, setFaqExpandido] = useState<string | null>(null) // card do manual expandido
+  const [filtroTipoFaq, setFiltroTipoFaq] = useState<'todos' | 'cliente' | 'visitante' | 'equipe'>('todos')
 
-  // Fecha a lista de novos usuários com Esc
+  // Fecha os modais dos cards com Esc
   useEffect(() => {
-    if (!novosAberto) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setNovosAberto(false) }
+    if (!novosAberto && !cardModalAberto) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setNovosAberto(false)
+        setCardModalAberto(null)
+      }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [novosAberto])
+  }, [novosAberto, cardModalAberto])
 
   async function carregarDados(filtro = periodo) {
     setLoading(true)
@@ -163,10 +173,17 @@ export function AnalyticsAcessos() {
         </div>
       </div>
 
-      {/* Cards de Métricas Principais */}
+      {/* Cards de Métricas Principais (todos clicáveis para detalhar) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Total Acessos */}
-        <div className="bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-slate-700 transition-all flex items-center gap-3.5">
+        <button
+          type="button"
+          onClick={() => { setFiltroModalTipo('todos'); setCardModalAberto('acessos') }}
+          disabled={loading}
+          aria-haspopup="dialog"
+          title="Ver detalhes das navegações de tela registradas no período"
+          className="w-full text-left bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-blue-500/50 hover:bg-slate-800/40 transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-wait"
+        >
           <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
             <Eye className="w-5 h-5" />
           </div>
@@ -175,12 +192,19 @@ export function AnalyticsAcessos() {
             <div className="text-2xl font-black text-white mt-0.5">
               {loading ? '…' : (metricas?.totalAcessos || 0).toLocaleString('pt-BR')}
             </div>
-            <span className="text-[10px] text-slate-500 block truncate">Navegações de tela registradas</span>
+            <span className="text-[10px] text-slate-400 block truncate">Navegações de tela · clique para ver</span>
           </div>
-        </div>
+        </button>
 
         {/* Manuais FAQ Lidos */}
-        <div className="bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-slate-700 transition-all flex items-center gap-3.5">
+        <button
+          type="button"
+          onClick={() => { setFiltroModalTipo('todos'); setCardModalAberto('faq') }}
+          disabled={loading}
+          aria-haspopup="dialog"
+          title="Ver quais manuais do FAQ foram lidos e por quais empresas/usuários"
+          className="w-full text-left bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-emerald-500/50 hover:bg-slate-800/40 transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-wait"
+        >
           <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
             <BookOpen className="w-5 h-5" />
           </div>
@@ -189,12 +213,19 @@ export function AnalyticsAcessos() {
             <div className="text-2xl font-black text-emerald-300 mt-0.5">
               {loading ? '…' : (metricas?.totalFaqLidos || 0).toLocaleString('pt-BR')}
             </div>
-            <span className="text-[10px] text-emerald-400/70 block truncate">Consultas aos procedimentos</span>
+            <span className="text-[10px] text-emerald-400/70 block truncate">Consultas ao FAQ · clique para ver</span>
           </div>
-        </div>
+        </button>
 
         {/* Vídeos Assistidos */}
-        <div className="bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-slate-700 transition-all flex items-center gap-3.5">
+        <button
+          type="button"
+          onClick={() => { setFiltroModalTipo('todos'); setCardModalAberto('academia') }}
+          disabled={loading}
+          aria-haspopup="dialog"
+          title="Ver quais treinamentos da Academia foram assistidos e por quem"
+          className="w-full text-left bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-purple-500/50 hover:bg-slate-800/40 transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 disabled:cursor-wait"
+        >
           <div className="w-11 h-11 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
             <Video className="w-5 h-5" />
           </div>
@@ -203,12 +234,19 @@ export function AnalyticsAcessos() {
             <div className="text-2xl font-black text-purple-300 mt-0.5">
               {loading ? '…' : (metricas?.totalVideosAssistidos || 0).toLocaleString('pt-BR')}
             </div>
-            <span className="text-[10px] text-purple-400/70 block truncate">Treinamentos reproduzidos</span>
+            <span className="text-[10px] text-purple-400/70 block truncate">Treinamentos · clique para ver</span>
           </div>
-        </div>
+        </button>
 
         {/* Usuários Ativos */}
-        <div className="bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-slate-700 transition-all flex items-center gap-3.5">
+        <button
+          type="button"
+          onClick={() => { setFiltroModalTipo('todos'); setCardModalAberto('usuarios_ativos') }}
+          disabled={loading}
+          aria-haspopup="dialog"
+          title="Ver quais clientes e colaboradores estiveram ativos no período"
+          className="w-full text-left bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-amber-500/50 hover:bg-slate-800/40 transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:cursor-wait"
+        >
           <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
             <Users className="w-5 h-5" />
           </div>
@@ -217,9 +255,9 @@ export function AnalyticsAcessos() {
             <div className="text-2xl font-black text-amber-300 mt-0.5">
               {loading ? '…' : (metricas?.totalUsuariosAtivos || 0).toLocaleString('pt-BR')}
             </div>
-            <span className="text-[10px] text-amber-400/70 block truncate">Clientes e equipe no período</span>
+            <span className="text-[10px] text-amber-400/70 block truncate">Clientes e equipe · clique para ver</span>
           </div>
-        </div>
+        </button>
 
         {/* Novos Usuários Cadastrados (clique abre a lista de contatos e empresas) */}
         <button
@@ -329,7 +367,7 @@ export function AnalyticsAcessos() {
                   </div>
                   <div>
                     <h3 className="text-sm sm:text-base font-black text-white">Top Manuais do FAQ Mais Acessados</h3>
-                    <p className="text-xs text-slate-400">Procedimentos passo a passo com mais cliques e leituras</p>
+                    <p className="text-xs text-slate-400">Clique em qualquer manual para expandir e ver quais empresas, clientes ou visitantes acessaram</p>
                   </div>
                 </div>
                 <Link
@@ -350,49 +388,290 @@ export function AnalyticsAcessos() {
                   {metricas?.topFaq.map((item, idx) => {
                     const pct = Math.round((item.acessos / maxFaqAcessos) * 100)
                     const slug = gerarSlugFaq(item.titulo)
+                    const cardKey = item.id || `${item.titulo}-${idx}`
+                    const isExpanded = faqExpandido === cardKey
+                    const detalhesFiltrados = (item.detalhes || []).filter(d =>
+                      filtroTipoFaq === 'todos' ? true : d.tipo === filtroTipoFaq
+                    )
+
                     return (
                       <div
-                        key={item.id || idx}
-                        className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 hover:border-slate-700 transition-all group"
+                        key={cardKey}
+                        className={clsx(
+                          "bg-slate-900/60 border rounded-xl transition-all overflow-hidden",
+                          isExpanded
+                            ? "border-emerald-500/50 bg-slate-900/90 shadow-lg shadow-emerald-950/20"
+                            : "border-slate-800/80 hover:border-slate-700"
+                        )}
                       >
-                        <div className="flex items-center justify-between gap-3 mb-1.5">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span className={clsx(
-                              "w-6 h-6 rounded-md flex items-center justify-center text-xs font-black shrink-0",
-                              idx === 0 ? "bg-amber-500 text-slate-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.4)]" :
-                              idx === 1 ? "bg-slate-300 text-slate-900 font-bold" :
-                              idx === 2 ? "bg-amber-700 text-white font-bold" :
-                              "bg-slate-800 text-slate-400"
-                            )}>
-                              {idx + 1}
-                            </span>
-                            <div className="min-w-0">
-                              <Link
-                                to={`/faq/${slug}`}
-                                className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-400 transition-colors truncate block"
-                                title={item.titulo}
-                              >
-                                {item.titulo}
-                              </Link>
-                              <span className="text-[10px] text-slate-500 block truncate">
-                                Seção: {item.categoria}
+                        {/* Cabeçalho clicável do Card */}
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={isExpanded}
+                          onClick={() => {
+                            if (isExpanded) {
+                              setFaqExpandido(null)
+                            } else {
+                              setFaqExpandido(cardKey)
+                              setFiltroTipoFaq('todos')
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              if (isExpanded) {
+                                setFaqExpandido(null)
+                              } else {
+                                setFaqExpandido(cardKey)
+                                setFiltroTipoFaq('todos')
+                              }
+                            }
+                          }}
+                          className="p-3 cursor-pointer select-none group"
+                        >
+                          <div className="flex items-center justify-between gap-3 mb-1.5">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className={clsx(
+                                "w-6 h-6 rounded-md flex items-center justify-center text-xs font-black shrink-0",
+                                idx === 0 ? "bg-amber-500 text-slate-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.4)]" :
+                                idx === 1 ? "bg-slate-300 text-slate-900 font-bold" :
+                                idx === 2 ? "bg-amber-700 text-white font-bold" :
+                                "bg-slate-800 text-slate-400"
+                              )}>
+                                {idx + 1}
                               </span>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-400 transition-colors truncate block"
+                                    title={item.titulo}
+                                  >
+                                    {item.titulo}
+                                  </span>
+                                  <Link
+                                    to={`/faq/${slug}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Abrir página deste manual no FAQ"
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 hover:bg-emerald-500/20 hover:text-emerald-300 border border-slate-700/80 transition-colors shrink-0"
+                                  >
+                                    <span>Abrir</span>
+                                    <ExternalLink className="w-2.5 h-2.5" />
+                                  </Link>
+                                </div>
+                                <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 mt-0.5">
+                                  <span className="text-[10px] text-slate-500 truncate">
+                                    Seção: {item.categoria}
+                                  </span>
+                                  {item.acessosClientes > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400/90">
+                                      <Building2 className="w-2.5 h-2.5" />
+                                      {item.acessosClientes} cliente{item.acessosClientes > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {item.acessosVisitantes > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400/90">
+                                      <Globe className="w-2.5 h-2.5" />
+                                      {item.acessosVisitantes} visitante{item.acessosVisitantes > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {item.acessosEquipe > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-400/90">
+                                      <ShieldCheck className="w-2.5 h-2.5" />
+                                      {item.acessosEquipe} equipe
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2.5 shrink-0">
+                              <div className="text-right">
+                                <span className="text-sm sm:text-base font-black text-emerald-400 font-mono">
+                                  {item.acessos}
+                                </span>
+                                <span className="text-[10px] text-slate-500 block">acesso{item.acessos > 1 ? 's' : ''}</span>
+                              </div>
+                              <div className={clsx(
+                                "w-7 h-7 rounded-lg flex items-center justify-center border transition-colors",
+                                isExpanded
+                                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                                  : "bg-slate-800/80 border-slate-700/70 text-slate-400 group-hover:text-white group-hover:border-slate-600"
+                              )}>
+                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </div>
                             </div>
                           </div>
-                          <div className="text-right shrink-0">
-                            <span className="text-sm sm:text-base font-black text-emerald-400 font-mono">
-                              {item.acessos}
-                            </span>
-                            <span className="text-[10px] text-slate-500 block">acesso{item.acessos > 1 ? 's' : ''}</span>
+
+                          {/* Barra de popularidade */}
+                          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${Math.max(5, pct)}%` }}
+                            />
                           </div>
                         </div>
-                        {/* Barra de popularidade */}
-                        <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                            style={{ width: `${Math.max(5, pct)}%` }}
-                          />
-                        </div>
+
+                        {/* Painel Expandido: Detalhamento de Quem Acessou por Empresa / Usuário / Visitante */}
+                        {isExpanded && (
+                          <div className="border-t border-slate-800 bg-slate-950/60 p-3.5 sm:p-4 space-y-3">
+                            {/* Resumo / Filtros rápidos por Tipo de Acesso */}
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroTipoFaq('todos')}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                    filtroTipoFaq === 'todos'
+                                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                                  )}
+                                >
+                                  <span>Todos</span>
+                                  <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{item.acessos}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroTipoFaq('cliente')}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                    filtroTipoFaq === 'cliente'
+                                      ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-300"
+                                  )}
+                                >
+                                  <Building2 className="w-3 h-3 text-amber-400" />
+                                  <span>Clientes</span>
+                                  <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{item.acessosClientes}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroTipoFaq('visitante')}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                    filtroTipoFaq === 'visitante'
+                                      ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-cyan-300"
+                                  )}
+                                >
+                                  <Globe className="w-3 h-3 text-cyan-400" />
+                                  <span>Visitantes (Sem Login)</span>
+                                  <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{item.acessosVisitantes}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroTipoFaq('equipe')}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                    filtroTipoFaq === 'equipe'
+                                      ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-purple-300"
+                                  )}
+                                >
+                                  <ShieldCheck className="w-3 h-3 text-purple-400" />
+                                  <span>Equipe Mantran</span>
+                                  <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{item.acessosEquipe}</span>
+                                </button>
+                              </div>
+
+                              <span className="text-[11px] text-slate-500">
+                                {detalhesFiltrados.length} origem(ns) identificada(s)
+                              </span>
+                            </div>
+
+                            {/* Tabela de Empresas / Usuários que acessaram este manual */}
+                            {detalhesFiltrados.length === 0 ? (
+                              <div className="py-6 text-center text-xs text-slate-500 italic bg-slate-900/50 rounded-xl border border-slate-800/60">
+                                Nenhum acesso encontrado para este filtro neste manual.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto custom-scrollbar rounded-xl border border-slate-800/90 bg-slate-900/50">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="border-b border-slate-800 bg-slate-900/90 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                      <th className="py-2 px-3">Empresa / Origem</th>
+                                      <th className="py-2 px-3">Usuário / Identificação</th>
+                                      <th className="py-2 px-3 text-center">Perfil</th>
+                                      <th className="py-2 px-3 text-center">Qtd. Acessos</th>
+                                      <th className="py-2 px-3 text-right">Último Acesso</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-800/60">
+                                    {detalhesFiltrados.map((det) => {
+                                      const pctItem = Math.round((det.acessos / Math.max(item.acessos, 1)) * 100)
+                                      return (
+                                        <tr key={det.chave} className="hover:bg-slate-800/40 transition-colors">
+                                          <td className="py-2.5 px-3">
+                                            <div className="flex items-center gap-2">
+                                              <div className={clsx(
+                                                "w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border",
+                                                det.tipo === 'cliente'
+                                                  ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                                                  : det.tipo === 'visitante'
+                                                  ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                                                  : "bg-purple-500/10 border-purple-500/30 text-purple-400"
+                                              )}>
+                                                {det.tipo === 'cliente' ? (
+                                                  <Building2 className="w-3.5 h-3.5" />
+                                                ) : det.tipo === 'visitante' ? (
+                                                  <Globe className="w-3.5 h-3.5" />
+                                                ) : (
+                                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                                )}
+                                              </div>
+                                              <span className="font-bold text-white">
+                                                {det.empresa}
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className="py-2.5 px-3">
+                                            <div className="font-semibold text-slate-200">{det.usuario_nome}</div>
+                                            {det.usuario_detalhe && det.usuario_detalhe !== det.usuario_nome && (
+                                              <div className="text-[10px] text-slate-400 font-mono">{det.usuario_detalhe}</div>
+                                            )}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center">
+                                            {det.tipo === 'cliente' ? (
+                                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                                Cliente
+                                              </span>
+                                            ) : det.tipo === 'visitante' ? (
+                                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                                                Visitante
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                                                Equipe Mantran
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center">
+                                            <div className="inline-flex items-center gap-1.5">
+                                              <span className="font-mono font-black text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                                                {det.acessos}x
+                                              </span>
+                                              <span className="text-[10px] text-slate-500 font-mono">
+                                                ({pctItem}%)
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                            {new Date(det.ultimo_acesso).toLocaleDateString('pt-BR')} às{' '}
+                                            {new Date(det.ultimo_acesso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                          </td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -597,6 +876,339 @@ export function AnalyticsAcessos() {
           )}
         </div>
       )}
+
+      {/* Modal de Detalhamento dos Cards Principais (Total de Acessos, FAQ Lidos, Academia, Usuários Ativos) */}
+      {cardModalAberto && (() => {
+        const listaBaseUsuarios =
+          cardModalAberto === 'acessos'
+            ? (metricas?.usuariosAtivosLista || []).filter(u => u.acessosTelas > 0).sort((a, b) => b.acessosTelas - a.acessosTelas)
+            : cardModalAberto === 'faq'
+            ? (metricas?.usuariosAtivosLista || []).filter(u => u.acessosFaq > 0).sort((a, b) => b.acessosFaq - a.acessosFaq)
+            : (metricas?.usuariosAtivosLista || []).filter(u => filtroModalTipo === 'visitante' ? true : u.tipo !== 'visitante')
+
+        const listaUsuariosFiltrada = listaBaseUsuarios.filter(u =>
+          filtroModalTipo === 'todos' ? true : u.tipo === filtroModalTipo
+        )
+
+        const listaVideosBase = metricas?.detalhesVideosAssistidos || []
+        const listaVideosFiltrada = listaVideosBase.filter(v =>
+          filtroModalTipo === 'todos' ? true : v.tipo === filtroModalTipo
+        )
+
+        const qtdClientes = cardModalAberto === 'academia'
+          ? listaVideosBase.filter(v => v.tipo === 'cliente').length
+          : listaBaseUsuarios.filter(u => u.tipo === 'cliente').length
+        const qtdVisitantes = cardModalAberto === 'academia'
+          ? listaVideosBase.filter(v => v.tipo === 'visitante').length
+          : (metricas?.usuariosAtivosLista || []).filter(u =>
+              u.tipo === 'visitante' &&
+              (cardModalAberto === 'acessos' ? u.acessosTelas > 0 : cardModalAberto === 'faq' ? u.acessosFaq > 0 : true)
+            ).length
+        const qtdEquipe = cardModalAberto === 'academia'
+          ? listaVideosBase.filter(v => v.tipo === 'equipe').length
+          : listaBaseUsuarios.filter(u => u.tipo === 'equipe').length
+
+        const configCard = {
+          acessos: {
+            titulo: 'Detalhamento — Total de Acessos às Telas',
+            subtitulo: `${ROTULO_PERIODO[periodo]} · ${(metricas?.totalAcessos || 0).toLocaleString('pt-BR')} navegação(ões) de tela registrada(s)`,
+            corIcone: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+            icone: <Eye className="w-5 h-5" />
+          },
+          faq: {
+            titulo: 'Detalhamento — Manuais do FAQ Lidos',
+            subtitulo: `${ROTULO_PERIODO[periodo]} · ${(metricas?.totalFaqLidos || 0).toLocaleString('pt-BR')} consulta(s) aos procedimentos`,
+            corIcone: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+            icone: <BookOpen className="w-5 h-5" />
+          },
+          academia: {
+            titulo: 'Detalhamento — Academia Mantran',
+            subtitulo: `${ROTULO_PERIODO[periodo]} · ${(metricas?.totalVideosAssistidos || 0).toLocaleString('pt-BR')} treinamento(s) reproduzido(s)`,
+            corIcone: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
+            icone: <Video className="w-5 h-5" />
+          },
+          usuarios_ativos: {
+            titulo: 'Detalhamento — Usuários Ativos no Período',
+            subtitulo: `${ROTULO_PERIODO[periodo]} · ${(metricas?.totalUsuariosAtivos || 0).toLocaleString('pt-BR')} usuário(s) autenticado(s) com atividade`,
+            corIcone: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+            icone: <Users className="w-5 h-5" />
+          }
+        }[cardModalAberto]
+
+        return (
+          <div
+            className="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setCardModalAberto(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="bg-dark-card border border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[88vh] flex flex-col overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Cabeçalho do Modal */}
+              <div className="flex items-start justify-between gap-3 p-5 border-b border-slate-800 shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={clsx("w-10 h-10 rounded-xl border flex items-center justify-center shrink-0", configCard.corIcone)}>
+                    {configCard.icone}
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-black text-white">{configCard.titulo}</h2>
+                    <p className="text-xs text-slate-400">{configCard.subtitulo}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCardModalAberto(null)}
+                  aria-label="Fechar"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Barra de Filtros por Perfil (Todos / Clientes / Visitantes / Equipe Mantran) */}
+              <div className="px-5 py-3 bg-slate-900/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFiltroModalTipo('todos')}
+                    className={clsx(
+                      "px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                      filtroModalTipo === 'todos'
+                        ? "bg-brand-500/20 border-brand-500/40 text-brand-300"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                    )}
+                  >
+                    <span>Todos</span>
+                    <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">
+                      {cardModalAberto === 'academia' ? listaVideosBase.length : listaBaseUsuarios.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFiltroModalTipo('cliente')}
+                    className={clsx(
+                      "px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                      filtroModalTipo === 'cliente'
+                        ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-300"
+                    )}
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Clientes</span>
+                    <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{qtdClientes}</span>
+                  </button>
+
+                  {qtdVisitantes > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setFiltroModalTipo('visitante')}
+                      className={clsx(
+                        "px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                        filtroModalTipo === 'visitante'
+                          ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
+                          : "bg-slate-900 border-slate-800 text-slate-400 hover:text-cyan-300"
+                      )}
+                    >
+                      <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Visitantes (Sem Login)</span>
+                      <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{qtdVisitantes}</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setFiltroModalTipo('equipe')}
+                    className={clsx(
+                      "px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                      filtroModalTipo === 'equipe'
+                        ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-purple-300"
+                    )}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Equipe Mantran</span>
+                    <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{qtdEquipe}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Corpo do Modal */}
+              <div className="flex-1 overflow-auto custom-scrollbar">
+                {cardModalAberto === 'academia' ? (
+                  listaVideosFiltrada.length === 0 ? (
+                    <div className="py-16 px-6 text-center text-slate-400 text-sm">
+                      Nenhum treinamento reproduzido para este filtro no período selecionado.
+                    </div>
+                  ) : (
+                    <table className="w-full text-sm min-w-[760px]">
+                      <thead className="sticky top-0 bg-slate-900 text-[11px] uppercase tracking-wide text-slate-400">
+                        <tr>
+                          <th scope="col" className="text-left font-bold px-5 py-3">Empresa / Origem</th>
+                          <th scope="col" className="text-left font-bold px-4 py-3">Usuário</th>
+                          <th scope="col" className="text-left font-bold px-4 py-3">Treinamento Assistido</th>
+                          <th scope="col" className="text-center font-bold px-4 py-3">Progresso</th>
+                          <th scope="col" className="text-right font-bold px-5 py-3">Última Visualização</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/70">
+                        {listaVideosFiltrada.map(v => (
+                          <tr key={v.id} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="px-5 py-3 font-bold text-white">
+                              <div className="flex items-center gap-2">
+                                <Building2 className={clsx("w-4 h-4 shrink-0", v.tipo === 'cliente' ? "text-amber-400" : "text-purple-400")} />
+                                <span>{v.empresa}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-slate-200">{v.usuario_nome}</div>
+                              {v.usuario_detalhe && v.usuario_detalhe !== v.usuario_nome && (
+                                <div className="text-[11px] text-slate-400 font-mono">{v.usuario_detalhe}</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-purple-300">{v.video_titulo}</div>
+                              <div className="text-[11px] text-slate-500">Instrutor: {v.instrutor}</div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={clsx(
+                                "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border",
+                                v.concluido
+                                  ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                                  : "bg-purple-500/10 text-purple-300 border-purple-500/30"
+                              )}>
+                                {v.concluido ? 'Concluído (100%)' : `${v.progresso_pct}%`}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 text-right text-slate-300 font-mono text-xs whitespace-nowrap">
+                              {new Date(v.ultima_vez).toLocaleDateString('pt-BR')} às{' '}
+                              {new Date(v.ultima_vez).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
+                ) : listaUsuariosFiltrada.length === 0 ? (
+                  <div className="py-16 px-6 text-center text-slate-400 text-sm">
+                    Nenhum registro encontrado para este filtro no período selecionado.
+                  </div>
+                ) : (
+                  <table className="w-full text-sm min-w-[780px]">
+                    <thead className="sticky top-0 bg-slate-900 text-[11px] uppercase tracking-wide text-slate-400">
+                      <tr>
+                        <th scope="col" className="text-left font-bold px-5 py-3">Empresa / Origem</th>
+                        <th scope="col" className="text-left font-bold px-4 py-3">Usuário / Identificação</th>
+                        <th scope="col" className="text-center font-bold px-4 py-3">Perfil</th>
+                        {cardModalAberto === 'acessos' && (
+                          <>
+                            <th scope="col" className="text-left font-bold px-4 py-3">Principais Telas Acessadas</th>
+                            <th scope="col" className="text-center font-bold px-4 py-3">Navegações</th>
+                          </>
+                        )}
+                        {cardModalAberto === 'faq' && (
+                          <th scope="col" className="text-center font-bold px-4 py-3">Manuais Lidos</th>
+                        )}
+                        {cardModalAberto === 'usuarios_ativos' && (
+                          <>
+                            <th scope="col" className="text-center font-bold px-3 py-3">Telas</th>
+                            <th scope="col" className="text-center font-bold px-3 py-3">Manuais FAQ</th>
+                            <th scope="col" className="text-center font-bold px-3 py-3">Academia</th>
+                          </>
+                        )}
+                        <th scope="col" className="text-right font-bold px-5 py-3">Último Acesso</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/70">
+                      {listaUsuariosFiltrada.map(u => (
+                        <tr key={u.chave} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="px-5 py-3 font-bold text-white">
+                            <div className="flex items-center gap-2">
+                              {u.tipo === 'cliente' ? (
+                                <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
+                              ) : u.tipo === 'visitante' ? (
+                                <Globe className="w-4 h-4 text-cyan-400 shrink-0" />
+                              ) : (
+                                <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
+                              )}
+                              <span>{u.empresa}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-slate-200">{u.usuario_nome}</div>
+                            {u.usuario_detalhe && u.usuario_detalhe !== u.usuario_nome && (
+                              <div className="text-[11px] text-slate-400 font-mono">{u.usuario_detalhe}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {u.tipo === 'cliente' ? (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                Cliente
+                              </span>
+                            ) : u.tipo === 'visitante' ? (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                                Visitante
+                              </span>
+                            ) : (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                                Equipe Mantran
+                              </span>
+                            )}
+                          </td>
+                          {cardModalAberto === 'acessos' && (
+                            <>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {u.principaisTelas.map((t, i) => (
+                                    <span key={i} className="inline-flex px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px] border border-slate-700/70">
+                                      {t}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="font-mono font-black text-blue-400 px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs">
+                                  {u.acessosTelas}x
+                                </span>
+                              </td>
+                            </>
+                          )}
+                          {cardModalAberto === 'faq' && (
+                            <td className="px-4 py-3 text-center">
+                              <span className="font-mono font-black text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                                {u.acessosFaq}x
+                              </span>
+                            </td>
+                          )}
+                          {cardModalAberto === 'usuarios_ativos' && (
+                            <>
+                              <td className="px-3 py-3 text-center font-mono text-xs text-blue-300 font-bold">
+                                {u.acessosTelas}
+                              </td>
+                              <td className="px-3 py-3 text-center font-mono text-xs text-emerald-300 font-bold">
+                                {u.acessosFaq}
+                              </td>
+                              <td className="px-3 py-3 text-center font-mono text-xs text-purple-300 font-bold">
+                                {u.videosAssistidos}
+                              </td>
+                            </>
+                          )}
+                          <td className="px-5 py-3 text-right text-slate-300 font-mono text-xs whitespace-nowrap">
+                            {new Date(u.ultimo_acesso).toLocaleDateString('pt-BR')} às{' '}
+                            {new Date(u.ultimo_acesso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Lista dos novos usuários (card "Novos Usuários") */}
       {novosAberto && (

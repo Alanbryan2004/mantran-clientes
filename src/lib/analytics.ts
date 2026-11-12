@@ -35,6 +35,55 @@ export interface NovoUsuario {
   cadastroEm: string                            // ISO: confirmação do e-mail / criação da senha
 }
 
+export interface FaqAcessoDetalhe {
+  chave: string
+  usuario_nome: string
+  usuario_detalhe?: string | null
+  empresa: string
+  tipo: 'cliente' | 'visitante' | 'equipe'
+  acessos: number
+  ultimo_acesso: string
+}
+
+export interface TopFaqItem {
+  id: string
+  titulo: string
+  categoria: string
+  acessos: number
+  acessosClientes: number
+  acessosVisitantes: number
+  acessosEquipe: number
+  detalhes: FaqAcessoDetalhe[]
+}
+
+export interface UsuarioAtivoResumo {
+  chave: string
+  usuario_nome: string
+  usuario_detalhe?: string | null
+  empresa: string
+  tipo: 'cliente' | 'visitante' | 'equipe'
+  acessosTelas: number
+  acessosFaq: number
+  videosAssistidos: number
+  totalInteracoes: number
+  principaisTelas: string[]
+  ultimo_acesso: string
+}
+
+export interface VideoVisualizacaoDetalhe {
+  id: string
+  video_id: string
+  video_titulo: string
+  instrutor: string
+  usuario_nome: string
+  usuario_detalhe?: string | null
+  empresa: string
+  tipo: 'cliente' | 'visitante' | 'equipe'
+  progresso_pct: number
+  concluido: boolean
+  ultima_vez: string
+}
+
 export interface AnalyticsResumo {
   totalAcessos: number
   totalFaqLidos: number
@@ -42,7 +91,9 @@ export interface AnalyticsResumo {
   totalUsuariosAtivos: number
   totalNovosUsuarios: number
   novosUsuarios: NovoUsuario[]
-  topFaq: { id: string; titulo: string; categoria: string; acessos: number }[]
+  usuariosAtivosLista: UsuarioAtivoResumo[]
+  detalhesVideosAssistidos: VideoVisualizacaoDetalhe[]
+  topFaq: TopFaqItem[]
   topVideos: { id: string; titulo: string; instrutor: string; visualizacoes: number; concluidos: number }[]
   topTelas: { rota: string; tela_nome: string; acessos: number }[]
   topClientes: { nome: string; acessos: number; ultimo_acesso: string }[]
@@ -255,15 +306,27 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
     dataFiltro = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000)
   }
 
-  // 1. Consultar acessos_log
-  let queryAcessos = supabase.from('acessos_log').select('*')
-  if (dataFiltro) queryAcessos = queryAcessos.gte('created_at', dataFiltro.toISOString())
-  const { data: acessos = [] } = await queryAcessos
+  // 1. Consultar acessos_log (paginado para não truncar em 1.000 linhas)
+  const acessos: AcessoItem[] = []
+  for (let de = 0; ; de += 1000) {
+    let q = supabase.from('acessos_log').select('*').order('created_at', { ascending: false }).range(de, de + 999)
+    if (dataFiltro) q = q.gte('created_at', dataFiltro.toISOString())
+    const { data, error } = await q
+    if (error || !data || data.length === 0) break
+    acessos.push(...(data as AcessoItem[]))
+    if (data.length < 1000) break
+  }
 
-  // 2. Consultar faq_visualizacoes
-  let queryFaq = supabase.from('faq_visualizacoes').select('*')
-  if (dataFiltro) queryFaq = queryFaq.gte('created_at', dataFiltro.toISOString())
-  const { data: faqs = [] } = await queryFaq
+  // 2. Consultar faq_visualizacoes (paginado para não truncar em 1.000 linhas)
+  const faqs: FaqVisualizacaoItem[] = []
+  for (let de = 0; ; de += 1000) {
+    let q = supabase.from('faq_visualizacoes').select('*').order('created_at', { ascending: false }).range(de, de + 999)
+    if (dataFiltro) q = q.gte('created_at', dataFiltro.toISOString())
+    const { data, error } = await q
+    if (error || !data || data.length === 0) break
+    faqs.push(...(data as FaqVisualizacaoItem[]))
+    if (data.length < 1000) break
+  }
 
   // 3. Consultar academia_visualizacoes, academia_videos e novos usuários (tabela usuario)
   let queryAcademia = supabase.from('academia_visualizacoes').select('*')
@@ -282,6 +345,169 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
       return [] as NovoUsuario[]
     })
   ])
+
+  // Enriquecimento de todos os usuários/empresas referenciados em acessos, FAQ e Academia
+  const allUserIds = [...new Set([
+    ...acessos.map(a => a.usuario_id),
+    ...faqs.map(f => f.usuario_id),
+    ...(visualizacoesVideos || []).map((v: any) => v.usuario_chave)
+  ].filter((v): v is string => !!v && /^[0-9a-f-]{36}$/i.test(v)))]
+
+  const usuariosPorId = new Map<string, { id: string; nome: string; login: string; email_pessoal: string | null; perfil: string }>()
+  if (allUserIds.length > 0) {
+    const { data: usData } = await supabase
+      .from('usuario')
+      .select('id, nome, login, email_pessoal, perfil')
+      .in('id', allUserIds)
+    for (const u of usData || []) {
+      if (u?.id) usuariosPorId.set(u.id, u)
+    }
+  }
+
+  // Cruzar e-mails de usuários clientes com ticket_contatos e clientes para identificar a Empresa e o Nome do Contato
+  const emailsClientes = [...new Set(
+    Array.from(usuariosPorId.values())
+      .map(u => {
+        const em = u.email_pessoal || (u.login && u.login.includes('@') && !u.login.toLowerCase().trim().endsWith('@mantran') ? u.login : '')
+        return String(em || '').trim().toLowerCase()
+      })
+      .filter(Boolean)
+  )]
+
+  const contatosPorEmail = new Map<string, { nome: string; empresa_id: string | null; empresa_nome: string | null }>()
+  if (emailsClientes.length > 0) {
+    const { data: cts } = await supabase
+      .from('ticket_contatos')
+      .select('nome, email, empresa_id, empresa_nome')
+      .in('email', emailsClientes)
+    for (const c of cts || []) {
+      const e = String(c.email || '').trim().toLowerCase()
+      if (e && !contatosPorEmail.has(e)) contatosPorEmail.set(e, c)
+    }
+  }
+
+  const idsEmpresa = [...new Set(
+    Array.from(contatosPorEmail.values()).map(c => c.empresa_id).filter((v): v is string => !!v)
+  )]
+  const nomeEmpresaPorId = new Map<string, string>()
+  if (idsEmpresa.length > 0) {
+    const { data: cls } = await supabase.from('clientes').select('id, nome_empresa').in('id', idsEmpresa)
+    for (const c of cls || []) {
+      if (c?.id) nomeEmpresaPorId.set(c.id, c.nome_empresa || '')
+    }
+  }
+
+  // Helper unificado para identificar Empresa, Usuário e Perfil (Cliente, Visitante, Equipe Mantran)
+  const identificarOrigem = (
+    usuarioId: string | null | undefined,
+    usuarioNomeRaw: string | null | undefined,
+    clienteNomeRaw?: string | null | undefined,
+    usuarioLoginRaw?: string | null | undefined
+  ): {
+    chave: string
+    usuario_nome: string
+    usuario_detalhe: string | null
+    empresa: string
+    tipo: 'cliente' | 'visitante' | 'equipe'
+  } => {
+    const u = usuarioId ? usuariosPorId.get(usuarioId) : undefined
+    const isVisitante = !usuarioId || usuarioNomeRaw === 'Visitante' || clienteNomeRaw === 'Visitante Público'
+    const isEquipe = !isVisitante && (
+      clienteNomeRaw === 'Equipe Mantran' ||
+      (u?.perfil && u.perfil !== 'Cliente')
+    )
+
+    if (isVisitante) {
+      return {
+        chave: 'visitante',
+        usuario_nome: 'Visitante (Sem Login)',
+        usuario_detalhe: 'Acesso público externo',
+        empresa: 'Visitante Público',
+        tipo: 'visitante'
+      }
+    }
+
+    if (isEquipe) {
+      return {
+        chave: `equipe:${usuarioId || usuarioNomeRaw || 'equipe'}`,
+        usuario_nome: u?.nome || usuarioNomeRaw || 'Colaborador Mantran',
+        usuario_detalhe: u?.perfil ? `Perfil: ${u.perfil}` : 'Equipe Interna',
+        empresa: 'Equipe Mantran',
+        tipo: 'equipe'
+      }
+    }
+
+    const rawEmail = u?.email_pessoal || (u?.login && u.login.includes('@') && !u.login.toLowerCase().trim().endsWith('@mantran') ? u.login : '')
+    const emailNorm = String(rawEmail || '').trim().toLowerCase()
+    const contato = emailNorm ? contatosPorEmail.get(emailNorm) : undefined
+    const empresaContato = (contato?.empresa_id && nomeEmpresaPorId.get(contato.empresa_id)) || contato?.empresa_nome || ''
+
+    const empresaNome =
+      empresaContato ||
+      (clienteNomeRaw && clienteNomeRaw !== 'Cliente Mantran' ? clienteNomeRaw : '') ||
+      u?.nome ||
+      usuarioNomeRaw ||
+      'Cliente Mantran'
+
+    const usuarioNome = contato?.nome || u?.nome || usuarioNomeRaw || emailNorm || 'Cliente'
+    const usuarioDetalhe = emailNorm || u?.login || usuarioLoginRaw || null
+
+    return {
+      chave: `cliente:${usuarioId || `${empresaNome}|${usuarioNome}`}`,
+      usuario_nome: usuarioNome,
+      usuario_detalhe: usuarioDetalhe,
+      empresa: empresaNome,
+      tipo: 'cliente'
+    }
+  }
+
+  // Mapa consolidado de Usuários Ativos (Telas + FAQ + Academia)
+  const mapaUsuariosAtivos = new Map<string, {
+    chave: string
+    usuario_nome: string
+    usuario_detalhe: string | null
+    empresa: string
+    tipo: 'cliente' | 'visitante' | 'equipe'
+    acessosTelas: number
+    acessosFaq: number
+    videosAssistidos: number
+    telasCount: Map<string, number>
+    ultimo_acesso: string
+  }>()
+
+  const registrarAtividadeUsuario = (
+    info: ReturnType<typeof identificarOrigem>,
+    dataIso: string,
+    origemTipo: 'tela' | 'faq' | 'video',
+    telaNome?: string
+  ) => {
+    const curr = mapaUsuariosAtivos.get(info.chave) || {
+      chave: info.chave,
+      usuario_nome: info.usuario_nome,
+      usuario_detalhe: info.usuario_detalhe,
+      empresa: info.empresa,
+      tipo: info.tipo,
+      acessosTelas: 0,
+      acessosFaq: 0,
+      videosAssistidos: 0,
+      telasCount: new Map<string, number>(),
+      ultimo_acesso: dataIso
+    }
+    if (origemTipo === 'tela') {
+      curr.acessosTelas++
+      if (telaNome) {
+        curr.telasCount.set(telaNome, (curr.telasCount.get(telaNome) || 0) + 1)
+      }
+    } else if (origemTipo === 'faq') {
+      curr.acessosFaq++
+    } else if (origemTipo === 'video') {
+      curr.videosAssistidos++
+    }
+    if (dataIso && (!curr.ultimo_acesso || new Date(dataIso) > new Date(curr.ultimo_acesso))) {
+      curr.ultimo_acesso = dataIso
+    }
+    mapaUsuariosAtivos.set(info.chave, curr)
+  }
 
   // Contagem de telas
   const mapaTelas = new Map<string, { rota: string; tela_nome: string; acessos: number }>()
@@ -309,56 +535,143 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
     if (dia) {
       historicoMapa.set(dia, (historicoMapa.get(dia) || 0) + 1)
     }
+
+    const info = identificarOrigem(a.usuario_id, a.usuario_nome, a.cliente_nome, a.usuario_login)
+    registrarAtividadeUsuario(info, a.created_at, 'tela', a.tela_nome || a.rota)
   })
 
-  // Contagem de Manuais do FAQ
-  const mapaFaq = new Map<string, { id: string; titulo: string; categoria: string; acessos: number }>()
+  // Contagem de Manuais do FAQ + detalhamento de quem acessou (Visitante, Cliente por Empresa, Equipe Mantran)
+  const mapaFaq = new Map<string, {
+    id: string
+    titulo: string
+    categoria: string
+    acessos: number
+    acessosClientes: number
+    acessosVisitantes: number
+    acessosEquipe: number
+    detalhesMap: Map<string, FaqAcessoDetalhe>
+  }>()
+
   ;(faqs || []).forEach((f: FaqVisualizacaoItem) => {
     const key = f.procedimento_id || f.procedimento_titulo
     const curr = mapaFaq.get(key) || {
       id: f.procedimento_id,
       titulo: f.procedimento_titulo,
       categoria: f.categoria_nome || 'Geral',
-      acessos: 0
+      acessos: 0,
+      acessosClientes: 0,
+      acessosVisitantes: 0,
+      acessosEquipe: 0,
+      detalhesMap: new Map<string, FaqAcessoDetalhe>()
     }
     curr.acessos++
+
+    const info = identificarOrigem(f.usuario_id, f.usuario_nome, f.cliente_nome)
+    if (info.tipo === 'visitante') curr.acessosVisitantes++
+    else if (info.tipo === 'equipe') curr.acessosEquipe++
+    else curr.acessosClientes++
+
+    const detExistente = curr.detalhesMap.get(info.chave)
+    if (detExistente) {
+      detExistente.acessos++
+      if (new Date(f.created_at) > new Date(detExistente.ultimo_acesso)) {
+        detExistente.ultimo_acesso = f.created_at
+      }
+    } else {
+      curr.detalhesMap.set(info.chave, {
+        chave: info.chave,
+        usuario_nome: info.usuario_nome,
+        usuario_detalhe: info.usuario_detalhe,
+        empresa: info.empresa,
+        tipo: info.tipo,
+        acessos: 1,
+        ultimo_acesso: f.created_at
+      })
+    }
+
     mapaFaq.set(key, curr)
+    registrarAtividadeUsuario(info, f.created_at, 'faq')
   })
 
-  // Contagem de Vídeos da Academia
+  // Contagem de Vídeos da Academia + lista detalhada de reproduções
   const videosInfoMap = new Map((videosCatalogo || []).map((v: any) => [v.id, v]))
   const mapaVideos = new Map<string, { id: string; titulo: string; instrutor: string; visualizacoes: number; concluidos: number }>()
-  ;(visualizacoesVideos || []).forEach((v: any) => {
-    const info = videosInfoMap.get(v.video_id)
+  const detalhesVideosAssistidos: VideoVisualizacaoDetalhe[] = []
+
+  ;(visualizacoesVideos || []).forEach((v: any, idx: number) => {
+    const infoVideo = videosInfoMap.get(v.video_id)
     const key = v.video_id
     const curr = mapaVideos.get(key) || {
       id: v.video_id,
-      titulo: info?.titulo || 'Vídeo de Treinamento',
-      instrutor: info?.instrutor || 'Mantran',
+      titulo: infoVideo?.titulo || 'Vídeo de Treinamento',
+      instrutor: infoVideo?.instrutor || 'Mantran',
       visualizacoes: 0,
       concluidos: 0
     }
     curr.visualizacoes++
-    if (v.assistido || v.progresso_pct >= 90) {
+    const concluido = !!(v.assistido || v.progresso_pct >= 90)
+    if (concluido) {
       curr.concluidos++
     }
     mapaVideos.set(key, curr)
+
+    const infoUser = identificarOrigem(v.usuario_chave, v.usuario_nome)
+    const dataVideo = v.ultima_vez || v.created_at || new Date().toISOString()
+    registrarAtividadeUsuario(infoUser, dataVideo, 'video')
+
+    detalhesVideosAssistidos.push({
+      id: v.id || `${v.video_id}-${idx}`,
+      video_id: v.video_id,
+      video_titulo: infoVideo?.titulo || 'Vídeo de Treinamento',
+      instrutor: infoVideo?.instrutor || 'Mantran',
+      usuario_nome: infoUser.usuario_nome,
+      usuario_detalhe: infoUser.usuario_detalhe,
+      empresa: infoUser.empresa,
+      tipo: infoUser.tipo,
+      progresso_pct: Number(v.progresso_pct || (concluido ? 100 : 0)),
+      concluido,
+      ultima_vez: dataVideo
+    })
   })
 
-  // Clientes/usuários únicos
-  const usuariosUnicos = new Set([
-    ...(acessos || []).map((a: any) => a.usuario_id || a.usuario_nome).filter(Boolean),
-    ...(visualizacoesVideos || []).map((v: any) => v.usuario_chave || v.usuario_nome).filter(Boolean)
-  ])
+  detalhesVideosAssistidos.sort((a, b) => new Date(b.ultima_vez).getTime() - new Date(a.ultima_vez).getTime())
+
+  const usuariosAtivosLista: UsuarioAtivoResumo[] = Array.from(mapaUsuariosAtivos.values())
+    .map(({ telasCount, ...u }) => ({
+      ...u,
+      totalInteracoes: u.acessosTelas + u.acessosFaq + u.videosAssistidos,
+      principaisTelas: Array.from(telasCount.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([nome, qtd]) => `${nome} (${qtd}x)`)
+    }))
+    .sort((a, b) => {
+      if (b.totalInteracoes !== a.totalInteracoes) return b.totalInteracoes - a.totalInteracoes
+      return new Date(b.ultimo_acesso).getTime() - new Date(a.ultimo_acesso).getTime()
+    })
+
+  // Clientes/usuários únicos (excluindo visitante anônimo da contagem de usuários logados se necessário, ou mantendo consistente com a lista)
+  const usuariosAtivosLogados = usuariosAtivosLista.filter(u => u.tipo !== 'visitante')
 
   return {
     totalAcessos: (acessos || []).length,
     totalFaqLidos: (faqs || []).length,
     totalVideosAssistidos: (visualizacoesVideos || []).length,
-    totalUsuariosAtivos: usuariosUnicos.size,
+    totalUsuariosAtivos: usuariosAtivosLogados.length,
     totalNovosUsuarios: novosUsuarios.length,
     novosUsuarios,
-    topFaq: Array.from(mapaFaq.values()).sort((a, b) => b.acessos - a.acessos).slice(0, 15),
+    usuariosAtivosLista,
+    detalhesVideosAssistidos,
+    topFaq: Array.from(mapaFaq.values())
+      .map(({ detalhesMap, ...rest }) => ({
+        ...rest,
+        detalhes: Array.from(detalhesMap.values()).sort((a, b) => {
+          if (b.acessos !== a.acessos) return b.acessos - a.acessos
+          return new Date(b.ultimo_acesso).getTime() - new Date(a.ultimo_acesso).getTime()
+        })
+      }))
+      .sort((a, b) => b.acessos - a.acessos)
+      .slice(0, 15),
     topVideos: Array.from(mapaVideos.values()).sort((a, b) => b.visualizacoes - a.visualizacoes).slice(0, 15),
     topTelas: Array.from(mapaTelas.values()).sort((a, b) => b.acessos - a.acessos).slice(0, 15),
     topClientes: Array.from(mapaClientes.values()).sort((a, b) => b.acessos - a.acessos).slice(0, 15),
