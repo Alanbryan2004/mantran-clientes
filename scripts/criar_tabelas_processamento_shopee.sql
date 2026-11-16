@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS shopee_processamentos (
   ano SMALLINT NOT NULL,
 
   -- Tipo de processo e status:
-  processo TEXT NOT NULL CHECK (processo IN ('Last Mile', 'First Mile', 'Line Haul')),
+  processo TEXT NOT NULL CHECK (processo IN ('Last Mile', 'First Mile', 'Line Haul', 'Mobile Hub')),
   status TEXT NOT NULL DEFAULT 'NAO_INICIADO'
     CHECK (status IN ('FINALIZADO', 'PROCESSANDO', 'NAO_INICIADO')),
 

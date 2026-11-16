@@ -74,6 +74,8 @@ export interface VideoVisualizacaoDetalhe {
   id: string
   video_id: string
   video_titulo: string
+  secao?: string | null
+  modulos?: string[]
   instrutor: string
   usuario_nome: string
   usuario_detalhe?: string | null
@@ -82,6 +84,30 @@ export interface VideoVisualizacaoDetalhe {
   progresso_pct: number
   concluido: boolean
   ultima_vez: string
+}
+
+export interface TopVideoItem {
+  id: string
+  titulo: string
+  secao: string
+  modulos: string[]
+  instrutor: string
+  visualizacoes: number
+  concluidos: number
+  acessosClientes: number
+  acessosVisitantes: number
+  acessosEquipe: number
+  detalhes: VideoVisualizacaoDetalhe[]
+}
+
+export interface TopTelaItem {
+  rota: string
+  tela_nome: string
+  acessos: number
+  acessosClientes: number
+  acessosVisitantes: number
+  acessosEquipe: number
+  detalhes: FaqAcessoDetalhe[]
 }
 
 export interface AnalyticsResumo {
@@ -94,8 +120,8 @@ export interface AnalyticsResumo {
   usuariosAtivosLista: UsuarioAtivoResumo[]
   detalhesVideosAssistidos: VideoVisualizacaoDetalhe[]
   topFaq: TopFaqItem[]
-  topVideos: { id: string; titulo: string; instrutor: string; visualizacoes: number; concluidos: number }[]
-  topTelas: { rota: string; tela_nome: string; acessos: number }[]
+  topVideos: TopVideoItem[]
+  topTelas: TopTelaItem[]
   topClientes: { nome: string; acessos: number; ultimo_acesso: string }[]
   historicoAcessos: { data: string; total: number }[]
 }
@@ -113,6 +139,8 @@ export function obterNomeTela(pathname: string): string {
   if (norm.startsWith('/implantacoes')) return 'Implantações'
   if (norm.startsWith('/bases')) return 'Projetos e Bases'
   if (norm.startsWith('/processamento-shopee')) return 'Processamento Shopee'
+  if (norm.startsWith('/leo-madeiras')) return 'Léo Madeiras'
+  if (norm.startsWith('/utilitarios')) return 'Utilitários'
   if (norm.startsWith('/separador')) return 'Separador de Planilhas'
   if (norm.startsWith('/juntar')) return 'Juntar Planilhas'
   if (norm.startsWith('/calendario')) return 'Calendário de Eventos'
@@ -338,7 +366,7 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
     novosUsuarios
   ] = await Promise.all([
     queryAcademia,
-    supabase.from('academia_videos').select('id, titulo, instrutor'),
+    supabase.from('academia_videos').select('*'),
     // Falha na lista de novos usuários não derruba o restante do painel
     buscarNovosUsuarios(dataFiltro).catch(err => {
       console.error('Erro ao buscar novos usuários:', err)
@@ -509,16 +537,59 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
     mapaUsuariosAtivos.set(info.chave, curr)
   }
 
-  // Contagem de telas
-  const mapaTelas = new Map<string, { rota: string; tela_nome: string; acessos: number }>()
+  // Contagem de telas + detalhamento de quem acessou cada tela (Cliente por Empresa, Visitante, Equipe Mantran)
+  const mapaTelas = new Map<string, {
+    rota: string
+    tela_nome: string
+    acessos: number
+    acessosClientes: number
+    acessosVisitantes: number
+    acessosEquipe: number
+    detalhesMap: Map<string, FaqAcessoDetalhe>
+  }>()
   const mapaClientes = new Map<string, { nome: string; acessos: number; ultimo_acesso: string }>()
   const historicoMapa = new Map<string, number>()
 
   ;(acessos || []).forEach((a: AcessoItem) => {
+    const info = identificarOrigem(a.usuario_id, a.usuario_nome, a.cliente_nome, a.usuario_login)
+    const nomeTelaResolvido = (!a.tela_nome || a.tela_nome.startsWith('/'))
+      ? obterNomeTela(a.rota || a.tela_nome || '/')
+      : a.tela_nome
+
     // Telas
-    const keyTela = a.tela_nome || a.rota
-    const currTela = mapaTelas.get(keyTela) || { rota: a.rota, tela_nome: a.tela_nome, acessos: 0 }
+    const keyTela = nomeTelaResolvido || a.rota
+    const rotaBase = (a.rota || '/').startsWith('/faq/') ? '/faq' : (a.rota || '/')
+    const currTela = mapaTelas.get(keyTela) || {
+      rota: rotaBase,
+      tela_nome: nomeTelaResolvido,
+      acessos: 0,
+      acessosClientes: 0,
+      acessosVisitantes: 0,
+      acessosEquipe: 0,
+      detalhesMap: new Map<string, FaqAcessoDetalhe>()
+    }
     currTela.acessos++
+    if (info.tipo === 'visitante') currTela.acessosVisitantes++
+    else if (info.tipo === 'equipe') currTela.acessosEquipe++
+    else currTela.acessosClientes++
+
+    const detTelaExistente = currTela.detalhesMap.get(info.chave)
+    if (detTelaExistente) {
+      detTelaExistente.acessos++
+      if (new Date(a.created_at) > new Date(detTelaExistente.ultimo_acesso)) {
+        detTelaExistente.ultimo_acesso = a.created_at
+      }
+    } else {
+      currTela.detalhesMap.set(info.chave, {
+        chave: info.chave,
+        usuario_nome: info.usuario_nome,
+        usuario_detalhe: info.usuario_detalhe,
+        empresa: info.empresa,
+        tipo: info.tipo,
+        acessos: 1,
+        ultimo_acesso: a.created_at
+      })
+    }
     mapaTelas.set(keyTela, currTela)
 
     // Clientes
@@ -536,8 +607,7 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
       historicoMapa.set(dia, (historicoMapa.get(dia) || 0) + 1)
     }
 
-    const info = identificarOrigem(a.usuario_id, a.usuario_nome, a.cliente_nome, a.usuario_login)
-    registrarAtividadeUsuario(info, a.created_at, 'tela', a.tela_nome || a.rota)
+    registrarAtividadeUsuario(info, a.created_at, 'tela', nomeTelaResolvido || a.rota)
   })
 
   // Contagem de Manuais do FAQ + detalhamento de quem acessou (Visitante, Cliente por Empresa, Equipe Mantran)
@@ -595,35 +665,54 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
 
   // Contagem de Vídeos da Academia + lista detalhada de reproduções
   const videosInfoMap = new Map((videosCatalogo || []).map((v: any) => [v.id, v]))
-  const mapaVideos = new Map<string, { id: string; titulo: string; instrutor: string; visualizacoes: number; concluidos: number }>()
+  const mapaVideos = new Map<string, TopVideoItem>()
   const detalhesVideosAssistidos: VideoVisualizacaoDetalhe[] = []
 
   ;(visualizacoesVideos || []).forEach((v: any, idx: number) => {
     const infoVideo = videosInfoMap.get(v.video_id)
     const key = v.video_id
-    const curr = mapaVideos.get(key) || {
+    const modulosArr: string[] = Array.isArray(infoVideo?.modulos)
+      ? infoVideo.modulos.map((m: any) => String(m || '').trim()).filter(Boolean)
+      : []
+    const secaoTxt = String(infoVideo?.secao || '').trim() || 'Geral'
+    const instrutorTxt = secaoTxt !== 'Geral'
+      ? `Seção: ${secaoTxt}${modulosArr.length > 0 ? ` (${modulosArr.join(', ')})` : ''}`
+      : (modulosArr.length > 0 ? `Módulos: ${modulosArr.join(', ')}` : (infoVideo?.criado_por_nome || 'Academia Mantran'))
+
+    const curr: TopVideoItem = mapaVideos.get(key) || {
       id: v.video_id,
       titulo: infoVideo?.titulo || 'Vídeo de Treinamento',
-      instrutor: infoVideo?.instrutor || 'Mantran',
+      secao: secaoTxt,
+      modulos: modulosArr,
+      instrutor: instrutorTxt,
       visualizacoes: 0,
-      concluidos: 0
+      concluidos: 0,
+      acessosClientes: 0,
+      acessosVisitantes: 0,
+      acessosEquipe: 0,
+      detalhes: []
     }
     curr.visualizacoes++
     const concluido = !!(v.assistido || v.progresso_pct >= 90)
     if (concluido) {
       curr.concluidos++
     }
-    mapaVideos.set(key, curr)
 
     const infoUser = identificarOrigem(v.usuario_chave, v.usuario_nome)
+    if (infoUser.tipo === 'visitante') curr.acessosVisitantes++
+    else if (infoUser.tipo === 'equipe') curr.acessosEquipe++
+    else curr.acessosClientes++
+
     const dataVideo = v.ultima_vez || v.created_at || new Date().toISOString()
     registrarAtividadeUsuario(infoUser, dataVideo, 'video')
 
-    detalhesVideosAssistidos.push({
+    const detItem: VideoVisualizacaoDetalhe = {
       id: v.id || `${v.video_id}-${idx}`,
       video_id: v.video_id,
       video_titulo: infoVideo?.titulo || 'Vídeo de Treinamento',
-      instrutor: infoVideo?.instrutor || 'Mantran',
+      secao: secaoTxt,
+      modulos: modulosArr,
+      instrutor: instrutorTxt,
       usuario_nome: infoUser.usuario_nome,
       usuario_detalhe: infoUser.usuario_detalhe,
       empresa: infoUser.empresa,
@@ -631,10 +720,17 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
       progresso_pct: Number(v.progresso_pct || (concluido ? 100 : 0)),
       concluido,
       ultima_vez: dataVideo
-    })
+    }
+
+    curr.detalhes.push(detItem)
+    mapaVideos.set(key, curr)
+    detalhesVideosAssistidos.push(detItem)
   })
 
   detalhesVideosAssistidos.sort((a, b) => new Date(b.ultima_vez).getTime() - new Date(a.ultima_vez).getTime())
+  for (const vid of mapaVideos.values()) {
+    vid.detalhes.sort((a, b) => new Date(b.ultima_vez).getTime() - new Date(a.ultima_vez).getTime())
+  }
 
   const usuariosAtivosLista: UsuarioAtivoResumo[] = Array.from(mapaUsuariosAtivos.values())
     .map(({ telasCount, ...u }) => ({
@@ -673,7 +769,16 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
       .sort((a, b) => b.acessos - a.acessos)
       .slice(0, 15),
     topVideos: Array.from(mapaVideos.values()).sort((a, b) => b.visualizacoes - a.visualizacoes).slice(0, 15),
-    topTelas: Array.from(mapaTelas.values()).sort((a, b) => b.acessos - a.acessos).slice(0, 15),
+    topTelas: Array.from(mapaTelas.values())
+      .map(({ detalhesMap, ...rest }) => ({
+        ...rest,
+        detalhes: Array.from(detalhesMap.values()).sort((a, b) => {
+          if (b.acessos !== a.acessos) return b.acessos - a.acessos
+          return new Date(b.ultimo_acesso).getTime() - new Date(a.ultimo_acesso).getTime()
+        })
+      }))
+      .sort((a, b) => b.acessos - a.acessos)
+      .slice(0, 15),
     topClientes: Array.from(mapaClientes.values()).sort((a, b) => b.acessos - a.acessos).slice(0, 15),
     historicoAcessos: Array.from(historicoMapa.entries())
       .map(([data, total]) => ({ data, total }))

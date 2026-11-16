@@ -29,6 +29,10 @@ export function AnalyticsAcessos() {
   const [filtroModalTipo, setFiltroModalTipo] = useState<'todos' | 'cliente' | 'visitante' | 'equipe'>('todos')
   const [faqExpandido, setFaqExpandido] = useState<string | null>(null) // card do manual expandido
   const [filtroTipoFaq, setFiltroTipoFaq] = useState<'todos' | 'cliente' | 'visitante' | 'equipe'>('todos')
+  const [videoExpandido, setVideoExpandido] = useState<string | null>(null) // card do vídeo expandido
+  const [filtroTipoVideo, setFiltroTipoVideo] = useState<'todos' | 'cliente' | 'visitante' | 'equipe'>('todos')
+  const [telaExpandida, setTelaExpandida] = useState<string | null>(null) // card da tela expandido
+  const [filtroTipoTela, setFiltroTipoTela] = useState<'todos' | 'cliente' | 'visitante' | 'equipe'>('todos')
 
   // Fecha os modais dos cards com Esc
   useEffect(() => {
@@ -690,7 +694,7 @@ export function AnalyticsAcessos() {
                   </div>
                   <div>
                     <h3 className="text-sm sm:text-base font-black text-white">Top Vídeos da Academia Mantran</h3>
-                    <p className="text-xs text-slate-400">Treinamentos e aulas gravadas mais assistidos</p>
+                    <p className="text-xs text-slate-400">Clique em qualquer treinamento para expandir e ver quais empresas e usuários assistiram</p>
                   </div>
                 </div>
                 <Link
@@ -710,44 +714,284 @@ export function AnalyticsAcessos() {
                 <div className="space-y-2.5">
                   {metricas?.topVideos.map((video, idx) => {
                     const pct = Math.round((video.visualizacoes / maxVideoAcessos) * 100)
+                    const cardVideoKey = video.id || `${video.titulo}-${idx}`
+                    const isVideoExpanded = videoExpandido === cardVideoKey
+                    const detalhesVideoFiltrados = (video.detalhes || []).filter(d =>
+                      filtroTipoVideo === 'todos' ? true : d.tipo === filtroTipoVideo
+                    )
+
                     return (
                       <div
-                        key={video.id || idx}
-                        className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 hover:border-slate-700 transition-all group"
+                        key={cardVideoKey}
+                        className={clsx(
+                          "bg-slate-900/60 border rounded-xl transition-all overflow-hidden",
+                          isVideoExpanded
+                            ? "border-purple-500/50 bg-slate-900/90 shadow-lg shadow-purple-950/20"
+                            : "border-slate-800/80 hover:border-slate-700"
+                        )}
                       >
-                        <div className="flex items-center justify-between gap-3 mb-1.5">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span className={clsx(
-                              "w-6 h-6 rounded-md flex items-center justify-center text-xs font-black shrink-0",
-                              idx === 0 ? "bg-amber-500 text-slate-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.4)]" :
-                              idx === 1 ? "bg-slate-300 text-slate-900 font-bold" :
-                              idx === 2 ? "bg-amber-700 text-white font-bold" :
-                              "bg-slate-800 text-slate-400"
-                            )}>
-                              {idx + 1}
-                            </span>
-                            <div className="min-w-0">
-                              <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-purple-400 transition-colors truncate">
-                                {video.titulo}
-                              </h4>
-                              <span className="text-[10px] text-slate-500 block truncate">
-                                Instrutor: {video.instrutor} • {video.concluidos} conclusão(ões)
+                        {/* Cabeçalho clicável do Card de Vídeo */}
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={isVideoExpanded}
+                          onClick={() => {
+                            if (isVideoExpanded) {
+                              setVideoExpandido(null)
+                            } else {
+                              setVideoExpandido(cardVideoKey)
+                              setFiltroTipoVideo('todos')
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              if (isVideoExpanded) {
+                                setVideoExpandido(null)
+                              } else {
+                                setVideoExpandido(cardVideoKey)
+                                setFiltroTipoVideo('todos')
+                              }
+                            }
+                          }}
+                          className="p-3 cursor-pointer select-none group"
+                        >
+                          <div className="flex items-center justify-between gap-3 mb-1.5">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className={clsx(
+                                "w-6 h-6 rounded-md flex items-center justify-center text-xs font-black shrink-0",
+                                idx === 0 ? "bg-amber-500 text-slate-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.4)]" :
+                                idx === 1 ? "bg-slate-300 text-slate-900 font-bold" :
+                                idx === 2 ? "bg-amber-700 text-white font-bold" :
+                                "bg-slate-800 text-slate-400"
+                              )}>
+                                {idx + 1}
                               </span>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4
+                                    className="text-xs sm:text-sm font-bold text-white group-hover:text-purple-400 transition-colors truncate"
+                                    title={video.titulo}
+                                  >
+                                    {video.titulo}
+                                  </h4>
+                                  <Link
+                                    to="/academia"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Abrir Academia Mantran"
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 hover:bg-purple-500/20 hover:text-purple-300 border border-slate-700/80 transition-colors shrink-0"
+                                  >
+                                    <span>Abrir</span>
+                                    <ExternalLink className="w-2.5 h-2.5" />
+                                  </Link>
+                                </div>
+                                <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 mt-0.5">
+                                  <span className="text-[10px] text-slate-500 truncate">
+                                    {video.instrutor} • {video.concluidos} conclusão(ões)
+                                  </span>
+                                  {video.acessosClientes > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400/90">
+                                      <Building2 className="w-2.5 h-2.5" />
+                                      {video.acessosClientes} cliente{video.acessosClientes > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {video.acessosVisitantes > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400/90">
+                                      <Globe className="w-2.5 h-2.5" />
+                                      {video.acessosVisitantes} visitante{video.acessosVisitantes > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {video.acessosEquipe > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-400/90">
+                                      <ShieldCheck className="w-2.5 h-2.5" />
+                                      {video.acessosEquipe} equipe
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2.5 shrink-0">
+                              <div className="text-right">
+                                <span className="text-sm sm:text-base font-black text-purple-400 font-mono">
+                                  {video.visualizacoes}
+                                </span>
+                                <span className="text-[10px] text-slate-500 block">visualizaç{video.visualizacoes > 1 ? 'ões' : 'ão'}</span>
+                              </div>
+                              <div className={clsx(
+                                "w-7 h-7 rounded-lg flex items-center justify-center border transition-colors",
+                                isVideoExpanded
+                                  ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
+                                  : "bg-slate-800/80 border-slate-700/70 text-slate-400 group-hover:text-white group-hover:border-slate-600"
+                              )}>
+                                {isVideoExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </div>
                             </div>
                           </div>
-                          <div className="text-right shrink-0">
-                            <span className="text-sm sm:text-base font-black text-purple-400 font-mono">
-                              {video.visualizacoes}
-                            </span>
-                            <span className="text-[10px] text-slate-500 block">visualizaç{video.visualizacoes > 1 ? 'ões' : 'ão'}</span>
+                          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="bg-purple-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${Math.max(5, pct)}%` }}
+                            />
                           </div>
                         </div>
-                        <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="bg-purple-500 h-full rounded-full transition-all duration-500"
-                            style={{ width: `${Math.max(5, pct)}%` }}
-                          />
-                        </div>
+
+                        {/* Painel Expandido: Detalhamento de Quem Assistiu este Vídeo */}
+                        {isVideoExpanded && (
+                          <div className="border-t border-slate-800 bg-slate-950/60 p-3.5 sm:p-4 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroTipoVideo('todos')}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                    filtroTipoVideo === 'todos'
+                                      ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                                  )}
+                                >
+                                  <span>Todos</span>
+                                  <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{video.visualizacoes}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroTipoVideo('cliente')}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                    filtroTipoVideo === 'cliente'
+                                      ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-300"
+                                  )}
+                                >
+                                  <Building2 className="w-3 h-3 text-amber-400" />
+                                  <span>Clientes</span>
+                                  <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{video.acessosClientes}</span>
+                                </button>
+
+                                {video.acessosVisitantes > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFiltroTipoVideo('visitante')}
+                                    className={clsx(
+                                      "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                      filtroTipoVideo === 'visitante'
+                                        ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
+                                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-cyan-300"
+                                    )}
+                                  >
+                                    <Globe className="w-3 h-3 text-cyan-400" />
+                                    <span>Visitantes</span>
+                                    <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{video.acessosVisitantes}</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroTipoVideo('equipe')}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                    filtroTipoVideo === 'equipe'
+                                      ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-purple-300"
+                                  )}
+                                >
+                                  <ShieldCheck className="w-3 h-3 text-purple-400" />
+                                  <span>Equipe Mantran</span>
+                                  <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{video.acessosEquipe}</span>
+                                </button>
+                              </div>
+
+                              <span className="text-[11px] text-slate-500">
+                                {detalhesVideoFiltrados.length} reprodução(ões) listada(s)
+                              </span>
+                            </div>
+
+                            {detalhesVideoFiltrados.length === 0 ? (
+                              <div className="py-6 text-center text-xs text-slate-500 italic bg-slate-900/50 rounded-xl border border-slate-800/60">
+                                Nenhuma visualização encontrada para este filtro neste treinamento.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto custom-scrollbar rounded-xl border border-slate-800/90 bg-slate-900/50">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="border-b border-slate-800 bg-slate-900/90 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                      <th className="py-2 px-3">Empresa / Origem</th>
+                                      <th className="py-2 px-3">Usuário / Identificação</th>
+                                      <th className="py-2 px-3 text-center">Perfil</th>
+                                      <th className="py-2 px-3 text-center">Progresso</th>
+                                      <th className="py-2 px-3 text-right">Última Visualização</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-800/60">
+                                    {detalhesVideoFiltrados.map((det) => (
+                                      <tr key={det.id} className="hover:bg-slate-800/40 transition-colors">
+                                        <td className="py-2.5 px-3">
+                                          <div className="flex items-center gap-2">
+                                            <div className={clsx(
+                                              "w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border",
+                                              det.tipo === 'cliente'
+                                                ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                                                : det.tipo === 'visitante'
+                                                ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                                                : "bg-purple-500/10 border-purple-500/30 text-purple-400"
+                                            )}>
+                                              {det.tipo === 'cliente' ? (
+                                                <Building2 className="w-3.5 h-3.5" />
+                                              ) : det.tipo === 'visitante' ? (
+                                                <Globe className="w-3.5 h-3.5" />
+                                              ) : (
+                                                <ShieldCheck className="w-3.5 h-3.5" />
+                                              )}
+                                            </div>
+                                            <span className="font-bold text-white">
+                                              {det.empresa}
+                                            </span>
+                                          </div>
+                                        </td>
+                                        <td className="py-2.5 px-3">
+                                          <div className="font-semibold text-slate-200">{det.usuario_nome}</div>
+                                          {det.usuario_detalhe && det.usuario_detalhe !== det.usuario_nome && (
+                                            <div className="text-[10px] text-slate-400 font-mono">{det.usuario_detalhe}</div>
+                                          )}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-center">
+                                          {det.tipo === 'cliente' ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                              Cliente
+                                            </span>
+                                          ) : det.tipo === 'visitante' ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                                              Visitante
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                                              Equipe Mantran
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-center">
+                                          <span className={clsx(
+                                            "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                                            det.concluido
+                                              ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                                              : "bg-purple-500/10 text-purple-300 border-purple-500/30"
+                                          )}>
+                                            {det.concluido ? 'Concluído (100%)' : `${det.progresso_pct}%`}
+                                          </span>
+                                        </td>
+                                        <td className="py-2.5 px-3 text-right text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                          {new Date(det.ultima_vez).toLocaleDateString('pt-BR')} às{' '}
+                                          {new Date(det.ultima_vez).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -766,7 +1010,7 @@ export function AnalyticsAcessos() {
                   </div>
                   <div>
                     <h3 className="text-sm sm:text-base font-black text-white">Telas Mais Acessadas</h3>
-                    <p className="text-xs text-slate-400">Páginas e módulos com maior volume de tráfego</p>
+                    <p className="text-xs text-slate-400">Clique em qualquer tela para expandir e ver quais empresas, clientes ou visitantes mais acessam</p>
                   </div>
                 </div>
               </div>
@@ -779,30 +1023,283 @@ export function AnalyticsAcessos() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {metricas?.topTelas.map((tela, idx) => {
                     const pct = Math.round((tela.acessos / maxTelaAcessos) * 100)
+                    const cardTelaKey = `${tela.tela_nome}-${idx}`
+                    const isTelaExpanded = telaExpandida === cardTelaKey
+                    const detalhesTelaFiltrados = (tela.detalhes || []).filter(d =>
+                      filtroTipoTela === 'todos' ? true : d.tipo === filtroTipoTela
+                    )
+
                     return (
                       <div
-                        key={tela.rota || idx}
-                        className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 hover:border-slate-700 transition-all"
+                        key={cardTelaKey}
+                        className={clsx(
+                          "bg-slate-900/60 border rounded-xl transition-all overflow-hidden",
+                          isTelaExpanded
+                            ? "md:col-span-2 border-blue-500/50 bg-slate-900/90 shadow-lg shadow-blue-950/20"
+                            : "border-slate-800/80 hover:border-slate-700"
+                        )}
                       >
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <div className="min-w-0">
-                            <span className="text-xs sm:text-sm font-bold text-white truncate block">
-                              {tela.tela_nome}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-mono truncate block">
-                              {tela.rota}
-                            </span>
+                        {/* Cabeçalho clicável do Card de Tela */}
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={isTelaExpanded}
+                          onClick={() => {
+                            if (isTelaExpanded) {
+                              setTelaExpandida(null)
+                            } else {
+                              setTelaExpandida(cardTelaKey)
+                              setFiltroTipoTela('todos')
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              if (isTelaExpanded) {
+                                setTelaExpandida(null)
+                              } else {
+                                setTelaExpandida(cardTelaKey)
+                                setFiltroTipoTela('todos')
+                              }
+                            }
+                          }}
+                          className="p-3 cursor-pointer select-none group"
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className={clsx(
+                                "w-6 h-6 rounded-md flex items-center justify-center text-xs font-black shrink-0",
+                                idx === 0 ? "bg-amber-500 text-slate-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.4)]" :
+                                idx === 1 ? "bg-slate-300 text-slate-900 font-bold" :
+                                idx === 2 ? "bg-amber-700 text-white font-bold" :
+                                "bg-slate-800 text-slate-400"
+                              )}>
+                                {idx + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs sm:text-sm font-bold text-white group-hover:text-blue-400 transition-colors truncate block">
+                                    {tela.tela_nome}
+                                  </span>
+                                  <Link
+                                    to={tela.rota || '/'}
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Abrir esta tela"
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 hover:bg-blue-500/20 hover:text-blue-300 border border-slate-700/80 transition-colors shrink-0"
+                                  >
+                                    <span>Abrir</span>
+                                    <ExternalLink className="w-2.5 h-2.5" />
+                                  </Link>
+                                </div>
+                                <div className="flex items-center flex-wrap gap-x-2.5 gap-y-1 mt-0.5">
+                                  <span className="text-[10px] text-slate-500 font-mono truncate">
+                                    {tela.rota}
+                                  </span>
+                                  {tela.acessosClientes > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400/90">
+                                      <Building2 className="w-2.5 h-2.5" />
+                                      {tela.acessosClientes} cliente{tela.acessosClientes > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {tela.acessosVisitantes > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400/90">
+                                      <Globe className="w-2.5 h-2.5" />
+                                      {tela.acessosVisitantes} visitante{tela.acessosVisitantes > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {tela.acessosEquipe > 0 && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-400/90">
+                                      <ShieldCheck className="w-2.5 h-2.5" />
+                                      {tela.acessosEquipe} equipe
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs font-black text-blue-400 font-mono px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20">
+                                {tela.acessos} acessos
+                              </span>
+                              <div className={clsx(
+                                "w-7 h-7 rounded-lg flex items-center justify-center border transition-colors",
+                                isTelaExpanded
+                                  ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
+                                  : "bg-slate-800/80 border-slate-700/70 text-slate-400 group-hover:text-white group-hover:border-slate-600"
+                              )}>
+                                {isTelaExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </div>
+                            </div>
                           </div>
-                          <span className="text-xs font-black text-blue-400 font-mono px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 shrink-0">
-                            {tela.acessos} acessos
-                          </span>
+
+                          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="bg-blue-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${Math.max(5, pct)}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="bg-blue-500 h-full rounded-full transition-all duration-500"
-                            style={{ width: `${Math.max(5, pct)}%` }}
-                          />
-                        </div>
+
+                        {/* Painel Expandido: Detalhamento de Quem Acessou esta Tela */}
+                        {isTelaExpanded && (
+                          <div className="border-t border-slate-800 bg-slate-950/60 p-3.5 sm:p-4 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroTipoTela('todos')}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                    filtroTipoTela === 'todos'
+                                      ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                                  )}
+                                >
+                                  <span>Todos</span>
+                                  <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{tela.acessos}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroTipoTela('cliente')}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                    filtroTipoTela === 'cliente'
+                                      ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-300"
+                                  )}
+                                >
+                                  <Building2 className="w-3 h-3 text-amber-400" />
+                                  <span>Clientes</span>
+                                  <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{tela.acessosClientes}</span>
+                                </button>
+
+                                {tela.acessosVisitantes > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFiltroTipoTela('visitante')}
+                                    className={clsx(
+                                      "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                      filtroTipoTela === 'visitante'
+                                        ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
+                                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-cyan-300"
+                                    )}
+                                  >
+                                    <Globe className="w-3 h-3 text-cyan-400" />
+                                    <span>Visitantes (Sem Login)</span>
+                                    <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{tela.acessosVisitantes}</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroTipoTela('equipe')}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer flex items-center gap-1.5",
+                                    filtroTipoTela === 'equipe'
+                                      ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
+                                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-purple-300"
+                                  )}
+                                >
+                                  <ShieldCheck className="w-3 h-3 text-purple-400" />
+                                  <span>Equipe Mantran</span>
+                                  <span className="font-mono px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px]">{tela.acessosEquipe}</span>
+                                </button>
+                              </div>
+
+                              <span className="text-[11px] text-slate-500">
+                                {detalhesTelaFiltrados.length} origem(ns) identificada(s)
+                              </span>
+                            </div>
+
+                            {detalhesTelaFiltrados.length === 0 ? (
+                              <div className="py-6 text-center text-xs text-slate-500 italic bg-slate-900/50 rounded-xl border border-slate-800/60">
+                                Nenhum acesso encontrado para este filtro nesta tela.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto custom-scrollbar rounded-xl border border-slate-800/90 bg-slate-900/50">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="border-b border-slate-800 bg-slate-900/90 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                      <th className="py-2 px-3">Empresa / Origem</th>
+                                      <th className="py-2 px-3">Usuário / Identificação</th>
+                                      <th className="py-2 px-3 text-center">Perfil</th>
+                                      <th className="py-2 px-3 text-center">Qtd. Acessos</th>
+                                      <th className="py-2 px-3 text-right">Último Acesso</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-800/60">
+                                    {detalhesTelaFiltrados.map((det) => {
+                                      const pctItem = Math.round((det.acessos / Math.max(tela.acessos, 1)) * 100)
+                                      return (
+                                        <tr key={det.chave} className="hover:bg-slate-800/40 transition-colors">
+                                          <td className="py-2.5 px-3">
+                                            <div className="flex items-center gap-2">
+                                              <div className={clsx(
+                                                "w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border",
+                                                det.tipo === 'cliente'
+                                                  ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                                                  : det.tipo === 'visitante'
+                                                  ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                                                  : "bg-purple-500/10 border-purple-500/30 text-purple-400"
+                                              )}>
+                                                {det.tipo === 'cliente' ? (
+                                                  <Building2 className="w-3.5 h-3.5" />
+                                                ) : det.tipo === 'visitante' ? (
+                                                  <Globe className="w-3.5 h-3.5" />
+                                                ) : (
+                                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                                )}
+                                              </div>
+                                              <span className="font-bold text-white">
+                                                {det.empresa}
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className="py-2.5 px-3">
+                                            <div className="font-semibold text-slate-200">{det.usuario_nome}</div>
+                                            {det.usuario_detalhe && det.usuario_detalhe !== det.usuario_nome && (
+                                              <div className="text-[10px] text-slate-400 font-mono">{det.usuario_detalhe}</div>
+                                            )}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center">
+                                            {det.tipo === 'cliente' ? (
+                                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                                Cliente
+                                              </span>
+                                            ) : det.tipo === 'visitante' ? (
+                                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                                                Visitante
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                                                Equipe Mantran
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center">
+                                            <div className="inline-flex items-center gap-1.5">
+                                              <span className="font-mono font-black text-blue-400 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs">
+                                                {det.acessos}x
+                                              </span>
+                                              <span className="text-[10px] text-slate-500 font-mono">
+                                                ({pctItem}%)
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                                            {new Date(det.ultimo_acesso).toLocaleDateString('pt-BR')} às{' '}
+                                            {new Date(det.ultimo_acesso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                          </td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -1070,7 +1567,7 @@ export function AnalyticsAcessos() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="font-semibold text-purple-300">{v.video_titulo}</div>
-                              <div className="text-[11px] text-slate-500">Instrutor: {v.instrutor}</div>
+                              <div className="text-[11px] text-slate-500">{v.instrutor}</div>
                             </td>
                             <td className="px-4 py-3 text-center">
                               <span className={clsx(
