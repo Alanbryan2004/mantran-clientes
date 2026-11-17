@@ -21,32 +21,41 @@ const ETAPAS_BASE_NORMAL = [
 const SHOPEE_ORDER_MAP: Record<string, number> = {
   'checkpoint': 1,
   'configurar base': 2,
-  'ativo 4pl': 3,
-  'ativo 4pi': 3,
-  'testes': 4,
-  'treinamento last mile': 5,
-  'treinamento de first mile': 6,
-  'treinamento first mile': 6,
-  'treinamento de cadastros': 7,
-  'treinamento de cadastro': 7,
-  'treinamento cadastros': 7,
-  'treinamento cadastro': 7,
-  'treinamento de line haul': 8,
-  'treinamento line haul': 8,
-  'treinamento mobile hub': 9,
-  'treinamento de mobile hub': 9,
-  'treinamento fatura': 10,
-  'nfse': 11,
-  'feedback': 12,
+  'testes': 3,
+  'treinamento de cadastros': 4,
+  'treinamento de cadastro': 4,
+  'treinamento cadastros': 4,
+  'treinamento cadastro': 4,
+  'treinamento de line haul': 5,
+  'treinamento line haul': 5,
+  'envio da primeira prefatura': 6,
+  'envio da primeira pré-fatura': 6,
+  'envio da primeira fatura/nf': 7,
+  'treinamento de last mile': 8,
+  'treinamento last mile': 8,
+  'treinamento de first mile': 9,
+  'treinamento first mile': 9,
+  'treinamento de mobile hub': 10,
+  'treinamento mobile hub': 10,
+  'treinamento de fatura': 11,
+  'treinamento fatura': 11,
+  'nfse': 12,
+  'feedback': 13,
+  'ativo 4pl': 14,
+  'ativo 4pi': 14,
 }
 
 const normalizeShopeeEtapaName = (nome: string): string => {
   const lower = (nome || '').trim().toLowerCase()
   if (lower === 'ativo 4pl' || lower === 'ativo 4pi') return 'Ativo 4PL'
+  if (lower === 'treinamento last mile' || lower === 'treinamento de last mile') return 'Treinamento de Last Mile'
   if (lower === 'treinamento first mile' || lower === 'treinamento de first mile') return 'Treinamento de First Mile'
   if (lower === 'treinamento de cadastro' || lower === 'treinamento de cadastros' || lower === 'treinamento cadastro' || lower === 'treinamento cadastros') return 'Treinamento de Cadastros'
   if (lower === 'treinamento line haul' || lower === 'treinamento de line haul') return 'Treinamento de Line Haul'
-  if (lower === 'treinamento mobile hub' || lower === 'treinamento de mobile hub') return 'Treinamento Mobile Hub'
+  if (lower === 'treinamento mobile hub' || lower === 'treinamento de mobile hub') return 'Treinamento de Mobile Hub'
+  if (lower === 'treinamento fatura' || lower === 'treinamento de fatura') return 'Treinamento de Fatura'
+  if (lower === 'envio da primeira prefatura' || lower === 'envio da primeira pré-fatura') return 'Envio da Primeira Prefatura'
+  if (lower === 'envio da primeira fatura/nf') return 'Envio da Primeira Fatura/NF'
   return nome
 }
 
@@ -61,6 +70,7 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
   const [saving, setSaving] = useState(false)
 
   const isShopee = implantacao?.tipo_cliente === 'SHOPEE'
+  const isLeo = implantacao?.tipo_cliente === 'LEO_MADEIRAS' || implantacao?.bases?.nome_base === 'dbMantranLeo012'
 
   const isoToDateInput = (isoString: string) => {
     if (!isoString) return ''
@@ -134,35 +144,41 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
       const etapas: string[] = []
       etapas.push('Checkpoint')
       etapas.push('Configurar Base')
-      etapas.push('Ativo 4PL')
       etapas.push('Testes')
+      if (selectedOperacoes.includes('Line Haul')) {
+        etapas.push('Treinamento de Cadastros')
+        etapas.push('Treinamento de Line Haul')
+      }
+      etapas.push('Envio da Primeira Prefatura')
+      etapas.push('Envio da Primeira Fatura/NF')
       if (selectedOperacoes.includes('Last Mile')) {
-        etapas.push('Treinamento Last Mile')
+        etapas.push('Treinamento de Last Mile')
       }
       if (selectedOperacoes.includes('First Mile')) {
         etapas.push('Treinamento de First Mile')
       }
-      if (selectedOperacoes.includes('Line Haul')) {
-        etapas.push('Treinamento de Cadastros')
-      }
-      if (selectedOperacoes.includes('Line Haul')) {
-        etapas.push('Treinamento de Line Haul')
-      }
       if (selectedOperacoes.includes('Mobile Hub')) {
-        etapas.push('Treinamento Mobile Hub')
+        etapas.push('Treinamento de Mobile Hub')
       }
-      etapas.push('Treinamento Fatura')
+      etapas.push('Treinamento de Fatura')
       // Etapa NFSE: só quando o módulo NFSE foi contratado pelo cliente. Sempre antes do Feedback.
       if (modulosContratados.includes('NFSE')) {
         etapas.push('NFSE')
       }
       etapas.push('Feedback')
+      etapas.push('Ativo 4PL')
       return etapas
     } else {
       const etapas = [...ETAPAS_BASE_NORMAL]
       selectedModulos.forEach(mod => {
         etapas.push(`Treinamento ${mod}`)
+        if (isLeo && mod === 'Operação' && !etapas.includes('Treinamento Fatura')) {
+          etapas.push('Treinamento Fatura')
+        }
       })
+      if (isLeo && !etapas.includes('Treinamento Fatura')) {
+        etapas.push('Treinamento Fatura')
+      }
       // Etapa NFSE: só quando o módulo NFSE foi contratado pelo cliente. Sempre antes do Feedback.
       if (modulosContratados.includes('NFSE')) {
         etapas.push('NFSE')

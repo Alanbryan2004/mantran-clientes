@@ -221,35 +221,41 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
       const etapas: string[] = []
       etapas.push('Checkpoint')
       etapas.push('Configurar Base')
-      etapas.push('Ativo 4PL')
       etapas.push('Testes')
+      if (selectedOperacoes.includes('Line Haul')) {
+        etapas.push('Treinamento de Cadastros')
+        etapas.push('Treinamento de Line Haul')
+      }
+      etapas.push('Envio da Primeira Prefatura')
+      etapas.push('Envio da Primeira Fatura/NF')
       if (selectedOperacoes.includes('Last Mile')) {
-        etapas.push('Treinamento Last Mile')
+        etapas.push('Treinamento de Last Mile')
       }
       if (selectedOperacoes.includes('First Mile')) {
         etapas.push('Treinamento de First Mile')
       }
-      if (selectedOperacoes.includes('Line Haul')) {
-        etapas.push('Treinamento de Cadastros')
-      }
-      if (selectedOperacoes.includes('Line Haul')) {
-        etapas.push('Treinamento de Line Haul')
-      }
       if (selectedOperacoes.includes('Mobile Hub')) {
-        etapas.push('Treinamento Mobile Hub')
+        etapas.push('Treinamento de Mobile Hub')
       }
-      etapas.push('Treinamento Fatura')
+      etapas.push('Treinamento de Fatura')
       // Etapa NFSE: só quando o módulo NFSE foi contratado (passo 2). Sempre antes do Feedback.
       if (selectedModulosContratados.includes('NFSE')) {
         etapas.push('NFSE')
       }
       etapas.push('Feedback')
+      etapas.push('Ativo 4PL')
       return etapas
     } else {
       const etapas = [...ETAPAS_BASE_NORMAL]
       selectedModulosTreinamento.forEach(mod => {
         etapas.push(`Treinamento ${mod}`)
+        if (tipoCliente === 'LEO_MADEIRAS' && mod === 'Operação' && !etapas.includes('Treinamento Fatura')) {
+          etapas.push('Treinamento Fatura')
+        }
       })
+      if (tipoCliente === 'LEO_MADEIRAS' && !etapas.includes('Treinamento Fatura')) {
+        etapas.push('Treinamento Fatura')
+      }
       // Etapa NFSE: só quando o módulo NFSE foi contratado (passo 2). Sempre antes do Feedback.
       if (selectedModulosContratados.includes('NFSE')) {
         etapas.push('NFSE')

@@ -1267,12 +1267,22 @@ export const api = {
   },
 
   async updateImplantacaoEtapa(etapaId: string, valor: string) {
-    const { error } = await supabase
+    const { data: etData, error } = await supabase
       .from('implantacao_etapas')
       .update({ valor })
       .eq('id', etapaId)
+      .select('id, implantacao_id, nome_etapa, valor')
+      .maybeSingle()
     
     if (error) throw error
+
+    if (
+      valor === 'OK' &&
+      etData?.implantacao_id &&
+      (etData?.nome_etapa || '').trim().toLowerCase() === 'checkpoint'
+    ) {
+      await this.sincronizarConclusaoCheckpointNoCronograma(etData.implantacao_id)
+    }
   },
 
   async deleteImplantacaoEtapas(ids: string[]) {
@@ -1413,6 +1423,9 @@ export const api = {
         .update({ valor: completo ? 'OK' : 'PENDENTE' })
         .eq('id', alvo.id)
     }
+    if (completo && etapaCheckpoint) {
+      await api.sincronizarConclusaoCheckpointNoCronograma(implantacaoId)
+    }
     return { completo }
   },
 
@@ -1486,6 +1499,9 @@ export const api = {
         .from('implantacao_etapas')
         .update({ valor: completo ? 'OK' : 'PENDENTE' })
         .eq('id', etapaCheckpoint.id)
+    }
+    if (completo && etapaCheckpoint) {
+      await api.sincronizarConclusaoCheckpointNoCronograma(implantacaoId)
     }
     return { completo }
   },
@@ -1763,13 +1779,18 @@ export const api = {
 
     // 2. Check if checkpoint already exists
     const existing = await api.getImplantacaoCheckpoint(implantacaoId)
+    const dadosPreservados = {
+      ...(existing?.dados || {}),
+      ...dados,
+      agendamentos_etapas: dados?.agendamentos_etapas || existing?.dados?.agendamentos_etapas || undefined
+    }
     
     let result: any = null
     if (existing) {
       const { data, error } = await supabase
         .from('implantacao_checkpoint')
         .update({
-          dados,
+          dados: dadosPreservados,
           concluido: isReallyConcluido,
           updated_at: new Date().toISOString()
         })
@@ -1783,7 +1804,7 @@ export const api = {
         .from('implantacao_checkpoint')
         .insert({
           implantacao_id: implantacaoId,
-          dados,
+          dados: dadosPreservados,
           concluido: isReallyConcluido
         })
         .select()
@@ -1808,6 +1829,9 @@ export const api = {
           .from('implantacao_etapas')
           .update({ valor: isReallyConcluido ? 'OK' : 'PENDENTE' })
           .eq('id', checkpointEtapa.id)
+      }
+      if (isReallyConcluido) {
+        await this.sincronizarConclusaoCheckpointNoCronograma(implantacaoId, new Date().toISOString(), _usuarioNome)
       }
     } catch (etapaErr) {
       console.warn('Aviso ao atualizar etapa Checkpoint:', etapaErr)
@@ -4544,6 +4568,858 @@ export const api = {
     }
 
     return resultado
+  },
+
+  // Resolve o Analista Responsável de uma implantação (por ID ou Nome)
+  async resolverAnalistaImplantacao(implantacao: any): Promise<{
+    id: string | null
+    nome: string
+    email: string | null
+  }> {
+    const idDireto = implantacao?.analista_responsavel_id || null
+    const nomeDireto = (implantacao?.analista_responsavel || '').trim()
+
+    if (idDireto) {
+      const { data: u } = await supabase
+        .from('usuario')
+        .select('id, nome, login, email_corporativo, email_pessoal')
+        .eq('id', idDireto)
+        .maybeSingle()
+      if (u) {
+        return {
+          id: u.id,
+          nome: u.nome || u.login || nomeDireto || 'Analista Mantran',
+          email: u.email_corporativo || u.email_pessoal || null
+        }
+      }
+    }
+
+    if (nomeDireto) {
+      const { data: list } = await supabase
+        .from('usuario')
+        .select('id, nome, login, email_corporativo, email_pessoal')
+        .or(`nome.ilike.${nomeDireto},login.ilike.${nomeDireto}`)
+        .limit(1)
+      const u = list?.[0]
+      if (u) {
+        return {
+          id: u.id,
+          nome: u.nome || u.login || nomeDireto,
+          email: u.email_corporativo || u.email_pessoal || null
+        }
+      }
+    }
+
+    return {
+      id: idDireto,
+      nome: nomeDireto || 'Analista Responsável',
+      email: null
+    }
+  },
+
+  // Busca todos os horários ocupados do analista em uma data específica (YYYY-MM-DD)
+  async getHorariosOcupadosAnalistaNoDia(
+    analistaId: string | null | undefined,
+    dataYMD: string,
+    excluirEventoId?: string | null
+  ): Promise<Array<{ id: string; inicio: string; fim: string; dia_inteiro: boolean; titulo: string }>> {
+    if (!analistaId || !dataYMD) return []
+    const [ano, mes, dia] = dataYMD.split('-').map(Number)
+    if (!ano || !mes || !dia) return []
+
+    const iniDia = new Date(ano, mes - 1, dia, 0, 0, 0, 0)
+    const fimDia = new Date(ano, mes - 1, dia, 23, 59, 59, 999)
+
+    const conflitos = await this.getEventosConflitantes(
+      iniDia.toISOString(),
+      fimDia.toISOString(),
+      [analistaId],
+      excluirEventoId || undefined
+    )
+
+    return conflitos
+      .map(c => ({
+        id: c.evento.id,
+        inicio: c.evento.inicio,
+        fim: c.evento.fim || new Date(new Date(c.evento.inicio).getTime() + 60 * 60000).toISOString(),
+        dia_inteiro: !!c.evento.dia_inteiro,
+        titulo: c.evento.titulo
+      }))
+      .sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime())
+  },
+
+  // Agenda ou replaneja a data/horário de uma etapa da implantação:
+  // - Bloqueia se o horário já estiver ocupado no calendário do Analista Responsável
+  // - Cria/atualiza o evento no Calendário do Analista Responsável
+  // - Grava no Histórico da Implantação (agendamento inicial ou replanejamento com de -> para)
+  // - Recalcula automaticamente a data de Feedback para 15 dias após a última data de Treinamento
+  async agendarEtapaImplantacao(params: {
+    implantacao: any
+    etapa: { id: string; nome_etapa: string }
+    inicioISO: string
+    fimISO: string
+    motivoReplanejamento?: string
+    usuarioLogado?: { id?: string | null; nome?: string | null; login?: string | null } | null
+  }) {
+    const { implantacao, etapa, inicioISO, fimISO, motivoReplanejamento, usuarioLogado } = params
+    const implantacaoId = implantacao.id
+    const nomeEmpresa = implantacao.nome_empresa || 'Cliente'
+    const nomeEtapa = etapa.nome_etapa
+    const autorNome = usuarioLogado?.nome || usuarioLogado?.login || nomeEmpresa
+    const autorId = usuarioLogado?.id || null
+
+    // 1. Resolver Analista Responsável
+    const analista = await this.resolverAnalistaImplantacao(implantacao)
+
+    // 2. Carregar checkpoint atual para ver se já existia agendamento nesta etapa
+    const existingChk = await this.getImplantacaoCheckpoint(implantacaoId)
+    const dadosAtuais = existingChk?.dados || {}
+    const agendamentosAtuais: Record<string, any> = { ...(dadosAtuais.agendamentos_etapas || {}) }
+    const agendamentoAnterior = agendamentosAtuais[etapa.id] || null
+
+    // 3. Validar conflito no calendário do Analista Responsável (bloqueio obrigatório)
+    if (analista.id) {
+      const conflitos = await this.getEventosConflitantes(
+        inicioISO,
+        fimISO,
+        [analista.id],
+        agendamentoAnterior?.evento_calendario_id || undefined
+      )
+      if (conflitos.length > 0) {
+        const horariosStr = conflitos
+          .map(c => {
+            const dIni = new Date(c.evento.inicio)
+            const dFim = c.evento.fim ? new Date(c.evento.fim) : new Date(dIni.getTime() + 60 * 60000)
+            return `${dIni.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} às ${dFim.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+          })
+          .join(', ')
+        throw new Error(
+          `Este horário já está ocupado no calendário do analista responsável (${analista.nome}: ${horariosStr}). Por favor, selecione outro horário disponível.`
+        )
+      }
+    }
+
+    // 4. Criar ou atualizar evento no Calendário do Analista Responsável
+    const isTreinamento = (nomeEtapa || '').trim().toLowerCase().includes('treinamento')
+    const tipoEvento = isTreinamento ? 'treinamento' : 'validacao'
+    const corEvento = isTreinamento ? 'violet' : 'emerald'
+    const tituloEvento = `${nomeEtapa} - ${nomeEmpresa}`
+    const descricaoEvento = agendamentoAnterior
+      ? `Etapa "${nomeEtapa}" da implantação de ${nomeEmpresa} (Replanejado por ${autorNome}${motivoReplanejamento ? ` — Motivo: ${motivoReplanejamento}` : ''}).`
+      : `Etapa "${nomeEtapa}" da implantação de ${nomeEmpresa} (Agendado por ${autorNome}).`
+
+    const convidadosAnalista = analista.id
+      ? [
+          {
+            usuario_id: analista.id,
+            usuario_nome: analista.nome,
+            usuario_email: analista.email,
+            organizador: true,
+            antecedencia_min: 30
+          }
+        ]
+      : []
+
+    let eventoCalendarioId: string | null = agendamentoAnterior?.evento_calendario_id || null
+    if (analista.id) {
+      if (eventoCalendarioId) {
+        const atualizado = await this.updateEventoCalendario(eventoCalendarioId, {
+          titulo: tituloEvento,
+          descricao: descricaoEvento,
+          tipo: tipoEvento,
+          cor: corEvento,
+          inicio: inicioISO,
+          fim: fimISO,
+          dia_inteiro: false,
+          convidados: convidadosAnalista
+        })
+        if (!atualizado) {
+          const novoEv = await this.createEventoCalendario({
+            titulo: tituloEvento,
+            descricao: descricaoEvento,
+            tipo: tipoEvento,
+            cor: corEvento,
+            inicio: inicioISO,
+            fim: fimISO,
+            dia_inteiro: false,
+            criado_por_id: analista.id,
+            criado_por_nome: analista.nome,
+            convidados: convidadosAnalista
+          })
+          eventoCalendarioId = novoEv?.id || null
+        }
+      } else {
+        const novoEv = await this.createEventoCalendario({
+          titulo: tituloEvento,
+          descricao: descricaoEvento,
+          tipo: tipoEvento,
+          cor: corEvento,
+          inicio: inicioISO,
+          fim: fimISO,
+          dia_inteiro: false,
+          criado_por_id: analista.id,
+          criado_por_nome: analista.nome,
+          convidados: convidadosAnalista
+        })
+        eventoCalendarioId = novoEv?.id || null
+      }
+    }
+
+    // 5. Atualizar objeto de agendamento da etapa (preservando histórico de replanejamentos)
+    const agoraISO = new Date().toISOString()
+    const replanejamentosAnteriores = Array.isArray(agendamentoAnterior?.replanejamentos)
+      ? [...agendamentoAnterior.replanejamentos]
+      : []
+
+    if (agendamentoAnterior?.inicio) {
+      replanejamentosAnteriores.push({
+        de_inicio: agendamentoAnterior.inicio,
+        de_fim: agendamentoAnterior.fim || null,
+        para_inicio: inicioISO,
+        para_fim: fimISO,
+        motivo: motivoReplanejamento?.trim() || null,
+        alterado_em: agoraISO,
+        alterado_por: autorNome
+      })
+    }
+
+    agendamentosAtuais[etapa.id] = {
+      etapa_id: etapa.id,
+      nome_etapa: nomeEtapa,
+      inicio: inicioISO,
+      fim: fimISO,
+      evento_calendario_id: eventoCalendarioId,
+      automatico: false,
+      atualizado_em: agoraISO,
+      atualizado_por: autorNome,
+      replanejamentos: replanejamentosAnteriores
+    }
+
+    const fmtDataHora = (iso: string) => {
+      const d = new Date(iso)
+      return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+    }
+    const fmtHora = (iso: string) =>
+      new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+    // 6. Registrar no Histórico da Implantação (Agendamento inicial ou Replanejamento)
+    const textoHistorico = agendamentoAnterior?.inicio
+      ? `🔄 [REPLANEJAMENTO DE DATA - ${nomeEtapa}] Data replanejada por ${autorNome}: de ${fmtDataHora(agendamentoAnterior.inicio)} para ${fmtDataHora(inicioISO)} (até ${fmtHora(fimISO)})${motivoReplanejamento?.trim() ? ` | Motivo: ${motivoReplanejamento.trim()}` : ''} — Agenda do analista: ${analista.nome}.`
+      : `📅 [AGENDAMENTO DE DATA - ${nomeEtapa}] Data agendada por ${autorNome} para ${fmtDataHora(inicioISO)} (até ${fmtHora(fimISO)}) — Sincronizado no calendário de ${analista.nome}.`
+
+    await this.insertImplantacaoHistorico({
+      implantacao_id: implantacaoId,
+      data_hora: agoraISO,
+      texto: textoHistorico,
+      usuario_id: autorId,
+      usuario_nome: autorNome
+    })
+
+    // 7. Regras de Datas Automáticas:
+    //    - Configurar Base: 1 dia útil após a data que o cliente informar no Checkpoint
+    //    - Testes: 1 dia útil após a data de Configurar Base
+    //    - Feedback: 15 dias após a última data definida pelo cliente
+    //    - Ativo 4PL: Não tem data
+    const { data: todasEtapas } = await supabase
+      .from('implantacao_etapas')
+      .select('id, nome_etapa, valor')
+      .eq('implantacao_id', implantacaoId)
+
+    const somarDiasUteis = (dataBase: Date, diasUteis: number): Date => {
+      const d = new Date(dataBase)
+      let adicionados = 0
+      while (adicionados < diasUteis) {
+        d.setDate(d.getDate() + 1)
+        const diaSemana = d.getDay() // 0 = Domingo, 6 = Sábado
+        if (diaSemana !== 0 && diaSemana !== 6) {
+          adicionados++
+        }
+      }
+      return d
+    }
+
+    const programarEtapaAutomatica = async (
+      etapaAlvo: { id: string; nome_etapa: string },
+      dtAlvoBase: Date,
+      regraDescricao: string
+    ) => {
+      let ini = new Date(dtAlvoBase)
+      let fim = new Date(ini.getTime() + 60 * 60000)
+      const agAnt = agendamentosAtuais[etapaAlvo.id] || null
+
+      const mudouData =
+        !agAnt?.inicio ||
+        new Date(agAnt.inicio).toISOString().slice(0, 10) !== ini.toISOString().slice(0, 10)
+
+      if (!mudouData) return
+
+      if (analista.id) {
+        for (let tentativa = 0; tentativa < 8; tentativa++) {
+          const conf = await this.getEventosConflitantes(
+            ini.toISOString(),
+            fim.toISOString(),
+            [analista.id],
+            agAnt?.evento_calendario_id || undefined
+          )
+          if (conf.length === 0) break
+          ini = new Date(ini.getTime() + 60 * 60000)
+          fim = new Date(ini.getTime() + 60 * 60000)
+        }
+      }
+
+      const iniISO = ini.toISOString()
+      const fimISO = fim.toISOString()
+      let evId: string | null = agAnt?.evento_calendario_id || null
+
+      if (analista.id) {
+        const payloadEv = {
+          titulo: `${etapaAlvo.nome_etapa} - ${nomeEmpresa}`,
+          descricao: `Data programada automaticamente (${regraDescricao}).`,
+          tipo: 'validacao',
+          cor: 'emerald',
+          inicio: iniISO,
+          fim: fimISO,
+          dia_inteiro: false,
+          convidados: convidadosAnalista
+        }
+        if (evId) {
+          const up = await this.updateEventoCalendario(evId, payloadEv)
+          if (!up) {
+            const cr = await this.createEventoCalendario({
+              ...payloadEv,
+              criado_por_id: analista.id,
+              criado_por_nome: analista.nome
+            })
+            evId = cr?.id || null
+          }
+        } else {
+          const cr = await this.createEventoCalendario({
+            ...payloadEv,
+            criado_por_id: analista.id,
+            criado_por_nome: analista.nome
+          })
+          evId = cr?.id || null
+        }
+      }
+
+      agendamentosAtuais[etapaAlvo.id] = {
+        etapa_id: etapaAlvo.id,
+        nome_etapa: etapaAlvo.nome_etapa,
+        inicio: iniISO,
+        fim: fimISO,
+        evento_calendario_id: evId,
+        automatico: true,
+        regra_automatica: regraDescricao,
+        atualizado_em: agoraISO,
+        atualizado_por: `Sistema (${regraDescricao})`
+      }
+
+      await this.insertImplantacaoHistorico({
+        implantacao_id: implantacaoId,
+        data_hora: agoraISO,
+        texto: `📅 [DATA AUTOMÁTICA - ${etapaAlvo.nome_etapa}] Programada automaticamente para ${fmtDataHora(iniISO)} (${regraDescricao}).`,
+        usuario_id: autorId,
+        usuario_nome: autorNome
+      })
+    }
+
+    const etapaCheckpoint = (todasEtapas || []).find(
+      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint'
+    )
+    const etapaConfigurarBase = (todasEtapas || []).find(
+      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'configurar base'
+    )
+    const etapaTestes = (todasEtapas || []).find(
+      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'testes'
+    )
+    const etapaFeedback = (todasEtapas || []).find(
+      (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'feedback'
+    )
+
+    // 7.1. Se o Checkpoint tem data definida, calcula Configurar Base (+1 dia útil) e Testes (+1 dia útil após Configurar Base)
+    const etapaAindaAberta = (et: any) => {
+      const v = (et?.valor || 'EM BRANCO').trim().toUpperCase()
+      return v === 'EM BRANCO' || v === 'PENDENTE'
+    }
+
+    const agCheckpoint = etapaCheckpoint ? agendamentosAtuais[etapaCheckpoint.id] : null
+    if (agCheckpoint?.inicio) {
+      const dtCheckpoint = new Date(agCheckpoint.inicio)
+      const dtConfigBase = somarDiasUteis(dtCheckpoint, 1)
+      if (etapaConfigurarBase && etapaAindaAberta(etapaConfigurarBase)) {
+        await programarEtapaAutomatica(
+          etapaConfigurarBase,
+          dtConfigBase,
+          `1 dia útil após o Checkpoint em ${dtCheckpoint.toLocaleDateString('pt-BR')}`
+        )
+      }
+      if (etapaTestes && etapaAindaAberta(etapaTestes)) {
+        const dtBaseParaTestes = etapaConfigurarBase && agendamentosAtuais[etapaConfigurarBase.id]?.inicio
+          ? new Date(agendamentosAtuais[etapaConfigurarBase.id].inicio)
+          : dtConfigBase
+        const dtTestes = somarDiasUteis(dtBaseParaTestes, 1)
+        await programarEtapaAutomatica(
+          etapaTestes,
+          dtTestes,
+          `1 dia útil após Configurar Base em ${dtBaseParaTestes.toLocaleDateString('pt-BR')}`
+        )
+      }
+    }
+
+    // 7.2. Feedback: 15 dias após o último card da última data definida pelo cliente
+    if (etapaFeedback && etapaAindaAberta(etapaFeedback)) {
+      const nomesAutomaticosOuSemData = new Set(['configurar base', 'testes', 'feedback', 'ativo 4pl', 'ativo 4pi'])
+      let maiorDataClienteMs = 0
+      let maiorDataClienteISO = ''
+      let nomeUltimaEtapaCliente = ''
+
+      for (const et of todasEtapas || []) {
+        const nomeLow = (et.nome_etapa || '').trim().toLowerCase()
+        if (nomesAutomaticosOuSemData.has(nomeLow)) continue
+        const ag = agendamentosAtuais[et.id]
+        if (ag?.inicio && !ag.automatico) {
+          const ms = new Date(ag.inicio).getTime()
+          if (ms > maiorDataClienteMs) {
+            maiorDataClienteMs = ms
+            maiorDataClienteISO = ag.inicio
+            nomeUltimaEtapaCliente = et.nome_etapa
+          }
+        }
+      }
+
+      if (maiorDataClienteMs > 0) {
+        const dtFeedback = new Date(maiorDataClienteMs + 15 * 24 * 60 * 60 * 1000)
+        await programarEtapaAutomatica(
+          etapaFeedback,
+          dtFeedback,
+          `15 dias após a última data definida pelo cliente (${nomeUltimaEtapaCliente} em ${new Date(maiorDataClienteISO).toLocaleDateString('pt-BR')})`
+        )
+      }
+    }
+
+    // 8. Salvar agendamentos_etapas em implantacao_checkpoint.dados
+    const novosDados = {
+      ...dadosAtuais,
+      agendamentos_etapas: agendamentosAtuais
+    }
+
+    if (existingChk) {
+      const { error } = await supabase
+        .from('implantacao_checkpoint')
+        .update({ dados: novosDados, updated_at: agoraISO })
+        .eq('id', existingChk.id)
+      if (error) throw error
+    } else {
+      const { error } = await supabase
+        .from('implantacao_checkpoint')
+        .insert({ implantacao_id: implantacaoId, dados: novosDados, concluido: false })
+      if (error) throw error
+    }
+
+    return agendamentosAtuais
+  },
+
+  // Sincroniza a conclusão do Checkpoint com o cronograma:
+  // - Se o Checkpoint NÃO tinha data definida: assume a data de quando foi concluído.
+  // - Se o Checkpoint JÁ tinha data definida diferente do dia em que foi concluído:
+  //   gera uma Data Replanejada no Checkpoint e atualiza todo o cronograma dos cards
+  //   que ainda estão com Status EM BRANCO ou PENDENTE.
+  async sincronizarConclusaoCheckpointNoCronograma(
+    implantacaoId: string,
+    dataConclusaoISO?: string,
+    usuarioNome?: string
+  ) {
+    try {
+      const [impRes, etapasRes, existingChk] = await Promise.all([
+        supabase.from('implantacoes').select('*').eq('id', implantacaoId).maybeSingle(),
+        supabase.from('implantacao_etapas').select('id, nome_etapa, valor, ordem').eq('implantacao_id', implantacaoId),
+        this.getImplantacaoCheckpoint(implantacaoId)
+      ])
+
+      const implantacao = impRes.data
+      const todasEtapas = etapasRes.data || []
+      if (!implantacao || todasEtapas.length === 0) return
+
+      const etapaCheckpoint = todasEtapas.find(
+        (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint'
+      )
+      if (!etapaCheckpoint) return
+
+      const analista = await this.resolverAnalistaImplantacao(implantacao)
+      const nomeEmpresa = implantacao.nome_empresa || 'Cliente'
+      const autorNome = usuarioNome || nomeEmpresa
+      const agoraISO = new Date().toISOString()
+      const dtConclusao = dataConclusaoISO ? new Date(dataConclusaoISO) : new Date()
+      const dtConclusaoFim = new Date(dtConclusao.getTime() + 60 * 60000)
+
+      const convidadosAnalista = analista.id
+        ? [{
+            usuario_id: analista.id,
+            usuario_nome: analista.nome,
+            usuario_email: analista.email,
+            organizador: true,
+            antecedencia_min: 30
+          }]
+        : []
+
+      const extrairYMDLocal = (d: Date) => {
+        const pad = (n: number) => String(n).padStart(2, '0')
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      }
+
+      const somarDiasUteis = (dataBase: Date, diasUteis: number): Date => {
+        const d = new Date(dataBase)
+        let adicionados = 0
+        while (adicionados < diasUteis) {
+          d.setDate(d.getDate() + 1)
+          const diaSemana = d.getDay()
+          if (diaSemana !== 0 && diaSemana !== 6) adicionados++
+        }
+        return d
+      }
+
+      const ajustarParaDiaUtil = (dataBase: Date): Date => {
+        const d = new Date(dataBase)
+        while (d.getDay() === 0 || d.getDay() === 6) {
+          d.setDate(d.getDate() + 1)
+        }
+        return d
+      }
+
+      const fmtDataHora = (iso: string) => {
+        const d = new Date(iso)
+        return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+      }
+
+      const etapaAindaAberta = (et: any) => {
+        const v = (et?.valor || 'EM BRANCO').trim().toUpperCase()
+        return v === 'EM BRANCO' || v === 'PENDENTE'
+      }
+
+      const dadosAtuais = existingChk?.dados || {}
+      const agendamentosAtuais: Record<string, any> = { ...(dadosAtuais.agendamentos_etapas || {}) }
+      const agCheckpoint = agendamentosAtuais[etapaCheckpoint.id] || null
+
+      const diaConclusaoYMD = extrairYMDLocal(dtConclusao)
+      const diaAgendadoYMD = agCheckpoint?.inicio ? extrairYMDLocal(new Date(agCheckpoint.inicio)) : null
+
+      let houveMudancaCheckpoint = false
+      let diffDias = 0
+
+      if (!agCheckpoint?.inicio) {
+        // Caso 1: O Card Checkpoint NÃO tinha data definida -> assume a data de quando foi concluído
+        agendamentosAtuais[etapaCheckpoint.id] = {
+          etapa_id: etapaCheckpoint.id,
+          nome_etapa: 'Checkpoint',
+          inicio: dtConclusao.toISOString(),
+          fim: dtConclusaoFim.toISOString(),
+          evento_calendario_id: null,
+          automatico: false,
+          assumido_da_conclusao: true,
+          atualizado_em: agoraISO,
+          atualizado_por: autorNome,
+          replanejamentos: []
+        }
+        houveMudancaCheckpoint = true
+
+        await this.insertImplantacaoHistorico({
+          implantacao_id: implantacaoId,
+          data_hora: agoraISO,
+          texto: `📅 [DATA DO CHECKPOINT] O Checkpoint não possuía data agendada previamente e assumiu a data de sua conclusão (${fmtDataHora(dtConclusao.toISOString())}).`,
+          usuario_id: null,
+          usuario_nome: autorNome
+        })
+      } else if (diaAgendadoYMD !== diaConclusaoYMD) {
+        // Caso 2: O Card Checkpoint tinha data definida DIFERENTE da data em que foi concluído -> Replaneja e desloca cronograma
+        const dtAntiga = new Date(agCheckpoint.inicio)
+        const meiaNoiteAntiga = new Date(dtAntiga.getFullYear(), dtAntiga.getMonth(), dtAntiga.getDate(), 12, 0, 0).getTime()
+        const meiaNoiteNova = new Date(dtConclusao.getFullYear(), dtConclusao.getMonth(), dtConclusao.getDate(), 12, 0, 0).getTime()
+        diffDias = Math.round((meiaNoiteNova - meiaNoiteAntiga) / (24 * 60 * 60 * 1000))
+
+        const replanejamentosChk = Array.isArray(agCheckpoint.replanejamentos)
+          ? [...agCheckpoint.replanejamentos]
+          : []
+        replanejamentosChk.push({
+          de_inicio: agCheckpoint.inicio,
+          de_fim: agCheckpoint.fim || null,
+          para_inicio: dtConclusao.toISOString(),
+          para_fim: dtConclusaoFim.toISOString(),
+          motivo: 'Concluído em data diferente da definida inicialmente',
+          alterado_em: agoraISO,
+          alterado_por: autorNome
+        })
+
+        if (analista.id && agCheckpoint.evento_calendario_id) {
+          await this.updateEventoCalendario(agCheckpoint.evento_calendario_id, {
+            inicio: dtConclusao.toISOString(),
+            fim: dtConclusaoFim.toISOString(),
+            descricao: `Checkpoint concluído em ${fmtDataHora(dtConclusao.toISOString())} (replanejado automaticamente).`
+          })
+        }
+
+        agendamentosAtuais[etapaCheckpoint.id] = {
+          ...agCheckpoint,
+          inicio: dtConclusao.toISOString(),
+          fim: dtConclusaoFim.toISOString(),
+          atualizado_em: agoraISO,
+          atualizado_por: autorNome,
+          replanejamentos: replanejamentosChk
+        }
+        houveMudancaCheckpoint = true
+
+        await this.insertImplantacaoHistorico({
+          implantacao_id: implantacaoId,
+          data_hora: agoraISO,
+          texto: `🔄 [REPLANEJAMENTO AUTOMÁTICO - Checkpoint] O Checkpoint estava definido para ${dtAntiga.toLocaleDateString('pt-BR')}, mas foi concluído em ${dtConclusao.toLocaleDateString('pt-BR')}. Data replanejada e cronograma das etapas pendentes/em branco atualizado automaticamente.`,
+          usuario_id: null,
+          usuario_nome: autorNome
+        })
+
+        // Atualizar as demais etapas definidas pelo cliente que ainda estão EM BRANCO ou PENDENTE
+        const nomesAutomaticosOuSemData = new Set(['checkpoint', 'configurar base', 'testes', 'feedback', 'ativo 4pl', 'ativo 4pi'])
+        if (diffDias !== 0) {
+          for (const et of todasEtapas) {
+            const nomeLow = (et.nome_etapa || '').trim().toLowerCase()
+            if (nomesAutomaticosOuSemData.has(nomeLow)) continue
+            if (!etapaAindaAberta(et)) continue
+
+            const agEt = agendamentosAtuais[et.id]
+            if (!agEt?.inicio || agEt.automatico) continue
+
+            const antIni = new Date(agEt.inicio)
+            const duracaoMs = agEt.fim ? (new Date(agEt.fim).getTime() - antIni.getTime()) : 60 * 60000
+            let novoIni = ajustarParaDiaUtil(new Date(antIni.getTime() + diffDias * 24 * 60 * 60 * 1000))
+            let novoFim = new Date(novoIni.getTime() + Math.max(duracaoMs, 60 * 60000))
+
+            if (analista.id) {
+              for (let tentativa = 0; tentativa < 8; tentativa++) {
+                const conf = await this.getEventosConflitantes(
+                  novoIni.toISOString(),
+                  novoFim.toISOString(),
+                  [analista.id],
+                  agEt.evento_calendario_id || undefined
+                )
+                if (conf.length === 0) break
+                novoIni = new Date(novoIni.getTime() + 60 * 60000)
+                novoFim = new Date(novoIni.getTime() + Math.max(duracaoMs, 60 * 60000))
+              }
+            }
+
+            if (analista.id && agEt.evento_calendario_id) {
+              await this.updateEventoCalendario(agEt.evento_calendario_id, {
+                inicio: novoIni.toISOString(),
+                fim: novoFim.toISOString(),
+                convidados: convidadosAnalista
+              })
+            }
+
+            const repsEt = Array.isArray(agEt.replanejamentos) ? [...agEt.replanejamentos] : []
+            repsEt.push({
+              de_inicio: agEt.inicio,
+              de_fim: agEt.fim || null,
+              para_inicio: novoIni.toISOString(),
+              para_fim: novoFim.toISOString(),
+              motivo: `Replanejado automaticamente pela conclusão do Checkpoint em ${dtConclusao.toLocaleDateString('pt-BR')}`,
+              alterado_em: agoraISO,
+              alterado_por: 'Sistema (Ajuste de Cronograma)'
+            })
+
+            agendamentosAtuais[et.id] = {
+              ...agEt,
+              inicio: novoIni.toISOString(),
+              fim: novoFim.toISOString(),
+              atualizado_em: agoraISO,
+              atualizado_por: 'Sistema (Ajuste de Cronograma)',
+              replanejamentos: repsEt
+            }
+
+            await this.insertImplantacaoHistorico({
+              implantacao_id: implantacaoId,
+              data_hora: agoraISO,
+              texto: `🔄 [REPLANEJAMENTO AUTOMÁTICO - ${et.nome_etapa}] Data atualizada de ${fmtDataHora(agEt.inicio)} para ${fmtDataHora(novoIni.toISOString())} devido à conclusão do Checkpoint em ${dtConclusao.toLocaleDateString('pt-BR')}.`,
+              usuario_id: null,
+              usuario_nome: autorNome
+            })
+          }
+        }
+      }
+
+      if (!houveMudancaCheckpoint) return
+
+      // Recalcular as etapas automáticas (Configurar Base, Testes, Feedback) que ainda estão EM BRANCO ou PENDENTE
+      const programarOuReplanejarAutomatica = async (
+        etapaAlvo: any,
+        dtAlvoBase: Date,
+        regraDescricao: string
+      ) => {
+        if (!etapaAlvo || !etapaAindaAberta(etapaAlvo)) return
+        let ini = new Date(dtAlvoBase)
+        let fim = new Date(ini.getTime() + 60 * 60000)
+        const agAnt = agendamentosAtuais[etapaAlvo.id] || null
+
+        if (agAnt?.inicio && extrairYMDLocal(new Date(agAnt.inicio)) === extrairYMDLocal(ini)) return
+
+        if (analista.id) {
+          for (let tentativa = 0; tentativa < 8; tentativa++) {
+            const conf = await this.getEventosConflitantes(
+              ini.toISOString(),
+              fim.toISOString(),
+              [analista.id],
+              agAnt?.evento_calendario_id || undefined
+            )
+            if (conf.length === 0) break
+            ini = new Date(ini.getTime() + 60 * 60000)
+            fim = new Date(ini.getTime() + 60 * 60000)
+          }
+        }
+
+        const iniISO = ini.toISOString()
+        const fimISO = fim.toISOString()
+        let evId: string | null = agAnt?.evento_calendario_id || null
+
+        if (analista.id) {
+          const payloadEv = {
+            titulo: `${etapaAlvo.nome_etapa} - ${nomeEmpresa}`,
+            descricao: `Data programada automaticamente (${regraDescricao}).`,
+            tipo: 'validacao',
+            cor: 'emerald',
+            inicio: iniISO,
+            fim: fimISO,
+            dia_inteiro: false,
+            convidados: convidadosAnalista
+          }
+          if (evId) {
+            const up = await this.updateEventoCalendario(evId, payloadEv)
+            if (!up) {
+              const cr = await this.createEventoCalendario({
+                ...payloadEv,
+                criado_por_id: analista.id,
+                criado_por_nome: analista.nome
+              })
+              evId = cr?.id || null
+            }
+          } else {
+            const cr = await this.createEventoCalendario({
+              ...payloadEv,
+              criado_por_id: analista.id,
+              criado_por_nome: analista.nome
+            })
+            evId = cr?.id || null
+          }
+        }
+
+        const reps = Array.isArray(agAnt?.replanejamentos) ? [...agAnt.replanejamentos] : []
+        if (agAnt?.inicio) {
+          reps.push({
+            de_inicio: agAnt.inicio,
+            de_fim: agAnt.fim || null,
+            para_inicio: iniISO,
+            para_fim: fimISO,
+            motivo: regraDescricao,
+            alterado_em: agoraISO,
+            alterado_por: 'Sistema (Ajuste de Cronograma)'
+          })
+        }
+
+        agendamentosAtuais[etapaAlvo.id] = {
+          etapa_id: etapaAlvo.id,
+          nome_etapa: etapaAlvo.nome_etapa,
+          inicio: iniISO,
+          fim: fimISO,
+          evento_calendario_id: evId,
+          automatico: true,
+          regra_automatica: regraDescricao,
+          atualizado_em: agoraISO,
+          atualizado_por: `Sistema (${regraDescricao})`,
+          replanejamentos: reps
+        }
+
+        await this.insertImplantacaoHistorico({
+          implantacao_id: implantacaoId,
+          data_hora: agoraISO,
+          texto: `📅 [DATA AUTOMÁTICA - ${etapaAlvo.nome_etapa}] Programada automaticamente para ${fmtDataHora(iniISO)} (${regraDescricao}).`,
+          usuario_id: null,
+          usuario_nome: autorNome
+        })
+      }
+
+      const etapaConfigurarBase = todasEtapas.find(
+        (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'configurar base'
+      )
+      const etapaTestes = todasEtapas.find(
+        (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'testes'
+      )
+      const etapaFeedback = todasEtapas.find(
+        (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'feedback'
+      )
+
+      const dtChkEfetiva = new Date(agendamentosAtuais[etapaCheckpoint.id].inicio)
+      const dtConfigBase = somarDiasUteis(dtChkEfetiva, 1)
+      await programarOuReplanejarAutomatica(
+        etapaConfigurarBase,
+        dtConfigBase,
+        `1 dia útil após a conclusão do Checkpoint em ${dtChkEfetiva.toLocaleDateString('pt-BR')}`
+      )
+
+      const dtBaseParaTestes = etapaConfigurarBase && agendamentosAtuais[etapaConfigurarBase.id]?.inicio
+        ? new Date(agendamentosAtuais[etapaConfigurarBase.id].inicio)
+        : dtConfigBase
+      const dtTestes = somarDiasUteis(dtBaseParaTestes, 1)
+      await programarOuReplanejarAutomatica(
+        etapaTestes,
+        dtTestes,
+        `1 dia útil após Configurar Base em ${dtBaseParaTestes.toLocaleDateString('pt-BR')}`
+      )
+
+      if (etapaFeedback) {
+        const nomesAutoSet = new Set(['configurar base', 'testes', 'feedback', 'ativo 4pl', 'ativo 4pi'])
+        let maiorDataClienteMs = 0
+        let maiorDataClienteISO = ''
+        let nomeUltimaEtapaCliente = ''
+
+        for (const et of todasEtapas) {
+          const nomeLow = (et.nome_etapa || '').trim().toLowerCase()
+          if (nomesAutoSet.has(nomeLow)) continue
+          const ag = agendamentosAtuais[et.id]
+          if (ag?.inicio && !ag.automatico) {
+            const ms = new Date(ag.inicio).getTime()
+            if (ms > maiorDataClienteMs) {
+              maiorDataClienteMs = ms
+              maiorDataClienteISO = ag.inicio
+              nomeUltimaEtapaCliente = et.nome_etapa
+            }
+          }
+        }
+
+        if (maiorDataClienteMs > 0) {
+          const dtFeedback = new Date(maiorDataClienteMs + 15 * 24 * 60 * 60 * 1000)
+          await programarOuReplanejarAutomatica(
+            etapaFeedback,
+            dtFeedback,
+            `15 dias após a última data definida (${nomeUltimaEtapaCliente} em ${new Date(maiorDataClienteISO).toLocaleDateString('pt-BR')})`
+          )
+        }
+      }
+
+      // Persistir em implantacao_checkpoint.dados
+      const novosDados = {
+        ...dadosAtuais,
+        agendamentos_etapas: agendamentosAtuais
+      }
+
+      if (existingChk) {
+        await supabase
+          .from('implantacao_checkpoint')
+          .update({ dados: novosDados, updated_at: agoraISO })
+          .eq('id', existingChk.id)
+      } else {
+        await supabase
+          .from('implantacao_checkpoint')
+          .insert({ implantacao_id: implantacaoId, dados: novosDados, concluido: true })
+      }
+    } catch (err) {
+      console.warn('Aviso ao sincronizar conclusão do Checkpoint no cronograma:', err)
+    }
   },
 
   // Responder a um convite (aceito | recusado | talvez)

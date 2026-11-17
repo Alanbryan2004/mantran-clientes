@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, ShoppingCart, Building, Building2, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star, Pencil, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, ShoppingCart, Building, Building2, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star, Pencil, AlertTriangle, RefreshCw } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser, isClienteUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
@@ -16,6 +16,8 @@ import { ModalErro4PL } from '../components/ModalErro4PL'
 import { MeliCheckpointModal } from '../components/MeliCheckpointModal'
 import { NfseCheckpointModal } from '../components/NfseCheckpointModal'
 import { EventoCalendarioModal } from '../components/EventoCalendarioModal'
+import { AgendarEtapaModal } from '../components/AgendarEtapaModal'
+import { CronogramaImplantacaoModal } from '../components/CronogramaImplantacaoModal'
 import clsx from 'clsx'
 import { calcularPrazoImplantacao } from '../lib/implantacaoPrazo'
 
@@ -23,26 +25,31 @@ import { calcularPrazoImplantacao } from '../lib/implantacaoPrazo'
 const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'checkpoint': 1,
   'configurar base': 2,
-  'ativo 4pl': 3,
-  'ativo 4pi': 3,
-  'testes': 4,
-  'treinamento last mile': 5,
-  'treinamento de first mile': 6,
-  'treinamento first mile': 6,
-  'treinamento de cadastros': 7,
-  'treinamento de cadastro': 7,
-  'treinamento cadastros': 7,
-  'treinamento cadastro': 7,
-  'treinamento de line haul': 8,
-  'treinamento line haul': 8,
-  'treinamento mobile hub': 9,
-  'treinamento de mobile hub': 9,
-  'treinamento fatura': 10,
-  'nfse': 11,
-  'treinamento nfse': 11,
+  'testes': 3,
+  'treinamento de cadastros': 4,
+  'treinamento de cadastro': 4,
+  'treinamento cadastros': 4,
+  'treinamento cadastro': 4,
+  'treinamento de line haul': 5,
+  'treinamento line haul': 5,
+  'envio da primeira prefatura': 6,
+  'envio da primeira pré-fatura': 6,
+  'envio da primeira fatura/nf': 7,
+  'treinamento de last mile': 8,
+  'treinamento last mile': 8,
+  'treinamento de first mile': 9,
+  'treinamento first mile': 9,
+  'treinamento de mobile hub': 10,
+  'treinamento mobile hub': 10,
+  'treinamento de fatura': 11,
+  'treinamento fatura': 11,
+  'nfse': 12,
+  'treinamento nfse': 12,
   'mercado livre': 12,
   'treinamento meli': 12,
   'feedback': 13,
+  'ativo 4pl': 14,
+  'ativo 4pi': 14,
 }
 
 // Uma etapa conta como "concluída" para fins de encerramento quando está OK
@@ -55,10 +62,14 @@ const etapaConcluida = (valor: string): boolean => {
 export const normalizeEtapaNome = (nome: string): string => {
   const lower = (nome || '').trim().toLowerCase()
   if (lower === 'ativo 4pl' || lower === 'ativo 4pi') return 'Ativo 4PL'
+  if (lower === 'treinamento last mile' || lower === 'treinamento de last mile') return 'Treinamento de Last Mile'
   if (lower === 'treinamento first mile' || lower === 'treinamento de first mile') return 'Treinamento de First Mile'
   if (lower === 'treinamento de cadastro' || lower === 'treinamento de cadastros' || lower === 'treinamento cadastro' || lower === 'treinamento cadastros') return 'Treinamento de Cadastros'
   if (lower === 'treinamento line haul' || lower === 'treinamento de line haul') return 'Treinamento de Line Haul'
-  if (lower === 'treinamento mobile hub' || lower === 'treinamento de mobile hub') return 'Treinamento Mobile Hub'
+  if (lower === 'treinamento mobile hub' || lower === 'treinamento de mobile hub') return 'Treinamento de Mobile Hub'
+  if (lower === 'treinamento fatura' || lower === 'treinamento de fatura') return 'Treinamento de Fatura'
+  if (lower === 'envio da primeira prefatura' || lower === 'envio da primeira pré-fatura') return 'Envio da Primeira Prefatura'
+  if (lower === 'envio da primeira fatura/nf') return 'Envio da Primeira Fatura/NF'
   return nome
 }
 
@@ -68,7 +79,7 @@ const sortEtapasWithOrder = (list: any[], isShopee: boolean = false) => {
     const keyA = (a.nome_etapa || '').trim().toLowerCase()
     const keyB = (b.nome_etapa || '').trim().toLowerCase()
 
-    if (isShopee || (keyA in SHOPEE_ETAPAS_ORDER && keyB in SHOPEE_ETAPAS_ORDER)) {
+    if (isShopee) {
       const orderA = SHOPEE_ETAPAS_ORDER[keyA] ?? (keyA === 'feedback' ? 999 : (a.ordem || 50))
       const orderB = SHOPEE_ETAPAS_ORDER[keyB] ?? (keyB === 'feedback' ? 999 : (b.ordem || 50))
       if (orderA !== orderB) return orderA - orderB
@@ -106,6 +117,9 @@ export function ImplantacaoDetalhes() {
   // Agendamento de treinamento no calendário (a partir do relógio da etapa)
   const [isEventoModalOpen, setIsEventoModalOpen] = useState(false)
   const [etapaTreinamento, setEtapaTreinamento] = useState<any | null>(null)
+  // Modal de Agendamento / Replanejamento de Data por Etapa (Cliente e Suporte)
+  const [etapaParaAgendar, setEtapaParaAgendar] = useState<any | null>(null)
+  const [isCronogramaModalOpen, setIsCronogramaModalOpen] = useState(false)
 
   // Historico form state
   const getCurrentDateTimeLocal = () => {
@@ -273,6 +287,11 @@ export function ImplantacaoDetalhes() {
 
     try {
       await api.updateImplantacaoEtapa(etapaId, novoValor)
+      const etapaAlvo = etapas.find(e => e.id === etapaId)
+      if (novoValor === 'OK' && (etapaAlvo?.nome_etapa || '').trim().toLowerCase() === 'checkpoint') {
+        await fetchCheckpoint()
+        await fetchHistorico()
+      }
       
       // Auto-complete: concluída quando todas as etapas estão OK ou ERRO (não PENDENTE)
       const updatedEtapas = etapas.map(e => e.id === etapaId ? { ...e, valor: novoValor } : e)
@@ -362,6 +381,72 @@ export function ImplantacaoDetalhes() {
   const areAllNonFeedbackEtapasOk = nonFeedbackEtapas.length > 0 && nonFeedbackEtapas.every(e => etapaConcluida(e.valor))
   const feedbackEtapa = etapas.find(e => (e.nome_etapa || '').trim().toLowerCase() === 'feedback')
   const isFeedbackOk = feedbackEtapa?.valor === 'OK'
+
+  // Mapa de datas agendadas por etapa (implantacao_checkpoint.dados.agendamentos_etapas)
+  const agendamentosEtapas: Record<string, any> = checkpointData?.dados?.agendamentos_etapas || {}
+
+  const somarDiasUteisLocal = (dataBase: Date, diasUteis: number): Date => {
+    const d = new Date(dataBase)
+    let adicionados = 0
+    while (adicionados < diasUteis) {
+      d.setDate(d.getDate() + 1)
+      const diaSemana = d.getDay()
+      if (diaSemana !== 0 && diaSemana !== 6) adicionados++
+    }
+    return d
+  }
+
+  const checkpointEtapa = etapas.find(e => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint')
+  const configurarBaseEtapa = etapas.find(e => (e.nome_etapa || '').trim().toLowerCase() === 'configurar base')
+  const testesEtapa = etapas.find(e => (e.nome_etapa || '').trim().toLowerCase() === 'testes')
+
+  // Se o Checkpoint já está concluído (OK) e não tinha data agendada antes, assume a data de conclusão
+  const dataCheckpointEfetivaISO = (() => {
+    if (checkpointEtapa && agendamentosEtapas[checkpointEtapa.id]?.inicio) {
+      return agendamentosEtapas[checkpointEtapa.id].inicio as string
+    }
+    if (checkpointEtapa?.valor === 'OK' || checkpointData?.concluido) {
+      return (checkpointData?.updated_at || checkpointData?.created_at || implantacao?.created_at || null) as string | null
+    }
+    return null
+  })()
+
+  // Configurar Base: 1 dia útil após a data informada (ou concluída) no Checkpoint
+  const dataConfigurarBaseAutomaticaISO = (() => {
+    if (configurarBaseEtapa && agendamentosEtapas[configurarBaseEtapa.id]?.inicio) {
+      return agendamentosEtapas[configurarBaseEtapa.id].inicio as string
+    }
+    if (!dataCheckpointEfetivaISO) return null
+    return somarDiasUteisLocal(new Date(dataCheckpointEfetivaISO), 1).toISOString()
+  })()
+
+  // Testes: 1 dia útil após a data de Configurar Base
+  const dataTestesAutomaticaISO = (() => {
+    if (testesEtapa && agendamentosEtapas[testesEtapa.id]?.inicio) {
+      return agendamentosEtapas[testesEtapa.id].inicio as string
+    }
+    if (!dataConfigurarBaseAutomaticaISO) return null
+    return somarDiasUteisLocal(new Date(dataConfigurarBaseAutomaticaISO), 1).toISOString()
+  })()
+
+  // Feedback: 15 dias após a última data definida pelo cliente
+  const dataFeedbackAutomaticaISO = (() => {
+    if (feedbackEtapa && agendamentosEtapas[feedbackEtapa.id]?.inicio) {
+      return agendamentosEtapas[feedbackEtapa.id].inicio as string
+    }
+    const automaticasSet = new Set(['configurar base', 'testes', 'feedback', 'ativo 4pl', 'ativo 4pi'])
+    let maiorMs = dataCheckpointEfetivaISO ? new Date(dataCheckpointEfetivaISO).getTime() : 0
+    for (const et of etapas) {
+      const nLow = (et.nome_etapa || '').trim().toLowerCase()
+      if (automaticasSet.has(nLow)) continue
+      const ag = agendamentosEtapas[et.id]
+      if (ag?.inicio && !ag.automatico) {
+        const ms = new Date(ag.inicio).getTime()
+        if (ms > maiorMs) maiorMs = ms
+      }
+    }
+    return maiorMs > 0 ? new Date(maiorMs + 15 * 24 * 60 * 60 * 1000).toISOString() : null
+  })()
 
   const feedbackHistoricoItem = historico.find(h => 
     (h.texto || '').toUpperCase().includes('[FEEDBACK') || 
@@ -817,21 +902,56 @@ export function ImplantacaoDetalhes() {
 
       {/* 1. Full-Width Interactive Etapas Grid / Table */}
       <div className="bg-dark-card border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+        <div className="p-5 border-b border-slate-800 flex flex-wrap justify-between items-center gap-3 bg-slate-900/50">
           <div>
             <h3 className="text-lg font-bold text-white">Etapas de Implantação</h3>
-            <p className="text-xs text-slate-400">Acompanhe e atualize o status de cada etapa do processo</p>
+            <p className="text-xs text-slate-400">Acompanhe, agende datas e atualize o status de cada etapa do processo</p>
           </div>
-          <span className="text-xs text-slate-500 font-mono font-bold">
-            {etapas.filter(e => e.valor === 'OK').length}/{etapas.length} OK
-          </span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsCronogramaModalOpen(true)}
+              title="Visualizar Cronograma completo de datas e copiar para o WhatsApp"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              <Calendar className="w-4 h-4 text-emerald-400" />
+              <span>Cronograma</span>
+            </button>
+            <span className="text-xs text-slate-500 font-mono font-bold">
+              {etapas.filter(e => e.valor === 'OK').length}/{etapas.length} OK
+            </span>
+          </div>
         </div>
 
         {/* Grid layout spanning full width (3-4 columns on large screens, 2 on medium, 1 on mobile) */}
         <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 bg-slate-950/20">
           {etapas.map((etapa, index) => {
-            const is4PLEtapa = normalizeEtapaNome(etapa.nome_etapa) === 'Ativo 4PL' || (etapa.nome_etapa || '').toLowerCase().includes('4pl') || (etapa.nome_etapa || '').toLowerCase().includes('4pi')
-            const isTreinamento = (etapa.nome_etapa || '').trim().toLowerCase().startsWith('treinamento')
+            const nomeNormLower = normalizeEtapaNome(etapa.nome_etapa).toLowerCase()
+            const is4PLEtapa = nomeNormLower === 'ativo 4pl' || nomeNormLower.includes('4pl') || nomeNormLower.includes('4pi')
+            const isConfigurarBaseCard = nomeNormLower === 'configurar base'
+            const isTestesCard = nomeNormLower === 'testes'
+            const isFeedbackCard = nomeNormLower === 'feedback'
+            const isCardAutomaticoOuSemData = is4PLEtapa || isConfigurarBaseCard || isTestesCard || isFeedbackCard
+
+            const agendamentoEtapa = agendamentosEtapas[etapa.id] || null
+            const qtdReplanejamentos = Array.isArray(agendamentoEtapa?.replanejamentos) ? agendamentoEtapa.replanejamentos.length : 0
+
+            const dataAutomaticaCardISO = isConfigurarBaseCard
+              ? dataConfigurarBaseAutomaticaISO
+              : isTestesCard
+              ? dataTestesAutomaticaISO
+              : isFeedbackCard
+              ? dataFeedbackAutomaticaISO
+              : null
+
+            const regraAutomaticaTexto = isConfigurarBaseCard
+              ? '1 dia útil após a data do Checkpoint'
+              : isTestesCard
+              ? '1 dia útil após a data de Configurar Base'
+              : isFeedbackCard
+              ? '15 dias após a última data definida pelo cliente'
+              : ''
+
             return (
             <div 
               key={etapa.id} 
@@ -846,7 +966,7 @@ export function ImplantacaoDetalhes() {
                   : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
               )}
             >
-              <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2.5">
                   <span className={clsx(
                     "w-6 h-6 rounded-full font-mono text-xs font-bold flex items-center justify-center shrink-0 border",
@@ -864,18 +984,111 @@ export function ImplantacaoDetalhes() {
                   </h4>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
-                  {isTreinamento && !isReadOnlyUser() && !isClienteUser() && (
+                  {!isCardAutomaticoOuSemData && !isReadOnlyUser() && (
                     <button
                       type="button"
-                      onClick={() => { setEtapaTreinamento(etapa); setIsEventoModalOpen(true) }}
-                      title="Agendar este treinamento no calendário"
+                      onClick={() => setEtapaParaAgendar(etapa)}
+                      title={agendamentoEtapa?.inicio ? 'Replanejar data/horário desta etapa' : 'Agendar data/horário desta etapa'}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-brand-300 hover:bg-slate-700/60 transition-colors cursor-pointer"
                     >
-                      <Clock className="w-4 h-4" />
+                      <Calendar className="w-4 h-4" />
                     </button>
                   )}
                   {getStatusIcon(etapa.valor)}
                 </div>
+              </div>
+
+              {/* Bloco de Agendamento de Data da Etapa */}
+              <div className="mb-3">
+                {is4PLEtapa ? (
+                  <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/80 text-[11px] text-slate-500 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <span>Sem data (processo interno 4PL)</span>
+                  </div>
+                ) : (isConfigurarBaseCard || isTestesCard || isFeedbackCard) ? (
+                  dataAutomaticaCardISO ? (
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 space-y-1">
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="font-bold text-emerald-300 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          Data Automática:
+                        </span>
+                        <span className="font-mono font-bold text-white bg-slate-900/80 px-2 py-0.5 rounded border border-emerald-500/30">
+                          {new Date(dataAutomaticaCardISO).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                      <span className="block text-[10px] text-emerald-200/80">
+                        Calculada automaticamente: {regraAutomaticaTexto}.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/80 text-[11px] text-slate-400 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span>Automático: {regraAutomaticaTexto}</span>
+                    </div>
+                  )
+                ) : agendamentoEtapa?.inicio ? (
+                  <div className="p-2.5 rounded-lg bg-brand-500/10 border border-brand-500/30 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-brand-300 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+                        <span>
+                          {new Date(agendamentoEtapa.inicio).toLocaleDateString('pt-BR')} •{' '}
+                          {new Date(agendamentoEtapa.inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          {agendamentoEtapa.fim ? `–${new Date(agendamentoEtapa.fim).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                        </span>
+                      </span>
+                      {qtdReplanejamentos > 0 && (
+                        <span
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0"
+                          title={`Replanejado ${qtdReplanejamentos} vez(es)`}
+                        >
+                          Replanejado {qtdReplanejamentos}x
+                        </span>
+                      )}
+                    </div>
+                    {!isReadOnlyUser() && etapa.valor !== 'OK' && (
+                      <button
+                        type="button"
+                        onClick={() => setEtapaParaAgendar(etapa)}
+                        className="w-full py-1 px-2.5 rounded-md bg-slate-900/80 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Replanejar Data</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (nomeNormLower === 'checkpoint' && dataCheckpointEfetivaISO) ? (
+                  <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="font-bold text-emerald-300 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        Data Concluída:
+                      </span>
+                      <span className="font-mono font-bold text-white bg-slate-900/80 px-2 py-0.5 rounded border border-emerald-500/30">
+                        {new Date(dataCheckpointEfetivaISO).toLocaleDateString('pt-BR')}
+                      </span>
+                    </div>
+                    <span className="block text-[10px] text-emerald-200/80">
+                      Assumida automaticamente da conclusão do Checkpoint.
+                    </span>
+                  </div>
+                ) : (
+                  !isReadOnlyUser() ? (
+                    <button
+                      type="button"
+                      onClick={() => setEtapaParaAgendar(etapa)}
+                      className="w-full py-1.5 px-3 rounded-lg bg-brand-500/15 hover:bg-brand-500/25 text-brand-300 border border-brand-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>Informar / Agendar Data</span>
+                    </button>
+                  ) : (
+                    <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/80 text-[11px] text-slate-500">
+                      Sem data agendada
+                    </div>
+                  )
+                )}
               </div>
 
               <div className="pt-3 border-t border-slate-800/60 flex items-center justify-between">
@@ -1233,6 +1446,34 @@ export function ImplantacaoDetalhes() {
         tipoInicial="treinamento"
         tituloInicial={etapaTreinamento ? `${normalizeEtapaNome(etapaTreinamento.nome_etapa)} - ${implantacao.nome_empresa}` : ''}
         descricaoInicial={etapaTreinamento ? `Treinamento referente à implantação de ${implantacao.nome_empresa}.` : ''}
+      />
+
+      {/* Modal de Agendamento / Replanejamento de Data por Etapa (Cliente e Suporte) */}
+      <AgendarEtapaModal
+        isOpen={!!etapaParaAgendar}
+        onClose={() => setEtapaParaAgendar(null)}
+        onSaved={async () => {
+          await fetchCheckpoint()
+          await fetchHistorico()
+        }}
+        implantacao={implantacao}
+        etapa={etapaParaAgendar}
+        nomeEtapaNormalizado={etapaParaAgendar ? normalizeEtapaNome(etapaParaAgendar.nome_etapa) : ''}
+        agendamentoAtual={etapaParaAgendar ? agendamentosEtapas[etapaParaAgendar.id] : null}
+      />
+
+      {/* Modal de Visualização do Cronograma e Cópia para WhatsApp */}
+      <CronogramaImplantacaoModal
+        isOpen={isCronogramaModalOpen}
+        onClose={() => setIsCronogramaModalOpen(false)}
+        implantacao={implantacao}
+        etapas={etapas}
+        agendamentosEtapas={agendamentosEtapas}
+        dataCheckpointEfetivaISO={dataCheckpointEfetivaISO}
+        dataConfigurarBaseAutomaticaISO={dataConfigurarBaseAutomaticaISO}
+        dataTestesAutomaticaISO={dataTestesAutomaticaISO}
+        dataFeedbackAutomaticaISO={dataFeedbackAutomaticaISO}
+        normalizeEtapaNome={normalizeEtapaNome}
       />
 
       {/* Modal for editing analista responsavel */}

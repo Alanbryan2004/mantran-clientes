@@ -11,50 +11,63 @@ import { calcularPrazoImplantacao } from '../lib/implantacaoPrazo'
 const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'checkpoint': 1,
   'configurar base': 2,
-  'ativo 4pl': 3,
-  'ativo 4pi': 3,
-  'testes': 4,
-  'treinamento last mile': 5,
-  'treinamento de first mile': 6,
-  'treinamento first mile': 6,
-  'treinamento de cadastros': 7,
-  'treinamento de cadastro': 7,
-  'treinamento cadastros': 7,
-  'treinamento cadastro': 7,
-  'treinamento de line haul': 8,
-  'treinamento line haul': 8,
-  'treinamento mobile hub': 9,
-  'treinamento de mobile hub': 9,
-  'treinamento fatura': 10,
-  'nfse': 11,
-  'treinamento nfse': 11,
+  'testes': 3,
+  'treinamento de cadastros': 4,
+  'treinamento de cadastro': 4,
+  'treinamento cadastros': 4,
+  'treinamento cadastro': 4,
+  'treinamento de line haul': 5,
+  'treinamento line haul': 5,
+  'envio da primeira prefatura': 6,
+  'envio da primeira pré-fatura': 6,
+  'envio da primeira fatura/nf': 7,
+  'treinamento de last mile': 8,
+  'treinamento last mile': 8,
+  'treinamento de first mile': 9,
+  'treinamento first mile': 9,
+  'treinamento de mobile hub': 10,
+  'treinamento mobile hub': 10,
+  'treinamento de fatura': 11,
+  'treinamento fatura': 11,
+  'nfse': 12,
+  'treinamento nfse': 12,
   'mercado livre': 12,
   'treinamento meli': 12,
   'feedback': 13,
+  'ativo 4pl': 14,
+  'ativo 4pi': 14,
 }
 
 const ETAPAS_FILTRO_OPTIONS = [
   'Checkpoint',
   'Configurar Base',
-  'Ativo 4PL',
   'Testes',
-  'Treinamento Last Mile',
-  'Treinamento de First Mile',
   'Treinamento de Cadastros',
   'Treinamento de Line Haul',
-  'Treinamento Fatura',
+  'Envio da Primeira Prefatura',
+  'Envio da Primeira Fatura/NF',
+  'Treinamento de Last Mile',
+  'Treinamento de First Mile',
+  'Treinamento de Mobile Hub',
+  'Treinamento de Fatura',
+  'NFSE',
   'Treinamento NFSE',
   'Treinamento MELI',
   'Feedback',
+  'Ativo 4PL',
 ]
 
 const normalizeEtapaNome = (nome: string): string => {
   const lower = (nome || '').trim().toLowerCase()
   if (lower === 'ativo 4pl' || lower === 'ativo 4pi') return 'Ativo 4PL'
+  if (lower === 'treinamento last mile' || lower === 'treinamento de last mile') return 'Treinamento de Last Mile'
   if (lower === 'treinamento first mile' || lower === 'treinamento de first mile') return 'Treinamento de First Mile'
   if (lower === 'treinamento de cadastro' || lower === 'treinamento de cadastros' || lower === 'treinamento cadastro' || lower === 'treinamento cadastros') return 'Treinamento de Cadastros'
   if (lower === 'treinamento line haul' || lower === 'treinamento de line haul') return 'Treinamento de Line Haul'
-  if (lower === 'treinamento mobile hub' || lower === 'treinamento de mobile hub') return 'Treinamento Mobile Hub'
+  if (lower === 'treinamento mobile hub' || lower === 'treinamento de mobile hub') return 'Treinamento de Mobile Hub'
+  if (lower === 'treinamento fatura' || lower === 'treinamento de fatura') return 'Treinamento de Fatura'
+  if (lower === 'envio da primeira prefatura' || lower === 'envio da primeira pré-fatura') return 'Envio da Primeira Prefatura'
+  if (lower === 'envio da primeira fatura/nf') return 'Envio da Primeira Fatura/NF'
   return nome
 }
 
@@ -91,7 +104,7 @@ const getProximaEtapa = (etapas: any[], isShopee: boolean = false) => {
     const keyA = (a.nome_etapa || '').trim().toLowerCase()
     const keyB = (b.nome_etapa || '').trim().toLowerCase()
 
-    if (isShopee || (keyA in SHOPEE_ETAPAS_ORDER && keyB in SHOPEE_ETAPAS_ORDER)) {
+    if (isShopee) {
       const orderA = SHOPEE_ETAPAS_ORDER[keyA] ?? (keyA === 'feedback' ? 999 : (a.ordem || 50))
       const orderB = SHOPEE_ETAPAS_ORDER[keyB] ?? (keyB === 'feedback' ? 999 : (b.ordem || 50))
       if (orderA !== orderB) return orderA - orderB
