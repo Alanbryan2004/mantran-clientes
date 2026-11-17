@@ -234,7 +234,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
       observacoes: ''
     },
     cst_config: {
-      habilitar_cst: null,
+      habilitar_cst: false,
       cst_por_processo: {},
       arquivo_aditivo_nome: '',
       arquivo_aditivo_base64: ''
@@ -2262,7 +2262,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
                     <p className="font-bold text-purple-400 uppercase text-[11px]">CST & Aditivo</p>
                     <p className="text-slate-300">
-                      <strong>Config. CST:</strong> {formData.cst_config.habilitar_cst === true ? 'Sim' : formData.cst_config.habilitar_cst === false ? 'Padrão' : 'Não definido'}
+                      <strong>Config. CST:</strong> {formData.cst_config.habilitar_cst === true ? 'Sim' : 'Padrão'}
                     </p>
                     <p className="text-slate-300">
                       <strong>Aditivo:</strong> {formData.cst_config.arquivo_aditivo_nome ? '✓ Anexado' : 'Pendente'}

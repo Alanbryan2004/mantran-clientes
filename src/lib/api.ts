@@ -207,12 +207,10 @@ export function checkCheckpointCompleto(dados: any, isShopee: boolean = true) {
     pendencias.push('Tabela de Frete')
   }
 
-  // 10. CST & Aditivo
+  // 10. CST & Aditivo (CST customizada é opcional; só é pendência se o cliente marcou que DESEJA habilitar CST mas não anexou o aditivo)
   const cst = dados?.cst_config
-  if (cst?.habilitar_cst === null || cst?.habilitar_cst === undefined) {
-    pendencias.push('Configuração de CST')
-  } else if (cst.habilitar_cst === true) {
-    if (!cst.arquivo_aditivo_nome) {
+  if (cst?.habilitar_cst === true) {
+    if (!cst?.arquivo_aditivo_nome) {
       pendencias.push('Aditivo Assinado')
     }
   }
@@ -5246,16 +5244,18 @@ export const api = {
 
       if (!houveMudancaCheckpoint) return
 
-      // Recalcular as etapas automáticas (Configurar Base, Testes, Feedback) que ainda estão EM BRANCO ou PENDENTE
+      // Recalcular as etapas automáticas (Configurar Base, Testes, Feedback)
       const programarOuReplanejarAutomatica = async (
         etapaAlvo: any,
         dtAlvoBase: Date,
         regraDescricao: string
       ) => {
-        if (!etapaAlvo || !etapaAindaAberta(etapaAlvo)) return
+        if (!etapaAlvo) return
+        const agAnt = agendamentosAtuais[etapaAlvo.id] || null
+        // Se a etapa já estiver concluída e já tiver data registrada, não altera
+        if (!etapaAindaAberta(etapaAlvo) && agAnt?.inicio) return
         let ini = new Date(dtAlvoBase)
         let fim = new Date(ini.getTime() + 60 * 60000)
-        const agAnt = agendamentosAtuais[etapaAlvo.id] || null
 
         if (agAnt?.inicio && extrairYMDLocal(new Date(agAnt.inicio)) === extrairYMDLocal(ini)) return
 

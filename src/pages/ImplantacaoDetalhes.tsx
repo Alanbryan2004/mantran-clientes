@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ShoppingBag, ShoppingCart, Building, Building2, CheckCircle2, Clock, AlertCircle, Trophy, Settings2, History, Plus, Trash2, ChevronDown, ChevronUp, Calendar, UserCheck, UserPlus, User, KeyRound, Unlock, FileText, Eye, Star, Pencil, AlertTriangle, RefreshCw } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, checkCheckpointCompleto } from '../lib/api'
 import { isReadOnlyUser, isClienteUser } from '../lib/auth'
 import { EditarOperacoesModal } from '../components/EditarOperacoesModal'
 import { AlterarAnalistaModal } from '../components/AlterarAnalistaModal'
@@ -235,6 +235,27 @@ export function ImplantacaoDetalhes() {
     }
   }
 
+  // Sincronização automática de Checkpoint preenchido: garante conclusão e cálculo de cronograma
+  useEffect(() => {
+    if (!id || !checkpointData?.dados || !implantacao || etapas.length === 0) return
+    const chkEt = etapas.find(e => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint')
+    if (!chkEt) return
+
+    const { isCompleto } = checkCheckpointCompleto(checkpointData.dados, implantacao.tipo_cliente === 'SHOPEE')
+    if (!isCompleto) return
+
+    const ags = checkpointData.dados?.agendamentos_etapas || {}
+    const precisaAtualizarStatus = chkEt.valor !== 'OK' || !checkpointData.concluido
+    const precisaSincronizarDatas = !ags[chkEt.id]?.inicio
+
+    if (precisaAtualizarStatus || precisaSincronizarDatas) {
+      api.saveImplantacaoCheckpoint(id, checkpointData.dados, undefined, true).then(() => {
+        fetchCheckpoint()
+        fetchImplantacao()
+      }).catch(console.error)
+    }
+  }, [id, checkpointData?.concluido, etapas])
+
   const handleAddHistorico = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!historicoTexto.trim() || !id) return
@@ -400,12 +421,13 @@ export function ImplantacaoDetalhes() {
   const configurarBaseEtapa = etapas.find(e => (e.nome_etapa || '').trim().toLowerCase() === 'configurar base')
   const testesEtapa = etapas.find(e => (e.nome_etapa || '').trim().toLowerCase() === 'testes')
 
-  // Se o Checkpoint já está concluído (OK) e não tinha data agendada antes, assume a data de conclusão
+  // Se o Checkpoint já está concluído (OK), formulário preenchido por completo e não tinha data agendada antes, assume a data de conclusão
   const dataCheckpointEfetivaISO = (() => {
     if (checkpointEtapa && agendamentosEtapas[checkpointEtapa.id]?.inicio) {
       return agendamentosEtapas[checkpointEtapa.id].inicio as string
     }
-    if (checkpointEtapa?.valor === 'OK' || checkpointData?.concluido) {
+    const isFormPreenchido = checkpointData?.dados && checkCheckpointCompleto(checkpointData.dados, isShopee).isCompleto
+    if (checkpointEtapa?.valor === 'OK' || checkpointData?.concluido || isFormPreenchido) {
       return (checkpointData?.updated_at || checkpointData?.created_at || implantacao?.created_at || null) as string | null
     }
     return null

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { isReadOnlyUser } from '../lib/auth'
+import { parsePipeValues } from '../lib/pipeValues'
 import { GerenciarBasesModal } from '../components/GerenciarBasesModal'
 import { EditarProjetoModal } from '../components/EditarProjetoModal'
 import * as XLSX from 'xlsx'
@@ -204,29 +205,7 @@ function JsonCell({ valor, readOnly, onChange }: {
   )
 }
 
-// Helpers para valores múltiplos por pipe '|'
-const parsePipeValues = (val: string | undefined | null, targetLength: number = 1, isStatus: boolean = false): string[] => {
-  if (!val) {
-    return Array.from({ length: Math.max(1, targetLength) }, () => '')
-  }
-  const parts = val.split('|').map(s => s.trim())
-
-  // Se for uma coluna de status e havia apenas 1 valor definido (ex: 'OK' ou 'PENDENTE') e a base tem múltiplas agências,
-  // repete o mesmo status para as demais agências!
-  if (isStatus && parts.length === 1 && targetLength > 1 && parts[0] !== '') {
-    return Array.from({ length: targetLength }, () => parts[0])
-  }
-
-  while (parts.length < targetLength) {
-    // Se for status e temos o primeiro valor não vazio, replica
-    if (isStatus && parts[0] !== '') {
-      parts.push(parts[0])
-    } else {
-      parts.push('')
-    }
-  }
-  return parts.length > 0 ? parts : ['']
-}
+// Valores múltiplos por pipe '|' (parsePipeValues vem de lib/pipeValues: preserva os espaços digitados)
 
 export function ProjetoDetalhes() {
   const { id } = useParams()
