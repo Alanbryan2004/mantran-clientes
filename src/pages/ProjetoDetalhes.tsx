@@ -299,7 +299,7 @@ export function ProjetoDetalhes() {
       if (col.tipo?.toUpperCase() === 'JSON') return
       const val = dados[`${baseId}_${col.id}`]
       if (val && val.includes('|')) {
-        const count = val.split('|').map(s => s.trim()).filter(Boolean).length
+        const count = val.split('|').length
         if (count > max) max = count
       }
     })
@@ -385,9 +385,12 @@ export function ProjetoDetalhes() {
     const newDadosState = { ...dados }
 
     colunas.forEach(col => {
+      const tipoUp = col.tipo?.toUpperCase()
+      if (tipoUp === 'JSON') return
       const key = `${baseId}_${col.id}`
       const raw = dados[key] || ''
-      const arr = parsePipeValues(raw, totalItems)
+      const isStatus = tipoUp === 'STATUS' || tipoUp === 'STATUS_SN'
+      const arr = parsePipeValues(raw, totalItems, isStatus)
       arr.splice(subIndexToRemove, 1)
       const joined = arr.join(' | ')
 

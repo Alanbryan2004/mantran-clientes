@@ -29,7 +29,7 @@ export const getBaseItemCount = (baseId: string, colunas: any[], dadosMap: Recor
     if (col.tipo?.toUpperCase() === 'JSON') return
     const val = dadosMap[`${baseId}_${col.id}`]
     if (val && val.includes('|')) {
-      const count = val.split('|').map(s => s.trim()).filter(Boolean).length
+      const count = val.split('|').length
       if (count > max) max = count
     }
   })
