@@ -161,7 +161,12 @@ const prevNfseDefault = (): CheckpointFormData['nfse'] => ({
 })
 
 export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess, initialData }: ClienteFormularioModalProps) {
-  const isShopee = implantacao?.tipo_cliente === 'SHOPEE'
+  const tipoNorm = String(implantacao?.tipo_cliente || '').toUpperCase()
+  const isLeoMadeiras = tipoNorm === 'LEO_MADEIRAS' ||
+    tipoNorm === 'LEO MADEIRAS' ||
+    implantacao?.clientes?.tipo === 'LEO_MADEIRAS' ||
+    implantacao?.bases?.nome_base === 'dbMantranLeo012'
+  const isShopee = !isLeoMadeiras && tipoNorm === 'SHOPEE'
 
   const [currentSlide, setCurrentSlide] = useState(0)
   const [submitting, setSubmitting] = useState(false)
@@ -182,7 +187,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
         serie_nao_utilizada: ''
       }
     ],
-    processos_shopee: implantacao?.operacoes_shopee || ['Last Mile'],
+    processos_shopee: isShopee ? (implantacao?.operacoes_shopee || ['Last Mile']) : [],
     percursos_line_haul: [
       {
         id: '1',
@@ -337,26 +342,33 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
   if (!isOpen || !implantacao) return null
 
   // Dynamic list of slides based on whether Line Haul is selected
-  const hasLineHaul = formData.processos_shopee.includes('Line Haul')
+  const hasLineHaul = isShopee && formData.processos_shopee.includes('Line Haul')
 
   const slides = [
     { id: 'welcome', title: 'Boas-Vindas' },
-    { id: 'cnpjs', title: '1. CNPJs para CTe e Manifesto' },
-    { id: 'tributacao', title: '2. Tributação por CNPJ' },
-    ...(isShopee ? [{ id: 'shopee_processos', title: '3. Processos Shopee' }] : []),
-    ...(isShopee && hasLineHaul ? [{ id: 'line_haul', title: '4. Percurso do Line Haul' }] : []),
-    { id: 'rntrc', title: '5. RNTRC / ANTT' },
-    { id: 'cte_anterior', title: '6. Emissão Anterior CTe' },
-    { id: 'usuarios', title: '7. Usuários do Sistema' },
-    { id: 'nfse', title: '8. Emissão de NFSe' },
-    { id: 'certificado', title: '9. Certificado Digital (.pfx)' },
-    { id: 'tabela_frete', title: '10. Tabela de Frete' },
-    { id: 'cst_aditivo', title: '11. CST por Processo & Aditivo' },
+    { id: 'cnpjs', title: 'CNPJs para CTe e Manifesto' },
+    { id: 'tributacao', title: 'Tributação por CNPJ' },
+    ...(isShopee ? [{ id: 'shopee_processos', title: 'Processos Shopee' }] : []),
+    ...(isShopee && hasLineHaul ? [{ id: 'line_haul', title: 'Percurso do Line Haul' }] : []),
+    { id: 'rntrc', title: 'RNTRC / ANTT' },
+    { id: 'cte_anterior', title: 'Emissão Anterior CTe' },
+    { id: 'usuarios', title: 'Usuários do Sistema' },
+    { id: 'nfse', title: 'Emissão de NFSe' },
+    { id: 'certificado', title: 'Certificado Digital (.pfx)' },
+    ...(isShopee ? [{ id: 'tabela_frete', title: 'Tabela de Frete' }] : []),
+    ...(isShopee ? [{ id: 'cst_aditivo', title: 'CST por Processo & Aditivo' }] : []),
     { id: 'conclusao', title: 'Conclusão e Envio' }
   ]
 
   const totalSlides = slides.length
-  const currentSlideObj = slides[currentSlide] || slides[0]
+  const currentSlideObj = slides[currentSlide] || slides[slides.length - 1] || slides[0]
+
+  const questionSlides = slides.filter(s => s.id !== 'welcome' && s.id !== 'conclusao')
+  const getQuestionBadge = (slideId: string, extraLabel?: string) => {
+    const idx = questionSlides.findIndex(s => s.id === slideId)
+    const base = idx >= 0 ? `Pergunta ${idx + 1} de ${questionSlides.length}` : ''
+    return extraLabel ? `${base} (${extraLabel})` : base
+  }
 
   // CNPJ helpers
   const handleAddCnpj = () => {
@@ -826,8 +838,8 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   Início da Implantação de {implantacao.nome_empresa}
                 </h1>
                 <p className="text-slate-300 text-sm sm:text-base leading-relaxed mt-2">
-                  Ficamos felizes em tê-lo conosco! Para configurarmos sua base, parâmetros fiscais, 
-                  integrações com a Shopee e tabelas operacionais com precisão, precisamos de alguns dados essenciais.
+                  Ficamos felizes em tê-lo conosco! Para configurarmos sua base, parâmetros fiscais
+                  {isShopee ? ', integrações com a Shopee e tabelas operacionais' : ' e cadastros operacionais'} com precisão, precisamos de alguns dados essenciais.
                 </p>
                 <p className="text-xs text-slate-400 mt-2">
                   💡 <em>Você pode navegar livremente e salvar o que tiver em mãos para continuar quando desejar.</em>
@@ -859,7 +871,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <Building className="w-4 h-4" /> Pergunta 1 de 10
+                  <Building className="w-4 h-4" /> {getQuestionBadge('cnpjs')}
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Quantos CNPJs irão Emitir CTe e Manifesto (MDF-e)?
@@ -949,7 +961,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <FileText className="w-4 h-4" /> Pergunta 2 de 10
+                  <FileText className="w-4 h-4" /> {getQuestionBadge('tributacao')}
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Informe a Tributação de cada CNPJ
@@ -1005,7 +1017,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <Truck className="w-4 h-4" /> Pergunta 3 de 10
+                  <Truck className="w-4 h-4" /> {getQuestionBadge('shopee_processos')}
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Quais Processos irá transportar para a Shopee?
@@ -1073,7 +1085,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <MapPin className="w-4 h-4" /> Pergunta 4 de 10 (Exclusivo Line Haul)
+                  <MapPin className="w-4 h-4" /> {getQuestionBadge('line_haul', 'Exclusivo Line Haul')}
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Informe os Percursos do Line Haul
@@ -1187,7 +1199,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <ShieldCheck className="w-4 h-4" /> Pergunta 5 de 10
+                  <ShieldCheck className="w-4 h-4" /> {getQuestionBadge('rntrc')}
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Informe o RNTRC / ANTT de cada CNPJ
@@ -1227,7 +1239,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <HelpCircle className="w-4 h-4" /> Pergunta 6 de 10
+                  <HelpCircle className="w-4 h-4" /> {getQuestionBadge('cte_anterior')}
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Já Emitiu CTe ou Manifesto antes neste CNPJ?
@@ -1299,7 +1311,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <Users className="w-4 h-4" /> Pergunta 7 de 10
+                  <Users className="w-4 h-4" /> {getQuestionBadge('usuarios')}
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Informe os Usuários que irão utilizar o Sistema
@@ -1375,7 +1387,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <FileSpreadsheet className="w-4 h-4" /> Pergunta 8 de 10
+                  <FileSpreadsheet className="w-4 h-4" /> {getQuestionBadge('nfse')}
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Irá Emitir NFSe (Nota Fiscal de Serviço)?
@@ -1736,7 +1748,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
               <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
                 <div>
                   <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                    <KeyRound className="w-4 h-4" /> Pergunta 9 de 10
+                    <KeyRound className="w-4 h-4" /> {getQuestionBadge('certificado')}
                   </div>
                   <h3 className="text-xl sm:text-2xl font-bold text-white">
                     Importe seu Certificado Digital A1 (.pfx) e informe a Senha
@@ -1892,7 +1904,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
             <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
               <div>
                 <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <Upload className="w-4 h-4" /> Pergunta 10 de 10
+                  <Upload className="w-4 h-4" /> {getQuestionBadge('tabela_frete')}
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white">
                   Importar sua Tabela de Frete
@@ -1971,7 +1983,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
               <div className="space-y-6 max-w-3xl mx-auto w-full animate-fadeIn">
                 <div>
                   <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
-                    <FileText className="w-4 h-4" /> Pergunta Final (Configuração Fiscal & Aditivo)
+                    <FileText className="w-4 h-4" /> {getQuestionBadge('cst_aditivo', 'Configuração Fiscal & Aditivo')}
                   </div>
                   <h3 className="text-xl sm:text-2xl font-bold text-white">
                     Deseja Configurar a CST a ser Utilizada nos Processos?
@@ -2215,7 +2227,7 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                <div className={clsx("grid grid-cols-1 gap-3 text-xs", isShopee ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
                   <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
                     <p className="font-bold text-brand-400 uppercase text-[11px]">CNPJs e Tributação</p>
                     <p className="text-slate-300"><strong>Total de CNPJs:</strong> {formData.cnpjs.length}</p>
@@ -2229,10 +2241,12 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                   </div>
 
                   <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <p className="font-bold text-orange-400 uppercase text-[11px]">Operações & Usuários</p>
-                    <p className="text-slate-300">
-                      <strong>Processos:</strong> {formData.processos_shopee.join(', ') || 'Nenhum'}
-                    </p>
+                    <p className="font-bold text-orange-400 uppercase text-[11px]">{isShopee ? 'Operações & Usuários' : 'Usuários & NFSe'}</p>
+                    {isShopee && (
+                      <p className="text-slate-300">
+                        <strong>Processos:</strong> {formData.processos_shopee.join(', ') || 'Nenhum'}
+                      </p>
+                    )}
                     <p className="text-slate-300">
                       <strong>Usuários:</strong> {formData.usuarios.length}
                     </p>
@@ -2254,20 +2268,24 @@ export function ClienteFormularioModal({ isOpen, onClose, implantacao, onSuccess
                     <p className="text-slate-300">
                       <strong>Senha Certificado:</strong> {todasSenhasOk ? '✓ Informada' : 'Pendente'}
                     </p>
-                    <p className="text-slate-300">
-                      <strong>Tabela Frete:</strong> {formData.tabela_frete.arquivo_nome ? '✓ Anexada' : 'Pendente'}
-                    </p>
+                    {isShopee && (
+                      <p className="text-slate-300">
+                        <strong>Tabela Frete:</strong> {formData.tabela_frete.arquivo_nome ? '✓ Anexada' : 'Pendente'}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <p className="font-bold text-purple-400 uppercase text-[11px]">CST & Aditivo</p>
-                    <p className="text-slate-300">
-                      <strong>Config. CST:</strong> {formData.cst_config.habilitar_cst === true ? 'Sim' : 'Padrão'}
-                    </p>
-                    <p className="text-slate-300">
-                      <strong>Aditivo:</strong> {formData.cst_config.arquivo_aditivo_nome ? '✓ Anexado' : 'Pendente'}
-                    </p>
-                  </div>
+                  {isShopee && (
+                    <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-2">
+                      <p className="font-bold text-purple-400 uppercase text-[11px]">CST & Aditivo</p>
+                      <p className="text-slate-300">
+                        <strong>Config. CST:</strong> {formData.cst_config.habilitar_cst === true ? 'Sim' : 'Padrão'}
+                      </p>
+                      <p className="text-slate-300">
+                        <strong>Aditivo:</strong> {formData.cst_config.arquivo_aditivo_nome ? '✓ Anexado' : 'Pendente'}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {isCompleto ? (

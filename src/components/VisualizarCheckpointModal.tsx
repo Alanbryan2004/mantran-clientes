@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Building, CheckCircle2, Download, FileSpreadsheet, 
   FileText, MapPin, Truck, Users, 
@@ -26,6 +26,19 @@ export function VisualizarCheckpointModal({
   const [activeTab, setActiveTab] = useState<'cnpjs' | 'shopee' | 'usuarios' | 'nfse' | 'certificado' | 'frete' | 'cst_aditivo'>('cnpjs')
   const [showCertSenha, setShowCertSenha] = useState<Record<number, boolean>>({})
   const [copiedSenha, setCopiedSenha] = useState<Record<number, boolean>>({})
+
+  const tipoNorm = String(implantacao?.tipo_cliente || '').toUpperCase()
+  const isLeoMadeiras = tipoNorm === 'LEO_MADEIRAS' ||
+    tipoNorm === 'LEO MADEIRAS' ||
+    implantacao?.clientes?.tipo === 'LEO_MADEIRAS' ||
+    implantacao?.bases?.nome_base === 'dbMantranLeo012'
+  const isShopee = !isLeoMadeiras && tipoNorm === 'SHOPEE'
+
+  useEffect(() => {
+    if (!isShopee && (activeTab === 'shopee' || activeTab === 'frete' || activeTab === 'cst_aditivo')) {
+      setActiveTab('cnpjs')
+    }
+  }, [isShopee, activeTab])
 
   if (!isOpen || !checkpoint) return null
 
@@ -161,12 +174,12 @@ export function VisualizarCheckpointModal({
         <div className="px-6 border-b border-slate-800 bg-slate-900/30 flex gap-2 overflow-x-auto shrink-0 custom-scrollbar">
           {[
             { id: 'cnpjs', label: `CNPJs & Tributação (${cnpjs.length})`, icon: Building },
-            { id: 'shopee', label: 'Operações Shopee', icon: Truck },
+            ...(isShopee ? [{ id: 'shopee', label: 'Operações Shopee', icon: Truck }] : []),
             { id: 'usuarios', label: `Usuários (${usuarios.length})`, icon: Users },
             { id: 'nfse', label: 'NFSe', icon: FileText },
             { id: 'certificado', label: certificadosLista.length > 1 ? `Certificado Digital (${certificadosLista.length})` : 'Certificado Digital', icon: KeyRound },
-            { id: 'frete', label: 'Tabela de Frete', icon: FileSpreadsheet },
-            { id: 'cst_aditivo', label: 'CST & Aditivo', icon: FileText },
+            ...(isShopee ? [{ id: 'frete', label: 'Tabela de Frete', icon: FileSpreadsheet }] : []),
+            ...(isShopee ? [{ id: 'cst_aditivo', label: 'CST & Aditivo', icon: FileText }] : []),
           ].map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id

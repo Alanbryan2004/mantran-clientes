@@ -202,17 +202,21 @@ export function checkCheckpointCompleto(dados: any, isShopee: boolean = true) {
     pendencias.push('Certificado Digital (.pfx) e Senha')
   }
 
-  // 9. Tabela de Frete
-  const frete = dados?.tabela_frete
-  if (!frete?.arquivo_nome && !frete?.observacoes) {
-    pendencias.push('Tabela de Frete')
+  // 9. Tabela de Frete (apenas para Shopee)
+  if (isShopee) {
+    const frete = dados?.tabela_frete
+    if (!frete?.arquivo_nome && !frete?.observacoes) {
+      pendencias.push('Tabela de Frete')
+    }
   }
 
-  // 10. CST & Aditivo (CST customizada é opcional; só é pendência se o cliente marcou que DESEJA habilitar CST mas não anexou o aditivo)
-  const cst = dados?.cst_config
-  if (cst?.habilitar_cst === true) {
-    if (!cst?.arquivo_aditivo_nome) {
-      pendencias.push('Aditivo Assinado')
+  // 10. CST & Aditivo (apenas para Shopee; CST customizada é opcional, só é pendência se o cliente marcou que DESEJA habilitar CST mas não anexou o aditivo)
+  if (isShopee) {
+    const cst = dados?.cst_config
+    if (cst?.habilitar_cst === true) {
+      if (!cst?.arquivo_aditivo_nome) {
+        pendencias.push('Aditivo Assinado')
+      }
     }
   }
 
@@ -1762,14 +1766,17 @@ export const api = {
     try {
       const { data: imp } = await supabase
         .from('implantacoes')
-        .select('id, tipo_cliente, nome_empresa, cliente_id')
+        .select('id, tipo_cliente, nome_empresa, cliente_id, base_id, bases ( id, nome_base ), clientes ( id, tipo )')
         .eq('id', implantacaoId)
         .single()
       if (imp) {
         impInfo = imp
-        if (imp.tipo_cliente) {
-          isShopee = imp.tipo_cliente === 'SHOPEE'
-        }
+        const tipoNorm = String(imp.tipo_cliente || '').toUpperCase()
+        const isLeo = tipoNorm === 'LEO_MADEIRAS' ||
+          tipoNorm === 'LEO MADEIRAS' ||
+          (imp as any).clientes?.tipo === 'LEO_MADEIRAS' ||
+          (imp as any).bases?.nome_base === 'dbMantranLeo012'
+        isShopee = !isLeo && tipoNorm === 'SHOPEE'
       }
     } catch (e) {
       console.warn('Aviso ao consultar tipo de cliente:', e)

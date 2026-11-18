@@ -192,7 +192,10 @@ export function ImplantacaoDetalhes() {
     const chkEt = etapas.find(e => (e.nome_etapa || '').trim().toLowerCase() === 'checkpoint')
     if (!chkEt) return
 
-    const { isCompleto } = checkCheckpointCompleto(checkpointData.dados, implantacao.tipo_cliente === 'SHOPEE')
+    const tipoNorm = String(implantacao.tipo_cliente || '').toUpperCase()
+    const isLeo = tipoNorm === 'LEO_MADEIRAS' || tipoNorm === 'LEO MADEIRAS' || implantacao.clientes?.tipo === 'LEO_MADEIRAS' || implantacao.bases?.nome_base === 'dbMantranLeo012'
+    const isShopeeCheckpoint = !isLeo && tipoNorm === 'SHOPEE'
+    const { isCompleto } = checkCheckpointCompleto(checkpointData.dados, isShopeeCheckpoint)
     if (!isCompleto) return
 
     const ags = checkpointData.dados?.agendamentos_etapas || {}
@@ -335,7 +338,9 @@ export function ImplantacaoDetalhes() {
   // concluídas (OK ou ERRO) — alinhado à regra de encerramento.
   const isComplete = implantacao.status === 'Concluído' ||
     (etapas.length > 0 && etapas.every(e => etapaConcluida(e.valor)))
-  const isShopee = implantacao.tipo_cliente === 'SHOPEE'
+  const tipoNormGeral = String(implantacao.tipo_cliente || '').toUpperCase()
+  const isLeoMadeiras = tipoNormGeral === 'LEO_MADEIRAS' || tipoNormGeral === 'LEO MADEIRAS' || implantacao.clientes?.tipo === 'LEO_MADEIRAS' || implantacao.bases?.nome_base === 'dbMantranLeo012'
+  const isShopee = !isLeoMadeiras && tipoNormGeral === 'SHOPEE'
   // Selo MELI: implantação possui o card de MELI (novo: 'Treinamento MELI'; legado: 'Mercado Livre')
   const isMeliEtapa = (nome: string) => {
     const n = (nome || '').trim().toLowerCase()
