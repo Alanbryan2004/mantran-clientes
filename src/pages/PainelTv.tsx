@@ -8,7 +8,7 @@ import {
 import { Dashboard } from './Dashboard'
 import { AnalyticsAcessos } from './AnalyticsAcessos'
 import { Implantacoes } from './Implantacoes'
-import { ProcessamentoShopee } from './ProcessamentoShopee'
+import { ProcessamentoShopee, type ProcessoTipo, type StatusProcessamento } from './ProcessamentoShopee'
 import { isDashboardUser } from '../lib/auth'
 import clsx from 'clsx'
 
@@ -19,6 +19,35 @@ interface TelaTv {
   icone: any
   componente: React.ComponentType
 }
+
+interface SubEstadoShopee {
+  processo: ProcessoTipo
+  status: StatusProcessamento
+  labelStatus: string
+}
+
+// 12 Sub-estados para dividir o tempo da tela de Processamento Shopee
+const SUB_ESTADOS_SHOPEE: SubEstadoShopee[] = [
+  // 1. Last Mile
+  { processo: 'Last Mile', status: 'NAO_INICIADO', labelStatus: 'Não Iniciado' },
+  { processo: 'Last Mile', status: 'PROCESSANDO', labelStatus: 'Processando' },
+  { processo: 'Last Mile', status: 'FINALIZADO', labelStatus: 'Finalizado' },
+
+  // 2. Line Haul
+  { processo: 'Line Haul', status: 'NAO_INICIADO', labelStatus: 'Não Iniciado' },
+  { processo: 'Line Haul', status: 'PROCESSANDO', labelStatus: 'Processando' },
+  { processo: 'Line Haul', status: 'FINALIZADO', labelStatus: 'Finalizado' },
+
+  // 3. First Mile
+  { processo: 'First Mile', status: 'NAO_INICIADO', labelStatus: 'Não Iniciado' },
+  { processo: 'First Mile', status: 'PROCESSANDO', labelStatus: 'Processando' },
+  { processo: 'First Mile', status: 'FINALIZADO', labelStatus: 'Finalizado' },
+
+  // 4. Mobile Hub
+  { processo: 'Mobile Hub', status: 'NAO_INICIADO', labelStatus: 'Não Iniciado' },
+  { processo: 'Mobile Hub', status: 'PROCESSANDO', labelStatus: 'Processando' },
+  { processo: 'Mobile Hub', status: 'FINALIZADO', labelStatus: 'Finalizado' }
+]
 
 const TELAS_TV: TelaTv[] = [
   {
@@ -185,6 +214,20 @@ export function PainelTv() {
   const telaAtual = TELAS_TV[telaIndex]
   const ComponenteAtivo = telaAtual.componente
 
+  // Cálculo do sub-estado do Shopee (12 etapas durante o tempo da tela 4)
+  const isTelaShopee = telaAtual.id === 'processamento'
+  const tempoDecorridoTela = Math.max(0, intervaloSegundos - segundosRestantes)
+  const duracaoSubEtapa = Math.max(1, intervaloSegundos / SUB_ESTADOS_SHOPEE.length) // ex: 120s / 12 = 10s
+  const subIndexShopee = Math.min(
+    SUB_ESTADOS_SHOPEE.length - 1,
+    Math.floor(tempoDecorridoTela / duracaoSubEtapa)
+  )
+  const subEstadoShopee = SUB_ESTADOS_SHOPEE[subIndexShopee]
+  const tempoRestanteSubEtapa = Math.max(
+    1,
+    Math.ceil(duracaoSubEtapa - (tempoDecorridoTela % duracaoSubEtapa))
+  )
+
   const formatarTempo = (totalSegundos: number) => {
     const mins = Math.floor(totalSegundos / 60)
     const segs = totalSegundos % 60
@@ -253,7 +296,14 @@ export function PainelTv() {
                   title={`${t.titulo} (${idx + 1}/4)`}
                 >
                   <Icone className={clsx("w-3.5 h-3.5 shrink-0", isAtiva ? "text-white" : "text-slate-400")} />
-                  <span>{idx + 1}. {t.titulo}</span>
+                  <span>
+                    {idx + 1}. {t.titulo}
+                    {t.id === 'processamento' && isAtiva && (
+                      <span className="ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-200 border border-orange-500/30">
+                        {subEstadoShopee.processo} • {subEstadoShopee.labelStatus}
+                      </span>
+                    )}
+                  </span>
                   {isAtiva && (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-0.5" />
                   )}
@@ -268,11 +318,25 @@ export function PainelTv() {
             {/* Contagem Regressiva */}
             <div 
               className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono font-bold"
-              title={isPausado ? 'Rotação pausada' : `Próxima tela em ${formatarTempo(segundosRestantes)}`}
+              title={
+                isPausado 
+                  ? 'Rotação pausada' 
+                  : isTelaShopee
+                  ? `Sub-etapa Shopee (${subIndexShopee + 1}/12): ${subEstadoShopee.processo} - ${subEstadoShopee.labelStatus} (${tempoRestanteSubEtapa}s) • Próxima tela geral em ${formatarTempo(segundosRestantes)}`
+                  : `Próxima tela em ${formatarTempo(segundosRestantes)}`
+              }
             >
-              <Clock className={clsx("w-3.5 h-3.5", isPausado ? "text-amber-400" : "text-indigo-400")} />
+              <Clock className={clsx("w-3.5 h-3.5", isPausado ? "text-amber-400" : isTelaShopee ? "text-orange-400" : "text-indigo-400")} />
               <span className={isPausado ? "text-amber-300" : "text-slate-200"}>
-                {isPausado ? 'PAUSADO' : formatarTempo(segundosRestantes)}
+                {isPausado ? (
+                  'PAUSADO'
+                ) : isTelaShopee ? (
+                  <span>
+                    Sub: <span className="text-orange-300">{tempoRestanteSubEtapa}s</span> <span className="text-slate-500">|</span> Geral: {formatarTempo(segundosRestantes)}
+                  </span>
+                ) : (
+                  formatarTempo(segundosRestantes)
+                )}
               </span>
             </div>
 
@@ -390,7 +454,16 @@ export function PainelTv() {
       {/* Conteúdo Principal do Painel TV */}
       <main className="flex-1 overflow-x-hidden overflow-y-auto bg-[#0b0d14] relative">
         <div key={`${telaAtual.id}-${refreshKey}`} className="animate-fadeIn min-h-full">
-          <ComponenteAtivo />
+          {telaAtual.id === 'processamento' ? (
+            <ProcessamentoShopee
+              tvProcessoFiltro={subEstadoShopee.processo}
+              tvStatusFiltro={subEstadoShopee.status}
+              tvSubTitulo={`Etapa ${subIndexShopee + 1} de 12 • ${subEstadoShopee.processo} [${subEstadoShopee.labelStatus}] • Próxima troca em ${tempoRestanteSubEtapa}s`}
+              isTvMode={true}
+            />
+          ) : (
+            <ComponenteAtivo />
+          )}
         </div>
       </main>
 

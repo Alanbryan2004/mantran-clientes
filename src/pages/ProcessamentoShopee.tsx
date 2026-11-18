@@ -128,17 +128,42 @@ const PROCESSOS: { id: 'TODOS' | ProcessoTipo; label: string }[] = [
   { id: 'Mobile Hub', label: 'Mobile Hub' }
 ]
 
-export function ProcessamentoShopee() {
+export interface ProcessamentoShopeeProps {
+  tvProcessoFiltro?: 'TODOS' | ProcessoTipo
+  tvStatusFiltro?: 'TODOS' | StatusProcessamento
+  tvSubTitulo?: string
+  isTvMode?: boolean
+}
+
+export function ProcessamentoShopee({
+  tvProcessoFiltro,
+  tvStatusFiltro,
+  tvSubTitulo,
+  isTvMode
+}: ProcessamentoShopeeProps = {}) {
   const competenciaPadrao = useMemo(() => obterCompetenciaPadraoShopee(), [])
 
   // Filtros inicializados com a quinzena passada (15 dias antes da data atual)
   const [quinzena, setQuinzena] = useState<'1' | '2'>(competenciaPadrao.quinzena)
   const [mes, setMes] = useState(competenciaPadrao.mes)
   const [ano, setAno] = useState(competenciaPadrao.ano)
-  const [processoFiltro, setProcessoFiltro] = useState<'TODOS' | ProcessoTipo>('TODOS')
+  const [processoFiltro, setProcessoFiltro] = useState<'TODOS' | ProcessoTipo>(tvProcessoFiltro || 'TODOS')
   const [transportadoraFiltro, setTransportadoraFiltro] = useState<string>('TODAS')
-  const [statusFiltro, setStatusFiltro] = useState<'TODOS' | StatusProcessamento>('TODOS')
+  const [statusFiltro, setStatusFiltro] = useState<'TODOS' | StatusProcessamento>(tvStatusFiltro || 'TODOS')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Sincroniza filtros caso sejam controlados externamente pelo Modo TV
+  useEffect(() => {
+    if (tvProcessoFiltro !== undefined) {
+      setProcessoFiltro(tvProcessoFiltro)
+    }
+  }, [tvProcessoFiltro])
+
+  useEffect(() => {
+    if (tvStatusFiltro !== undefined) {
+      setStatusFiltro(tvStatusFiltro)
+    }
+  }, [tvStatusFiltro])
 
   const [clientesShopee, setClientesShopee] = useState<any[]>([])
   const [bases, setBases] = useState<any[]>([])
@@ -575,6 +600,45 @@ export function ProcessamentoShopee() {
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden flex flex-col">
+      
+      {/* Banner Informativo do Modo TV em Rotação Automática */}
+      {isTvMode && (
+        <div className="bg-gradient-to-r from-orange-500/15 via-brand-500/15 to-purple-500/15 border border-orange-500/30 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg shadow-orange-500/5">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-400 animate-ping inline-block" />
+              <span className="text-xs font-black uppercase text-orange-300 tracking-wider">
+                Rotação Automática Shopee
+              </span>
+            </div>
+            <div className="h-4 w-[1px] bg-slate-800 hidden sm:block" />
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400 font-semibold">Operação:</span>
+              <span className="font-black text-white bg-slate-900/90 px-2.5 py-1 rounded-lg border border-orange-500/30">
+                {processoFiltro}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400 font-semibold">Status:</span>
+              <span className={clsx(
+                "px-2.5 py-1 rounded-lg border font-black text-xs",
+                statusFiltro === 'NAO_INICIADO'
+                  ? "text-red-300 bg-red-950/60 border-red-500/40"
+                  : statusFiltro === 'PROCESSANDO'
+                  ? "text-orange-300 bg-orange-950/60 border-orange-500/40"
+                  : "text-emerald-300 bg-emerald-950/60 border-emerald-500/40"
+              )}>
+                {statusFiltro === 'NAO_INICIADO' ? '🔴 Não Iniciado' : statusFiltro === 'PROCESSANDO' ? '🟠 Processando' : '🟢 Finalizado'}
+              </span>
+            </div>
+          </div>
+          {tvSubTitulo && (
+            <div className="text-[11px] font-mono font-bold text-slate-400 bg-slate-900/60 px-3 py-1 rounded-lg border border-slate-800 self-start sm:self-auto">
+              {tvSubTitulo}
+            </div>
+          )}
+        </div>
+      )}
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
