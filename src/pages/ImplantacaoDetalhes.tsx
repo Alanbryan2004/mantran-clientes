@@ -939,6 +939,7 @@ export function ImplantacaoDetalhes() {
             const isTestesCard = nomeNormLower === 'testes'
             const isFeedbackCard = nomeNormLower === 'feedback'
             const isCardAutomaticoOuSemData = is4PLEtapa || isConfigurarBaseCard || isTestesCard || isFeedbackCard
+            const canAgendarEtapa = !isReadOnlyUser() || isClienteUser()
 
             const agendamentoEtapa = agendamentosEtapas[etapa.id] || null
             const qtdReplanejamentos = Array.isArray(agendamentoEtapa?.replanejamentos) ? agendamentoEtapa.replanejamentos.length : 0
@@ -991,7 +992,7 @@ export function ImplantacaoDetalhes() {
                   </h4>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
-                  {!isCardAutomaticoOuSemData && !isReadOnlyUser() && (
+                  {!isCardAutomaticoOuSemData && canAgendarEtapa && (
                     <button
                       type="button"
                       onClick={() => setEtapaParaAgendar(etapa)}
@@ -1054,7 +1055,7 @@ export function ImplantacaoDetalhes() {
                         </span>
                       )}
                     </div>
-                    {!isReadOnlyUser() && etapa.valor !== 'OK' && (
+                    {canAgendarEtapa && etapa.valor !== 'OK' && (
                       <button
                         type="button"
                         onClick={() => setEtapaParaAgendar(etapa)}
@@ -1066,7 +1067,7 @@ export function ImplantacaoDetalhes() {
                     )}
                   </div>
                 ) : (nomeNormLower === 'checkpoint' && dataCheckpointEfetivaISO) ? (
-                  <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 space-y-1">
+                  <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 space-y-1.5">
                     <div className="flex items-center justify-between gap-2 text-[11px]">
                       <span className="font-bold text-emerald-300 flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
@@ -1079,9 +1080,19 @@ export function ImplantacaoDetalhes() {
                     <span className="block text-[10px] text-emerald-200/80">
                       Assumida automaticamente da conclusão do Checkpoint.
                     </span>
+                    {canAgendarEtapa && (
+                      <button
+                        type="button"
+                        onClick={() => setEtapaParaAgendar(etapa)}
+                        className="w-full mt-1 py-1 px-2.5 rounded-md bg-slate-900/80 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Replanejar Data</span>
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  !isReadOnlyUser() ? (
+                  canAgendarEtapa ? (
                     <button
                       type="button"
                       onClick={() => setEtapaParaAgendar(etapa)}
