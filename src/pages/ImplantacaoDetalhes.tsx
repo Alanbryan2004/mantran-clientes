@@ -364,6 +364,7 @@ export function ImplantacaoDetalhes() {
 
   const somarDiasUteisLocal = (dataBase: Date, diasUteis: number): Date => {
     const d = new Date(dataBase)
+    d.setMinutes(0, 0, 0)
     let adicionados = 0
     while (adicionados < diasUteis) {
       d.setDate(d.getDate() + 1)
@@ -431,7 +432,9 @@ export function ImplantacaoDetalhes() {
       return agendamentosEtapas[feedbackEtapa.id].inicio as string
     }
     if (!dataEtapaAnteriorAoFeedbackISO) return null
-    return new Date(new Date(dataEtapaAnteriorAoFeedbackISO).getTime() + 15 * 24 * 60 * 60 * 1000).toISOString()
+    const d = new Date(new Date(dataEtapaAnteriorAoFeedbackISO).getTime() + 15 * 24 * 60 * 60 * 1000)
+    d.setMinutes(0, 0, 0)
+    return d.toISOString()
   })()
 
   // Data efetiva do Feedback (se houver): utilizada para definir a Data Limite de Implantação
@@ -943,7 +946,8 @@ export function ImplantacaoDetalhes() {
             const isConfigurarBaseCard = nomeNormLower === 'configurar base'
             const isTestesCard = nomeNormLower === 'testes'
             const isFeedbackCard = nomeNormLower === 'feedback'
-            const isCardAutomaticoOuSemData = is4PLEtapa || isConfigurarBaseCard || isTestesCard || isFeedbackCard
+            const isFuncionario = !isClienteUser() && !isReadOnlyUser()
+            const isCardAutomaticoOuSemData = is4PLEtapa || isFeedbackCard || ((isConfigurarBaseCard || isTestesCard) && !isFuncionario)
             const canAgendarEtapa = !isReadOnlyUser() || isClienteUser()
 
             const agendamentoEtapa = agendamentosEtapas[etapa.id] || null
@@ -1020,25 +1024,46 @@ export function ImplantacaoDetalhes() {
                   </div>
                 ) : (isConfigurarBaseCard || isTestesCard || isFeedbackCard) ? (
                   dataAutomaticaCardISO ? (
-                    <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 space-y-1">
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 space-y-1.5">
                       <div className="flex items-center justify-between gap-2 text-[11px]">
                         <span className="font-bold text-emerald-300 flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           Data Automática:
                         </span>
                         <span className="font-mono font-bold text-white bg-slate-900/80 px-2 py-0.5 rounded border border-emerald-500/30">
-                          {new Date(dataAutomaticaCardISO).toLocaleDateString('pt-BR')}
+                          {new Date(dataAutomaticaCardISO).toLocaleDateString('pt-BR')} • {new Date(dataAutomaticaCardISO).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                       <span className="block text-[10px] text-emerald-200/80">
                         Calculada automaticamente: {regraAutomaticaTexto}.
                       </span>
+                      {((isConfigurarBaseCard || isTestesCard) && isFuncionario && etapa.valor !== 'OK') && (
+                        <button
+                          type="button"
+                          onClick={() => setEtapaParaAgendar(etapa)}
+                          className="w-full mt-1.5 py-1 px-2.5 rounded-md bg-slate-900/80 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Calendar className="w-3 h-3" />
+                          <span>Alterar / Replanejar Data</span>
+                        </button>
+                      )}
                     </div>
                   ) : (
-                    <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/80 text-[11px] text-slate-400 flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span>Automático: {regraAutomaticaTexto}</span>
-                    </div>
+                    ((isConfigurarBaseCard || isTestesCard) && isFuncionario) ? (
+                      <button
+                        type="button"
+                        onClick={() => setEtapaParaAgendar(etapa)}
+                        className="w-full py-1.5 px-3 rounded-lg bg-brand-500/15 hover:bg-brand-500/25 text-brand-300 border border-brand-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>Informar / Agendar Data</span>
+                      </button>
+                    ) : (
+                      <div className="px-2.5 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/80 text-[11px] text-slate-400 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span>Automático: {regraAutomaticaTexto}</span>
+                      </div>
+                    )
                   )
                 ) : agendamentoEtapa?.inicio ? (
                   <div className="p-2.5 rounded-lg bg-brand-500/10 border border-brand-500/30 space-y-2">

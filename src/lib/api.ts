@@ -4972,12 +4972,17 @@ export const api = {
       regraDescricao: string
     ) => {
       let ini = new Date(dtAlvoBase)
+      ini.setMinutes(0, 0, 0)
       let fim = new Date(ini.getTime() + 60 * 60000)
+      fim.setMinutes(0, 0, 0)
       const agAnt = agendamentosAtuais[etapaAlvo.id] || null
+
+      // Se o usuário/analista definiu manualmente esta etapa (automatico === false), não sobrescreve
+      if (agAnt?.inicio && agAnt.automatico === false) return
 
       const mudouData =
         !agAnt?.inicio ||
-        new Date(agAnt.inicio).toISOString().slice(0, 10) !== ini.toISOString().slice(0, 10)
+        new Date(agAnt.inicio).toISOString().slice(0, 13) !== ini.toISOString().slice(0, 13)
 
       if (!mudouData) return
 
@@ -4991,7 +4996,9 @@ export const api = {
           )
           if (conf.length === 0) break
           ini = new Date(ini.getTime() + 60 * 60000)
+          ini.setMinutes(0, 0, 0)
           fim = new Date(ini.getTime() + 60 * 60000)
+          fim.setMinutes(0, 0, 0)
         }
       }
 
@@ -5073,19 +5080,42 @@ export const api = {
     const agCheckpoint = etapaCheckpoint ? agendamentosAtuais[etapaCheckpoint.id] : null
     if (agCheckpoint?.inicio) {
       const dtCheckpoint = new Date(agCheckpoint.inicio)
+      dtCheckpoint.setMinutes(0, 0, 0)
       const dtConfigBase = somarDiasUteis(dtCheckpoint, 1)
-      if (etapaConfigurarBase && etapaAindaAberta(etapaConfigurarBase)) {
+      dtConfigBase.setMinutes(0, 0, 0)
+      const agConfigBaseAtual = etapaConfigurarBase ? agendamentosAtuais[etapaConfigurarBase.id] : null
+      if (etapaConfigurarBase && etapaAindaAberta(etapaConfigurarBase) && (!agConfigBaseAtual?.inicio || agConfigBaseAtual.automatico !== false)) {
         await programarEtapaAutomatica(
           etapaConfigurarBase,
           dtConfigBase,
           `1 dia útil após o Checkpoint em ${dtCheckpoint.toLocaleDateString('pt-BR')}`
         )
       }
-      if (etapaTestes && etapaAindaAberta(etapaTestes)) {
-        const dtBaseParaTestes = etapaConfigurarBase && agendamentosAtuais[etapaConfigurarBase.id]?.inicio
-          ? new Date(agendamentosAtuais[etapaConfigurarBase.id].inicio)
-          : dtConfigBase
+      const agConfigBaseApos = etapaConfigurarBase ? agendamentosAtuais[etapaConfigurarBase.id] : null
+      const dtBaseParaTestes = agConfigBaseApos?.inicio
+        ? new Date(agConfigBaseApos.inicio)
+        : dtConfigBase
+      dtBaseParaTestes.setMinutes(0, 0, 0)
+      const dtTestes = somarDiasUteis(dtBaseParaTestes, 1)
+      dtTestes.setMinutes(0, 0, 0)
+      const agTestesAtual = etapaTestes ? agendamentosAtuais[etapaTestes.id] : null
+      if (etapaTestes && etapaAindaAberta(etapaTestes) && (!agTestesAtual?.inicio || agTestesAtual.automatico !== false)) {
+        await programarEtapaAutomatica(
+          etapaTestes,
+          dtTestes,
+          `1 dia útil após Configurar Base em ${dtBaseParaTestes.toLocaleDateString('pt-BR')}`
+        )
+      }
+    }
+
+    // Se o funcionário alterou manualmente a etapa "Configurar Base", recalcula "Testes" (se Testes for automático)
+    if (nomeEtapa.toLowerCase() === 'configurar base' && etapaTestes && etapaAindaAberta(etapaTestes)) {
+      const agTestesAtual = agendamentosAtuais[etapaTestes.id]
+      if (!agTestesAtual?.inicio || agTestesAtual.automatico !== false) {
+        const dtBaseParaTestes = new Date(inicioISO)
+        dtBaseParaTestes.setMinutes(0, 0, 0)
         const dtTestes = somarDiasUteis(dtBaseParaTestes, 1)
+        dtTestes.setMinutes(0, 0, 0)
         await programarEtapaAutomatica(
           etapaTestes,
           dtTestes,
@@ -5107,6 +5137,7 @@ export const api = {
 
       if (dataAnteriorISO) {
         const dtFeedback = new Date(new Date(dataAnteriorISO).getTime() + 15 * 24 * 60 * 60 * 1000)
+        dtFeedback.setMinutes(0, 0, 0)
         await programarEtapaAutomatica(
           etapaFeedback,
           dtFeedback,
@@ -5176,7 +5207,9 @@ export const api = {
       const autorNome = usuarioNome || nomeEmpresa
       const agoraISO = new Date().toISOString()
       const dtConclusao = dataConclusaoISO ? new Date(dataConclusaoISO) : new Date()
+      dtConclusao.setMinutes(0, 0, 0)
       const dtConclusaoFim = new Date(dtConclusao.getTime() + 60 * 60000)
+      dtConclusaoFim.setMinutes(0, 0, 0)
 
       const convidadosAnalista = analista.id
         ? [{
@@ -5382,8 +5415,13 @@ export const api = {
         const agAnt = agendamentosAtuais[etapaAlvo.id] || null
         // Se a etapa já estiver concluída e já tiver data registrada, não altera
         if (!etapaAindaAberta(etapaAlvo) && agAnt?.inicio) return
+        // Se a etapa foi alterada manualmente pelo funcionário (automatico === false), não sobrescreve
+        if (agAnt?.inicio && agAnt.automatico === false) return
+
         let ini = new Date(dtAlvoBase)
+        ini.setMinutes(0, 0, 0)
         let fim = new Date(ini.getTime() + 60 * 60000)
+        fim.setMinutes(0, 0, 0)
 
         if (agAnt?.inicio && extrairYMDLocal(new Date(agAnt.inicio)) === extrairYMDLocal(ini)) return
 
@@ -5397,7 +5435,9 @@ export const api = {
             )
             if (conf.length === 0) break
             ini = new Date(ini.getTime() + 60 * 60000)
+            ini.setMinutes(0, 0, 0)
             fim = new Date(ini.getTime() + 60 * 60000)
+            fim.setMinutes(0, 0, 0)
           }
         }
 
@@ -5482,7 +5522,9 @@ export const api = {
       )
 
       const dtChkEfetiva = new Date(agendamentosAtuais[etapaCheckpoint.id].inicio)
+      dtChkEfetiva.setMinutes(0, 0, 0)
       const dtConfigBase = somarDiasUteis(dtChkEfetiva, 1)
+      dtConfigBase.setMinutes(0, 0, 0)
       await programarOuReplanejarAutomatica(
         etapaConfigurarBase,
         dtConfigBase,
@@ -5492,7 +5534,9 @@ export const api = {
       const dtBaseParaTestes = etapaConfigurarBase && agendamentosAtuais[etapaConfigurarBase.id]?.inicio
         ? new Date(agendamentosAtuais[etapaConfigurarBase.id].inicio)
         : dtConfigBase
+      dtBaseParaTestes.setMinutes(0, 0, 0)
       const dtTestes = somarDiasUteis(dtBaseParaTestes, 1)
+      dtTestes.setMinutes(0, 0, 0)
       await programarOuReplanejarAutomatica(
         etapaTestes,
         dtTestes,
@@ -5511,6 +5555,7 @@ export const api = {
 
         if (dataAnteriorISO) {
           const dtFeedback = new Date(new Date(dataAnteriorISO).getTime() + 15 * 24 * 60 * 60 * 1000)
+          dtFeedback.setMinutes(0, 0, 0)
           await programarOuReplanejarAutomatica(
             etapaFeedback,
             dtFeedback,
