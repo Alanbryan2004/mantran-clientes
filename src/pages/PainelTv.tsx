@@ -33,6 +33,19 @@ interface SubEstadoImplantacoes {
   labelPrazo: string
 }
 
+interface SubEstadoAnalytics {
+  id: 'faq' | 'academia' | 'usuarios_ativos' | 'novos'
+  label: string
+}
+
+// 4 Sub-estados para dividir o tempo da tela de Métricas de Acesso (Manuais FAQ Lidos, Academia Mantran, Usuários Ativos, Novos Usuários)
+const SUB_ESTADOS_ANALYTICS: SubEstadoAnalytics[] = [
+  { id: 'faq', label: 'Manuais FAQ Lidos' },
+  { id: 'academia', label: 'Academia Mantran' },
+  { id: 'usuarios_ativos', label: 'Usuários Ativos' },
+  { id: 'novos', label: 'Novos Usuários' }
+]
+
 // 9 Sub-estados para dividir o tempo da tela de Implantações (Clientes, MELI, NFSE x No Prazo, Atenção, Prazo Estourado)
 const SUB_ESTADOS_IMPLANTACOES: SubEstadoImplantacoes[] = [
   // 1. Clientes
@@ -121,6 +134,7 @@ export function PainelTv() {
   const [intervaloSegundos, setIntervaloSegundos] = useState(120) // Padrão: 2 minutos
   const [segundosRestantes, setSegundosRestantes] = useState(120)
   const [isPausado, setIsPausado] = useState(false)
+  const [telaPronta, setTelaPronta] = useState(true) // Só inicia contagem após exibir os dados da tela
   const [refreshKey, setRefreshKey] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [horaAtual, setHoraAtual] = useState('')
@@ -157,17 +171,20 @@ export function PainelTv() {
     return () => clearInterval(timer)
   }, [])
 
-  // Timer de Rotação Automática
+  // Timer de Rotação Automática (só roda se não pausado e com a tela já pronta e exibida)
   useEffect(() => {
-    if (isPausado) return
+    if (isPausado || !telaPronta) return
 
     const timer = setInterval(() => {
       setSegundosRestantes(prev => {
         if (prev <= 1) {
           // Troca de tela suavemente
           startTransition(() => {
-            setTelaIndex(idx => (idx + 1) % TELAS_TV.length)
+            const proximoIndex = (telaIndex + 1) % TELAS_TV.length
+            setTelaIndex(proximoIndex)
             setRefreshKey(k => k + 1)
+            // Se for para Analytics, espera carregar os dados antes de iniciar o relógio
+            setTelaPronta(TELAS_TV[proximoIndex].id !== 'analytics')
           })
           return intervaloSegundos
         }
@@ -176,7 +193,7 @@ export function PainelTv() {
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [isPausado, intervaloSegundos])
+  }, [isPausado, telaPronta, intervaloSegundos, telaIndex])
 
   // Ouvinte de mudança de tela cheia (F11 / Esc)
   useEffect(() => {
@@ -190,9 +207,11 @@ export function PainelTv() {
   // Troca manual de tela
   const irParaTela = (index: number) => {
     startTransition(() => {
+      const proxima = TELAS_TV[index]
       setTelaIndex(index)
       setSegundosRestantes(intervaloSegundos)
       setRefreshKey(k => k + 1)
+      setTelaPronta(proxima.id !== 'analytics')
     })
   }
 
@@ -266,6 +285,19 @@ export function PainelTv() {
     Math.ceil(duracaoSubEtapaImpl - (tempoDecorridoTela % duracaoSubEtapaImpl))
   )
 
+  // Cálculo do sub-estado de Métricas de Acesso (4 botões: FAQ Lidos, Academia Mantran, Usuários Ativos, Novos Usuários)
+  const isTelaAnalytics = telaAtual.id === 'analytics'
+  const duracaoSubEtapaAnalytics = Math.max(1, intervaloSegundos / SUB_ESTADOS_ANALYTICS.length) // ex: 120s / 4 = 30s
+  const subIndexAnalytics = Math.min(
+    SUB_ESTADOS_ANALYTICS.length - 1,
+    Math.floor(tempoDecorridoTela / duracaoSubEtapaAnalytics)
+  )
+  const subEstadoAnalytics = SUB_ESTADOS_ANALYTICS[subIndexAnalytics]
+  const tempoRestanteSubEtapaAnalytics = Math.max(
+    1,
+    Math.ceil(duracaoSubEtapaAnalytics - (tempoDecorridoTela % duracaoSubEtapaAnalytics))
+  )
+
   const formatarTempo = (totalSegundos: number) => {
     const mins = Math.floor(totalSegundos / 60)
     const segs = totalSegundos % 60
@@ -336,6 +368,11 @@ export function PainelTv() {
                   <Icone className={clsx("w-3.5 h-3.5 shrink-0", isAtiva ? "text-white" : "text-slate-400")} />
                   <span>
                     {idx + 1}. {t.titulo}
+                    {t.id === 'analytics' && isAtiva && (
+                      <span className="ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-200 border border-blue-500/30">
+                        {subEstadoAnalytics.label}
+                      </span>
+                    )}
                     {t.id === 'implantacoes' && isAtiva && (
                       <span className="ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-500/30">
                         {subEstadoImpl.labelTipo} • {subEstadoImpl.labelPrazo}
@@ -364,17 +401,26 @@ export function PainelTv() {
               title={
                 isPausado 
                   ? 'Rotação pausada' 
+                  : !telaPronta
+                  ? 'Aguardando carregamento dos dados da tela...'
                   : isTelaShopee
                   ? `Sub-etapa Shopee (${subIndexShopee + 1}/12): ${subEstadoShopee.processo} - ${subEstadoShopee.labelStatus} (${tempoRestanteSubEtapa}s) • Próxima tela geral em ${formatarTempo(segundosRestantes)}`
                   : isTelaImplantacoes
                   ? `Sub-etapa Implantações (${subIndexImpl + 1}/9): ${subEstadoImpl.labelTipo} - ${subEstadoImpl.labelPrazo} (${tempoRestanteSubEtapaImpl}s) • Próxima tela geral em ${formatarTempo(segundosRestantes)}`
+                  : isTelaAnalytics
+                  ? `Sub-etapa Métricas (${subIndexAnalytics + 1}/4): ${subEstadoAnalytics.label} (${tempoRestanteSubEtapaAnalytics}s) • Próxima tela geral em ${formatarTempo(segundosRestantes)}`
                   : `Próxima tela em ${formatarTempo(segundosRestantes)}`
               }
             >
-              <Clock className={clsx("w-3.5 h-3.5", isPausado ? "text-amber-400" : isTelaShopee ? "text-orange-400" : isTelaImplantacoes ? "text-emerald-400" : "text-indigo-400")} />
+              <Clock className={clsx("w-3.5 h-3.5", isPausado ? "text-amber-400" : !telaPronta ? "text-brand-400 animate-spin" : isTelaShopee ? "text-orange-400" : isTelaImplantacoes ? "text-emerald-400" : isTelaAnalytics ? "text-blue-400" : "text-indigo-400")} />
               <span className={isPausado ? "text-amber-300" : "text-slate-200"}>
                 {isPausado ? (
                   'PAUSADO'
+                ) : !telaPronta ? (
+                  <span className="text-brand-300 flex items-center gap-1.5 font-sans font-bold text-[10px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-ping inline-block" />
+                    Carregando dados...
+                  </span>
                 ) : isTelaShopee ? (
                   <span>
                     Sub: <span className="text-orange-300">{tempoRestanteSubEtapa}s</span> <span className="text-slate-500">|</span> Geral: {formatarTempo(segundosRestantes)}
@@ -382,6 +428,10 @@ export function PainelTv() {
                 ) : isTelaImplantacoes ? (
                   <span>
                     Sub: <span className="text-emerald-300">{tempoRestanteSubEtapaImpl}s</span> <span className="text-slate-500">|</span> Geral: {formatarTempo(segundosRestantes)}
+                  </span>
+                ) : isTelaAnalytics ? (
+                  <span>
+                    Sub: <span className="text-blue-300">{tempoRestanteSubEtapaAnalytics}s</span> <span className="text-slate-500">|</span> Geral: {formatarTempo(segundosRestantes)}
                   </span>
                 ) : (
                   formatarTempo(segundosRestantes)
@@ -503,7 +553,15 @@ export function PainelTv() {
       {/* Conteúdo Principal do Painel TV */}
       <main className="flex-1 overflow-x-hidden overflow-y-auto bg-[#0b0d14] relative">
         <div key={`${telaAtual.id}-${refreshKey}`} className="animate-fadeIn min-h-full">
-          {telaAtual.id === 'implantacoes' ? (
+          {telaAtual.id === 'analytics' ? (
+            <AnalyticsAcessos
+              tvSubEtapa={subEstadoAnalytics.id}
+              tvPeriodo="hoje"
+              tvSubTitulo={`Etapa ${subIndexAnalytics + 1} de 4 • ${subEstadoAnalytics.label} • Próxima troca em ${tempoRestanteSubEtapaAnalytics}s`}
+              isTvMode={true}
+              onDataLoaded={() => setTelaPronta(true)}
+            />
+          ) : telaAtual.id === 'implantacoes' ? (
             <Implantacoes
               tvTipoImplantacao={subEstadoImpl.tipo}
               tvFiltroPrazo={subEstadoImpl.prazo}

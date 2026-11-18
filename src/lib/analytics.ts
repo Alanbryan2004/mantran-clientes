@@ -253,22 +253,30 @@ export async function registrarVisualizacaoFaq(
 export async function buscarNovosUsuarios(dataFiltro: Date | null): Promise<NovoUsuario[]> {
   // 1) Acessos ativos de clientes (tolerante à ausência das colunas de origem/data)
   let linhas: any[] = []
-  const r1 = await supabase
+  let q1 = supabase
     .from('usuario')
     .select('id, nome, login, email_pessoal, created_at, origem_cadastro, acesso_ativado_em')
     .eq('perfil', 'Cliente')
     .eq('ativo', true)
     .not('email_pessoal', 'is', null)
-    .range(0, 999)
+
+  if (dataFiltro) {
+    q1 = q1.gte('created_at', dataFiltro.toISOString())
+  }
+
+  const r1 = await q1.range(0, 999)
   if (r1.error) {
     if (!/origem_cadastro|acesso_ativado_em/i.test(r1.error.message || '')) throw r1.error
-    const r2 = await supabase
+    let q2 = supabase
       .from('usuario')
       .select('id, nome, login, email_pessoal, created_at')
       .eq('perfil', 'Cliente')
       .eq('ativo', true)
       .not('email_pessoal', 'is', null)
-      .range(0, 999)
+    if (dataFiltro) {
+      q2 = q2.gte('created_at', dataFiltro.toISOString())
+    }
+    const r2 = await q2.range(0, 999)
     if (r2.error) throw r2.error
     linhas = r2.data || []
   } else {
@@ -281,17 +289,24 @@ export async function buscarNovosUsuarios(dataFiltro: Date | null): Promise<Novo
     .filter(x => x.quando && (!dataFiltro || new Date(x.quando).getTime() >= dataFiltro.getTime()))
   if (noPeriodo.length === 0) return []
 
-  // 3) Contato (nome) e empresa de cada e-mail
+  // 3) Contato (nome) e empresa APENAS dos e-mails dos usuários filtrados (otimização direta via .in())
+  const emailsBuscar = [...new Set(
+    noPeriodo.map(x => String(x.u.email_pessoal || '').trim().toLowerCase()).filter(Boolean)
+  )]
   const contatosPorEmail = new Map<string, { nome: string; empresa_id: string | null; empresa_nome: string | null }>()
-  for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase.from('ticket_contatos').select('nome, email, empresa_id, empresa_nome').range(de, de + 999)
+  
+  if (emailsBuscar.length > 0) {
+    const { data: cts, error } = await supabase
+      .from('ticket_contatos')
+      .select('nome, email, empresa_id, empresa_nome')
+      .in('email', emailsBuscar)
     if (error) throw error
-    for (const c of data || []) {
+    for (const c of cts || []) {
       const e = String(c.email || '').trim().toLowerCase()
       if (e && !contatosPorEmail.has(e)) contatosPorEmail.set(e, c)
     }
-    if (!data || data.length < 1000) break
   }
+
   const idsEmpresa = [...new Set(
     noPeriodo.map(x => contatosPorEmail.get(String(x.u.email_pessoal).trim().toLowerCase())?.empresa_id).filter((v): v is string => !!v)
   )]
@@ -322,7 +337,7 @@ export async function buscarNovosUsuarios(dataFiltro: Date | null): Promise<Novo
 /**
  * Busca e consolida todas as métricas de engajamento para o Painel de Analytics.
  */
-export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' | 'tudo' = '30dias'): Promise<AnalyticsResumo> {
+export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' | 'tudo' = 'hoje'): Promise<AnalyticsResumo> {
   const agora = new Date()
   let dataFiltro: Date | null = null
 
@@ -334,40 +349,50 @@ export async function getAnalyticsMetricas(periodo: 'hoje' | '7dias' | '30dias' 
     dataFiltro = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000)
   }
 
-  // 1. Consultar acessos_log (paginado para não truncar em 1.000 linhas)
-  const acessos: AcessoItem[] = []
-  for (let de = 0; ; de += 1000) {
-    let q = supabase.from('acessos_log').select('*').order('created_at', { ascending: false }).range(de, de + 999)
-    if (dataFiltro) q = q.gte('created_at', dataFiltro.toISOString())
-    const { data, error } = await q
-    if (error || !data || data.length === 0) break
-    acessos.push(...(data as AcessoItem[]))
-    if (data.length < 1000) break
+  const colsAcessos = 'id, usuario_id, usuario_nome, usuario_login, cliente_nome, rota, tela_nome, dispositivo, created_at'
+  const colsFaq = 'id, procedimento_id, procedimento_titulo, categoria_nome, usuario_id, usuario_nome, cliente_nome, origem, created_at'
+
+  async function carregarAcessos(): Promise<AcessoItem[]> {
+    const lista: AcessoItem[] = []
+    for (let de = 0; ; de += 1000) {
+      let q = supabase.from('acessos_log').select(colsAcessos).order('created_at', { ascending: false }).range(de, de + 999)
+      if (dataFiltro) q = q.gte('created_at', dataFiltro.toISOString())
+      const { data, error } = await q
+      if (error || !data || data.length === 0) break
+      lista.push(...(data as AcessoItem[]))
+      if (data.length < 1000 || lista.length >= 10000) break
+    }
+    return lista
   }
 
-  // 2. Consultar faq_visualizacoes (paginado para não truncar em 1.000 linhas)
-  const faqs: FaqVisualizacaoItem[] = []
-  for (let de = 0; ; de += 1000) {
-    let q = supabase.from('faq_visualizacoes').select('*').order('created_at', { ascending: false }).range(de, de + 999)
-    if (dataFiltro) q = q.gte('created_at', dataFiltro.toISOString())
-    const { data, error } = await q
-    if (error || !data || data.length === 0) break
-    faqs.push(...(data as FaqVisualizacaoItem[]))
-    if (data.length < 1000) break
+  async function carregarFaqs(): Promise<FaqVisualizacaoItem[]> {
+    const lista: FaqVisualizacaoItem[] = []
+    for (let de = 0; ; de += 1000) {
+      let q = supabase.from('faq_visualizacoes').select(colsFaq).order('created_at', { ascending: false }).range(de, de + 999)
+      if (dataFiltro) q = q.gte('created_at', dataFiltro.toISOString())
+      const { data, error } = await q
+      if (error || !data || data.length === 0) break
+      lista.push(...(data as FaqVisualizacaoItem[]))
+      if (data.length < 1000 || lista.length >= 10000) break
+    }
+    return lista
   }
 
-  // 3. Consultar academia_visualizacoes, academia_videos e novos usuários (tabela usuario)
   let queryAcademia = supabase.from('academia_visualizacoes').select('*')
   if (dataFiltro) queryAcademia = queryAcademia.gte('ultima_vez', dataFiltro.toISOString())
 
+  // Carregar todas as fontes principais simultaneamente em paralelo
   const [
+    acessos,
+    faqs,
     { data: visualizacoesVideos = [] },
     { data: videosCatalogo = [] },
     novosUsuarios
   ] = await Promise.all([
+    carregarAcessos(),
+    carregarFaqs(),
     queryAcademia,
     supabase.from('academia_videos').select('*'),
-    // Falha na lista de novos usuários não derruba o restante do painel
     buscarNovosUsuarios(dataFiltro).catch(err => {
       console.error('Erro ao buscar novos usuários:', err)
       return [] as NovoUsuario[]

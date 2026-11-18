@@ -16,9 +16,23 @@ const ROTULO_PERIODO: Record<'hoje' | '7dias' | '30dias' | 'tudo', string> = {
   tudo: 'Todo o período'
 }
 
-export function AnalyticsAcessos() {
+export interface AnalyticsAcessosProps {
+  tvSubEtapa?: 'faq' | 'academia' | 'usuarios_ativos' | 'novos'
+  tvPeriodo?: 'hoje' | '7dias' | '30dias' | 'tudo'
+  tvSubTitulo?: string
+  isTvMode?: boolean
+  onDataLoaded?: () => void
+}
+
+export function AnalyticsAcessos({
+  tvSubEtapa,
+  tvPeriodo,
+  tvSubTitulo,
+  isTvMode,
+  onDataLoaded
+}: AnalyticsAcessosProps = {}) {
   const canAccess = permissionsApi.canAccessRoute('/analytics')
-  const [periodo, setPeriodo] = useState<'hoje' | '7dias' | '30dias' | 'tudo'>('30dias')
+  const [periodo, setPeriodo] = useState<'hoje' | '7dias' | '30dias' | 'tudo'>(tvPeriodo || 'hoje')
   const [abaAtiva, setAbaAtiva] = useState<'geral' | 'faq' | 'academia' | 'telas' | 'clientes'>('geral')
   const [loading, setLoading] = useState(true)
   const [metricas, setMetricas] = useState<AnalyticsResumo | null>(null)
@@ -33,6 +47,32 @@ export function AnalyticsAcessos() {
   const [filtroTipoVideo, setFiltroTipoVideo] = useState<'todos' | 'cliente' | 'visitante' | 'equipe'>('todos')
   const [telaExpandida, setTelaExpandida] = useState<string | null>(null) // card da tela expandido
   const [filtroTipoTela, setFiltroTipoTela] = useState<'todos' | 'cliente' | 'visitante' | 'equipe'>('todos')
+
+  // Sincronização externa para o Modo TV
+  useEffect(() => {
+    if (tvPeriodo !== undefined) {
+      setPeriodo(tvPeriodo)
+    }
+  }, [tvPeriodo])
+
+  useEffect(() => {
+    if (!isTvMode || !tvSubEtapa) return
+
+    setFiltroModalTipo('todos')
+    if (tvSubEtapa === 'faq') {
+      setNovosAberto(false)
+      setCardModalAberto('faq')
+    } else if (tvSubEtapa === 'academia') {
+      setNovosAberto(false)
+      setCardModalAberto('academia')
+    } else if (tvSubEtapa === 'usuarios_ativos') {
+      setNovosAberto(false)
+      setCardModalAberto('usuarios_ativos')
+    } else if (tvSubEtapa === 'novos') {
+      setCardModalAberto(null)
+      setNovosAberto(true)
+    }
+  }, [tvSubEtapa, isTvMode])
 
   // Fecha os modais dos cards com Esc
   useEffect(() => {
@@ -53,6 +93,7 @@ export function AnalyticsAcessos() {
       const data = await getAnalyticsMetricas(filtro)
       setMetricas(data)
       setUltimaAtualizacao(new Date().toLocaleTimeString('pt-BR'))
+      onDataLoaded?.()
     } catch (err) {
       console.error('Erro ao carregar métricas:', err)
     } finally {
@@ -103,6 +144,24 @@ export function AnalyticsAcessos() {
 
   return (
     <div className="space-y-6 max-w-full">
+      {/* Banner Modo TV */}
+      {isTvMode && tvSubTitulo && (
+        <div className="bg-gradient-to-r from-brand-500/15 via-slate-900 to-brand-500/15 border border-brand-500/30 rounded-2xl p-3 sm:px-4 sm:py-3 flex items-center justify-between shadow-xl">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-brand-400 animate-pulse shrink-0" />
+            <span className="text-xs sm:text-sm font-bold text-brand-300">
+              Modo TV • Métricas de Acesso:
+            </span>
+            <span className="text-xs sm:text-sm text-slate-100 font-black">
+              {tvSubTitulo}
+            </span>
+          </div>
+          <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-200 border border-brand-500/30 uppercase tracking-wider shrink-0">
+            Automático
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl">
         <div className="flex items-center gap-3.5 min-w-0">
@@ -207,7 +266,12 @@ export function AnalyticsAcessos() {
           disabled={loading}
           aria-haspopup="dialog"
           title="Ver quais manuais do FAQ foram lidos e por quais empresas/usuários"
-          className="w-full text-left bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-emerald-500/50 hover:bg-slate-800/40 transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-wait"
+          className={clsx(
+            "w-full text-left bg-dark-card border rounded-xl p-4 shadow-lg transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-wait",
+            isTvMode && tvSubEtapa === 'faq'
+              ? "border-emerald-400 ring-2 ring-emerald-400/80 bg-emerald-950/40 shadow-emerald-500/20"
+              : "border-slate-800 hover:border-emerald-500/50 hover:bg-slate-800/40"
+          )}
         >
           <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
             <BookOpen className="w-5 h-5" />
@@ -228,7 +292,12 @@ export function AnalyticsAcessos() {
           disabled={loading}
           aria-haspopup="dialog"
           title="Ver quais treinamentos da Academia foram assistidos e por quem"
-          className="w-full text-left bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-purple-500/50 hover:bg-slate-800/40 transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 disabled:cursor-wait"
+          className={clsx(
+            "w-full text-left bg-dark-card border rounded-xl p-4 shadow-lg transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 disabled:cursor-wait",
+            isTvMode && tvSubEtapa === 'academia'
+              ? "border-purple-400 ring-2 ring-purple-400/80 bg-purple-950/40 shadow-purple-500/20"
+              : "border-slate-800 hover:border-purple-500/50 hover:bg-slate-800/40"
+          )}
         >
           <div className="w-11 h-11 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
             <Video className="w-5 h-5" />
@@ -249,7 +318,12 @@ export function AnalyticsAcessos() {
           disabled={loading}
           aria-haspopup="dialog"
           title="Ver quais clientes e colaboradores estiveram ativos no período"
-          className="w-full text-left bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-amber-500/50 hover:bg-slate-800/40 transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:cursor-wait"
+          className={clsx(
+            "w-full text-left bg-dark-card border rounded-xl p-4 shadow-lg transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:cursor-wait",
+            isTvMode && tvSubEtapa === 'usuarios_ativos'
+              ? "border-amber-400 ring-2 ring-amber-400/80 bg-amber-950/40 shadow-amber-500/20"
+              : "border-slate-800 hover:border-amber-500/50 hover:bg-slate-800/40"
+          )}
         >
           <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
             <Users className="w-5 h-5" />
@@ -270,7 +344,12 @@ export function AnalyticsAcessos() {
           disabled={loading}
           aria-haspopup="dialog"
           title="Ver quais contatos se cadastraram no período"
-          className="w-full text-left bg-dark-card border border-slate-800 rounded-xl p-4 shadow-lg hover:border-cyan-500/50 hover:bg-slate-800/40 transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:cursor-wait"
+          className={clsx(
+            "w-full text-left bg-dark-card border rounded-xl p-4 shadow-lg transition-all flex items-center gap-3.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:cursor-wait",
+            isTvMode && tvSubEtapa === 'novos'
+              ? "border-cyan-400 ring-2 ring-cyan-400/80 bg-cyan-950/40 shadow-cyan-500/20"
+              : "border-slate-800 hover:border-cyan-500/50 hover:bg-slate-800/40"
+          )}
         >
           <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
             <UserPlus className="w-5 h-5" />
