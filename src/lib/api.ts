@@ -2056,7 +2056,127 @@ export const api = {
       console.warn('Aviso ao sincronizar usuarios_gpo a partir do Checkpoint:', usersSyncErr)
     }
 
+    // 8. Sincronizar Usuários informados no Checkpoint para a tabela ticket_contatos (Tela Empresas & Contatos)
+    try {
+      await api.sincronizarUsuariosCheckpointComContatos(implantacaoId, dados)
+    } catch (contatosSyncErr) {
+      console.warn('Aviso ao sincronizar ticket_contatos a partir do Checkpoint:', contatosSyncErr)
+    }
+
     return result
+  },
+
+  // Sincroniza os usuários preenchidos no Checkpoint (implantacao_checkpoint.dados.usuarios)
+  // diretamente para a tabela ticket_contatos, permitindo que a empresa passe a exibir
+  // a quantidade correta de contatos e os contatos fiquem disponíveis na tela de Empresas e Contatos.
+  async sincronizarUsuariosCheckpointComContatos(implantacaoId: string, dadosCheckpoint?: any): Promise<number> {
+    try {
+      // 1. Obter dados da implantação
+      const { data: imp } = await supabase
+        .from('implantacoes')
+        .select('id, nome_empresa, cliente_id, implantacao_checkpoint ( dados )')
+        .eq('id', implantacaoId)
+        .maybeSingle()
+      if (!imp) return 0
+
+      const dados = dadosCheckpoint || (imp.implantacao_checkpoint as any)?.[0]?.dados || {}
+      const usuariosList = dados?.usuarios
+      if (!Array.isArray(usuariosList) || usuariosList.length === 0) return 0
+
+      // Resolver cliente_id se ausente
+      let clienteId = imp.cliente_id
+      if (!clienteId && imp.nome_empresa) {
+        const { data: clis } = await supabase
+          .from('clientes')
+          .select('id')
+          .ilike('nome_empresa', imp.nome_empresa.trim())
+          .limit(1)
+        if (clis && clis.length > 0) {
+          clienteId = clis[0].id
+        }
+      }
+
+      let count = 0
+      for (const u of usuariosList) {
+        const nome = (u.nome || '').trim()
+        if (!nome) continue
+
+        const rawEmail = (u.email || '').trim().toLowerCase()
+        const email = rawEmail && rawEmail.includes('@') ? rawEmail : null
+        const cargo = (u.funcao || '').trim() || 'Operador'
+        const telefone = (u.telefone || '').trim() || null
+        const celular = (u.celular || '').trim() || null
+
+        if (email) {
+          const { data: existente } = await supabase
+            .from('ticket_contatos')
+            .select('id, nome, cargo, empresa_id, empresa_nome, telefone_comercial, celular')
+            .ilike('email', email)
+            .maybeSingle()
+
+          if (existente) {
+            await supabase
+              .from('ticket_contatos')
+              .update({
+                nome: existente.nome || nome,
+                cargo: cargo || existente.cargo,
+                empresa_id: existente.empresa_id || clienteId,
+                empresa_nome: existente.empresa_nome || imp.nome_empresa,
+                telefone_comercial: existente.telefone_comercial || telefone,
+                celular: existente.celular || celular,
+                ativo: true,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existente.id)
+          } else {
+            await supabase
+              .from('ticket_contatos')
+              .insert({
+                nome,
+                email,
+                cargo,
+                empresa_id: clienteId,
+                empresa_nome: imp.nome_empresa,
+                telefone_comercial: telefone,
+                celular,
+                ativo: true,
+                ve_todos_empresa: false
+              })
+            count++
+          }
+        } else {
+          // Sem email: busca por nome e empresa
+          const { data: existente } = await supabase
+            .from('ticket_contatos')
+            .select('id')
+            .ilike('nome', nome)
+            .ilike('empresa_nome', imp.nome_empresa)
+            .maybeSingle()
+
+          if (!existente) {
+            await supabase
+              .from('ticket_contatos')
+              .insert({
+                nome,
+                email: null,
+                cargo,
+                empresa_id: clienteId,
+                empresa_nome: imp.nome_empresa,
+                telefone_comercial: telefone,
+                celular,
+                ativo: true,
+                ve_todos_empresa: false
+              })
+            count++
+          }
+        }
+      }
+
+      return count
+    } catch (err) {
+      console.warn('Erro ao sincronizar usuarios com ticket_contatos:', err)
+      return 0
+    }
   },
 
   // --- Usuários do Sistema ---
