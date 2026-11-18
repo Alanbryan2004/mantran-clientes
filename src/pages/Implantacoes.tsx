@@ -201,22 +201,48 @@ const getUltimoStatusData = (impl: any) => {
   }
 }
 
-export function Implantacoes() {
+export interface ImplantacoesProps {
+  tvTipoImplantacao?: 'CLIENTES' | 'MELI' | 'NFSE'
+  tvFiltroPrazo?: 'TODOS' | 'ESTOURADO' | 'ALERTA' | 'NO_PRAZO'
+  tvSubTitulo?: string
+  isTvMode?: boolean
+}
+
+export function Implantacoes({
+  tvTipoImplantacao,
+  tvFiltroPrazo,
+  tvSubTitulo,
+  isTvMode
+}: ImplantacoesProps = {}) {
   const [implantacoes, setImplantacoes] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<'EM_ANDAMENTO' | 'CONCLUIDOS'>('EM_ANDAMENTO')
-  const [filtroPrazo, setFiltroPrazo] = useState<'TODOS' | 'ESTOURADO' | 'ALERTA' | 'NO_PRAZO'>('TODOS')
+  const [filtroPrazo, setFiltroPrazo] = useState<'TODOS' | 'ESTOURADO' | 'ALERTA' | 'NO_PRAZO'>(tvFiltroPrazo || 'TODOS')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedTipoCliente, setSelectedTipoCliente] = useState<'' | 'LEO_MADEIRAS' | 'SHOPEE' | 'NORMAL'>('')
   const [selectedEtapa, setSelectedEtapa] = useState('')
   const [selectedAnalista, setSelectedAnalista] = useState('')
   // Aba de tipo de implantação (topo): CLIENTES (default), MELI ou NFSE
-  const [tipoImplantacao, setTipoImplantacao] = useState<'CLIENTES' | 'NFSE' | 'MELI'>('CLIENTES')
+  const [tipoImplantacao, setTipoImplantacao] = useState<'CLIENTES' | 'NFSE' | 'MELI'>(tvTipoImplantacao || 'CLIENTES')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedAcessoImpl, setSelectedAcessoImpl] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const navigate = useNavigate()
   const isCliente = isClienteUser()
+
+  // Sincroniza filtros caso sejam controlados externamente pelo Modo TV
+  useEffect(() => {
+    if (tvTipoImplantacao !== undefined) {
+      setTipoImplantacao(tvTipoImplantacao)
+    }
+  }, [tvTipoImplantacao])
+
+  useEffect(() => {
+    if (tvFiltroPrazo !== undefined) {
+      setFiltroPrazo(tvFiltroPrazo)
+      setActiveTab('EM_ANDAMENTO')
+    }
+  }, [tvFiltroPrazo])
 
   useEffect(() => {
     if (isCliente) {
@@ -405,6 +431,22 @@ export function Implantacoes() {
 
   return (
     <div className="space-y-4 sm:space-y-6" onClick={() => setOpenMenuId(null)}>
+      {isTvMode && tvSubTitulo && (
+        <div className="bg-gradient-to-r from-indigo-500/15 via-slate-900 to-indigo-500/15 border border-indigo-500/30 rounded-2xl p-3 sm:px-4 sm:py-3 flex items-center justify-between shadow-xl">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse shrink-0" />
+            <span className="text-xs sm:text-sm font-bold text-indigo-300">
+              Modo TV • Rotação de Implantações:
+            </span>
+            <span className="text-xs sm:text-sm text-slate-100 font-black">
+              {tvSubTitulo}
+            </span>
+          </div>
+          <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 uppercase tracking-wider shrink-0">
+            Automático
+          </span>
+        </div>
+      )}
       <div className="flex justify-between items-start sm:items-center gap-3 mb-4 sm:mb-6">
         <div className="min-w-0">
           <h2 className="text-xl sm:text-3xl font-bold text-slate-100">Implantações</h2>

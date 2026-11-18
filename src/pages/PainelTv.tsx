@@ -17,7 +17,7 @@ interface TelaTv {
   titulo: string
   subtitulo: string
   icone: any
-  componente: React.ComponentType
+  componente: React.ComponentType<any>
 }
 
 interface SubEstadoShopee {
@@ -25,6 +25,31 @@ interface SubEstadoShopee {
   status: StatusProcessamento
   labelStatus: string
 }
+
+interface SubEstadoImplantacoes {
+  tipo: 'CLIENTES' | 'MELI' | 'NFSE'
+  prazo: 'NO_PRAZO' | 'ALERTA' | 'ESTOURADO'
+  labelTipo: string
+  labelPrazo: string
+}
+
+// 9 Sub-estados para dividir o tempo da tela de Implantações (Clientes, MELI, NFSE x No Prazo, Atenção, Prazo Estourado)
+const SUB_ESTADOS_IMPLANTACOES: SubEstadoImplantacoes[] = [
+  // 1. Clientes
+  { tipo: 'CLIENTES', prazo: 'NO_PRAZO', labelTipo: 'Clientes', labelPrazo: 'No Prazo' },
+  { tipo: 'CLIENTES', prazo: 'ALERTA', labelTipo: 'Clientes', labelPrazo: 'Atenção' },
+  { tipo: 'CLIENTES', prazo: 'ESTOURADO', labelTipo: 'Clientes', labelPrazo: 'Prazo Estourado' },
+
+  // 2. MELI
+  { tipo: 'MELI', prazo: 'NO_PRAZO', labelTipo: 'MELI', labelPrazo: 'No Prazo' },
+  { tipo: 'MELI', prazo: 'ALERTA', labelTipo: 'MELI', labelPrazo: 'Atenção' },
+  { tipo: 'MELI', prazo: 'ESTOURADO', labelTipo: 'MELI', labelPrazo: 'Prazo Estourado' },
+
+  // 3. NFSE
+  { tipo: 'NFSE', prazo: 'NO_PRAZO', labelTipo: 'NFSE', labelPrazo: 'No Prazo' },
+  { tipo: 'NFSE', prazo: 'ALERTA', labelTipo: 'NFSE', labelPrazo: 'Atenção' },
+  { tipo: 'NFSE', prazo: 'ESTOURADO', labelTipo: 'NFSE', labelPrazo: 'Prazo Estourado' }
+]
 
 // 12 Sub-estados para dividir o tempo da tela de Processamento Shopee
 const SUB_ESTADOS_SHOPEE: SubEstadoShopee[] = [
@@ -228,6 +253,19 @@ export function PainelTv() {
     Math.ceil(duracaoSubEtapa - (tempoDecorridoTela % duracaoSubEtapa))
   )
 
+  // Cálculo do sub-estado de Implantações (9 etapas durante o tempo da tela 3: Clientes, MELI, NFSE x No Prazo, Atenção, Prazo Estourado)
+  const isTelaImplantacoes = telaAtual.id === 'implantacoes'
+  const duracaoSubEtapaImpl = Math.max(1, intervaloSegundos / SUB_ESTADOS_IMPLANTACOES.length) // ex: 120s / 9 ≈ 13.33s
+  const subIndexImpl = Math.min(
+    SUB_ESTADOS_IMPLANTACOES.length - 1,
+    Math.floor(tempoDecorridoTela / duracaoSubEtapaImpl)
+  )
+  const subEstadoImpl = SUB_ESTADOS_IMPLANTACOES[subIndexImpl]
+  const tempoRestanteSubEtapaImpl = Math.max(
+    1,
+    Math.ceil(duracaoSubEtapaImpl - (tempoDecorridoTela % duracaoSubEtapaImpl))
+  )
+
   const formatarTempo = (totalSegundos: number) => {
     const mins = Math.floor(totalSegundos / 60)
     const segs = totalSegundos % 60
@@ -298,6 +336,11 @@ export function PainelTv() {
                   <Icone className={clsx("w-3.5 h-3.5 shrink-0", isAtiva ? "text-white" : "text-slate-400")} />
                   <span>
                     {idx + 1}. {t.titulo}
+                    {t.id === 'implantacoes' && isAtiva && (
+                      <span className="ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-500/30">
+                        {subEstadoImpl.labelTipo} • {subEstadoImpl.labelPrazo}
+                      </span>
+                    )}
                     {t.id === 'processamento' && isAtiva && (
                       <span className="ml-1.5 text-[10px] font-mono px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-200 border border-orange-500/30">
                         {subEstadoShopee.processo} • {subEstadoShopee.labelStatus}
@@ -323,16 +366,22 @@ export function PainelTv() {
                   ? 'Rotação pausada' 
                   : isTelaShopee
                   ? `Sub-etapa Shopee (${subIndexShopee + 1}/12): ${subEstadoShopee.processo} - ${subEstadoShopee.labelStatus} (${tempoRestanteSubEtapa}s) • Próxima tela geral em ${formatarTempo(segundosRestantes)}`
+                  : isTelaImplantacoes
+                  ? `Sub-etapa Implantações (${subIndexImpl + 1}/9): ${subEstadoImpl.labelTipo} - ${subEstadoImpl.labelPrazo} (${tempoRestanteSubEtapaImpl}s) • Próxima tela geral em ${formatarTempo(segundosRestantes)}`
                   : `Próxima tela em ${formatarTempo(segundosRestantes)}`
               }
             >
-              <Clock className={clsx("w-3.5 h-3.5", isPausado ? "text-amber-400" : isTelaShopee ? "text-orange-400" : "text-indigo-400")} />
+              <Clock className={clsx("w-3.5 h-3.5", isPausado ? "text-amber-400" : isTelaShopee ? "text-orange-400" : isTelaImplantacoes ? "text-emerald-400" : "text-indigo-400")} />
               <span className={isPausado ? "text-amber-300" : "text-slate-200"}>
                 {isPausado ? (
                   'PAUSADO'
                 ) : isTelaShopee ? (
                   <span>
                     Sub: <span className="text-orange-300">{tempoRestanteSubEtapa}s</span> <span className="text-slate-500">|</span> Geral: {formatarTempo(segundosRestantes)}
+                  </span>
+                ) : isTelaImplantacoes ? (
+                  <span>
+                    Sub: <span className="text-emerald-300">{tempoRestanteSubEtapaImpl}s</span> <span className="text-slate-500">|</span> Geral: {formatarTempo(segundosRestantes)}
                   </span>
                 ) : (
                   formatarTempo(segundosRestantes)
@@ -454,7 +503,14 @@ export function PainelTv() {
       {/* Conteúdo Principal do Painel TV */}
       <main className="flex-1 overflow-x-hidden overflow-y-auto bg-[#0b0d14] relative">
         <div key={`${telaAtual.id}-${refreshKey}`} className="animate-fadeIn min-h-full">
-          {telaAtual.id === 'processamento' ? (
+          {telaAtual.id === 'implantacoes' ? (
+            <Implantacoes
+              tvTipoImplantacao={subEstadoImpl.tipo}
+              tvFiltroPrazo={subEstadoImpl.prazo}
+              tvSubTitulo={`Etapa ${subIndexImpl + 1} de 9 • ${subEstadoImpl.labelTipo} [${subEstadoImpl.labelPrazo}] • Próxima troca em ${tempoRestanteSubEtapaImpl}s`}
+              isTvMode={true}
+            />
+          ) : telaAtual.id === 'processamento' ? (
             <ProcessamentoShopee
               tvProcessoFiltro={subEstadoShopee.processo}
               tvStatusFiltro={subEstadoShopee.status}
