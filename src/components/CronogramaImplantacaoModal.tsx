@@ -73,10 +73,10 @@ export function CronogramaImplantacaoModal({
       } else if (isFeedback) {
         if (dataFeedbackAutomaticaISO) {
           const dt = new Date(dataFeedbackAutomaticaISO)
-          dataHorarioTexto = `${dt.toLocaleDateString('pt-BR')} (Automático: 15 dias após última data definida)`
+          dataHorarioTexto = `${dt.toLocaleDateString('pt-BR')} (Automático: 15 dias após etapa anterior)`
           tipoData = 'automatico'
         } else {
-          dataHorarioTexto = 'Automático: 15 dias após a última data definida pelo cliente'
+          dataHorarioTexto = 'Automático: 15 dias após a etapa anterior'
           tipoData = 'pendente'
         }
       } else if (ag?.inicio) {

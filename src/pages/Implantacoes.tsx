@@ -6,7 +6,7 @@ import { NovaImplantacaoModal } from '../components/NovaImplantacaoModal'
 import { AcessoClienteModal } from '../components/AcessoClienteModal'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import { calcularPrazoImplantacao } from '../lib/implantacaoPrazo'
+import { calcularPrazoImplantacao, extrairDataFeedback } from '../lib/implantacaoPrazo'
 
 const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
   'checkpoint': 1,
@@ -336,7 +336,7 @@ export function Implantacoes() {
   const countTipoShopee = listaBaseParaContagemTipo.filter(i => i.tipo_cliente === 'SHOPEE').length
   const countTipoNormal = listaBaseParaContagemTipo.filter(i => i.tipo_cliente !== 'SHOPEE' && i.tipo_cliente !== 'LEO_MADEIRAS').length
 
-  const emAndamentoPrazos = emAndamentoDoTipo.map(i => calcularPrazoImplantacao(i.created_at, false))
+  const emAndamentoPrazos = emAndamentoDoTipo.map(i => calcularPrazoImplantacao(i.created_at, false, extrairDataFeedback(i)))
   const countEstouradas = emAndamentoPrazos.filter(p => p.estourou).length
   const countAlerta = emAndamentoPrazos.filter(p => p.status === 'alerta').length
   const countNoPrazo = emAndamentoPrazos.filter(p => !p.estourou && p.status !== 'alerta').length
@@ -372,13 +372,13 @@ export function Implantacoes() {
       }
 
       if (filtroPrazo === 'ESTOURADO') {
-        const prazo = calcularPrazoImplantacao(impl.created_at, impl.status === 'Concluído')
+        const prazo = calcularPrazoImplantacao(impl.created_at, impl.status === 'Concluído', extrairDataFeedback(impl))
         if (!prazo.estourou) return false
       } else if (filtroPrazo === 'ALERTA') {
-        const prazo = calcularPrazoImplantacao(impl.created_at, impl.status === 'Concluído')
+        const prazo = calcularPrazoImplantacao(impl.created_at, impl.status === 'Concluído', extrairDataFeedback(impl))
         if (prazo.status !== 'alerta') return false
       } else if (filtroPrazo === 'NO_PRAZO') {
-        const prazo = calcularPrazoImplantacao(impl.created_at, impl.status === 'Concluído')
+        const prazo = calcularPrazoImplantacao(impl.created_at, impl.status === 'Concluído', extrairDataFeedback(impl))
         if (prazo.estourou || prazo.status === 'alerta') return false
       }
 
@@ -703,7 +703,7 @@ export function Implantacoes() {
                       const proximaEtapa = getProximaEtapa(impl.implantacao_etapas, isShopee)
                       const progressColor = getProgressColor(progress)
                       const progressTextColor = getProgressTextColor(progress)
-                      const prazo = calcularPrazoImplantacao(impl.created_at, false)
+                      const prazo = calcularPrazoImplantacao(impl.created_at, false, extrairDataFeedback(impl))
 
                       return (
                         <div 
@@ -867,10 +867,14 @@ export function Implantacoes() {
                                   borderColor: prazo.badgeBorder,
                                   color: prazo.badgeText
                                 }}
-                                title={`Prazo máximo de 40 dias para encerramento da implantação.\nCriado em: ${prazo.dataCriacaoStr}\nLimite: ${prazo.dataLimiteStr}\n${prazo.estourou ? `Estourado há ${prazo.diasAtraso} dias!` : `Restam ${prazo.diasRestantes} dias.`}`}
+                                title={
+                                  prazo.origemDataLimite === 'feedback'
+                                    ? `Data limite definida pela etapa de Feedback: ${prazo.dataLimiteStr}\n${prazo.estourou ? `Estourado há ${prazo.diasAtraso} dias!` : `Restam ${prazo.diasRestantes} dias.`}`
+                                    : `Prazo padrão de 40 dias corridos para encerramento da implantação.\nCriado em: ${prazo.dataCriacaoStr}\nLimite: ${prazo.dataLimiteStr}\n${prazo.estourou ? `Estourado há ${prazo.diasAtraso} dias!` : `Restam ${prazo.diasRestantes} dias.`}`
+                                }
                               >
                                 <Clock className="w-3 h-3 shrink-0" />
-                                <span>Limite: <strong className="font-semibold">{prazo.dataLimiteStr}</strong></span>
+                                <span>Limite: <strong className="font-semibold">{prazo.dataLimiteStr}</strong>{prazo.origemDataLimite === 'feedback' ? ' (Feedback)' : ''}</span>
                               </span>
                             </div>
 
@@ -1015,7 +1019,7 @@ export function Implantacoes() {
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                     {filteredConcluidos.map(impl => {
-                      const prazo = calcularPrazoImplantacao(impl.created_at, true)
+                      const prazo = calcularPrazoImplantacao(impl.created_at, true, extrairDataFeedback(impl))
                       return (
                         <div 
                           key={impl.id} 

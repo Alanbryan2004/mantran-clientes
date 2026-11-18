@@ -19,38 +19,7 @@ import { EventoCalendarioModal } from '../components/EventoCalendarioModal'
 import { AgendarEtapaModal } from '../components/AgendarEtapaModal'
 import { CronogramaImplantacaoModal } from '../components/CronogramaImplantacaoModal'
 import clsx from 'clsx'
-import { calcularPrazoImplantacao } from '../lib/implantacaoPrazo'
-
-
-const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
-  'checkpoint': 1,
-  'configurar base': 2,
-  'testes': 3,
-  'treinamento de cadastros': 4,
-  'treinamento de cadastro': 4,
-  'treinamento cadastros': 4,
-  'treinamento cadastro': 4,
-  'treinamento de line haul': 5,
-  'treinamento line haul': 5,
-  'envio da primeira prefatura': 6,
-  'envio da primeira pré-fatura': 6,
-  'envio da primeira fatura/nf': 7,
-  'treinamento de last mile': 8,
-  'treinamento last mile': 8,
-  'treinamento de first mile': 9,
-  'treinamento first mile': 9,
-  'treinamento de mobile hub': 10,
-  'treinamento mobile hub': 10,
-  'treinamento de fatura': 11,
-  'treinamento fatura': 11,
-  'nfse': 12,
-  'treinamento nfse': 12,
-  'mercado livre': 12,
-  'treinamento meli': 12,
-  'feedback': 13,
-  'ativo 4pl': 14,
-  'ativo 4pi': 14,
-}
+import { calcularPrazoImplantacao, sortEtapasWithOrder } from '../lib/implantacaoPrazo'
 
 // Uma etapa conta como "concluída" para fins de encerramento quando está OK
 // OU em ERRO (erro documentado com justificativa). PENDENTE e EM BRANCO bloqueiam.
@@ -71,24 +40,6 @@ export const normalizeEtapaNome = (nome: string): string => {
   if (lower === 'envio da primeira prefatura' || lower === 'envio da primeira pré-fatura') return 'Envio da Primeira Prefatura'
   if (lower === 'envio da primeira fatura/nf') return 'Envio da Primeira Fatura/NF'
   return nome
-}
-
-const sortEtapasWithOrder = (list: any[], isShopee: boolean = false) => {
-  if (!list || list.length === 0) return []
-  return [...list].sort((a, b) => {
-    const keyA = (a.nome_etapa || '').trim().toLowerCase()
-    const keyB = (b.nome_etapa || '').trim().toLowerCase()
-
-    if (isShopee) {
-      const orderA = SHOPEE_ETAPAS_ORDER[keyA] ?? (keyA === 'feedback' ? 999 : (a.ordem || 50))
-      const orderB = SHOPEE_ETAPAS_ORDER[keyB] ?? (keyB === 'feedback' ? 999 : (b.ordem || 50))
-      if (orderA !== orderB) return orderA - orderB
-    }
-
-    if (keyA === 'feedback') return 1
-    if (keyB === 'feedback') return -1
-    return (a.ordem || 0) - (b.ordem || 0)
-  })
 }
 
 export function ImplantacaoDetalhes() {
@@ -451,24 +402,37 @@ export function ImplantacaoDetalhes() {
     return somarDiasUteisLocal(new Date(dataConfigurarBaseAutomaticaISO), 1).toISOString()
   })()
 
-  // Feedback: 15 dias após a última data definida pelo cliente
+  // Etapa imediatamente anterior ao Feedback na ordem dos cards
+  const idxFeedback = etapas.findIndex(e => (e.nome_etapa || '').trim().toLowerCase() === 'feedback')
+  const etapaAnteriorAoFeedback = idxFeedback > 0 ? etapas[idxFeedback - 1] : null
+
+  // Data definida da etapa imediatamente anterior ao Feedback
+  const dataEtapaAnteriorAoFeedbackISO = (() => {
+    if (!etapaAnteriorAoFeedback) return null
+    if (agendamentosEtapas[etapaAnteriorAoFeedback.id]?.inicio) {
+      return agendamentosEtapas[etapaAnteriorAoFeedback.id].inicio as string
+    }
+    const nomeAntLow = (etapaAnteriorAoFeedback.nome_etapa || '').trim().toLowerCase()
+    if (nomeAntLow === 'checkpoint') return dataCheckpointEfetivaISO
+    if (nomeAntLow === 'configurar base') return dataConfigurarBaseAutomaticaISO
+    if (nomeAntLow === 'testes') return dataTestesAutomaticaISO
+    return null
+  })()
+
+  // Feedback: 15 dias posterior ao último card preenchido com data anterior ao Feedback.
+  // Se o card anterior ao Feedback NÃO possui data definida, NÃO deve ser preenchido o Feedback!
   const dataFeedbackAutomaticaISO = (() => {
     if (feedbackEtapa && agendamentosEtapas[feedbackEtapa.id]?.inicio) {
       return agendamentosEtapas[feedbackEtapa.id].inicio as string
     }
-    const automaticasSet = new Set(['configurar base', 'testes', 'feedback', 'ativo 4pl', 'ativo 4pi'])
-    let maiorMs = dataCheckpointEfetivaISO ? new Date(dataCheckpointEfetivaISO).getTime() : 0
-    for (const et of etapas) {
-      const nLow = (et.nome_etapa || '').trim().toLowerCase()
-      if (automaticasSet.has(nLow)) continue
-      const ag = agendamentosEtapas[et.id]
-      if (ag?.inicio && !ag.automatico) {
-        const ms = new Date(ag.inicio).getTime()
-        if (ms > maiorMs) maiorMs = ms
-      }
-    }
-    return maiorMs > 0 ? new Date(maiorMs + 15 * 24 * 60 * 60 * 1000).toISOString() : null
+    if (!dataEtapaAnteriorAoFeedbackISO) return null
+    return new Date(new Date(dataEtapaAnteriorAoFeedbackISO).getTime() + 15 * 24 * 60 * 60 * 1000).toISOString()
   })()
+
+  // Data efetiva do Feedback (se houver): utilizada para definir a Data Limite de Implantação
+  const dataFeedbackEfetivaISO = (feedbackEtapa && agendamentosEtapas[feedbackEtapa.id]?.inicio)
+    || dataFeedbackAutomaticaISO
+    || null
 
   const feedbackHistoricoItem = historico.find(h => 
     (h.texto || '').toUpperCase().includes('[FEEDBACK') || 
@@ -535,7 +499,7 @@ export function ImplantacaoDetalhes() {
                 h.texto?.toLowerCase().includes('criada no sistema')
               )
               const criadorNome = criadorRegistro?.usuario_nome || null
-              const prazo = calcularPrazoImplantacao(implantacao.created_at, implantacao.status === 'Concluído')
+              const prazo = calcularPrazoImplantacao(implantacao.created_at, implantacao.status === 'Concluído', dataFeedbackEfetivaISO)
 
               return (
                 <div className="text-xs text-slate-400 mt-1 flex items-center gap-1.5 flex-wrap">
@@ -594,10 +558,14 @@ export function ImplantacaoDetalhes() {
                       borderColor: prazo.badgeBorder,
                       color: prazo.badgeText
                     }}
-                    title={`Prazo máximo de 40 dias para encerramento da implantação.\nCriado em: ${prazo.dataCriacaoStr}\nLimite: ${prazo.dataLimiteStr}`}
+                    title={
+                      prazo.origemDataLimite === 'feedback'
+                        ? `Data limite definida pela etapa de Feedback: ${prazo.dataLimiteStr}`
+                        : `Prazo padrão de 40 dias para encerramento da implantação.\nCriado em: ${prazo.dataCriacaoStr}\nLimite: ${prazo.dataLimiteStr}`
+                    }
                   >
                     <Clock className="w-3.5 h-3.5 shrink-0" />
-                    <span>Data Limite: <strong className="font-bold">{prazo.dataLimiteStr}</strong></span>
+                    <span>Data Limite: <strong className="font-bold">{prazo.dataLimiteStr}</strong>{prazo.origemDataLimite === 'feedback' ? ' (Feedback)' : ''}</span>
                   </span>
 
                   {/* Alerta de Prazo Estourado ou Restante */}
@@ -616,7 +584,7 @@ export function ImplantacaoDetalhes() {
                       }}
                     >
                       <Clock className="w-3.5 h-3.5 shrink-0" />
-                      <span>Restam {prazo.diasRestantes} {prazo.diasRestantes === 1 ? 'dia' : 'dias'} (limite 40d)</span>
+                      <span>Restam {prazo.diasRestantes} {prazo.diasRestantes === 1 ? 'dia' : 'dias'}{prazo.origemDataLimite === 'padrao_40d' ? ' (limite 40d)' : ''}</span>
                     </span>
                   ) : !isComplete ? (
                     <span className="text-xs text-slate-400 flex items-center gap-1 font-medium">
@@ -674,7 +642,7 @@ export function ImplantacaoDetalhes() {
 
       {/* Banner Informativo de Prazo Estourado ou em Alerta */}
       {(() => {
-        const prazo = calcularPrazoImplantacao(implantacao.created_at, implantacao.status === 'Concluído')
+        const prazo = calcularPrazoImplantacao(implantacao.created_at, implantacao.status === 'Concluído', dataFeedbackEfetivaISO)
         if (prazo.estourou && implantacao.status !== 'Concluído') {
           return (
             <div className="p-4 rounded-xl bg-red-500/15 border border-red-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-red-200 shadow-[0_0_20px_rgba(239,68,68,0.25)] animate-pulse">
@@ -692,7 +660,15 @@ export function ImplantacaoDetalhes() {
                     </span>
                   </div>
                   <p className="text-xs text-red-200/90 mt-0.5">
-                    Esta implantação foi criada em <strong>{prazo.dataCriacaoStr}</strong> e possuía prazo de encerramento de 40 dias (limite: <strong>{prazo.dataLimiteStr}</strong>). Já se passaram <strong>{prazo.diasCorridos} dias</strong> desde o início do processo.
+                    {prazo.origemDataLimite === 'feedback' ? (
+                      <>
+                        Esta implantação possui data limite definida pela etapa de <strong>Feedback</strong> (limite: <strong>{prazo.dataLimiteStr}</strong>) e está com <strong>{prazo.diasAtraso} {prazo.diasAtraso === 1 ? 'dia' : 'dias'} de atraso</strong>.
+                      </>
+                    ) : (
+                      <>
+                        Esta implantação foi criada em <strong>{prazo.dataCriacaoStr}</strong> e possuía prazo de encerramento de 40 dias (limite: <strong>{prazo.dataLimiteStr}</strong>). Já se passaram <strong>{prazo.diasCorridos} dias</strong> desde o início do processo.
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -715,11 +691,20 @@ export function ImplantacaoDetalhes() {
                 </div>
                 <div>
                   <h4 className="font-bold text-sm">
-                    Atenção ao Prazo de Encerramento (40 Dias)
+                    {prazo.origemDataLimite === 'feedback'
+                      ? `Atenção à Data Limite de Feedback (${prazo.dataLimiteStr})`
+                      : 'Atenção ao Prazo de Encerramento (40 Dias)'}
                   </h4>
                   <p className="opacity-90 mt-0.5">
-                    Data de início: <strong>{prazo.dataCriacaoStr}</strong> • Data limite: <strong>{prazo.dataLimiteStr}</strong> ({prazo.diasCorridos} dias decorridos). 
-                    Restam apenas <strong>{prazo.diasRestantes} {prazo.diasRestantes === 1 ? 'dia' : 'dias'}</strong> para o prazo limite.
+                    {prazo.origemDataLimite === 'feedback' ? (
+                      <>
+                        Restam apenas <strong>{prazo.diasRestantes} {prazo.diasRestantes === 1 ? 'dia' : 'dias'}</strong> até a data limite de encerramento pelo Feedback (<strong>{prazo.dataLimiteStr}</strong>).
+                      </>
+                    ) : (
+                      <>
+                        Esta implantação já completou <strong>{prazo.diasCorridos} dias</strong> desde a sua criação em <strong>{prazo.dataCriacaoStr}</strong>. Restam apenas <strong>{prazo.diasRestantes} {prazo.diasRestantes === 1 ? 'dia' : 'dias'}</strong> para o encerramento do prazo limite em <strong>{prazo.dataLimiteStr}</strong>.
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -971,7 +956,7 @@ export function ImplantacaoDetalhes() {
               : isTestesCard
               ? '1 dia útil após a data de Configurar Base'
               : isFeedbackCard
-              ? '15 dias após a última data definida pelo cliente'
+              ? (etapaAnteriorAoFeedback ? `15 dias após a data de ${normalizeEtapaNome(etapaAnteriorAoFeedback.nome_etapa)}` : '15 dias após a data da etapa anterior')
               : ''
 
             return (

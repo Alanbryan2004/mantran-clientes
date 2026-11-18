@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { sortEtapasWithOrder } from './implantacaoPrazo'
 
 // ----------------------------------------------------
 // Supabase-based API (previously DAB/SQL Server)
@@ -1177,6 +1178,7 @@ export const api = {
         bases ( id, nome_base ),
         clientes ( id, tipo ),
         implantacao_etapas ( id, nome_etapa, valor, ordem ),
+        implantacao_checkpoint ( id, concluido, dados ),
         implantacao_historico ( id, data_hora, texto, usuario_nome, created_at )
       `)
       .order('created_at', { ascending: false })
@@ -1199,6 +1201,7 @@ export const api = {
         bases ( id, nome_base ),
         clientes ( id, tipo ),
         implantacao_etapas ( id, nome_etapa, valor, ordem ),
+        implantacao_checkpoint ( id, concluido, dados ),
         implantacao_historico ( id, data_hora, texto, usuario_nome, created_at )
       `)
       .eq('id', id)
@@ -4964,34 +4967,32 @@ export const api = {
       }
     }
 
-    // 7.2. Feedback: 15 dias após o último card da última data definida pelo cliente
+    // 7.2. Feedback: 15 dias após o card imediatamente anterior ao Feedback (somente se este tiver data definida)
     if (etapaFeedback && etapaAindaAberta(etapaFeedback)) {
-      const nomesAutomaticosOuSemData = new Set(['configurar base', 'testes', 'feedback', 'ativo 4pl', 'ativo 4pi'])
-      let maiorDataClienteMs = 0
-      let maiorDataClienteISO = ''
-      let nomeUltimaEtapaCliente = ''
+      const isShopee = implantacao.tipo_cliente === 'SHOPEE'
+      const etapasOrdenadas = sortEtapasWithOrder(todasEtapas || [], isShopee)
+      const idxFb = etapasOrdenadas.findIndex(
+        (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'feedback'
+      )
+      const etapaAnterior = idxFb > 0 ? etapasOrdenadas[idxFb - 1] : null
+      const agAnterior = etapaAnterior ? agendamentosAtuais[etapaAnterior.id] : null
+      const dataAnteriorISO = agAnterior?.inicio || null
 
-      for (const et of todasEtapas || []) {
-        const nomeLow = (et.nome_etapa || '').trim().toLowerCase()
-        if (nomesAutomaticosOuSemData.has(nomeLow)) continue
-        const ag = agendamentosAtuais[et.id]
-        if (ag?.inicio && !ag.automatico) {
-          const ms = new Date(ag.inicio).getTime()
-          if (ms > maiorDataClienteMs) {
-            maiorDataClienteMs = ms
-            maiorDataClienteISO = ag.inicio
-            nomeUltimaEtapaCliente = et.nome_etapa
-          }
-        }
-      }
-
-      if (maiorDataClienteMs > 0) {
-        const dtFeedback = new Date(maiorDataClienteMs + 15 * 24 * 60 * 60 * 1000)
+      if (dataAnteriorISO) {
+        const dtFeedback = new Date(new Date(dataAnteriorISO).getTime() + 15 * 24 * 60 * 60 * 1000)
         await programarEtapaAutomatica(
           etapaFeedback,
           dtFeedback,
-          `15 dias após a última data definida pelo cliente (${nomeUltimaEtapaCliente} em ${new Date(maiorDataClienteISO).toLocaleDateString('pt-BR')})`
+          `15 dias após ${etapaAnterior.nome_etapa} em ${new Date(dataAnteriorISO).toLocaleDateString('pt-BR')}`
         )
+      } else {
+        // Se a etapa anterior ao Feedback NÃO tem data definida, Feedback não deve ter data automática
+        if (agendamentosAtuais[etapaFeedback.id]?.automatico) {
+          if (analista.id && agendamentosAtuais[etapaFeedback.id]?.evento_calendario_id) {
+            await this.deleteEventoCalendario(agendamentosAtuais[etapaFeedback.id].evento_calendario_id)
+          }
+          delete agendamentosAtuais[etapaFeedback.id]
+        }
       }
     }
 
@@ -5372,32 +5373,30 @@ export const api = {
       )
 
       if (etapaFeedback) {
-        const nomesAutoSet = new Set(['configurar base', 'testes', 'feedback', 'ativo 4pl', 'ativo 4pi'])
-        let maiorDataClienteMs = 0
-        let maiorDataClienteISO = ''
-        let nomeUltimaEtapaCliente = ''
+        const isShopee = implantacao.tipo_cliente === 'SHOPEE'
+        const etapasOrdenadas = sortEtapasWithOrder(todasEtapas || [], isShopee)
+        const idxFb = etapasOrdenadas.findIndex(
+          (e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'feedback'
+        )
+        const etapaAnterior = idxFb > 0 ? etapasOrdenadas[idxFb - 1] : null
+        const agAnterior = etapaAnterior ? agendamentosAtuais[etapaAnterior.id] : null
+        const dataAnteriorISO = agAnterior?.inicio || null
 
-        for (const et of todasEtapas) {
-          const nomeLow = (et.nome_etapa || '').trim().toLowerCase()
-          if (nomesAutoSet.has(nomeLow)) continue
-          const ag = agendamentosAtuais[et.id]
-          if (ag?.inicio && !ag.automatico) {
-            const ms = new Date(ag.inicio).getTime()
-            if (ms > maiorDataClienteMs) {
-              maiorDataClienteMs = ms
-              maiorDataClienteISO = ag.inicio
-              nomeUltimaEtapaCliente = et.nome_etapa
-            }
-          }
-        }
-
-        if (maiorDataClienteMs > 0) {
-          const dtFeedback = new Date(maiorDataClienteMs + 15 * 24 * 60 * 60 * 1000)
+        if (dataAnteriorISO) {
+          const dtFeedback = new Date(new Date(dataAnteriorISO).getTime() + 15 * 24 * 60 * 60 * 1000)
           await programarOuReplanejarAutomatica(
             etapaFeedback,
             dtFeedback,
-            `15 dias após a última data definida (${nomeUltimaEtapaCliente} em ${new Date(maiorDataClienteISO).toLocaleDateString('pt-BR')})`
+            `15 dias após ${etapaAnterior.nome_etapa} em ${new Date(dataAnteriorISO).toLocaleDateString('pt-BR')}`
           )
+        } else {
+          // Se o card anterior não tem data definida, Feedback não deve ser preenchido
+          if (agendamentosAtuais[etapaFeedback.id]?.automatico) {
+            if (analista.id && agendamentosAtuais[etapaFeedback.id]?.evento_calendario_id) {
+              await this.deleteEventoCalendario(agendamentosAtuais[etapaFeedback.id].evento_calendario_id)
+            }
+            delete agendamentosAtuais[etapaFeedback.id]
+          }
         }
       }
 
