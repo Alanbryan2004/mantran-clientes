@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useTransition } from 'react'
+import { useState, useEffect, useRef, useTransition, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Play, Pause, ChevronLeft, ChevronRight, Maximize2, Minimize2, 
@@ -31,6 +31,7 @@ interface SubEstadoImplantacoes {
   prazo: 'NO_PRAZO' | 'ALERTA' | 'ESTOURADO'
   labelTipo: string
   labelPrazo: string
+  count?: number
 }
 
 interface SubEstadoAnalytics {
@@ -140,7 +141,14 @@ export function PainelTv() {
   const [horaAtual, setHoraAtual] = useState('')
   const [dataAtual, setDataAtual] = useState('')
   const [barraRecolhida, setBarraRecolhida] = useState(false)
+  const [subEstadosImplDinamicos, setSubEstadosImplDinamicos] = useState<SubEstadoImplantacoes[]>(SUB_ESTADOS_IMPLANTACOES)
   const [, startTransition] = useTransition()
+
+  const handleSubEtapasCalculadas = useCallback((etapas: SubEstadoImplantacoes[]) => {
+    if (etapas && etapas.length > 0) {
+      setSubEstadosImplDinamicos(etapas)
+    }
+  }, [])
 
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -272,14 +280,15 @@ export function PainelTv() {
     Math.ceil(duracaoSubEtapa - (tempoDecorridoTela % duracaoSubEtapa))
   )
 
-  // Cálculo do sub-estado de Implantações (9 etapas durante o tempo da tela 3: Clientes, MELI, NFSE x No Prazo, Atenção, Prazo Estourado)
+  // Cálculo dinâmico do sub-estado de Implantações (só passa por etapas que possuam registros > 0)
   const isTelaImplantacoes = telaAtual.id === 'implantacoes'
-  const duracaoSubEtapaImpl = Math.max(1, intervaloSegundos / SUB_ESTADOS_IMPLANTACOES.length) // ex: 120s / 9 ≈ 13.33s
+  const subEstadosImplAtivos = subEstadosImplDinamicos.length > 0 ? subEstadosImplDinamicos : SUB_ESTADOS_IMPLANTACOES
+  const duracaoSubEtapaImpl = Math.max(1, intervaloSegundos / subEstadosImplAtivos.length)
   const subIndexImpl = Math.min(
-    SUB_ESTADOS_IMPLANTACOES.length - 1,
+    subEstadosImplAtivos.length - 1,
     Math.floor(tempoDecorridoTela / duracaoSubEtapaImpl)
   )
-  const subEstadoImpl = SUB_ESTADOS_IMPLANTACOES[subIndexImpl]
+  const subEstadoImpl = subEstadosImplAtivos[subIndexImpl]
   const tempoRestanteSubEtapaImpl = Math.max(
     1,
     Math.ceil(duracaoSubEtapaImpl - (tempoDecorridoTela % duracaoSubEtapaImpl))
@@ -565,8 +574,9 @@ export function PainelTv() {
             <Implantacoes
               tvTipoImplantacao={subEstadoImpl.tipo}
               tvFiltroPrazo={subEstadoImpl.prazo}
-              tvSubTitulo={`Etapa ${subIndexImpl + 1} de 9 • ${subEstadoImpl.labelTipo} [${subEstadoImpl.labelPrazo}] • Próxima troca em ${tempoRestanteSubEtapaImpl}s`}
+              tvSubTitulo={`Etapa ${subIndexImpl + 1} de ${subEstadosImplAtivos.length} • ${subEstadoImpl.labelTipo} [${subEstadoImpl.labelPrazo}]${subEstadoImpl.count !== undefined ? ` (${subEstadoImpl.count} ${subEstadoImpl.count === 1 ? 'cliente' : 'clientes'})` : ''} • Próxima troca em ${tempoRestanteSubEtapaImpl}s`}
               isTvMode={true}
+              onSubEtapasCalculadas={handleSubEtapasCalculadas}
             />
           ) : telaAtual.id === 'processamento' ? (
             <ProcessamentoShopee

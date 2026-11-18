@@ -201,18 +201,28 @@ const getUltimoStatusData = (impl: any) => {
   }
 }
 
+export interface SubEstadoImplantacaoItem {
+  tipo: 'CLIENTES' | 'MELI' | 'NFSE'
+  prazo: 'NO_PRAZO' | 'ALERTA' | 'ESTOURADO'
+  labelTipo: string
+  labelPrazo: string
+  count: number
+}
+
 export interface ImplantacoesProps {
   tvTipoImplantacao?: 'CLIENTES' | 'MELI' | 'NFSE'
   tvFiltroPrazo?: 'TODOS' | 'ESTOURADO' | 'ALERTA' | 'NO_PRAZO'
   tvSubTitulo?: string
   isTvMode?: boolean
+  onSubEtapasCalculadas?: (etapas: SubEstadoImplantacaoItem[]) => void
 }
 
 export function Implantacoes({
   tvTipoImplantacao,
   tvFiltroPrazo,
   tvSubTitulo,
-  isTvMode
+  isTvMode,
+  onSubEtapasCalculadas
 }: ImplantacoesProps = {}) {
   const [implantacoes, setImplantacoes] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<'EM_ANDAMENTO' | 'CONCLUIDOS'>('EM_ANDAMENTO')
@@ -277,6 +287,58 @@ export function Implantacoes({
       setLoading(false)
     }
   }
+
+  // Notifica o Modo TV sobre quais etapas possuem registros (> 0) para não exibir telas vazias
+  useEffect(() => {
+    if (!onSubEtapasCalculadas || implantacoes.length === 0) return
+
+    const TIPOS: Array<{ key: 'CLIENTES' | 'MELI' | 'NFSE'; label: string }> = [
+      { key: 'CLIENTES', label: 'Clientes' },
+      { key: 'MELI', label: 'MELI' },
+      { key: 'NFSE', label: 'NFSE' }
+    ]
+
+    const PRAZOS: Array<{ key: 'NO_PRAZO' | 'ALERTA' | 'ESTOURADO'; label: string }> = [
+      { key: 'NO_PRAZO', label: 'No Prazo' },
+      { key: 'ALERTA', label: 'Atenção' },
+      { key: 'ESTOURADO', label: 'Prazo Estourado' }
+    ]
+
+    const emAndamentoLista = implantacoes.filter(i => !implConcluida(i))
+    const etapasValidas: SubEstadoImplantacaoItem[] = []
+
+    for (const t of TIPOS) {
+      const itensDoTipo = emAndamentoLista.filter(i =>
+        t.key === 'NFSE' ? isImplNfse(i)
+        : t.key === 'MELI' ? isImplMeli(i)
+        : isImplCliente(i)
+      )
+
+      for (const p of PRAZOS) {
+        const count = itensDoTipo.filter(i => {
+          const prazoInfo = calcularPrazoImplantacao(i.created_at, false, extrairDataFeedback(i))
+          if (p.key === 'ESTOURADO') return prazoInfo.estourou
+          if (p.key === 'ALERTA') return prazoInfo.status === 'alerta'
+          return !prazoInfo.estourou && prazoInfo.status !== 'alerta'
+        }).length
+
+        // Só inclui sub-etapa se possuir ao menos 1 registro
+        if (count > 0) {
+          etapasValidas.push({
+            tipo: t.key,
+            prazo: p.key,
+            labelTipo: t.label,
+            labelPrazo: p.label,
+            count
+          })
+        }
+      }
+    }
+
+    if (etapasValidas.length > 0) {
+      onSubEtapasCalculadas(etapasValidas)
+    }
+  }, [implantacoes, onSubEtapasCalculadas])
 
   const [editingDateImplId, setEditingDateImplId] = useState<string | null>(null)
 
