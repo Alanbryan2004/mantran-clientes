@@ -33,10 +33,11 @@ import CadastroTelas from './pages/dev/CadastroTelas'
 import CronogramaVisualizar from './pages/dev/cronograma/Visualizar'
 import CronogramaIncluir from './pages/dev/cronograma/Incluir'
 import CronogramaArquitetura from './pages/dev/cronograma/Arquitetura'
+import { PainelTv } from './pages/PainelTv'
 
 import { useState, useEffect } from 'react'
 import { permissionsApi } from './lib/permissions'
-import { getLoggedUser, isClienteUser } from './lib/auth'
+import { getLoggedUser, isClienteUser, isDashboardUser } from './lib/auth'
 import { api } from './lib/api'
 import { VersionGuard } from './components/VersionGuard'
 import { CalendarioToast } from './components/CalendarioToast'
@@ -48,6 +49,11 @@ function RootRoute() {
   // Se não estiver logado, direciona para o FAQ público
   if (!user) {
     return <Navigate to="/faq" replace />
+  }
+
+  // Usuário de TV / Dashboard: vai direto para o Painel TV em rotação automática
+  if (isDashboardUser()) {
+    return <Navigate to="/tv" replace />
   }
 
   const isCliente = isClienteUser()
@@ -150,9 +156,11 @@ function App() {
       <BrowserRouter>
         {isAuthenticated && <CalendarioToast />}
         <Routes>
-          {/* Página pública aberta pelo link do e-mail "Liberar Acesso" (fora do Layout) */}
+          {/* Páginas especiais fora do Layout padrão (tela cheia) */}
           <Route path="/definir-senha" element={<DefinirSenha />} />
           <Route path="/confirmar-cadastro" element={<ConfirmarCadastro />} />
+          <Route path="/tv" element={<PainelTv />} />
+          <Route path="/painel-tv" element={<Navigate to="/tv" replace />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<RootRoute />} />
             <Route path="faq" element={<FAQ />} />

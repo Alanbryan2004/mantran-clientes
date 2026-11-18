@@ -5,7 +5,7 @@ import {
   Rocket, Shield, ShoppingBag, UserCog, Users2, Ticket,
   ChevronDown, Code2, Clock, FlaskConical, ListFilter, CheckCircle2,
   Calendar, PlusCircle, BookOpen, LogIn, MapPin, FileSpreadsheet, FileStack, GraduationCap,
-  BarChart3, Wrench
+  BarChart3, Wrench, Tv
 } from 'lucide-react'
 import { getLoggedUser, isAdminUser, isFuncionarioUser } from '../../lib/auth'
 import { permissionsApi } from '../../lib/permissions'
@@ -26,6 +26,7 @@ const UTILITARIOS_PATHS = ['/cidades', '/separador-planilhas', '/juntar-planilha
 
 const allNavItems: NavItem[] = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { name: 'Painel TV (Apresentação)', path: '/tv', icon: Tv },
   { name: 'Métricas de Acesso', path: '/analytics', icon: BarChart3 },
   { name: 'Tickets', path: '/tickets', icon: Ticket },
   // { name: 'Comercial', path: '/comercial', icon: TrendingUp }, // Oculto temporariamente para todos

@@ -35,7 +35,8 @@ import {
   FileSpreadsheet,
   FileStack,
   GraduationCap,
-  Wrench
+  Wrench,
+  Tv
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -258,6 +259,16 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
         
         {user ? (
           <>
+            {/* Botão Modo TV / Apresentação de Dashboards */}
+            <NavLink
+              to="/tv"
+              title="Apresentar Dashboards (Modo TV da Mantran - Rotação Automática)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-indigo-200 transition-all text-xs font-bold shadow-sm shadow-indigo-500/10 cursor-pointer"
+            >
+              <Tv className="w-4 h-4 text-indigo-400" />
+              <span className="hidden lg:inline">Modo TV</span>
+            </NavLink>
+
             {/* Sininho de Notificações */}
             <NotificationsPopover />
 
@@ -376,6 +387,19 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
                   <span>RH & Férias</span>
                 </button>
               )}
+
+              {/* Opção: Painel TV (Apresentação rotativa) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUserMenuOpen(false)
+                  navigate('/tv')
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-indigo-300 hover:text-white hover:bg-indigo-500/20 transition-colors text-left cursor-pointer"
+              >
+                <Tv className="w-4 h-4 text-indigo-400" />
+                <span>Painel TV (Apresentação)</span>
+              </button>
 
               {/* Opção 4: Sair */}
               <div className="pt-1 border-t border-slate-800/80">

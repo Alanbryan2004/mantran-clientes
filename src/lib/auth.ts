@@ -169,3 +169,16 @@ export function canEditFaq(): boolean {
   return isAdminUser() || isSuporteUser()
 }
 
+/**
+ * Retorna true se o usuário logado possui perfil 'Dashboard' (modo TV de apresentação).
+ */
+export function isDashboardUser(): boolean {
+  const user = getLoggedUser()
+  if (!user) return false
+  const p = (user.perfil || '').trim().toLowerCase()
+  const c = (user.cargo || '').trim().toLowerCase()
+  const l = (user.login || '').trim().toLowerCase()
+  return p === 'dashboard' || c === 'dashboard' || l === 'dashboard'
+}
+
+

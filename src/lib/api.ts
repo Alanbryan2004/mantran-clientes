@@ -256,6 +256,14 @@ export const api = {
     }
 
 
+    // Perfil Dashboard / Modo TV
+    if (user.perfil === 'Dashboard' || (user.cargo || '').trim().toLowerCase() === 'dashboard' || loginLower === 'dashboard') {
+      return {
+        ...user,
+        perfil: 'Dashboard'
+      }
+    }
+
     // Cliente "legado" por implantação (login termina em @mantran)
     if (loginLower.endsWith('@mantran') && (user.perfil === 'Usuario' || user.perfil === 'Cliente')) {
       const clienteImpl = await api.getImplantacaoForLoggedCliente(user.nome || user.login).catch(() => null)

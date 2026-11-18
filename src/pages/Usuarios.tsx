@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { 
   Users, UserPlus, Search, Edit3, Trash2, CheckCircle2, XCircle, 
   Shield, UserCheck, Key, RefreshCw, Eye, EyeOff, AlertTriangle, 
-  Briefcase, Wrench, Headphones, Building2, Handshake, Lock, Check, Cake
+  Briefcase, Wrench, Headphones, Building2, Handshake, Lock, Check, Cake, Tv
 } from 'lucide-react'
 import { api, type UsuarioSistema } from '../lib/api'
 import { isAdminUser } from '../lib/auth'
@@ -64,6 +64,14 @@ const PERFIS_CONFIG: Record<string, { label: string; icon: any; color: string; b
     bg: 'bg-purple-500/10',
     border: 'border-purple-500/20',
     desc: 'Acesso restrito à sua própria implantação'
+  },
+  Dashboard: {
+    label: 'Dashboard (TV)',
+    icon: Tv,
+    color: 'text-indigo-400',
+    bg: 'bg-indigo-500/10',
+    border: 'border-indigo-500/20',
+    desc: 'Modo TV: Apresentação rotativa contínua das Dashboards'
   }
 }
 

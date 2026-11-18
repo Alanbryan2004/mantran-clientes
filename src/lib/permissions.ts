@@ -54,6 +54,12 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
     rotas: ['/faq', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/implantacoes'],
     projeto_especifico_id: null,
     read_only: true
+  },
+  Dashboard: {
+    perfil: 'Dashboard',
+    rotas: ['/', '/analytics', '/implantacoes', '/processamento-shopee', '/tv'],
+    projeto_especifico_id: null,
+    read_only: true
   }
 }
 
