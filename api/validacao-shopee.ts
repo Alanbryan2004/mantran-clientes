@@ -2,6 +2,75 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 export const maxDuration = 30
 
+function extrairHeaderEPayload(str: string): { headerObj: any; payloadObj: any } | null {
+  const trimmed = str.trim()
+  if (!trimmed.startsWith('{')) return null
+
+  let depth = 0
+  let inString = false
+  let escape = false
+  let headerEnd = -1
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i]
+    if (escape) { escape = false; continue }
+    if (ch === '\\') { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) {
+        headerEnd = i
+        break
+      }
+    }
+  }
+
+  if (headerEnd === -1) return null
+  const resto = trimmed.slice(headerEnd + 1).trim()
+  if (!resto.startsWith('.')) return null
+
+  const aposPonto = resto.slice(1).trim()
+  if (!aposPonto.startsWith('{')) return null
+
+  depth = 0
+  inString = false
+  escape = false
+  let payloadEnd = -1
+
+  for (let j = 0; j < aposPonto.length; j++) {
+    const ch = aposPonto[j]
+    if (escape) { escape = false; continue }
+    if (ch === '\\') { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) {
+        payloadEnd = j
+        break
+      }
+    }
+  }
+
+  if (payloadEnd === -1) return null
+
+  try {
+    const headerObj = JSON.parse(trimmed.slice(0, headerEnd + 1))
+    const payloadObj = JSON.parse(aposPonto.slice(0, payloadEnd + 1))
+    return { headerObj, payloadObj }
+  } catch {
+    return null
+  }
+}
+
+function toBase64Url(obj: any): string {
+  const jsonStr = typeof obj === 'string' ? obj : JSON.stringify(obj)
+  return Buffer.from(jsonStr, 'utf-8').toString('base64url')
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Configuração CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true')
@@ -29,7 +98,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let bodyStr: string
     if (typeof payload === 'string') {
-      bodyStr = payload
+      bodyStr = payload.trim()
+      // Se vier no formato {header}.{payload} (ex.: {"account":"..."}.{"data":...})
+      const extraido = extrairHeaderEPayload(bodyStr)
+      if (extraido) {
+        const jwt = `${toBase64Url(extraido.headerObj)}.${toBase64Url(extraido.payloadObj)}.sig`
+        bodyStr = JSON.stringify({ jwt })
+      }
     } else if (payload && typeof payload === 'object') {
       bodyStr = JSON.stringify(payload)
     } else {

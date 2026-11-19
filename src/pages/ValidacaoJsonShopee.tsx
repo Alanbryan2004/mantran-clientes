@@ -1,13 +1,88 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CheckCircle2, AlertTriangle, AlertCircle, ArrowLeft, Upload,
   ClipboardPaste, FileText, Trash2, Sparkles, RefreshCw, Server,
-  Building2, Hash, Layers, ShieldCheck, Check, X as XIcon, ChevronDown, ChevronRight
+  Building2, Hash, Layers, ShieldCheck, Check, X as XIcon, ChevronDown, ChevronRight,
+  Code2
 } from 'lucide-react'
 import clsx from 'clsx'
 
 const URL_API_PADRAO = 'http://18.231.33.156:35397'
+
+// Extrai e separa o formato JWT decodificado: {"account":...}.{"data":...}
+function extrairHeaderEPayload(str: string): { headerObj: any; payloadObj: any; headerStr: string; payloadStr: string } | null {
+  const trimmed = str.trim()
+  if (!trimmed.startsWith('{')) return null
+
+  let depth = 0
+  let inString = false
+  let escape = false
+  let headerEnd = -1
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i]
+    if (escape) { escape = false; continue }
+    if (ch === '\\') { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) {
+        headerEnd = i
+        break
+      }
+    }
+  }
+
+  if (headerEnd === -1) return null
+  const resto = trimmed.slice(headerEnd + 1).trim()
+  if (!resto.startsWith('.')) return null
+
+  const aposPonto = resto.slice(1).trim()
+  if (!aposPonto.startsWith('{')) return null
+
+  depth = 0
+  inString = false
+  escape = false
+  let payloadEnd = -1
+
+  for (let j = 0; j < aposPonto.length; j++) {
+    const ch = aposPonto[j]
+    if (escape) { escape = false; continue }
+    if (ch === '\\') { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) {
+        payloadEnd = j
+        break
+      }
+    }
+  }
+
+  if (payloadEnd === -1) return null
+
+  const headerStr = trimmed.slice(0, headerEnd + 1)
+  const payloadStr = aposPonto.slice(0, payloadEnd + 1)
+
+  try {
+    const headerObj = JSON.parse(headerStr)
+    const payloadObj = JSON.parse(payloadStr)
+    return { headerObj, payloadObj, headerStr, payloadStr }
+  } catch {
+    return null
+  }
+}
+
+function toBase64UrlBrowser(obj: any): string {
+  const jsonStr = typeof obj === 'string' ? obj : JSON.stringify(obj)
+  const b64 = window.btoa(unescape(encodeURIComponent(jsonStr)))
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
 
 interface RespostaValidacao {
   baseEncontrada: boolean
@@ -110,6 +185,17 @@ export function ValidacaoJsonShopee() {
 
   const handleBeautifyJson = () => {
     if (!textoJson.trim()) return
+
+    // Se estiver no formato {header}.{payload} (ex.: {"account":"..."}.{"data":...})
+    const extraido = extrairHeaderEPayload(textoJson.trim())
+    if (extraido) {
+      const hStr = JSON.stringify(extraido.headerObj)
+      const pStr = JSON.stringify(extraido.payloadObj, null, 2)
+      setTextoJson(`${hStr}.\n${pStr}`)
+      setErro(null)
+      return
+    }
+
     try {
       const parsed = JSON.parse(textoJson.trim())
       setTextoJson(JSON.stringify(parsed, null, 2))
@@ -118,6 +204,11 @@ export function ValidacaoJsonShopee() {
       setErro('O texto não é um JSON válido para formatação.')
     }
   }
+
+  const headerJwtDetectado = useMemo(() => {
+    if (!textoJson.trim()) return null
+    return extrairHeaderEPayload(textoJson.trim())
+  }, [textoJson])
 
   const executarConsulta = async () => {
     setErro(null)
@@ -149,6 +240,14 @@ export function ValidacaoJsonShopee() {
       return
     }
 
+    // Normaliza caso venha com cabeçalho JWT decodificado no formato {header}.{payload}
+    let envioProcessado = corpoEnvio.trim()
+    const extraido = extrairHeaderEPayload(envioProcessado)
+    if (extraido) {
+      const jwt = `${toBase64UrlBrowser(extraido.headerObj)}.${toBase64UrlBrowser(extraido.payloadObj)}.sig`
+      envioProcessado = JSON.stringify({ jwt })
+    }
+
     setLoading(true)
 
     try {
@@ -160,7 +259,7 @@ export function ValidacaoJsonShopee() {
         const proxyRes = await fetch('/api/validacao-shopee', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiUrl: urlAlvo, payload: corpoEnvio })
+          body: JSON.stringify({ apiUrl: urlAlvo, payload: envioProcessado })
         })
         const proxyJson = await proxyRes.json().catch(() => null)
         if (proxyRes.ok && proxyJson) {
@@ -180,7 +279,7 @@ export function ValidacaoJsonShopee() {
         const directRes = await fetch(`${urlAlvo}/ValidacaoJsonShopee`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: corpoEnvio
+          body: envioProcessado
         })
         if (directRes.status === 404) {
           throw new Error('A API respondeu 404: o endpoint /ValidacaoJsonShopee ainda não foi publicado nesta API.')
@@ -400,15 +499,45 @@ export function ValidacaoJsonShopee() {
                   type="button"
                   onClick={handleBeautifyJson}
                   className="text-[11px] font-bold text-slate-600 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                  title="Formata o JSON mantendo a estrutura"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Formatar JSON
                 </button>
               </div>
             </div>
+
+            {/* Aviso quando detecta prefixo de cabeçalho JWT no texto */}
+            {headerJwtDetectado && (
+              <div className="mb-2.5 p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-bold flex items-center gap-1 text-purple-700">
+                    <Code2 className="w-3.5 h-3.5" /> Cabeçalho JWT detectado:
+                  </span>
+                  <code className="bg-white px-2 py-0.5 rounded border border-purple-200 font-mono text-[11px] font-bold text-purple-800">
+                    account: "{headerJwtDetectado.headerObj.account || '—'}"
+                  </code>
+                  <span className="text-[11px] text-purple-600 hidden md:inline">
+                    (tratado automaticamente, não quebra a validação)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTextoJson(JSON.stringify(headerJwtDetectado.payloadObj, null, 2))
+                    setErro(null)
+                  }}
+                  className="text-[11px] font-bold text-purple-700 hover:text-purple-900 underline cursor-pointer"
+                  title="Remove o prefixo do cabeçalho e mantém apenas o objeto da viagem formatado"
+                >
+                  Remover cabeçalho e deixar só a viagem
+                </button>
+              </div>
+            )}
+
             <textarea
               value={textoJson}
               onChange={e => setTextoJson(e.target.value)}
-              placeholder='Cole aqui o JSON da requisição (ex.: {"jwt": "..."} ou {"data": { ... }})'
+              placeholder='Cole aqui o JSON da requisição (ex.: {"account":"..."}.{"data":...} ou {"data": { ... }})'
               rows={8}
               className="w-full font-mono text-xs p-3.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 scrollbar-clean resize-y"
             />
