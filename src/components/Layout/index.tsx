@@ -73,7 +73,9 @@ export function Layout() {
                        location.pathname.startsWith('/utilitarios') ||
                        location.pathname.startsWith('/cidades') ||
                        location.pathname.startsWith('/separador') ||
-                       location.pathname.startsWith('/juntar')
+                       location.pathname.startsWith('/juntar') ||
+                       location.pathname.startsWith('/validacao-api-shopee') ||
+                       location.pathname.startsWith('/validacao-json-shopee')
 
   return (
     <div className="flex h-screen bg-dark-bg text-dark-text overflow-hidden">

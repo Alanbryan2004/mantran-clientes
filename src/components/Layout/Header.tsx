@@ -36,7 +36,8 @@ import {
   FileStack,
   GraduationCap,
   Wrench,
-  Tv
+  Tv,
+  CheckCircle2
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -113,6 +114,9 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
     if (path.startsWith('/cidades')) {
       return { title: 'Cidades & Faixas de CEP', icon: MapPin, subtitle: 'Consulta de municípios, faixas de CEP e códigos IBGE' }
     }
+    if (path.startsWith('/validacao-api-shopee') || path.startsWith('/validacao-json-shopee')) {
+      return { title: 'Validação API Shopee', icon: CheckCircle2, subtitle: 'Validação de JSON de requisição da Shopee e identificação de base e filial' }
+    }
     if (path.startsWith('/faq') || (!user && path === '/')) {
       return { title: 'FAQ — Como fazer no Mantran', icon: BookOpen, subtitle: 'Procedimentos passo a passo e documentação' }
     }
@@ -120,7 +124,7 @@ export function Header({ onOpenLogin }: HeaderProps = {}) {
       return { title: 'Academia Mantran', icon: GraduationCap, subtitle: 'Vídeos de treinamento para você aprender no seu ritmo' }
     }
     if (path.startsWith('/utilitarios')) {
-      return { title: 'Utilitários', icon: Wrench, subtitle: 'Cidades, Separador e Juntar Planilhas' }
+      return { title: 'Utilitários', icon: Wrench, subtitle: 'Cidades, Separador, Juntar Planilhas e Validação API Shopee' }
     }
     if (path === '/') {
       return { title: 'Dashboard Geral', icon: LayoutDashboard, subtitle: 'Métricas, bases e status em tempo real' }

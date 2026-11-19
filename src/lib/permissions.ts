@@ -12,7 +12,7 @@ export interface PerfilPermissao {
 export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Administrador: {
     perfil: 'Administrador',
-    rotas: ['/', '/analytics', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/faq', '/academia', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/analytics', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/validacao-api-shopee', '/tickets', '/faq', '/academia', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
@@ -24,7 +24,7 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Suporte: {
     perfil: 'Suporte',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/faq', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa', '/academia'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/validacao-api-shopee', '/tickets', '/faq', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa', '/academia'],
     projeto_especifico_id: null,
     read_only: false
   },
@@ -192,6 +192,7 @@ export const permissionsApi = {
     if (normPath === '/minhas-tarefas' || normPath.startsWith('/minhas-tarefas/')) normPath = '/dev/tarefas'
     if (normPath === '/cronograma' || normPath.startsWith('/cronograma/')) normPath = '/dev/cronograma'
     if (normPath === '/metricas' || normPath.startsWith('/metricas/')) normPath = '/analytics'
+    if (normPath === '/validacao-json-shopee' || normPath.startsWith('/validacao-json-shopee/')) normPath = '/validacao-api-shopee'
 
     // FAQ: liberado para consulta pública direta no site quando não logado.
     // Quando logado, obedece às permissões configuradas para o perfil.
@@ -216,10 +217,10 @@ export const permissionsApi = {
 
     if (!user || !user.perfil) return false
 
-    // Utilitários: tela-índice que agrupa Cidades, Separador e Juntar Planilhas.
-    // Não tem permissão própria: abre para quem acessa ao menos uma das três.
+    // Utilitários: tela-índice que agrupa Cidades, Separador, Juntar Planilhas e Validação API Shopee.
+    // Não tem permissão própria: abre para quem acessa ao menos uma delas.
     if (normPath === '/utilitarios' || normPath.startsWith('/utilitarios/')) {
-      return ['/cidades', '/separador-planilhas', '/juntar-planilhas'].some(r => this.canAccessRoute(r))
+      return ['/cidades', '/separador-planilhas', '/juntar-planilhas', '/validacao-api-shopee'].some(r => this.canAccessRoute(r))
     }
 
     const perfilName = user.perfil.trim()

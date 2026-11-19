@@ -20,6 +20,7 @@ import { ConfirmarCadastro } from './pages/ConfirmarCadastro'
 import { Cidades } from './pages/Cidades'
 import { SeparadorPlanilhas } from './pages/SeparadorPlanilhas'
 import { JuntarPlanilhas } from './pages/JuntarPlanilhas'
+import { ValidacaoJsonShopee } from './pages/ValidacaoJsonShopee'
 import { ProcessamentoShopee } from './pages/ProcessamentoShopee'
 import { CampanhaEmail } from './pages/CampanhaEmail'
 import { AnalyticsAcessos } from './pages/AnalyticsAcessos'
@@ -172,6 +173,8 @@ function App() {
             <Route path="separador" element={<Navigate to="/separador-planilhas" replace />} />
             <Route path="juntar-planilhas" element={<JuntarPlanilhas />} />
             <Route path="juntar" element={<Navigate to="/juntar-planilhas" replace />} />
+            <Route path="validacao-api-shopee" element={<ValidacaoJsonShopee />} />
+            <Route path="validacao-json-shopee" element={<Navigate to="/validacao-api-shopee" replace />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="tickets/:numero" element={<Tickets />} />
             <Route path="campanha-email" element={<CampanhaEmail />} />

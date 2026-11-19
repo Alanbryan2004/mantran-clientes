@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
-import { Wrench, MapPin, FileSpreadsheet, FileStack, ArrowRight } from 'lucide-react'
+import { Wrench, MapPin, FileSpreadsheet, FileStack, CheckCircle2, ArrowRight } from 'lucide-react'
 import { permissionsApi } from '../lib/permissions'
 
 // ============================================================
 // Utilitários — tela-índice para funcionários.
-// Reúne as ferramentas que saíram da barra lateral (Cidades, Separador e Juntar Planilhas).
+// Reúne as ferramentas de apoio (Cidades, Separador, Juntar Planilhas e Validação API Shopee).
 // Cada card só aparece se o perfil tem acesso à tela correspondente.
 // ============================================================
 const UTILITARIOS = [
@@ -25,6 +25,12 @@ const UTILITARIOS = [
     titulo: 'Juntar Planilhas',
     descricao: 'Unificação e conferência de planilhas Shopee 4PL por operação.',
     icone: FileStack
+  },
+  {
+    path: '/validacao-api-shopee',
+    titulo: 'Validação API Shopee',
+    descricao: 'Validação de JSON de requisição da Shopee e identificação de base e filial.',
+    icone: CheckCircle2
   }
 ]
 

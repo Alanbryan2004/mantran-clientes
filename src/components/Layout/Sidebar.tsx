@@ -22,7 +22,7 @@ interface NavItem {
 }
 
 // Telas agrupadas em "Utilitários" para funcionários (Suporte, Técnico, Administrador...)
-const UTILITARIOS_PATHS = ['/cidades', '/separador-planilhas', '/juntar-planilhas']
+const UTILITARIOS_PATHS = ['/cidades', '/separador-planilhas', '/juntar-planilhas', '/validacao-api-shopee']
 
 const allNavItems: NavItem[] = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -41,6 +41,7 @@ const allNavItems: NavItem[] = [
   { name: 'Cidades', path: '/cidades', icon: MapPin },
   { name: 'Separador de Planilhas', path: '/separador-planilhas', icon: FileSpreadsheet },
   { name: 'Juntar Planilhas', path: '/juntar-planilhas', icon: FileStack },
+  { name: 'Validação API Shopee', path: '/validacao-api-shopee', icon: CheckCircle2 },
 ]
 
 interface DevSubItem {

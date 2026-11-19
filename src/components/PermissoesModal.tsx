@@ -38,6 +38,7 @@ const AVAILABLE_MODULES = [
   { path: '/processamento-shopee', label: 'Processamento Shopee', desc: 'Acompanhamento de fechamento de Last/First Mile e Line Haul', icon: ShoppingBag },
   { path: '/separador-planilhas', label: 'Separador de Planilhas', desc: 'Validação e divisão de planilhas de pré-fatura Shopee por operação', icon: FileSpreadsheet },
   { path: '/juntar-planilhas', label: 'Juntar Planilhas', desc: 'Unificação e conferência de planilhas Shopee 4PL por operação', icon: FileStack },
+  { path: '/validacao-api-shopee', label: 'Validação API Shopee', desc: 'Validação de JSON de requisição da Shopee e identificação de base e filial', icon: CheckCircle2 },
   { path: '/leo-madeiras', label: 'Léo Madeiras', desc: 'Módulo dedicado da Léo Madeiras', icon: Cloud },
 ]
 
