@@ -270,11 +270,28 @@ export async function prepararConvite(supabase: SupabaseClient, secret: string, 
   }
 
   // A EMPRESA é obrigatória: o acesso do cliente (chamados, Academia) depende dela.
-  if (!contato.empresa_id) {
+  if (!contato.empresa_id && !contato.empresa_nome) {
     throw new ErroAcesso(400, 'Informe a empresa deste contato (Editar contato) antes de liberar o acesso.')
   }
-  const { data: cli, error: eCli } = await supabase.from('clientes').select('nome_empresa, ativo').eq('id', contato.empresa_id).maybeSingle()
-  if (eCli) throw eCli
+  let cli: { nome_empresa: string; ativo?: boolean } | null = null
+  if (contato.empresa_id) {
+    const { data: c1 } = await supabase.from('clientes').select('nome_empresa, ativo').eq('id', contato.empresa_id).maybeSingle()
+    if (c1) {
+      cli = c1
+    } else {
+      const { data: l1 } = await supabase.from('leo_empresas').select('nome_empresa, ativo').eq('id', contato.empresa_id).maybeSingle()
+      if (l1) cli = l1
+    }
+  }
+  if (!cli && contato.empresa_nome) {
+    const { data: c2 } = await supabase.from('clientes').select('nome_empresa, ativo').ilike('nome_empresa', contato.empresa_nome).maybeSingle()
+    if (c2) {
+      cli = c2
+    } else {
+      const { data: l2 } = await supabase.from('leo_empresas').select('nome_empresa, ativo').ilike('nome_empresa', contato.empresa_nome).maybeSingle()
+      if (l2) cli = l2
+    }
+  }
   if (!cli) {
     throw new ErroAcesso(400, 'A empresa vinculada a este contato não foi encontrada. Escolha a empresa novamente em Editar contato.')
   }

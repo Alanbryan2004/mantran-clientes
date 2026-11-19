@@ -25,6 +25,7 @@ function formatData(iso?: string | null) {
 interface ContatoModalProps {
   contato: TicketContato
   clientes: any[]
+  leoEmpresas?: any[]
   grupos: any[]
   onClose: () => void
   onChange: () => void
@@ -38,11 +39,21 @@ interface ContatoModalProps {
 }
 
 // Modal de PERFIL do contato: dados, histórico de tickets e ações
-export function ContatoModal({ contato, clientes, grupos, onClose, onChange, onAbrirTicket, acesso, onLiberarAcesso, onRedefinirSenha, liberarBloqueadoMotivo, liberandoAcesso }: ContatoModalProps) {
+export function ContatoModal({ contato, clientes, leoEmpresas, grupos, onClose, onChange, onAbrirTicket, acesso, onLiberarAcesso, onRedefinirSenha, liberarBloqueadoMotivo, liberandoAcesso }: ContatoModalProps) {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [editando, setEditando] = useState(false)
   const [atual, setAtual] = useState<TicketContato>(contato)
+  const [leoEmpresasLocal, setLeoEmpresasLocal] = useState<any[]>(leoEmpresas || [])
+
+  // Carrega empresas da Léo Madeiras como garantia caso o pai não tenha passado
+  useEffect(() => {
+    if (!leoEmpresas || leoEmpresas.length === 0) {
+      api.getLeoEmpresas().then(es => setLeoEmpresasLocal(es || [])).catch(() => {})
+    } else {
+      setLeoEmpresasLocal(leoEmpresas)
+    }
+  }, [leoEmpresas])
 
   const carregar = async () => {
     setLoading(true)
@@ -66,7 +77,9 @@ export function ContatoModal({ contato, clientes, grupos, onClose, onChange, onA
   }, [contato.id])
 
   const empresaNome = atual.empresa_id
-    ? (clientes.find(c => c.id === atual.empresa_id)?.nome_empresa || atual.empresa_nome)
+    ? (clientes.find(c => c.id === atual.empresa_id)?.nome_empresa ||
+       leoEmpresasLocal.find(l => l.id === atual.empresa_id)?.nome_empresa ||
+       atual.empresa_nome)
     : atual.empresa_nome
 
   const handleExcluir = async () => {
@@ -198,6 +211,7 @@ export function ContatoModal({ contato, clientes, grupos, onClose, onChange, onA
         <EditarContatoDrawer
           contato={atual}
           clientes={clientes}
+          leoEmpresas={leoEmpresasLocal}
           grupos={grupos}
           onClose={() => setEditando(false)}
           onSaved={async () => { setEditando(false); await carregar(); onChange() }}
@@ -208,9 +222,10 @@ export function ContatoModal({ contato, clientes, grupos, onClose, onChange, onA
 }
 
 // Drawer lateral para editar os dados do contato
-function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
+function EditarContatoDrawer({ contato, clientes, leoEmpresas = [], grupos, onClose, onSaved }: {
   contato: TicketContato
   clientes: any[]
+  leoEmpresas?: any[]
   grupos: any[]
   onClose: () => void
   onSaved: () => void
@@ -223,11 +238,39 @@ function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
   const [empresaId, setEmpresaId] = useState(contato.empresa_id || '')
   const [empresaNome, setEmpresaNome] = useState(
     contato.empresa_nome ||
-    (contato.empresa_id ? (clientes.find(c => c.id === contato.empresa_id)?.nome_empresa || '') : '')
+    (contato.empresa_id
+      ? (clientes.find(c => c.id === contato.empresa_id)?.nome_empresa ||
+         leoEmpresas.find((l: any) => l.id === contato.empresa_id)?.nome_empresa || '')
+      : '')
   )
   const [grupoId, setGrupoId] = useState(contato.grupo_id || '')
   const [veTodos, setVeTodos] = useState(!!contato.ve_todos_empresa)
   const [salvando, setSalvando] = useState(false)
+
+  // Unifica clientes da base com empresas da Léo Madeiras
+  const empresasUnificadas = useMemo(() => {
+    const base = (clientes || []).map((c: any) => ({
+      id: c.id,
+      nome_empresa: c.nome_empresa,
+      origem: 'cliente' as const,
+      tipo: c.tipo_cliente || c.tipo || 'NORMAL',
+      cd_empresa: c.cd_empresa || null
+    }))
+
+    const nomesVistos = new Set(base.map(c => (c.nome_empresa || '').trim().toLowerCase()))
+
+    const leo = (leoEmpresas || [])
+      .filter((e: any) => !nomesVistos.has((e.nome_empresa || '').trim().toLowerCase()))
+      .map((e: any) => ({
+        id: e.id,
+        nome_empresa: e.nome_empresa,
+        origem: 'leo' as const,
+        tipo: 'LÉO MADEIRAS',
+        cd_empresa: e.cd_empresa || null
+      }))
+
+    return [...base, ...leo]
+  }, [clientes, leoEmpresas])
 
   const inputCls = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm focus:outline-none focus:border-brand-500'
   const labelCls = 'block text-xs font-bold text-slate-600 mb-1'
@@ -243,8 +286,8 @@ function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
         celular: celular.trim() || null,
         cargo: cargo.trim() || null,
         empresa_id: empresaId || null,
-        // só grava o nome quando há vínculo com um cliente existente
-        empresa_nome: empresaId ? (empresaNome.trim() || null) : null,
+        // grava o nome da empresa selecionada (clientes ou Léo Madeiras)
+        empresa_nome: (empresaNome && empresaNome.trim()) || null,
         grupo_id: grupoId || null,
         ve_todos_empresa: veTodos
       })
@@ -296,7 +339,7 @@ function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
           <div>
             <label className={labelCls}>Empresa</label>
             <EmpresaComboboxContato
-              clientes={clientes}
+              empresas={empresasUnificadas}
               empresaId={empresaId}
               empresaNome={empresaNome}
               onSelecionar={(cli) => {
@@ -304,7 +347,7 @@ function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
                 setEmpresaNome(cli ? cli.nome_empresa : '')
               }}
             />
-            <p className="text-[11px] text-slate-400 mt-1">Só é possível vincular a uma empresa existente no cadastro.</p>
+            <p className="text-[11px] text-slate-400 mt-1">Busca em clientes cadastrados e empresas da base Léo Madeiras.</p>
           </div>
           <div>
             <label className={labelCls}>Grupo</label>
@@ -332,14 +375,14 @@ function EditarContatoDrawer({ contato, clientes, grupos, onClose, onSaved }: {
 }
 
 // ============================================================
-// Combobox de empresa (Editar contato): filtra conforme digita e
-// só permite vincular a uma empresa existente no cadastro de clientes.
+// Combobox de empresa (Editar contato): filtra conforme digita
+// tanto em clientes quanto nas empresas da base Léo Madeiras.
 // ============================================================
-function EmpresaComboboxContato({ clientes, empresaId, empresaNome, onSelecionar }: {
-  clientes: any[]
+function EmpresaComboboxContato({ empresas, empresaId, empresaNome, onSelecionar }: {
+  empresas: any[]
   empresaId: string
   empresaNome: string
-  onSelecionar: (cliente: any | null) => void
+  onSelecionar: (empresa: any | null) => void
 }) {
   const [aberto, setAberto] = useState(false)
   const [termo, setTermo] = useState('')
@@ -347,7 +390,7 @@ function EmpresaComboboxContato({ clientes, empresaId, empresaNome, onSelecionar
   const wrapRef = useRef<HTMLDivElement>(null)
   const listaRef = useRef<HTMLDivElement>(null)
 
-  const temVinculo = !!empresaId
+  const temVinculo = !!empresaId || !!(empresaNome || '').trim()
   const valorInput = aberto ? termo : (empresaNome || '')
 
   useEffect(() => {
@@ -362,10 +405,14 @@ function EmpresaComboboxContato({ clientes, empresaId, empresaNome, onSelecionar
   const filtrados = useMemo(() => {
     const t = termo.trim().toLowerCase()
     const base = t
-      ? clientes.filter(c => (c.nome_empresa || '').toLowerCase().includes(t))
-      : clientes
-    return [...base].sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR')).slice(0, 50)
-  }, [clientes, termo])
+      ? (empresas || []).filter(c =>
+          (c.nome_empresa || '').toLowerCase().includes(t) ||
+          (c.cd_empresa && String(c.cd_empresa).toLowerCase().includes(t)) ||
+          (c.tipo && String(c.tipo).toLowerCase().includes(t))
+        )
+      : (empresas || [])
+    return [...base].sort((a, b) => (a.nome_empresa || '').localeCompare(b.nome_empresa || '', 'pt-BR')).slice(0, 100)
+  }, [empresas, termo])
 
   useEffect(() => { setAtivo(0) }, [termo, aberto])
   useEffect(() => {
@@ -389,13 +436,13 @@ function EmpresaComboboxContato({ clientes, empresaId, empresaNome, onSelecionar
         <input
           type="text"
           value={valorInput}
-          placeholder="Digite para buscar a empresa…"
+          placeholder="Digite o nome ou código da empresa…"
           onFocus={() => { setTermo(''); setAberto(true) }}
           onChange={e => { setTermo(e.target.value); setAberto(true) }}
           onKeyDown={onKeyDown}
           className={clsx(
             'w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:border-brand-500',
-            temVinculo ? 'border-emerald-300 bg-emerald-50/50 text-emerald-700 font-medium' : 'border-slate-300 bg-white text-slate-700'
+            temVinculo ? 'border-emerald-300 bg-emerald-50/50 text-emerald-800 font-semibold' : 'border-slate-300 bg-white text-slate-700'
           )}
         />
         {temVinculo && (
@@ -405,25 +452,48 @@ function EmpresaComboboxContato({ clientes, empresaId, empresaNome, onSelecionar
         )}
       </div>
       {aberto && (
-        <div ref={listaRef} className="absolute z-20 mt-1 w-full max-h-56 overflow-auto scrollbar-clean bg-white border border-slate-200 rounded-lg shadow-lg">
+        <div ref={listaRef} className="absolute z-20 mt-1 w-full max-h-60 overflow-auto scrollbar-clean bg-white border border-slate-200 rounded-lg shadow-xl">
           {filtrados.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-slate-400">Nenhuma empresa encontrada</div>
+            <div className="px-3 py-3 text-xs text-slate-400 text-center">Nenhuma empresa encontrada</div>
           ) : (
-            filtrados.map((c, idx) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => selecionar(c)}
-                onMouseEnter={() => setAtivo(idx)}
-                className={clsx(
-                  'w-full text-left px-3 py-1.5 text-sm transition-colors truncate',
-                  idx === ativo ? 'bg-brand-50' : '',
-                  c.id === empresaId ? 'text-emerald-700 font-semibold' : 'text-slate-700'
-                )}
-              >
-                {c.nome_empresa}
-              </button>
-            ))
+            filtrados.map((c, idx) => {
+              const selecionadoItem = c.id === empresaId || (c.nome_empresa && c.nome_empresa.trim().toLowerCase() === (empresaNome || '').trim().toLowerCase())
+              const isLeo = c.tipo === 'LÉO MADEIRAS' || c.origem === 'leo'
+              const isShopee = c.tipo === 'SHOPEE'
+              return (
+                <button
+                  key={`${c.origem || 'emp'}-${c.id || c.nome_empresa}-${idx}`}
+                  type="button"
+                  onClick={() => selecionar(c)}
+                  onMouseEnter={() => setAtivo(idx)}
+                  className={clsx(
+                    'w-full text-left px-3 py-2 text-sm transition-colors flex items-center justify-between gap-2 border-b border-slate-100 last:border-b-0',
+                    idx === ativo ? 'bg-brand-50' : '',
+                    selecionadoItem ? 'text-emerald-700 font-semibold bg-emerald-50/50' : 'text-slate-700'
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate">{c.nome_empresa}</span>
+                    {c.cd_empresa && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 border border-slate-200">
+                        #{c.cd_empresa}
+                      </span>
+                    )}
+                  </div>
+                  <span className={clsx(
+                    'text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border uppercase tracking-wider',
+                    isLeo
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : isShopee
+                      ? 'bg-orange-50 text-orange-700 border-orange-200'
+                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                  )}>
+                    {isLeo ? 'Léo Madeiras' : isShopee ? 'Shopee' : 'Cliente'}
+                  </span>
+                </button>
+              )
+            })
           )}
         </div>
       )}

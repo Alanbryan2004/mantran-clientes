@@ -578,6 +578,7 @@ function TicketsAgente() {
         agentes={agentes}
         tecnicos={tecnicos}
         clientes={clientes}
+        leoEmpresas={leoEmpresas}
         contatos={contatos}
         cadastros={cadastros}
         onVoltar={() => setNovoAberto(false)}
@@ -593,6 +594,7 @@ function TicketsAgente() {
         agentes={agentes}
         tecnicos={tecnicos}
         clientes={clientes}
+        leoEmpresas={leoEmpresas}
         contatos={contatos}
         emailsFuncionarios={emailsFuncionarios}
         cadastros={cadastros}
@@ -636,7 +638,7 @@ function TicketsAgente() {
       {view === 'painel' ? (
         <PainelControleView tickets={tickets} agentes={agentes} tecnicos={tecnicos} loading={loading} />
       ) : view === 'contatos' ? (
-        <ContatosView clientes={clientes} grupos={cadastros.grupos} emailsFuncionarios={emailsFuncionarios} somenteNovosInicial={searchParams.get('novos') === '1'} onChange={() => api.getContatos().then(cs => setContatos(cs || [])).catch(() => {})} />
+        <ContatosView clientes={clientes} leoEmpresas={leoEmpresas} grupos={cadastros.grupos} emailsFuncionarios={emailsFuncionarios} somenteNovosInicial={searchParams.get('novos') === '1'} onChange={() => api.getContatos().then(cs => setContatos(cs || [])).catch(() => {})} />
       ) : view === 'empresas' ? (
         <EmpresasView
           clientes={clientes}
@@ -1932,8 +1934,9 @@ function TendenciasChart({ hoje, ontem }: { hoje: number[]; ontem: number[] }) {
 // Janela do filtro "Novos cadastros"
 const DIAS_NOVOS_CADASTROS = 30
 
-function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteNovosInicial = false }: {
+function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, onChange, somenteNovosInicial = false }: {
   clientes: any[]
+  leoEmpresas?: any[]
   grupos: any[]
   emailsFuncionarios: string[]
   onChange: () => void
@@ -2033,7 +2036,11 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
     if (!/^[^\s@,;<>()|]+@[^\s@,;<>()|]+\.[^\s@,;<>()|]{2,}$/.test(emailDe(c))) {
       return 'O e-mail deste contato está vazio, inválido ou tem mais de um endereço. Ajuste o contato antes de liberar o acesso.'
     }
-    if (exigirEmpresa && !(c.empresa_id && clientes.some(cl => cl.id === c.empresa_id))) {
+    const temEmpresaVinculada = Boolean(
+      (c.empresa_id && (clientes.some(cl => cl.id === c.empresa_id) || (leoEmpresas || []).some((le: any) => le.id === c.empresa_id))) ||
+      (c.empresa_nome && (clientes.some(cl => (cl.nome_empresa || '').trim().toLowerCase() === c.empresa_nome?.trim().toLowerCase()) || (leoEmpresas || []).some((le: any) => (le.nome_empresa || '').trim().toLowerCase() === c.empresa_nome?.trim().toLowerCase())))
+    )
+    if (exigirEmpresa && !temEmpresaVinculada) {
       return 'Informe a empresa deste contato (Editar contato) antes de liberar o acesso.'
     }
     return null
@@ -2069,7 +2076,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
     if (motivo) { setAviso({ tipo: 'erro', texto: motivo }); return }
 
     const reenvio = acessos[emailDe(c)]?.estado === 'pendente'
-    const empresa = clientes.find(cl => cl.id === c.empresa_id)?.nome_empresa || ''
+    const empresa = clientes.find(cl => cl.id === c.empresa_id)?.nome_empresa || (leoEmpresas || []).find((le: any) => le.id === c.empresa_id)?.nome_empresa || c.empresa_nome || ''
     const pergunta =
       `${reenvio ? 'Reenviar o convite de acesso' : 'Liberar o acesso'} para ${c.nome} (${c.email}) da empresa ${empresa}?\n\n` +
       `Ele receberá um e-mail com o link do Portal Mantran Clientes e o botão para criar a própria senha. O login será o e-mail dele.`
@@ -2098,7 +2105,13 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
   const empresaNome = (c: TicketContato) => {
     const email = (c.email || '').trim().toLowerCase()
     if (email && emailsFuncionarios.includes(email)) return 'Mantran'
-    return (c.empresa_id ? clientes.find(cl => cl.id === c.empresa_id)?.nome_empresa : null) || c.empresa_nome || ''
+    if (c.empresa_id) {
+      const deCliente = clientes.find(cl => cl.id === c.empresa_id)?.nome_empresa
+      if (deCliente) return deCliente
+      const deLeo = (leoEmpresas || []).find((le: any) => le.id === c.empresa_id)?.nome_empresa
+      if (deLeo) return deLeo
+    }
+    return c.empresa_nome || ''
   }
 
   const grupoNome = (c: TicketContato) =>
@@ -2108,7 +2121,17 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
   const classificacaoCliente = (c: TicketContato) => {
     const email = (c.email || '').trim().toLowerCase()
     if (email && emailsFuncionarios.includes(email)) return 'Mantran'
-    return (c.empresa_id ? clientes.find(cl => cl.id === c.empresa_id)?.tipo : null) || ''
+    if (c.empresa_id) {
+      const tipoCli = clientes.find(cl => cl.id === c.empresa_id)?.tipo
+      if (tipoCli) return tipoCli
+      const ehLeo = (leoEmpresas || []).some((le: any) => le.id === c.empresa_id)
+      if (ehLeo) return 'LÉO MADEIRAS'
+    }
+    if (c.empresa_nome) {
+      const ehLeoNome = (leoEmpresas || []).some((le: any) => (le.nome_empresa || '').trim().toLowerCase() === c.empresa_nome?.trim().toLowerCase())
+      if (ehLeoNome) return 'LÉO MADEIRAS'
+    }
+    return ''
   }
 
   const filtrados = useMemo(() => {
@@ -2122,7 +2145,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
       grupoNome(c).toLowerCase().includes(termo)
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contatos, busca, clientes, grupos, soNovos, acessos, temOrigem])
+  }, [contatos, busca, clientes, leoEmpresas, grupos, soNovos, acessos, temOrigem])
 
   // Quantos "novos cadastros" existem (contador do botão do filtro)
   const qtdNovos = useMemo(
@@ -2486,6 +2509,7 @@ function ContatosView({ clientes, grupos, emailsFuncionarios, onChange, somenteN
         <ContatoModal
           contato={selecionado}
           clientes={clientes}
+          leoEmpresas={leoEmpresas}
           grupos={grupos}
           onClose={() => setSelecionado(null)}
           onChange={() => { carregar(); onChange() }}
@@ -4636,10 +4660,11 @@ function CadastroCard({ tabela, titulo, itens, onChange }: {
 // ============================================================
 // Modal de criação manual de ticket
 // ============================================================
-function NovoTicketTela({ agentes, tecnicos, clientes, contatos, cadastros, onVoltar, onCreated }: {
+function NovoTicketTela({ agentes, tecnicos, clientes, leoEmpresas = [], contatos, cadastros, onVoltar, onCreated }: {
   agentes: UsuarioSistema[]
   tecnicos: UsuarioSistema[]
   clientes: any[]
+  leoEmpresas?: any[]
   contatos: any[]
   cadastros: { tipos: any[]; classificacoes: any[]; grupos: any[]; departamentos: any[] }
   onVoltar: () => void
@@ -4664,6 +4689,15 @@ function NovoTicketTela({ agentes, tecnicos, clientes, contatos, cadastros, onVo
   const [anexos, setAnexos] = useState<{ nome: string; tipo: string; url: string; tamanho: number }[]>([])
   const [salvando, setSalvando] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const empresasLista = useMemo(() => {
+    const base = (clientes || []).map((c: any) => ({ id: c.id, nome_empresa: c.nome_empresa }))
+    const nomesVistos = new Set(base.map(c => (c.nome_empresa || '').trim().toLowerCase()))
+    const leo = (leoEmpresas || [])
+      .filter((e: any) => !nomesVistos.has((e.nome_empresa || '').trim().toLowerCase()))
+      .map((e: any) => ({ id: e.id, nome_empresa: e.nome_empresa }))
+    return [...base, ...leo]
+  }, [clientes, leoEmpresas])
 
   const adicionarArquivos = (files: File[]) => {
     files.forEach(file => {
@@ -4697,7 +4731,7 @@ function NovoTicketTela({ agentes, tecnicos, clientes, contatos, cadastros, onVo
     if (!htmlTemTexto(descricao)) { alert('Informe a descrição do ticket.'); return }
     setSalvando(true)
     try {
-      const empresaMatch = clientes.find(c => (c.nome_empresa || '').toLowerCase() === empresa.trim().toLowerCase())
+      const empresaMatch = empresasLista.find(c => (c.nome_empresa || '').toLowerCase() === empresa.trim().toLowerCase())
       const agente = agentes.find(a => a.id === agenteId)
       const tecnico = tecnicos.find(t => t.id === tecnicoId)
       const novo = await api.createTicket({
@@ -4789,7 +4823,7 @@ function NovoTicketTela({ agentes, tecnicos, clientes, contatos, cadastros, onVo
                   if (!email && ct.email) setContatoEmail(ct.email)
                   // Preenche a empresa automaticamente
                   if (ct.empresa_id) {
-                    const emp = clientes.find(c => c.id === ct.empresa_id)
+                    const emp = empresasLista.find(c => c.id === ct.empresa_id)
                     if (emp) setEmpresa(emp.nome_empresa)
                   } else if (ct.empresa_nome) {
                     setEmpresa(ct.empresa_nome)
@@ -4824,7 +4858,7 @@ function NovoTicketTela({ agentes, tecnicos, clientes, contatos, cadastros, onVo
               className={inputCls}
             />
             <datalist id="lista-empresas-novo">
-              {clientes.map(c => <option key={c.id} value={c.nome_empresa} />)}
+              {empresasLista.map(c => <option key={c.id} value={c.nome_empresa} />)}
             </datalist>
           </div>
 
@@ -4959,11 +4993,12 @@ function NovoTicketTela({ agentes, tecnicos, clientes, contatos, cadastros, onVo
 // ============================================================
 // Detalhe do ticket
 // ============================================================
-function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emailsFuncionarios, cadastros, onVoltar, onProximo, onChange }: {
+function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, leoEmpresas = [], contatos, emailsFuncionarios, cadastros, onVoltar, onProximo, onChange }: {
   ticketId: string
   agentes: UsuarioSistema[]
   tecnicos: UsuarioSistema[]
   clientes: any[]
+  leoEmpresas?: any[]
   contatos: any[]
   emailsFuncionarios: string[]
   cadastros: { tipos: any[]; classificacoes: any[]; grupos: any[]; departamentos: any[] }
@@ -6664,6 +6699,7 @@ function TicketDetalhe({ ticketId, agentes, tecnicos, clientes, contatos, emails
         <ContatoModal
           contato={contatoAberto}
           clientes={clientes}
+          leoEmpresas={leoEmpresas}
           grupos={cadastros.grupos}
           onClose={() => setContatoAberto(null)}
           onChange={() => { carregar(); onChange() }}
