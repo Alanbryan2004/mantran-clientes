@@ -180,6 +180,16 @@ export function NotificationsPopover() {
             return false
           }
 
+          // Notificação de convite ou lembrete de calendário: é estritamente pessoal de cada convidado
+          // (não deve exibir os convites de outros convidados para o Administrador)
+          const isCalendarioItem = n.tipo === 'calendario_convite' || n.tipo === 'calendario_lembrete' || n.dados_extras?.modulo === 'calendario'
+          if (isCalendarioItem) {
+            const destCal = n.dados_extras?.destinatario_usuario_id
+            if (destCal && destCal !== currentUser?.id) {
+              return false
+            }
+          }
+
           // Notificação direcionada a usuário específico (outros módulos)
           const destinatario = n.dados_extras?.destinatario_usuario_id
           if (destinatario && destinatario !== currentUser?.id && !isAdmin) {
@@ -205,11 +215,23 @@ export function NotificationsPopover() {
           lida: readIds.has(n.id) // O status de lida é estritamente pessoal deste usuário
         }))
 
-      // Agrupamento/Deduplicação de QA por Tela:
+      // Agrupamento/Deduplicação de QA por Tela e Convites de Calendário:
       // A notificação de QA Reprovado/Aprovado deve ser UMA por Tela no painel, mantendo a mais recente
       const telasQaVistas = new Set<string>()
       const telasQaAprovadasVistas = new Set<string>()
+      const eventosConviteVistos = new Set<string>()
       const userListDeduplicada = userList.filter((n: any) => {
+        // Convite de Calendário: no máximo 1 convite por evento na lista do usuário
+        if (n.tipo === 'calendario_convite' || n.dados_extras?.modulo === 'calendario') {
+          const evKey = n.dados_extras?.evento_id || n.titulo
+          if (evKey) {
+            if (eventosConviteVistos.has(evKey)) {
+              return false // Descarta repetições anteriores do mesmo convite
+            }
+            eventosConviteVistos.add(evKey)
+          }
+        }
+
         const isQaReprovado = n.tipo === 'qa_reprovado' || n.dados_extras?.acao === 'reprovacao'
         const isQaAprovado = n.tipo === 'qa_aprovado' || n.dados_extras?.acao === 'aprovacao'
 
@@ -1062,6 +1084,8 @@ export function NotificationsPopover() {
                                 ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
                                 : isPlantao
                                 ? "bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+                                : isCalendario
+                                ? "bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border-teal-500/30"
                                 : isTicket
                                 ? "bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border-sky-500/30"
                                 : isNovaImplantacao
@@ -1078,6 +1102,8 @@ export function NotificationsPopover() {
                               ? 'Validar Tela'
                               : isPontoLembrete
                               ? 'Visualizar Ponto'
+                              : isCalendario
+                              ? 'Abrir Calendário'
                               : isRhNotification
                               ? 'Abrir RH'
                               : isNovaImplantacao
