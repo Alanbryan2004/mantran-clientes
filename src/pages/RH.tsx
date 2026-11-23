@@ -276,10 +276,10 @@ export function RH() {
   const [escalaUsuarioNome, setEscalaUsuarioNome] = useState('')
   const [escalaTurma, setEscalaTurma] = useState<'natal' | 'ano_novo'>('natal')
   const [escalaRegime, setEscalaRegime] = useState('Home Office')
-  const [escalaDiasTrabalhados, setEscalaDiasTrabalhados] = useState(17)
-  const [escalaDiasFolga, setEscalaDiasFolga] = useState(5)
-  const [escalaValorVrDiario, setEscalaValorVrDiario] = useState(35)
-  const [escalaTotalVr, setEscalaTotalVr] = useState(595)
+  const [escalaDiasTrabalhados, setEscalaDiasTrabalhados] = useState(12)
+  const [escalaDiasFolga, setEscalaDiasFolga] = useState(10)
+  const [escalaValorVrDiario, setEscalaValorVrDiario] = useState(30)
+  const [escalaTotalVr, setEscalaTotalVr] = useState(360)
   const [escalaObs, setEscalaObs] = useState('')
   const [salvandoEscala, setSalvandoEscala] = useState(false)
 
@@ -290,8 +290,9 @@ export function RH() {
   const [configAnoNovoInicio, setConfigAnoNovoInicio] = useState('')
   const [configAnoNovoFim, setConfigAnoNovoFim] = useState('')
   const [configDiasUteisMes, setConfigDiasUteisMes] = useState(22)
+  const [configDiasHomeOfficeRecesso, setConfigDiasHomeOfficeRecesso] = useState(5)
   const [configDiasFolgaRecesso, setConfigDiasFolgaRecesso] = useState(5)
-  const [configValorVrDiario, setConfigValorVrDiario] = useState(35)
+  const [configValorVrDiario, setConfigValorVrDiario] = useState(30)
   const [configRecalcularTodos, setConfigRecalcularTodos] = useState(true)
   const [salvandoConfigEscala, setSalvandoConfigEscala] = useState(false)
 
@@ -315,9 +316,10 @@ export function RH() {
 
   const handleAbrirModalEscala = (item?: EscalaFimAno, defaultUserId?: string) => {
     const cfg = configEscalaFimAno
-    const diasTrabPadrao = Math.max(1, (cfg.dias_uteis_mes || 22) - (cfg.dias_folga_recesso || 5))
-    const diasFolgaPadrao = cfg.dias_folga_recesso || 5
-    const valorVrPadrao = cfg.valor_vr_diario_padrao || 35
+    const deducaoRecesso = (cfg.dias_home_office_recesso ?? 5) + (cfg.dias_folga_recesso ?? 5)
+    const diasTrabPadrao = Math.max(1, (cfg.dias_uteis_mes || 22) - deducaoRecesso)
+    const diasFolgaPadrao = deducaoRecesso
+    const valorVrPadrao = cfg.valor_vr_diario_padrao || 30
 
     if (item) {
       setEditingEscalaId(item.id)
@@ -428,9 +430,10 @@ export function RH() {
     if (!confirm(`Existem ${pendentes.length} colaboradores sem turma na escala de ${anoEscalaFimAno}.\nDeseja distribuí-los equilibradamente (50% Natal / 50% Ano Novo)?`)) return
 
     const cfg = configEscalaFimAno
-    const diasTrab = Math.max(1, (cfg.dias_uteis_mes || 22) - (cfg.dias_folga_recesso || 5))
-    const diasFolga = cfg.dias_folga_recesso || 5
-    const valorVr = cfg.valor_vr_diario_padrao || 35
+    const deducaoRecesso = (cfg.dias_home_office_recesso ?? 5) + (cfg.dias_folga_recesso ?? 5)
+    const diasTrab = Math.max(1, (cfg.dias_uteis_mes || 22) - deducaoRecesso)
+    const diasFolga = deducaoRecesso
+    const valorVr = cfg.valor_vr_diario_padrao || 30
     const totalVr = diasTrab * valorVr
 
     let countNatal = todasEscalasFimAno.filter(e => e.turma === 'natal').length
@@ -476,8 +479,9 @@ export function RH() {
     setConfigAnoNovoInicio(cfg.data_ano_novo_inicio)
     setConfigAnoNovoFim(cfg.data_ano_novo_fim)
     setConfigDiasUteisMes(cfg.dias_uteis_mes)
-    setConfigDiasFolgaRecesso(cfg.dias_folga_recesso)
-    setConfigValorVrDiario(cfg.valor_vr_diario_padrao)
+    setConfigDiasHomeOfficeRecesso(cfg.dias_home_office_recesso ?? 5)
+    setConfigDiasFolgaRecesso(cfg.dias_folga_recesso ?? 5)
+    setConfigValorVrDiario(cfg.valor_vr_diario_padrao || 30)
     setIsConfigEscalaModalOpen(true)
   }
 
@@ -492,6 +496,7 @@ export function RH() {
         data_ano_novo_inicio: configAnoNovoInicio,
         data_ano_novo_fim: configAnoNovoFim,
         dias_uteis_mes: Number(configDiasUteisMes),
+        dias_home_office_recesso: Number(configDiasHomeOfficeRecesso),
         dias_folga_recesso: Number(configDiasFolgaRecesso),
         valor_vr_diario_padrao: Number(configValorVrDiario)
       }
@@ -499,14 +504,15 @@ export function RH() {
       setConfigEscalaFimAno(novaCfg)
 
       if (configRecalcularTodos && todasEscalasFimAno.length > 0) {
-        const diasTrab = Math.max(1, Number(configDiasUteisMes) - Number(configDiasFolgaRecesso))
+        const deducao = Number(configDiasHomeOfficeRecesso) + Number(configDiasFolgaRecesso)
+        const diasTrab = Math.max(1, Number(configDiasUteisMes) - deducao)
         const vVr = Number(configValorVrDiario)
         const totalCalc = diasTrab * vVr
 
         const atualizados = todasEscalasFimAno.map(item => ({
           ...item,
           dias_trabalhados: diasTrab,
-          dias_folga: Number(configDiasFolgaRecesso),
+          dias_folga: deducao,
           valor_vr_diario: vVr,
           total_vr: totalCalc,
           atualizado_por: user?.nome || 'Admin'
@@ -2301,7 +2307,7 @@ export function RH() {
               </div>
 
               <p className="text-xs text-slate-400 max-w-3xl leading-relaxed">
-                A equipe se divide em duas frentes: uma atua na <strong>Semana do Natal</strong> de Home Office e descansa na <strong>Semana do Ano Novo</strong>; a outra descansa no Natal e atua de Home Office no Ano Novo. O RH utiliza esta escala para calcular com exatidão os dias úteis e o <strong>Vale Refeição (VR) de Dezembro</strong>.
+                A equipe se divide em duas frentes em regime de Home Office. <strong>Regra Mantran:</strong> Quem atua de <strong>Home Office não recebe VR</strong>, assim como em dias de folga/descanso. Logo, as duas semanas finais de Dezembro (10 dias úteis de recesso) são deduzidas integralmente do benefício, contemplando <strong>exclusivamente os dias úteis presenciais</strong> regulares (padrão de 12 dias x R$ 30,00 = R$ 360,00).
               </p>
             </div>
 
@@ -2449,7 +2455,10 @@ export function RH() {
                     Seu VR de Dezembro
                   </span>
                   <span className="text-xs text-slate-300">
-                    <strong className="text-emerald-400 font-mono">{minhaEscala.dias_trabalhados}</strong> dias úteis x R$ {minhaEscala.valor_vr_diario.toFixed(2)}
+                    <strong className="text-emerald-400 font-mono">{minhaEscala.dias_trabalhados}</strong> dias presenciais x R$ {minhaEscala.valor_vr_diario.toFixed(2)}
+                  </span>
+                  <span className="text-[9px] text-amber-300/80 block mt-0.5">
+                    (Sem VR no recesso: 5d Home Office + 5d Folga)
                   </span>
                 </div>
                 <div className="text-right">
@@ -2774,8 +2783,8 @@ export function RH() {
                   <th className="py-3 px-3">Colaborador</th>
                   <th className="py-3 px-3">Turma Recesso</th>
                   <th className="py-3 px-3">Regime Ativo</th>
-                  <th className="py-3 px-3 text-center">Dias Trab. (VR)</th>
-                  <th className="py-3 px-3 text-center">Folga Recesso</th>
+                  <th className="py-3 px-3 text-center">Dias Presenciais (VR)</th>
+                  <th className="py-3 px-3 text-center">Dedução Recesso (HO + Folga)</th>
                   <th className="py-3 px-3 text-right">VR Diário</th>
                   <th className="py-3 px-3 text-right">Total VR Dezembro</th>
                   <th className="py-3 px-3">Observações</th>
@@ -7659,7 +7668,7 @@ export function RH() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Dias Trabalhados (VR)
+                    Dias Presenciais (VR)
                   </label>
                   <input
                     type="number"
@@ -7674,23 +7683,23 @@ export function RH() {
                     className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-mono font-bold focus:border-emerald-500"
                     required
                   />
-                  <span className="text-[10px] text-slate-500 mt-1 block">Dias úteis c/ VR</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">Dias presenciais com VR</span>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                    Dias Folga Recesso
+                    Dedução Recesso (Sem VR)
                   </label>
                   <input
                     type="number"
                     min="0"
-                    max="15"
+                    max="20"
                     value={escalaDiasFolga}
                     onChange={e => setEscalaDiasFolga(Number(e.target.value) || 0)}
                     className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-mono font-bold focus:border-emerald-500"
                     required
                   />
-                  <span className="text-[10px] text-slate-500 mt-1 block">Dias descanso</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">Home Office (5d) + Folga (5d)</span>
                 </div>
               </div>
 
@@ -7848,7 +7857,7 @@ export function RH() {
               </div>
 
               {/* Parâmetros de Dias e VR */}
-              <div className="grid grid-cols-3 gap-3 pt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                     Dias Úteis Mês
@@ -7867,7 +7876,23 @@ export function RH() {
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    Dias Folga Recesso
+                    HO Recesso (Sem VR)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="15"
+                    value={configDiasHomeOfficeRecesso}
+                    onChange={e => setConfigDiasHomeOfficeRecesso(Number(e.target.value) || 0)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold focus:border-purple-500"
+                    required
+                  />
+                  <span className="text-[9px] text-slate-500 mt-0.5 block">Semana Home Office</span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Folga (Sem VR)
                   </label>
                   <input
                     type="number"
@@ -7878,7 +7903,7 @@ export function RH() {
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold focus:border-purple-500"
                     required
                   />
-                  <span className="text-[9px] text-slate-500 mt-0.5 block">Descanso por turma</span>
+                  <span className="text-[9px] text-slate-500 mt-0.5 block">Semana de descanso</span>
                 </div>
 
                 <div>
@@ -7894,19 +7919,37 @@ export function RH() {
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold focus:border-purple-500"
                     required
                   />
-                  <span className="text-[9px] text-slate-500 mt-0.5 block">Valor padrão</span>
+                  <span className="text-[9px] text-slate-500 mt-0.5 block">Padrão Mantran</span>
                 </div>
               </div>
 
               {/* Demonstrativo do Cálculo */}
-              <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-xs text-purple-200 space-y-1">
-                <span className="font-bold block">Resumo do Cálculo Padrão:</span>
-                <p className="text-[11px] text-purple-300/80">
-                  Dias Efetivos com VR: <strong>{Number(configDiasUteisMes) - Number(configDiasFolgaRecesso)} dias</strong> ({configDiasUteisMes} úteis - {configDiasFolgaRecesso} recesso).
-                </p>
-                <p className="text-[11px] text-purple-300/80">
-                  VR por Colaborador: <strong>R$ {((Number(configDiasUteisMes) - Number(configDiasFolgaRecesso)) * Number(configValorVrDiario)).toFixed(2)}</strong> ({Number(configDiasUteisMes) - Number(configDiasFolgaRecesso)} dias x R$ {Number(configValorVrDiario).toFixed(2)}).
-                </p>
+              <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-xs text-purple-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5 text-purple-300">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    Resumo do Cálculo Padrão do VR:
+                  </span>
+                  <span className="font-mono font-black text-sm text-emerald-400">
+                    R$ {(Math.max(1, Number(configDiasUteisMes) - (Number(configDiasHomeOfficeRecesso) + Number(configDiasFolgaRecesso))) * Number(configValorVrDiario)).toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="text-[11px] text-purple-300/90 space-y-1">
+                  <p>
+                    • Dedução do Recesso: <strong>{Number(configDiasHomeOfficeRecesso) + Number(configDiasFolgaRecesso)} dias sem VR</strong> ({configDiasHomeOfficeRecesso}d Home Office + {configDiasFolgaRecesso}d Folga).
+                  </p>
+                  <p>
+                    • Dias Presenciais com VR: <strong>{Math.max(1, Number(configDiasUteisMes) - (Number(configDiasHomeOfficeRecesso) + Number(configDiasFolgaRecesso)))} dias úteis</strong> ({configDiasUteisMes} úteis no mês - {Number(configDiasHomeOfficeRecesso) + Number(configDiasFolgaRecesso)} recesso).
+                  </p>
+                  <p>
+                    • VR por Colaborador: <strong>R$ {(Math.max(1, Number(configDiasUteisMes) - (Number(configDiasHomeOfficeRecesso) + Number(configDiasFolgaRecesso))) * Number(configValorVrDiario)).toFixed(2)}</strong> ({Math.max(1, Number(configDiasUteisMes) - (Number(configDiasHomeOfficeRecesso) + Number(configDiasFolgaRecesso)))} dias x R$ {Number(configValorVrDiario).toFixed(2)}).
+                  </p>
+                </div>
+
+                <div className="pt-1 border-t border-purple-500/20 text-[10px] text-purple-300/70">
+                  ⚠️ <em>Regra Mantran: Colaborador em Home Office <strong>não recebe VR</strong>, assim como em dias de folga/descanso.</em>
+                </div>
               </div>
 
               {/* Checkbox Recalcular Todos */}

@@ -3533,10 +3533,10 @@ export const api = {
       usuario_nome: payload.usuario_nome!,
       turma: payload.turma || 'natal',
       regime: payload.regime || 'Home Office',
-      dias_trabalhados: Number(payload.dias_trabalhados ?? 17),
-      dias_folga: Number(payload.dias_folga ?? 5),
-      valor_vr_diario: Number(payload.valor_vr_diario ?? 35),
-      total_vr: Number(payload.total_vr ?? (Number(payload.dias_trabalhados ?? 17) * Number(payload.valor_vr_diario ?? 35))),
+      dias_trabalhados: Number(payload.dias_trabalhados ?? 12),
+      dias_folga: Number(payload.dias_folga ?? 10),
+      valor_vr_diario: Number(payload.valor_vr_diario ?? 30),
+      total_vr: Number(payload.total_vr ?? (Number(payload.dias_trabalhados ?? 12) * Number(payload.valor_vr_diario ?? 30))),
       observacoes: payload.observacoes || null,
       atualizado_por: payload.atualizado_por || null,
       created_at: payload.created_at || new Date().toISOString(),
@@ -3608,7 +3608,16 @@ export const api = {
     const chave = `@Mantran:config_escala_fim_ano_${anoRef}`
     try {
       const saved = typeof window !== 'undefined' ? localStorage.getItem(chave) : null
-      if (saved) return JSON.parse(saved)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.valor_vr_diario_padrao === 35 || !parsed.valor_vr_diario_padrao) {
+          parsed.valor_vr_diario_padrao = 30.00
+        }
+        if (parsed.dias_home_office_recesso === undefined) {
+          parsed.dias_home_office_recesso = 5
+        }
+        return parsed
+      }
     } catch {}
 
     return {
@@ -3618,8 +3627,9 @@ export const api = {
       data_ano_novo_inicio: `${anoRef}-12-28`,
       data_ano_novo_fim: `${anoRef + 1}-01-01`,
       dias_uteis_mes: 22,
+      dias_home_office_recesso: 5,
       dias_folga_recesso: 5,
-      valor_vr_diario_padrao: 35.00
+      valor_vr_diario_padrao: 30.00
     }
   },
 
@@ -6808,6 +6818,7 @@ export interface ConfigEscalaFimAno {
   data_ano_novo_inicio: string
   data_ano_novo_fim: string
   dias_uteis_mes: number
+  dias_home_office_recesso: number
   dias_folga_recesso: number
   valor_vr_diario_padrao: number
 }
