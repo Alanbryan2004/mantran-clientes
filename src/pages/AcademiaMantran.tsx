@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   GraduationCap, Search, Play, Plus, Pencil, Trash2, X, Save,
-  Loader2, AlertCircle, Video, ExternalLink, Settings, CheckCircle2
+  Loader2, AlertCircle, Video, ExternalLink, Settings, CheckCircle2,
+  Link2, Share2, Check
 } from 'lucide-react'
 import clsx from 'clsx'
 import { api, type AcademiaVideo } from '../lib/api'
@@ -18,6 +20,85 @@ const PASSO_SALVAR_PCT = 20
 // Compara nomes de módulo ignorando acento e maiúsculas (ex.: "NFSE" = "NFSe")
 const normalizarNome = (s: string) =>
   (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+
+/**
+ * Converte o título do vídeo em um slug limpo e atraente para a URL.
+ * Exemplo: "Emissão de MDF-E com CIOT manual gerado fora do Mantran"
+ * -> "emissao-de-mdf-e-com-ciot-manual-gerado-fora-do-mantran"
+ */
+export function gerarSlugAcademia(titulo: string): string {
+  if (!titulo) return ''
+  return titulo
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-') // substitui caracteres especiais e espaços por hífen
+    .replace(/^-+|-+$/g, '') // remove hífens das extremidades
+}
+
+/**
+ * Monta o endereço completo compartilhável do vídeo.
+ */
+export function buildUrlVideoAcademia(video: { id?: string; titulo: string }): string {
+  const slug = gerarSlugAcademia(video.titulo)
+  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${base}/academia/${slug || video.id || ''}`
+}
+
+/**
+ * Verifica se um parâmetro (slug amigável, ID do banco ou youtube_id) corresponde a um vídeo.
+ */
+export function matchSlugAcademia(param: string, video: AcademiaVideo): boolean {
+  if (!param) return false
+  const pTrim = param.trim().toLowerCase()
+  if (video.id && video.id.toLowerCase() === pTrim) return true
+  if (video.youtube_id && video.youtube_id === param.trim()) return true
+
+  const normParam = param
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  const slugVideo = gerarSlugAcademia(video.titulo)
+  if (slugVideo === normParam) return true
+
+  // Comparação flexível sem traços
+  const limpoParam = normParam.replace(/-/g, '')
+  const limpoVideo = slugVideo.replace(/-/g, '')
+  return limpoVideo.length > 0 && limpoVideo === limpoParam
+}
+
+/**
+ * Copia texto para a área de transferência de forma robusta e compatível em todos os navegadores.
+ */
+export async function copiarParaClipboard(texto: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(texto)
+      return true
+    }
+  } catch (err) {
+    console.warn('Clipboard API nativa indisponível, usando fallback textarea:', err)
+  }
+
+  try {
+    const textArea = document.createElement('textarea')
+    textArea.value = texto
+    textArea.style.position = 'fixed'
+    textArea.style.opacity = '0'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    const sucesso = document.execCommand('copy')
+    document.body.removeChild(textArea)
+    return sucesso
+  } catch (e) {
+    console.error('Falha ao copiar para clipboard:', e)
+    return false
+  }
+}
 
 // Valor interno do filtro "vídeos sem módulo"
 const SEM_MODULO = '__sem_modulo__'
@@ -41,6 +122,10 @@ export function AcademiaMantran() {
   const usuario = getLoggedUser()
   const usuarioChave = usuario?.id ? String(usuario.id) : ''
 
+  const { slug } = useParams<{ slug?: string }>()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
   const [videos, setVideos] = useState<AcademiaVideo[]>([])
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
@@ -53,6 +138,9 @@ export function AcademiaMantran() {
   const [editando, setEditando] = useState<AcademiaVideo | 'novo' | null>(null)
   const [progresso, setProgresso] = useState<Record<string, ProgressoVideo>>({})
   const progressoRef = useRef<Record<string, ProgressoVideo>>({})
+
+  const [linkCopiadoId, setLinkCopiadoId] = useState<string | null>(null)
+  const [toastLink, setToastLink] = useState<string | null>(null)
 
   useEffect(() => { progressoRef.current = progresso }, [progresso])
 
@@ -70,6 +158,47 @@ export function AcademiaMantran() {
   }
 
   useEffect(() => { carregar() }, [])
+
+  // Abre o vídeo automaticamente quando informado na URL (/academia/:slug ou ?video=... ou ?v=... ou ?id=...)
+  useEffect(() => {
+    if (loading || videos.length === 0) return
+    const param = slug || searchParams.get('video') || searchParams.get('v') || searchParams.get('id')
+    if (!param) return
+
+    const encontrado = videos.find(v => matchSlugAcademia(param, v))
+    if (encontrado) {
+      setAssistindo(encontrado)
+      document.title = `${encontrado.titulo} | Academia Mantran`
+    }
+  }, [loading, videos, slug, searchParams])
+
+  const abrirVideo = (v: AcademiaVideo) => {
+    setAssistindo(v)
+    document.title = `${v.titulo} | Academia Mantran`
+    const s = gerarSlugAcademia(v.titulo)
+    if (s && s !== slug) {
+      navigate(`/academia/${s}`, { replace: false })
+    }
+  }
+
+  const fecharVideo = () => {
+    setAssistindo(null)
+    document.title = 'Academia Mantran'
+    if (slug) {
+      navigate('/academia', { replace: true })
+    }
+  }
+
+  const copiarLinkVideo = async (v: AcademiaVideo) => {
+    const url = buildUrlVideoAcademia(v)
+    const copiou = await copiarParaClipboard(url)
+    if (copiou) {
+      setLinkCopiadoId(v.id)
+      setToastLink(url)
+      setTimeout(() => setLinkCopiadoId(null), 2500)
+      setTimeout(() => setToastLink(null), 3500)
+    }
+  }
 
   useEffect(() => {
     if (!ehCliente) return
@@ -114,10 +243,10 @@ export function AcademiaMantran() {
   // Fecha o player com a tecla Esc
   useEffect(() => {
     if (!assistindo) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setAssistindo(null) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') fecharVideo() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [assistindo])
+  }, [assistindo, slug])
 
   // Vídeos que o usuário pode ver. Equipe Mantran vê tudo. Cliente vê os vídeos sem módulo
   // (conteúdo geral) e os que têm ao menos um módulo contratado por ele.
@@ -323,7 +452,7 @@ export function AcademiaMantran() {
               >
                 <button
                   type="button"
-                  onClick={() => setAssistindo(v)}
+                  onClick={() => abrirVideo(v)}
                   aria-label={`Assistir: ${v.titulo}${statusTexto}`}
                   className="relative block w-full aspect-video bg-slate-200 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 >
@@ -369,7 +498,7 @@ export function AcademiaMantran() {
                   )}
                   <button
                     type="button"
-                    onClick={() => setAssistindo(v)}
+                    onClick={() => abrirVideo(v)}
                     className="text-left text-sm font-bold text-slate-900 hover:text-brand-600 transition-colors cursor-pointer line-clamp-2"
                   >
                     {v.titulo}
@@ -378,24 +507,52 @@ export function AcademiaMantran() {
                     <p className="text-xs text-slate-500 mt-1.5 line-clamp-2">{v.descricao}</p>
                   )}
 
-                  {podeEditar && (
-                    <div className="flex items-center gap-1 mt-auto pt-3">
-                      <button
-                        type="button"
-                        onClick={() => setEditando(v)}
-                        className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 hover:text-brand-600 hover:bg-slate-100 flex items-center gap-1.5 cursor-pointer transition-colors"
-                      >
-                        <Pencil className="w-3.5 h-3.5" /> Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => excluir(v)}
-                        className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 hover:text-red-600 hover:bg-red-50 flex items-center gap-1.5 cursor-pointer transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Excluir
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between gap-1 mt-auto pt-3 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        copiarLinkVideo(v)
+                      }}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                        linkCopiadoId === v.id
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-xs'
+                          : 'text-slate-600 hover:text-brand-600 hover:bg-slate-100 border border-transparent'
+                      }`}
+                      title="Copiar link atrativo deste vídeo para enviar ao cliente"
+                    >
+                      {linkCopiadoId === v.id ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700 font-bold">Link Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-brand-600" />
+                          <span>Copiar Link</span>
+                        </>
+                      )}
+                    </button>
+
+                    {podeEditar && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditando(v)}
+                          className="px-2 py-1 text-[11px] font-bold rounded-lg text-slate-600 hover:text-brand-600 hover:bg-slate-100 flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" /> Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => excluir(v)}
+                          className="px-2 py-1 text-[11px] font-bold rounded-lg text-slate-600 hover:text-red-600 hover:bg-red-50 flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Excluir
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </article>
             )
@@ -411,9 +568,24 @@ export function AcademiaMantran() {
         <PlayerModal
           key={assistindo.id}
           video={assistindo}
-          onClose={() => setAssistindo(null)}
+          onClose={fecharVideo}
           onProgresso={(pct, concluido) => registrarProgresso(assistindo, pct, concluido)}
+          onCopiarLink={copiarLinkVideo}
+          copiado={linkCopiadoId === assistindo.id}
         />
+      )}
+
+      {/* Toast flutuante de confirmação de cópia */}
+      {toastLink && (
+        <div className="fixed bottom-6 right-6 z-[10001] bg-slate-900/95 text-white border border-slate-700 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 backdrop-blur-md animate-fade-in max-w-md">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Check className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="text-xs min-w-0">
+            <p className="font-bold text-emerald-400">Link do vídeo copiado!</p>
+            <p className="text-slate-300 font-mono text-[10px] truncate">{toastLink}</p>
+          </div>
+        </div>
       )}
 
       {/* Cadastro / edição */}
@@ -436,10 +608,12 @@ export function AcademiaMantran() {
 // Marca "assistido" ao chegar a 90% ou ao terminar. Se a API não carregar, cai num
 // player simples (sem registrar conclusão, só que o vídeo foi aberto).
 // ============================================================
-function PlayerModal({ video, onClose, onProgresso }: {
+function PlayerModal({ video, onClose, onProgresso, onCopiarLink, copiado }: {
   video: AcademiaVideo
   onClose: () => void
   onProgresso: (pct: number, concluido: boolean) => void
+  onCopiarLink: (video: AcademiaVideo) => void
+  copiado?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [semApi, setSemApi] = useState(false)
@@ -548,19 +722,53 @@ function PlayerModal({ video, onClose, onProgresso }: {
         style={{ width: 'min(96vw, 1280px, calc((100vh - 10rem) * 16 / 9))' }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 px-5 py-3 border-b border-slate-200">
-          <div className="min-w-0">
-            <h2 className="text-base font-bold text-slate-900 truncate">{video.titulo}</h2>
-            {video.descricao && <p className="text-xs text-slate-500 mt-0.5">{video.descricao}</p>}
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200">
+          <div className="min-w-0 pr-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900 truncate">{video.titulo}</h2>
+              {video.secao && (
+                <span className="hidden sm:inline px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wide shrink-0">
+                  {video.secao}
+                </span>
+              )}
+            </div>
+            {video.descricao && <p className="text-xs text-slate-500 mt-0.5 truncate sm:whitespace-normal line-clamp-1">{video.descricao}</p>}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar vídeo"
-            className="shrink-0 text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => onCopiarLink(video)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                copiado
+                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-300'
+                  : 'bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 hover:border-brand-300'
+              }`}
+              title="Copiar link atrativo deste vídeo para disponibilizar aos clientes"
+            >
+              {copiado ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-white" />
+                  <span>Link Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Link2 className="w-3.5 h-3.5 text-brand-600" />
+                  <span className="hidden sm:inline">Copiar Link do Vídeo</span>
+                  <span className="sm:hidden">Copiar Link</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar vídeo"
+              className="shrink-0 text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {semApi ? (
@@ -585,14 +793,36 @@ function PlayerModal({ video, onClose, onProgresso }: {
               <strong>A imagem está borrada?</strong> Toque na engrenagem do vídeo, abra <strong>Qualidade</strong> e selecione <strong>1080p (HD)</strong>.
             </span>
           </p>
-          <a
-            href={video.youtube_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[11px] font-semibold text-slate-500 hover:text-brand-600 flex items-center gap-1.5"
-          >
-            <ExternalLink className="w-3.5 h-3.5" /> Não carregou? Abrir no YouTube
-          </a>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => onCopiarLink(video)}
+              className="text-[11px] font-bold text-brand-600 hover:text-brand-800 flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Copiar link amigável deste vídeo para enviar ao cliente"
+            >
+              {copiado ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-emerald-600 font-bold">Link copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Compartilhar Link</span>
+                </>
+              )}
+            </button>
+            <span className="text-slate-300">•</span>
+            <a
+              href={video.youtube_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] font-semibold text-slate-500 hover:text-brand-600 flex items-center gap-1.5"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Não carregou? Abrir no YouTube
+            </a>
+          </div>
         </div>
       </div>
     </div>
