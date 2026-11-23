@@ -40,7 +40,9 @@ import {
   ChevronLeft,
   CalendarDays,
   Search,
-  Filter
+  Filter,
+  TreePine,
+  Utensils
 } from 'lucide-react'
 import { 
   api, 
@@ -52,7 +54,9 @@ import {
   type RegistroPonto,
   type TipoPonto,
   type JornadaTrabalho,
-  type SolicitacaoDayOff
+  type SolicitacaoDayOff,
+  type EscalaFimAno,
+  type ConfigEscalaFimAno
 } from '../lib/api'
 import { getLoggedUser, isAdminUser, updateLoggedUserFoto, updateLoggedUserDataNascimento, updateLoggedUserEmails, updateLoggedUserAssinatura } from '../lib/auth'
 import { ControlePontoModal } from '../components/ControlePontoModal'
@@ -256,6 +260,328 @@ export function RH() {
     observacoes: string
   } | null>(null)
   const [salvandoJornada, setSalvandoJornada] = useState(false)
+
+  // --- ESCALA DE FIM DE ANO (NATAL & ANO NOVO) & CONTROLE DE VR DE DEZEMBRO ---
+  const [anoEscalaFimAno, setAnoEscalaFimAno] = useState<number>(new Date().getFullYear())
+  const [todasEscalasFimAno, setTodasEscalasFimAno] = useState<EscalaFimAno[]>([])
+  const [configEscalaFimAno, setConfigEscalaFimAno] = useState<ConfigEscalaFimAno>(() => api.getConfigEscalaFimAno(new Date().getFullYear()))
+  const [carregandoEscalaFimAno, setCarregandoEscalaFimAno] = useState(false)
+  const [buscaEscalaFimAno, setBuscaEscalaFimAno] = useState('')
+  const [filtroTurmaEscala, setFiltroTurmaEscala] = useState<'todos' | 'natal' | 'ano_novo' | 'sem_escala'>('todos')
+
+  // Modais de Escala Fim de Ano
+  const [isEscalaModalOpen, setIsEscalaModalOpen] = useState(false)
+  const [editingEscalaId, setEditingEscalaId] = useState<string | null>(null)
+  const [escalaUsuarioId, setEscalaUsuarioId] = useState('')
+  const [escalaUsuarioNome, setEscalaUsuarioNome] = useState('')
+  const [escalaTurma, setEscalaTurma] = useState<'natal' | 'ano_novo'>('natal')
+  const [escalaRegime, setEscalaRegime] = useState('Home Office')
+  const [escalaDiasTrabalhados, setEscalaDiasTrabalhados] = useState(17)
+  const [escalaDiasFolga, setEscalaDiasFolga] = useState(5)
+  const [escalaValorVrDiario, setEscalaValorVrDiario] = useState(35)
+  const [escalaTotalVr, setEscalaTotalVr] = useState(595)
+  const [escalaObs, setEscalaObs] = useState('')
+  const [salvandoEscala, setSalvandoEscala] = useState(false)
+
+  // Modal de Configuração de Parâmetros e VR
+  const [isConfigEscalaModalOpen, setIsConfigEscalaModalOpen] = useState(false)
+  const [configNatalInicio, setConfigNatalInicio] = useState('')
+  const [configNatalFim, setConfigNatalFim] = useState('')
+  const [configAnoNovoInicio, setConfigAnoNovoInicio] = useState('')
+  const [configAnoNovoFim, setConfigAnoNovoFim] = useState('')
+  const [configDiasUteisMes, setConfigDiasUteisMes] = useState(22)
+  const [configDiasFolgaRecesso, setConfigDiasFolgaRecesso] = useState(5)
+  const [configValorVrDiario, setConfigValorVrDiario] = useState(35)
+  const [configRecalcularTodos, setConfigRecalcularTodos] = useState(true)
+  const [salvandoConfigEscala, setSalvandoConfigEscala] = useState(false)
+
+  const carregarEscalaFimAno = async (ano: number) => {
+    setCarregandoEscalaFimAno(true)
+    try {
+      const cfg = api.getConfigEscalaFimAno(ano)
+      setConfigEscalaFimAno(cfg)
+      const list = await api.getEscalaFimAno(ano)
+      setTodasEscalasFimAno(list)
+    } catch (err) {
+      console.error('Erro ao carregar escala fim de ano:', err)
+    } finally {
+      setCarregandoEscalaFimAno(false)
+    }
+  }
+
+  useEffect(() => {
+    carregarEscalaFimAno(anoEscalaFimAno)
+  }, [anoEscalaFimAno])
+
+  const handleAbrirModalEscala = (item?: EscalaFimAno, defaultUserId?: string) => {
+    const cfg = configEscalaFimAno
+    const diasTrabPadrao = Math.max(1, (cfg.dias_uteis_mes || 22) - (cfg.dias_folga_recesso || 5))
+    const diasFolgaPadrao = cfg.dias_folga_recesso || 5
+    const valorVrPadrao = cfg.valor_vr_diario_padrao || 35
+
+    if (item) {
+      setEditingEscalaId(item.id)
+      setEscalaUsuarioId(item.usuario_id)
+      setEscalaUsuarioNome(item.usuario_nome)
+      setEscalaTurma(item.turma)
+      setEscalaRegime(item.regime || 'Home Office')
+      setEscalaDiasTrabalhados(item.dias_trabalhados ?? diasTrabPadrao)
+      setEscalaDiasFolga(item.dias_folga ?? diasFolgaPadrao)
+      setEscalaValorVrDiario(item.valor_vr_diario ?? valorVrPadrao)
+      setEscalaTotalVr(item.total_vr ?? ((item.dias_trabalhados ?? diasTrabPadrao) * (item.valor_vr_diario ?? valorVrPadrao)))
+      setEscalaObs(item.observacoes || '')
+    } else {
+      setEditingEscalaId(null)
+      const u = defaultUserId ? usuarios.find(usr => usr.id === defaultUserId) : usuarios[0]
+      setEscalaUsuarioId(u?.id || '')
+      setEscalaUsuarioNome(u?.nome || '')
+      setEscalaTurma('natal')
+      setEscalaRegime('Home Office')
+      setEscalaDiasTrabalhados(diasTrabPadrao)
+      setEscalaDiasFolga(diasFolgaPadrao)
+      setEscalaValorVrDiario(valorVrPadrao)
+      setEscalaTotalVr(diasTrabPadrao * valorVrPadrao)
+      setEscalaObs('')
+    }
+    setIsEscalaModalOpen(true)
+  }
+
+  const handleSalvarEscala = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!escalaUsuarioId) {
+      alert('Selecione o colaborador.')
+      return
+    }
+
+    const u = usuarios.find(usr => usr.id === escalaUsuarioId)
+    const nome = escalaUsuarioNome || u?.nome || 'Colaborador'
+    const totalCalc = Number(escalaDiasTrabalhados) * Number(escalaValorVrDiario)
+
+    setSalvandoEscala(true)
+    try {
+      const payload: Partial<EscalaFimAno> = {
+        id: editingEscalaId || undefined,
+        ano: anoEscalaFimAno,
+        usuario_id: escalaUsuarioId,
+        usuario_nome: nome,
+        turma: escalaTurma,
+        regime: escalaRegime || 'Home Office',
+        dias_trabalhados: Number(escalaDiasTrabalhados),
+        dias_folga: Number(escalaDiasFolga),
+        valor_vr_diario: Number(escalaValorVrDiario),
+        total_vr: totalCalc,
+        observacoes: escalaObs.trim() || null,
+        atualizado_por: user?.nome || user?.login || 'Admin'
+      }
+
+      const salvo = await api.upsertEscalaFimAno(payload)
+      setTodasEscalasFimAno(prev => {
+        const idx = prev.findIndex(i => i.ano === anoEscalaFimAno && (i.id === salvo.id || i.usuario_id === salvo.usuario_id))
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = salvo
+          return next
+        }
+        return [...prev, salvo].sort((a, b) => a.usuario_nome.localeCompare(b.usuario_nome))
+      })
+      setIsEscalaModalOpen(false)
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao salvar escala de fim de ano: ' + (err.message || err))
+    } finally {
+      setSalvandoEscala(false)
+    }
+  }
+
+  const handleToggleTurmaRapido = async (item: EscalaFimAno) => {
+    const novaTurma: 'natal' | 'ano_novo' = item.turma === 'natal' ? 'ano_novo' : 'natal'
+    try {
+      const atualizado = await api.upsertEscalaFimAno({
+        ...item,
+        turma: novaTurma,
+        atualizado_por: user?.nome || user?.login || 'Admin'
+      })
+      setTodasEscalasFimAno(prev => prev.map(i => i.id === atualizado.id ? atualizado : i))
+    } catch (err: any) {
+      alert('Erro ao alternar turma: ' + (err.message || err))
+    }
+  }
+
+  const handleExcluirEscala = async (item: EscalaFimAno) => {
+    if (!confirm(`Remover "${item.usuario_nome}" da escala de fim de ano de ${item.ano}?`)) return
+    try {
+      await api.deleteEscalaFimAno(item.id, item.ano)
+      setTodasEscalasFimAno(prev => prev.filter(i => i.id !== item.id))
+    } catch (err: any) {
+      alert('Erro ao excluir da escala: ' + (err.message || err))
+    }
+  }
+
+  const handleAutoDistribuirEquipe = async () => {
+    const idsJaEscalados = new Set(todasEscalasFimAno.map(e => e.usuario_id))
+    const pendentes = usuarios.filter(u => !idsJaEscalados.has(u.id))
+    if (pendentes.length === 0) {
+      alert('Todos os colaboradores já estão atribuídos na escala deste ano!')
+      return
+    }
+
+    if (!confirm(`Existem ${pendentes.length} colaboradores sem turma na escala de ${anoEscalaFimAno}.\nDeseja distribuí-los equilibradamente (50% Natal / 50% Ano Novo)?`)) return
+
+    const cfg = configEscalaFimAno
+    const diasTrab = Math.max(1, (cfg.dias_uteis_mes || 22) - (cfg.dias_folga_recesso || 5))
+    const diasFolga = cfg.dias_folga_recesso || 5
+    const valorVr = cfg.valor_vr_diario_padrao || 35
+    const totalVr = diasTrab * valorVr
+
+    let countNatal = todasEscalasFimAno.filter(e => e.turma === 'natal').length
+    let countAnoNovo = todasEscalasFimAno.filter(e => e.turma === 'ano_novo').length
+
+    const novos: Partial<EscalaFimAno>[] = []
+    for (const u of pendentes) {
+      const turma: 'natal' | 'ano_novo' = countNatal <= countAnoNovo ? 'natal' : 'ano_novo'
+      if (turma === 'natal') countNatal++
+      else countAnoNovo++
+
+      novos.push({
+        ano: anoEscalaFimAno,
+        usuario_id: u.id,
+        usuario_nome: u.nome,
+        turma,
+        regime: 'Home Office',
+        dias_trabalhados: diasTrab,
+        dias_folga: diasFolga,
+        valor_vr_diario: valorVr,
+        total_vr: totalVr,
+        atualizado_por: user?.nome || 'Admin'
+      })
+    }
+
+    setCarregandoEscalaFimAno(true)
+    try {
+      await api.salvarEscalaFimAnoLote(novos)
+      const list = await api.getEscalaFimAno(anoEscalaFimAno)
+      setTodasEscalasFimAno(list)
+      alert(`Sucesso! ${novos.length} colaboradores distribuídos na escala com cálculo de VR atualizado.`)
+    } catch (err: any) {
+      alert('Erro na distribuição automática: ' + (err.message || err))
+    } finally {
+      setCarregandoEscalaFimAno(false)
+    }
+  }
+
+  const handleAbrirConfigEscala = () => {
+    const cfg = configEscalaFimAno
+    setConfigNatalInicio(cfg.data_natal_inicio)
+    setConfigNatalFim(cfg.data_natal_fim)
+    setConfigAnoNovoInicio(cfg.data_ano_novo_inicio)
+    setConfigAnoNovoFim(cfg.data_ano_novo_fim)
+    setConfigDiasUteisMes(cfg.dias_uteis_mes)
+    setConfigDiasFolgaRecesso(cfg.dias_folga_recesso)
+    setConfigValorVrDiario(cfg.valor_vr_diario_padrao)
+    setIsConfigEscalaModalOpen(true)
+  }
+
+  const handleSalvarConfigEscala = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSalvandoConfigEscala(true)
+    try {
+      const novaCfg: ConfigEscalaFimAno = {
+        ano: anoEscalaFimAno,
+        data_natal_inicio: configNatalInicio,
+        data_natal_fim: configNatalFim,
+        data_ano_novo_inicio: configAnoNovoInicio,
+        data_ano_novo_fim: configAnoNovoFim,
+        dias_uteis_mes: Number(configDiasUteisMes),
+        dias_folga_recesso: Number(configDiasFolgaRecesso),
+        valor_vr_diario_padrao: Number(configValorVrDiario)
+      }
+      api.salvarConfigEscalaFimAno(novaCfg)
+      setConfigEscalaFimAno(novaCfg)
+
+      if (configRecalcularTodos && todasEscalasFimAno.length > 0) {
+        const diasTrab = Math.max(1, Number(configDiasUteisMes) - Number(configDiasFolgaRecesso))
+        const vVr = Number(configValorVrDiario)
+        const totalCalc = diasTrab * vVr
+
+        const atualizados = todasEscalasFimAno.map(item => ({
+          ...item,
+          dias_trabalhados: diasTrab,
+          dias_folga: Number(configDiasFolgaRecesso),
+          valor_vr_diario: vVr,
+          total_vr: totalCalc,
+          atualizado_por: user?.nome || 'Admin'
+        }))
+
+        await api.salvarEscalaFimAnoLote(atualizados)
+        const reloaded = await api.getEscalaFimAno(anoEscalaFimAno)
+        setTodasEscalasFimAno(reloaded)
+      }
+
+      setIsConfigEscalaModalOpen(false)
+      alert('Configurações de recesso e VR atualizadas com sucesso!')
+    } catch (err: any) {
+      alert('Erro ao salvar parâmetros: ' + (err.message || err))
+    } finally {
+      setSalvandoConfigEscala(false)
+    }
+  }
+
+  const exportarRelatorioVrCsv = () => {
+    const separador = ';'
+    const cabecalho = [
+      'Nome do Colaborador',
+      'Perfil/Cargo',
+      'Ano',
+      'Turma Recesso',
+      'Regime de Trabalho',
+      'Período Ativo (Trabalho)',
+      'Período Descanso (Folga)',
+      'Dias Úteis no Mês',
+      'Dias Folga Recesso',
+      'Dias Úteis Trabalhados',
+      'Valor Diário VR (R$)',
+      'Total VR a Receber (R$)',
+      'Observações'
+    ]
+
+    const linhas = todasEscalasFimAno.map(item => {
+      const u = usuarios.find(usr => usr.id === item.usuario_id)
+      const cargo = u?.perfil || 'Funcionário'
+      const turmaLabel = item.turma === 'natal' ? 'Semana do Natal' : 'Semana do Ano Novo'
+      const periodoAtivo = item.turma === 'natal' 
+        ? `${formatDateDisplay(configEscalaFimAno.data_natal_inicio)} a ${formatDateDisplay(configEscalaFimAno.data_natal_fim)}`
+        : `${formatDateDisplay(configEscalaFimAno.data_ano_novo_inicio)} a ${formatDateDisplay(configEscalaFimAno.data_ano_novo_fim)}`
+      const periodoFolga = item.turma === 'natal'
+        ? `${formatDateDisplay(configEscalaFimAno.data_ano_novo_inicio)} a ${formatDateDisplay(configEscalaFimAno.data_ano_novo_fim)}`
+        : `${formatDateDisplay(configEscalaFimAno.data_natal_inicio)} a ${formatDateDisplay(configEscalaFimAno.data_natal_fim)}`
+
+      return [
+        `"${item.usuario_nome}"`,
+        `"${cargo}"`,
+        item.ano,
+        `"${turmaLabel}"`,
+        `"${item.regime}"`,
+        `"${periodoAtivo}"`,
+        `"${periodoFolga}"`,
+        configEscalaFimAno.dias_uteis_mes,
+        item.dias_folga,
+        item.dias_trabalhados,
+        item.valor_vr_diario.toFixed(2).replace('.', ','),
+        item.total_vr.toFixed(2).replace('.', ','),
+        `"${item.observacoes || ''}"`
+      ].join(separador)
+    })
+
+    const csvContent = '\uFEFF' + [cabecalho.join(separador), ...linhas].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `Mantran_Escala_Recesso_VR_Dezembro_${anoEscalaFimAno}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   useEffect(() => {
     fetchData()
@@ -1920,6 +2246,684 @@ export function RH() {
     </div>
   )
 
+  const renderEscalaFimAnoView = () => {
+    const cfg = configEscalaFimAno
+    const escaladosNatal = todasEscalasFimAno.filter(e => e.turma === 'natal')
+    const escaladosAnoNovo = todasEscalasFimAno.filter(e => e.turma === 'ano_novo')
+    const idsEscalados = new Set(todasEscalasFimAno.map(e => e.usuario_id))
+    const colaboradoresSemEscala = usuarios.filter(u => !idsEscalados.has(u.id))
+
+    const minhaEscala = todasEscalasFimAno.find(e => 
+      (user?.id && e.usuario_id === user.id) ||
+      (user?.nome && e.usuario_nome?.toLowerCase() === user.nome.toLowerCase()) ||
+      (user?.login && e.usuario_nome?.toLowerCase().includes(user.login.toLowerCase()))
+    )
+
+    const totalFolhaVr = todasEscalasFimAno.reduce((acc, curr) => acc + (Number(curr.total_vr) || 0), 0)
+
+    const listaFiltrada = todasEscalasFimAno.filter(item => {
+      if (filtroTurmaEscala === 'natal' && item.turma !== 'natal') return false
+      if (filtroTurmaEscala === 'ano_novo' && item.turma !== 'ano_novo') return false
+
+      if (buscaEscalaFimAno.trim()) {
+        const termo = buscaEscalaFimAno.toLowerCase()
+        const matchNome = item.usuario_nome.toLowerCase().includes(termo)
+        const u = usuarios.find(usr => usr.id === item.usuario_id)
+        const matchCargo = (u?.perfil || '').toLowerCase().includes(termo)
+        if (!matchNome && !matchCargo) return false
+      }
+      return true
+    })
+
+    return (
+      <div className="space-y-6">
+        {/* BANNER FESTIVO & EXPLICAÇÃO DA REGRA */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-emerald-950/40 via-slate-900 to-rose-950/40 border border-emerald-500/30 rounded-3xl p-5 sm:p-6 shadow-2xl">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-2xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm">
+                  <TreePine className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2">
+                      Escala de Fim de Ano & Recesso
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[11px] font-bold">
+                      Exercício {anoEscalaFimAno}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Regra Mantran: Divisão da equipe nos últimos 15 dias de Dezembro • Regime 100% Home Office
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 max-w-3xl leading-relaxed">
+                A equipe se divide em duas frentes: uma atua na <strong>Semana do Natal</strong> de Home Office e descansa na <strong>Semana do Ano Novo</strong>; a outra descansa no Natal e atua de Home Office no Ano Novo. O RH utiliza esta escala para calcular com exatidão os dias úteis e o <strong>Vale Refeição (VR) de Dezembro</strong>.
+              </p>
+            </div>
+
+            {/* Ações de Topo */}
+            <div className="flex items-center flex-wrap gap-2">
+              {carregandoEscalaFimAno && (
+                <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-500/10 text-rose-300 border border-rose-500/20 text-[10px] font-bold">
+                  <Loader2 className="w-3 h-3 animate-spin text-rose-400" />
+                  <span>Atualizando...</span>
+                </div>
+              )}
+
+              {/* Seletor de Ano */}
+              <div className="flex items-center bg-slate-900/80 border border-slate-700/80 rounded-xl p-1">
+                {[anoEscalaFimAno - 1, anoEscalaFimAno, anoEscalaFimAno + 1].map(ano => (
+                  <button
+                    key={ano}
+                    type="button"
+                    onClick={() => setAnoEscalaFimAno(ano)}
+                    className={clsx(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                      anoEscalaFimAno === ano
+                        ? "bg-rose-500 text-white shadow-sm"
+                        : "text-slate-400 hover:text-white"
+                    )}
+                  >
+                    {ano}
+                  </button>
+                ))}
+              </div>
+
+              {/* Botão Exportar CSV */}
+              <button
+                type="button"
+                onClick={exportarRelatorioVrCsv}
+                className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                title="Exportar planilha de VR para o financeiro"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Exportar VR (CSV)</span>
+              </button>
+
+              {/* Ações de Admin / RH */}
+              {isGestorRh && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleAbrirConfigEscala}
+                    className="py-2 px-3 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    title="Configurar datas e valor diário do VR"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Parâmetros & VR</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleAutoDistribuirEquipe}
+                    className="py-2 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    title="Distribuir 50% / 50% quem ainda não foi escalado"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Auto-Distribuir</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAbrirModalEscala()}
+                    className="py-2 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Escalar Colaborador</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* CARD DE DESTAQUE PESSOAL (DO USUÁRIO LOGADO) */}
+        {minhaEscala ? (
+          <div className={clsx(
+            "p-5 rounded-2xl border shadow-xl transition-all relative overflow-hidden",
+            minhaEscala.turma === 'natal'
+              ? "bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-900 border-emerald-500/50"
+              : "bg-gradient-to-r from-indigo-950/60 via-slate-900 to-slate-900 border-indigo-500/50"
+          )}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className={clsx(
+                  "p-3 rounded-2xl text-2xl border shadow-md shrink-0",
+                  minhaEscala.turma === 'natal'
+                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                    : "bg-indigo-500/20 border-indigo-500/40 text-indigo-300"
+                )}>
+                  {minhaEscala.turma === 'natal' ? '🎄' : '🎆'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/10 text-white">
+                      Sua Escala de Recesso ({anoEscalaFimAno})
+                    </span>
+                    <span className={clsx(
+                      "px-2.5 py-0.5 rounded-full text-xs font-bold",
+                      minhaEscala.turma === 'natal' ? "bg-emerald-500/20 text-emerald-300" : "bg-indigo-500/20 text-indigo-300"
+                    )}>
+                      {minhaEscala.turma === 'natal' ? 'Turma da Semana do Natal' : 'Turma da Semana do Ano Novo'}
+                    </span>
+                  </div>
+
+                  <p className="text-sm font-black text-white mt-1">
+                    {minhaEscala.turma === 'natal' ? (
+                      <>Você trabalhará em <strong>Home Office</strong> na Semana do Natal e descansará na Semana do Ano Novo.</>
+                    ) : (
+                      <>Você descansará na Semana do Natal e trabalhará em <strong>Home Office</strong> na Semana do Ano Novo.</>
+                    )}
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-300">
+                    <span className="flex items-center gap-1.5">
+                      <Home className="w-3.5 h-3.5 text-cyan-400" />
+                      Home Office: <strong className="text-white">
+                        {minhaEscala.turma === 'natal' 
+                          ? `${formatDateDisplay(cfg.data_natal_inicio)} a ${formatDateDisplay(cfg.data_natal_fim)}`
+                          : `${formatDateDisplay(cfg.data_ano_novo_inicio)} a ${formatDateDisplay(cfg.data_ano_novo_fim)}`}
+                      </strong>
+                    </span>
+                    <span className="text-slate-600">•</span>
+                    <span className="flex items-center gap-1.5">
+                      <Palmtree className="w-3.5 h-3.5 text-amber-400" />
+                      Folga/Recesso: <strong className="text-white">
+                        {minhaEscala.turma === 'natal'
+                          ? `${formatDateDisplay(cfg.data_ano_novo_inicio)} a ${formatDateDisplay(cfg.data_ano_novo_fim)}`
+                          : `${formatDateDisplay(cfg.data_natal_inicio)} a ${formatDateDisplay(cfg.data_natal_fim)}`}
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Box Demonstrativo do VR do Usuário */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 sm:px-5 flex items-center justify-between sm:justify-end gap-5 shrink-0">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    Seu VR de Dezembro
+                  </span>
+                  <span className="text-xs text-slate-300">
+                    <strong className="text-emerald-400 font-mono">{minhaEscala.dias_trabalhados}</strong> dias úteis x R$ {minhaEscala.valor_vr_diario.toFixed(2)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xl sm:text-2xl font-black text-emerald-400 font-mono block">
+                    R$ {minhaEscala.total_vr.toFixed(2)}
+                  </span>
+                  <span className="text-[10px] text-slate-400">Total a receber</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div className="text-xs text-slate-300">
+              <strong className="text-white">Escala em definição:</strong> Você ainda não foi alocado em uma das turmas do recesso de fim de ano de {anoEscalaFimAno}. O RH divulgará a divisão em breve.
+            </div>
+          </div>
+        )}
+
+        {/* CARDS DE RESUMO & KPIS */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          <div className="p-4 rounded-2xl bg-dark-card border border-slate-800 shadow-lg">
+            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider">Total Escalados</span>
+              <Users2 className="w-4 h-4 text-blue-400" />
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-black text-white">{todasEscalasFimAno.length}</span>
+              <span className="text-xs text-slate-400">/ {usuarios.length} equipe</span>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-dark-card border border-emerald-500/20 shadow-lg">
+            <div className="flex items-center justify-between text-emerald-400 mb-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider">🎄 Semana Natal</span>
+              <TreePine className="w-4 h-4" />
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-black text-white">{escaladosNatal.length}</span>
+              <span className="text-xs text-emerald-300">Home Office</span>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-dark-card border border-indigo-500/20 shadow-lg">
+            <div className="flex items-center justify-between text-indigo-400 mb-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider">🎆 Semana Ano Novo</span>
+              <PartyPopper className="w-4 h-4" />
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-black text-white">{escaladosAnoNovo.length}</span>
+              <span className="text-xs text-indigo-300">Home Office</span>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-dark-card border border-slate-800 shadow-lg">
+            <div className="flex items-center justify-between text-slate-400 mb-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider">VR Diário</span>
+              <Utensils className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xs text-slate-400">R$</span>
+              <span className="text-2xl sm:text-3xl font-black text-white">{cfg.valor_vr_diario_padrao.toFixed(2)}</span>
+              <span className="text-[10px] text-slate-400">/dia</span>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-dark-card border border-rose-500/20 shadow-lg col-span-2 sm:col-span-1">
+            <div className="flex items-center justify-between text-rose-400 mb-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider">Folha Total VR</span>
+              <DollarSign className="w-4 h-4" />
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xs text-slate-400">R$</span>
+              <span className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">{totalFolhaVr.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* VISUALIZAÇÃO PARALELA DAS 2 TURMAS (CARDS LADO A LADO) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          {/* PAINEL 1: SEMANA DO NATAL */}
+          <div className="bg-dark-card border border-emerald-500/30 rounded-3xl p-4 sm:p-5 shadow-xl flex flex-col space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">🎄</span>
+                <div>
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    Turma da Semana do Natal
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-xs">
+                      {escaladosNatal.length}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Trabalho Home Office: <strong className="text-emerald-300">{formatDateDisplay(cfg.data_natal_inicio)} a {formatDateDisplay(cfg.data_natal_fim)}</strong>
+                  </p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                🌴 Folga no Ano Novo
+              </span>
+            </div>
+
+            <div className="space-y-2 flex-1 max-h-[420px] overflow-y-auto pr-1">
+              {escaladosNatal.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 text-xs">
+                  Nenhum colaborador atribuído à Semana do Natal ainda.
+                </div>
+              ) : (
+                escaladosNatal.map(item => {
+                  const u = usuarios.find(usr => usr.id === item.usuario_id)
+                  const isEu = (user?.id && item.usuario_id === user.id) || (user?.nome && item.usuario_nome?.toLowerCase() === user.nome.toLowerCase())
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={clsx(
+                        "p-3 rounded-2xl border transition-all flex items-center justify-between gap-3",
+                        isEu ? "bg-emerald-500/10 border-emerald-500/40" : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {u?.foto_url ? (
+                          <img src={u.foto_url} alt={item.usuario_nome} className="w-9 h-9 rounded-xl object-cover border border-slate-700 shrink-0" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center font-bold text-xs shrink-0">
+                            {item.usuario_nome.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-white truncate block">
+                              {item.usuario_nome}
+                            </span>
+                            {isEu && (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-500/30 text-emerald-200 text-[9px] font-bold">
+                                Você
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-slate-400 block truncate">
+                            {u?.perfil || 'Equipe Mantran'} • {item.dias_trabalhados}d úteis (R$ {item.total_vr.toFixed(2)})
+                          </span>
+                        </div>
+                      </div>
+
+                      {isGestorRh && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTurmaRapido(item)}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                            title="Mover para Semana do Ano Novo"
+                          >
+                            <span>Ano Novo</span>
+                            <ArrowRight className="w-3 h-3 text-indigo-400" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          {/* PAINEL 2: SEMANA DO ANO NOVO */}
+          <div className="bg-dark-card border border-indigo-500/30 rounded-3xl p-4 sm:p-5 shadow-xl flex flex-col space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">🎆</span>
+                <div>
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    Turma da Semana do Ano Novo
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono text-xs">
+                      {escaladosAnoNovo.length}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Trabalho Home Office: <strong className="text-indigo-300">{formatDateDisplay(cfg.data_ano_novo_inicio)} a {formatDateDisplay(cfg.data_ano_novo_fim)}</strong>
+                  </p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                🌴 Folga no Natal
+              </span>
+            </div>
+
+            <div className="space-y-2 flex-1 max-h-[420px] overflow-y-auto pr-1">
+              {escaladosAnoNovo.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 text-xs">
+                  Nenhum colaborador atribuído à Semana do Ano Novo ainda.
+                </div>
+              ) : (
+                escaladosAnoNovo.map(item => {
+                  const u = usuarios.find(usr => usr.id === item.usuario_id)
+                  const isEu = (user?.id && item.usuario_id === user.id) || (user?.nome && item.usuario_nome?.toLowerCase() === user.nome.toLowerCase())
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={clsx(
+                        "p-3 rounded-2xl border transition-all flex items-center justify-between gap-3",
+                        isEu ? "bg-indigo-500/10 border-indigo-500/40" : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {u?.foto_url ? (
+                          <img src={u.foto_url} alt={item.usuario_nome} className="w-9 h-9 rounded-xl object-cover border border-slate-700 shrink-0" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 flex items-center justify-center font-bold text-xs shrink-0">
+                            {item.usuario_nome.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-white truncate block">
+                              {item.usuario_nome}
+                            </span>
+                            {isEu && (
+                              <span className="px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-200 text-[9px] font-bold">
+                                Você
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-slate-400 block truncate">
+                            {u?.perfil || 'Equipe Mantran'} • {item.dias_trabalhados}d úteis (R$ {item.total_vr.toFixed(2)})
+                          </span>
+                        </div>
+                      </div>
+
+                      {isGestorRh && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleTurmaRapido(item)}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                            title="Mover para Semana do Natal"
+                          >
+                            <ChevronLeft className="w-3 h-3 text-emerald-400" />
+                            <span>Natal</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ALERTA DE COLABORADORES PENDENTES DE ESCALA */}
+        {colaboradoresSemEscala.length > 0 && (
+          <div className="p-4 rounded-2xl bg-slate-900/80 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <span className="text-xs font-bold text-white block">
+                  {colaboradoresSemEscala.length} colaborador(es) ainda sem escala definida para {anoEscalaFimAno}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  {colaboradoresSemEscala.map(c => c.nome).slice(0, 5).join(', ')}{colaboradoresSemEscala.length > 5 ? '...' : ''}
+                </span>
+              </div>
+            </div>
+            {isGestorRh && (
+              <button
+                type="button"
+                onClick={handleAutoDistribuirEquipe}
+                className="py-1.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all cursor-pointer shrink-0"
+              >
+                Distribuir Automaticamente (50/50)
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* TABELA CONSOLIDADA DE CONFERÊNCIA DE VR E ESCALA */}
+        <div className="bg-dark-card border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div>
+              <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <span>Demonstrativo Consolidado de VR • Dezembro/{anoEscalaFimAno}</span>
+                <span className="text-xs font-mono text-slate-400 font-normal">({listaFiltrada.length} registros)</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Acompanhamento detalhado de dias trabalhados e valor de VR por colaborador.
+              </p>
+            </div>
+
+            {/* Filtros e Busca */}
+            <div className="flex items-center flex-wrap gap-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={buscaEscalaFimAno}
+                  onChange={e => setBuscaEscalaFimAno(e.target.value)}
+                  placeholder="Buscar colaborador..."
+                  className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs w-44 sm:w-56 focus:border-rose-500"
+                />
+              </div>
+
+              <select
+                value={filtroTurmaEscala}
+                onChange={e => setFiltroTurmaEscala(e.target.value as any)}
+                className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-rose-500"
+              >
+                <option value="todos">Todas as Turmas ({todasEscalasFimAno.length})</option>
+                <option value="natal">🎄 Semana do Natal ({escaladosNatal.length})</option>
+                <option value="ano_novo">🎆 Semana do Ano Novo ({escaladosAnoNovo.length})</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tabela Responsiva */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                  <th className="py-3 px-3">Colaborador</th>
+                  <th className="py-3 px-3">Turma Recesso</th>
+                  <th className="py-3 px-3">Regime Ativo</th>
+                  <th className="py-3 px-3 text-center">Dias Trab. (VR)</th>
+                  <th className="py-3 px-3 text-center">Folga Recesso</th>
+                  <th className="py-3 px-3 text-right">VR Diário</th>
+                  <th className="py-3 px-3 text-right">Total VR Dezembro</th>
+                  <th className="py-3 px-3">Observações</th>
+                  {isGestorRh && <th className="py-3 px-3 text-center">Ações</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {listaFiltrada.length === 0 ? (
+                  <tr>
+                    <td colSpan={isGestorRh ? 9 : 8} className="py-10 text-center text-slate-500">
+                      Nenhum colaborador encontrado com os filtros selecionados.
+                    </td>
+                  </tr>
+                ) : (
+                  listaFiltrada.map(item => {
+                    const u = usuarios.find(usr => usr.id === item.usuario_id)
+                    const isEu = (user?.id && item.usuario_id === user.id) || (user?.nome && item.usuario_nome?.toLowerCase() === user.nome.toLowerCase())
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className={clsx(
+                          "hover:bg-slate-800/40 transition-colors",
+                          isEu && "bg-brand-500/5 font-semibold"
+                        )}
+                      >
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2.5">
+                            {u?.foto_url ? (
+                              <img src={u.foto_url} alt={item.usuario_nome} className="w-7 h-7 rounded-lg object-cover border border-slate-700" />
+                            ) : (
+                              <div className="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-[10px]">
+                                {item.usuario_nome.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div>
+                              <span className="text-white font-bold block">{item.usuario_nome}</span>
+                              <span className="text-[10px] text-slate-400 block">{u?.perfil || 'Equipe Mantran'}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-3">
+                          {item.turma === 'natal' ? (
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold inline-flex items-center gap-1">
+                              <span>🎄</span> Semana Natal
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[11px] font-bold inline-flex items-center gap-1">
+                              <span>🎆</span> Semana Ano Novo
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold">
+                            🏠 {item.regime || 'Home Office'}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-3 text-center">
+                          <span className="font-mono font-bold text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                            {item.dias_trabalhados} dias
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-3 text-center text-slate-400 font-mono">
+                          {item.dias_folga} dias
+                        </td>
+
+                        <td className="py-3 px-3 text-right font-mono text-slate-300">
+                          R$ {Number(item.valor_vr_diario).toFixed(2)}
+                        </td>
+
+                        <td className="py-3 px-3 text-right">
+                          <span className="font-mono font-black text-emerald-400 text-sm">
+                            R$ {Number(item.total_vr).toFixed(2)}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-3 text-slate-400 max-w-[200px] truncate" title={item.observacoes || ''}>
+                          {item.observacoes || '—'}
+                        </td>
+
+                        {isGestorRh && (
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleTurmaRapido(item)}
+                                className="p-1 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                title="Alternar Turma (Natal ⇄ Ano Novo)"
+                              >
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAbrirModalEscala(item)}
+                                className="p-1 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                title="Editar escala e valores de VR"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleExcluirEscala(item)}
+                                className="p-1 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+                                title="Remover da escala"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+              {listaFiltrada.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-slate-700 bg-slate-900/60 font-bold text-white">
+                    <td className="py-3 px-3" colSpan={3}>
+                      Total Consolidado ({listaFiltrada.length} colaboradores)
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-emerald-400">
+                      {listaFiltrada.reduce((acc, c) => acc + (Number(c.dias_trabalhados) || 0), 0)} dias
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-slate-400">
+                      {listaFiltrada.reduce((acc, c) => acc + (Number(c.dias_folga) || 0), 0)} dias
+                    </td>
+                    <td className="py-3 px-3 text-right text-slate-400">
+                      Méd. R$ {(listaFiltrada.reduce((acc, c) => acc + (Number(c.valor_vr_diario) || 0), 0) / (listaFiltrada.length || 1)).toFixed(2)}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono text-emerald-400 text-sm">
+                      R$ {listaFiltrada.reduce((acc, c) => acc + (Number(c.total_vr) || 0), 0).toFixed(2)}
+                    </td>
+                    {isGestorRh && <td></td>}
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-7xl mx-auto w-full min-w-0 space-y-4 sm:space-y-6">
       
@@ -2203,6 +3207,25 @@ export function RH() {
 
           <button
             type="button"
+            onClick={() => setTab('escala_fim_ano')}
+            className={clsx(
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              tab === 'escala_fim_ano'
+                ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <TreePine className="w-4 h-4 text-emerald-400" />
+            <span>Fim de Ano & VR</span>
+            {todasEscalasFimAno.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 font-mono">
+                {todasEscalasFimAno.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
             onClick={() => setTab('gestao_aprovacoes')}
             className={clsx(
               "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer sm:ml-auto",
@@ -2312,6 +3335,25 @@ export function RH() {
             {minhasFaltas.length > 0 && (
               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
                 {minhasFaltas.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('escala_fim_ano')}
+            className={clsx(
+              "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              tab === 'escala_fim_ano'
+                ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+            )}
+          >
+            <TreePine className="w-4 h-4 text-emerald-400" />
+            <span>Escala Fim de Ano</span>
+            {todasEscalasFimAno.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 font-mono">
+                {todasEscalasFimAno.length}
               </span>
             )}
           </button>
@@ -3021,6 +4063,9 @@ export function RH() {
               )}
             </div>
           )}
+
+          {/* TAB: ESCALA DE FIM DE ANO (COLABORADOR) */}
+          {tab === 'escala_fim_ano' && renderEscalaFimAnoView()}
 
         </div>
       ) : (
@@ -4531,6 +5576,9 @@ export function RH() {
               </div>
             </div>
           )}
+
+          {/* TAB: ESCALA DE FIM DE ANO (GESTOR / ADMIN) */}
+          {tab === 'escala_fim_ano' && renderEscalaFimAnoView()}
 
         </div>
       )}
@@ -6472,6 +7520,423 @@ export function RH() {
                 >
                   <Check className="w-4 h-4" />
                   <span>{salvandoJornada ? 'Salvando...' : 'Salvar Jornada'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL ESCALAR COLABORADOR NO RECESSO ================= */}
+      {isEscalaModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-dark-card border border-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <TreePine className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">
+                    {editingEscalaId ? 'Editar Escala de Recesso' : 'Escalar Colaborador no Recesso'}
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Exercício {anoEscalaFimAno} • Divisão Natal vs Ano Novo
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEscalaModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarEscala} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Seleção do Colaborador */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Colaborador
+                </label>
+                {editingEscalaId ? (
+                  <div className="px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-white font-bold text-sm">
+                    {escalaUsuarioNome}
+                  </div>
+                ) : (
+                  <select
+                    value={escalaUsuarioId}
+                    onChange={e => {
+                      setEscalaUsuarioId(e.target.value)
+                      const u = usuarios.find(usr => usr.id === e.target.value)
+                      if (u) setEscalaUsuarioNome(u.nome)
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-bold focus:border-emerald-500"
+                    required
+                  >
+                    <option value="">Selecione um funcionário...</option>
+                    {usuarios.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.nome} ({u.perfil})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Escolha da Turma (Radio Cards Visuais) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Turma de Recesso (Últimos 15 dias de Dezembro)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEscalaTurma('natal')}
+                    className={clsx(
+                      "p-3 rounded-2xl border text-left transition-all cursor-pointer",
+                      escalaTurma === 'natal'
+                        ? "bg-emerald-500/20 border-emerald-500 text-white shadow-md shadow-emerald-500/10 ring-1 ring-emerald-500"
+                        : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700"
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-sm text-emerald-400 flex items-center gap-1.5">
+                        <span>🎄</span> Semana do Natal
+                      </span>
+                      {escalaTurma === 'natal' && <Check className="w-4 h-4 text-emerald-400" />}
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Trabalha <strong>Home Office</strong> no Natal.
+                    </p>
+                    <span className="text-[10px] text-amber-400/90 block mt-1">
+                      🌴 Descansa no Ano Novo
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEscalaTurma('ano_novo')}
+                    className={clsx(
+                      "p-3 rounded-2xl border text-left transition-all cursor-pointer",
+                      escalaTurma === 'ano_novo'
+                        ? "bg-indigo-500/20 border-indigo-500 text-white shadow-md shadow-indigo-500/10 ring-1 ring-indigo-500"
+                        : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700"
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-sm text-indigo-400 flex items-center gap-1.5">
+                        <span>🎆</span> Semana do Ano Novo
+                      </span>
+                      {escalaTurma === 'ano_novo' && <Check className="w-4 h-4 text-indigo-400" />}
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Trabalha <strong>Home Office</strong> no Ano Novo.
+                    </p>
+                    <span className="text-[10px] text-amber-400/90 block mt-1">
+                      🌴 Descansa no Natal
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Regime */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Regime na Semana Ativa
+                </label>
+                <input
+                  type="text"
+                  value={escalaRegime}
+                  onChange={e => setEscalaRegime(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-bold focus:border-emerald-500"
+                  placeholder="Home Office"
+                />
+              </div>
+
+              {/* Dias Trabalhados e Dias de Folga */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Dias Trabalhados (VR)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={escalaDiasTrabalhados}
+                    onChange={e => {
+                      const val = Number(e.target.value) || 0
+                      setEscalaDiasTrabalhados(val)
+                      setEscalaTotalVr(val * Number(escalaValorVrDiario))
+                    }}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-mono font-bold focus:border-emerald-500"
+                    required
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">Dias úteis c/ VR</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Dias Folga Recesso
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="15"
+                    value={escalaDiasFolga}
+                    onChange={e => setEscalaDiasFolga(Number(e.target.value) || 0)}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm font-mono font-bold focus:border-emerald-500"
+                    required
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">Dias descanso</span>
+                </div>
+              </div>
+
+              {/* Valor Diário do VR e Total Apurado */}
+              <div className="grid grid-cols-2 gap-3 p-3.5 rounded-2xl bg-slate-900/80 border border-emerald-500/20">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Valor Diário do VR (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={escalaValorVrDiario}
+                    onChange={e => {
+                      const val = Number(e.target.value) || 0
+                      setEscalaValorVrDiario(val)
+                      setEscalaTotalVr(Number(escalaDiasTrabalhados) * val)
+                    }}
+                    className="w-full px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-sm font-mono font-bold focus:border-emerald-500"
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col justify-center text-right">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                    Total VR Dezembro
+                  </span>
+                  <span className="text-xl font-black text-emerald-400 font-mono">
+                    R$ {escalaTotalVr.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Observações (Opcional)
+                </label>
+                <textarea
+                  value={escalaObs}
+                  onChange={e => setEscalaObs(e.target.value)}
+                  rows={2}
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:border-emerald-500"
+                  placeholder="Ex: Troca combinada, plantão, etc."
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsEscalaModalOpen(false)}
+                  className="btn-secondary flex-1 py-2.5"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoEscala}
+                  className="py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs flex-1 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{salvandoEscala ? 'Salvando...' : 'Salvar Escala'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL DE CONFIGURAÇÃO DE PARÂMETROS E VR ================= */}
+      {isConfigEscalaModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-dark-card border border-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white">
+                    Parâmetros de Recesso & VR
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Exercício {anoEscalaFimAno} • Regras e Cálculo Geral do VR
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConfigEscalaModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarConfigEscala} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Datas Semana Natal */}
+              <div>
+                <label className="block text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <span>🎄</span> Datas da Semana do Natal (Trabalho HO / Folga Turma 2)
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Início:</span>
+                    <input
+                      type="date"
+                      value={configNatalInicio}
+                      onChange={e => setConfigNatalInicio(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-emerald-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Fim:</span>
+                    <input
+                      type="date"
+                      value={configNatalFim}
+                      onChange={e => setConfigNatalFim(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-emerald-500"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Datas Semana Ano Novo */}
+              <div>
+                <label className="block text-xs font-bold text-indigo-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <span>🎆</span> Datas da Semana do Ano Novo (Trabalho HO / Folga Turma 1)
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Início:</span>
+                    <input
+                      type="date"
+                      value={configAnoNovoInicio}
+                      onChange={e => setConfigAnoNovoInicio(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-indigo-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Fim:</span>
+                    <input
+                      type="date"
+                      value={configAnoNovoFim}
+                      onChange={e => setConfigAnoNovoFim(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold focus:border-indigo-500"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Parâmetros de Dias e VR */}
+              <div className="grid grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Dias Úteis Mês
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={configDiasUteisMes}
+                    onChange={e => setConfigDiasUteisMes(Number(e.target.value) || 0)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold focus:border-purple-500"
+                    required
+                  />
+                  <span className="text-[9px] text-slate-500 mt-0.5 block">Total Dezembro</span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Dias Folga Recesso
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="15"
+                    value={configDiasFolgaRecesso}
+                    onChange={e => setConfigDiasFolgaRecesso(Number(e.target.value) || 0)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold focus:border-purple-500"
+                    required
+                  />
+                  <span className="text-[9px] text-slate-500 mt-0.5 block">Descanso por turma</span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    VR Diário (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={configValorVrDiario}
+                    onChange={e => setConfigValorVrDiario(Number(e.target.value) || 0)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono font-bold focus:border-purple-500"
+                    required
+                  />
+                  <span className="text-[9px] text-slate-500 mt-0.5 block">Valor padrão</span>
+                </div>
+              </div>
+
+              {/* Demonstrativo do Cálculo */}
+              <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-xs text-purple-200 space-y-1">
+                <span className="font-bold block">Resumo do Cálculo Padrão:</span>
+                <p className="text-[11px] text-purple-300/80">
+                  Dias Efetivos com VR: <strong>{Number(configDiasUteisMes) - Number(configDiasFolgaRecesso)} dias</strong> ({configDiasUteisMes} úteis - {configDiasFolgaRecesso} recesso).
+                </p>
+                <p className="text-[11px] text-purple-300/80">
+                  VR por Colaborador: <strong>R$ {((Number(configDiasUteisMes) - Number(configDiasFolgaRecesso)) * Number(configValorVrDiario)).toFixed(2)}</strong> ({Number(configDiasUteisMes) - Number(configDiasFolgaRecesso)} dias x R$ {Number(configValorVrDiario).toFixed(2)}).
+                </p>
+              </div>
+
+              {/* Checkbox Recalcular Todos */}
+              <label className="flex items-center gap-2.5 p-3 rounded-2xl bg-slate-900/60 border border-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={configRecalcularTodos}
+                  onChange={e => setConfigRecalcularTodos(e.target.checked)}
+                  className="rounded text-purple-500 focus:ring-purple-400 w-4 h-4 bg-slate-800 border-slate-700"
+                />
+                <span className="text-xs text-slate-300 font-medium">
+                  Recalcular e atualizar o VR de todos os colaboradores já cadastrados no ano de {anoEscalaFimAno}
+                </span>
+              </label>
+
+              <div className="pt-2 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsConfigEscalaModalOpen(false)}
+                  className="btn-secondary flex-1 py-2.5"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoConfigEscala}
+                  className="py-2.5 px-4 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-black text-xs flex-1 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-purple-500/20"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{salvandoConfigEscala ? 'Salvando...' : 'Salvar Parâmetros'}</span>
                 </button>
               </div>
             </form>

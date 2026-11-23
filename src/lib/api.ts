@@ -3489,6 +3489,149 @@ export const api = {
     }
   },
 
+  // --- RH: Escala de Fim de Ano (Natal & Ano Novo) e VR de Dezembro ---
+  async getEscalaFimAno(ano?: number): Promise<EscalaFimAno[]> {
+    const anoRef = ano || new Date().getFullYear()
+    try {
+      let query = supabase
+        .from('rh_escala_fim_ano')
+        .select('*')
+        .eq('ano', anoRef)
+        .order('usuario_nome', { ascending: true })
+
+      const { data, error } = await query
+      if (error) {
+        const local = localStorage.getItem(`@Mantran:rh_escala_fim_ano_${anoRef}`) || localStorage.getItem('@Mantran:rh_escala_fim_ano')
+        const list: EscalaFimAno[] = local ? JSON.parse(local) : []
+        return list.filter(i => i.ano === anoRef)
+      }
+
+      if (data && data.length > 0) {
+        localStorage.setItem(`@Mantran:rh_escala_fim_ano_${anoRef}`, JSON.stringify(data))
+      } else {
+        const local = localStorage.getItem(`@Mantran:rh_escala_fim_ano_${anoRef}`) || localStorage.getItem('@Mantran:rh_escala_fim_ano')
+        if (local) {
+          const list: EscalaFimAno[] = JSON.parse(local)
+          return list.filter(i => i.ano === anoRef)
+        }
+      }
+
+      return data || []
+    } catch {
+      const local = localStorage.getItem(`@Mantran:rh_escala_fim_ano_${anoRef}`) || localStorage.getItem('@Mantran:rh_escala_fim_ano')
+      const list: EscalaFimAno[] = local ? JSON.parse(local) : []
+      return list.filter(i => i.ano === anoRef)
+    }
+  },
+
+  async upsertEscalaFimAno(payload: Partial<EscalaFimAno>): Promise<EscalaFimAno> {
+    const anoRef = payload.ano || new Date().getFullYear()
+    const item: EscalaFimAno = {
+      id: payload.id || (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15)),
+      ano: anoRef,
+      usuario_id: payload.usuario_id!,
+      usuario_nome: payload.usuario_nome!,
+      turma: payload.turma || 'natal',
+      regime: payload.regime || 'Home Office',
+      dias_trabalhados: Number(payload.dias_trabalhados ?? 17),
+      dias_folga: Number(payload.dias_folga ?? 5),
+      valor_vr_diario: Number(payload.valor_vr_diario ?? 35),
+      total_vr: Number(payload.total_vr ?? (Number(payload.dias_trabalhados ?? 17) * Number(payload.valor_vr_diario ?? 35))),
+      observacoes: payload.observacoes || null,
+      atualizado_por: payload.atualizado_por || null,
+      created_at: payload.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('rh_escala_fim_ano')
+        .upsert(item, { onConflict: 'ano,usuario_id' })
+        .select('*')
+        .single()
+
+      if (error) throw error
+
+      const local = localStorage.getItem(`@Mantran:rh_escala_fim_ano_${anoRef}`)
+      let list: EscalaFimAno[] = local ? JSON.parse(local) : []
+      const idx = list.findIndex(i => i.ano === anoRef && (i.usuario_id === item.usuario_id || i.id === item.id))
+      if (idx >= 0) {
+        list[idx] = data
+      } else {
+        list.push(data)
+      }
+      localStorage.setItem(`@Mantran:rh_escala_fim_ano_${anoRef}`, JSON.stringify(list))
+
+      return data
+    } catch {
+      const local = localStorage.getItem(`@Mantran:rh_escala_fim_ano_${anoRef}`)
+      let list: EscalaFimAno[] = local ? JSON.parse(local) : []
+      const idx = list.findIndex(i => i.ano === anoRef && (i.usuario_id === item.usuario_id || i.id === item.id))
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...item }
+      } else {
+        list.push(item)
+      }
+      localStorage.setItem(`@Mantran:rh_escala_fim_ano_${anoRef}`, JSON.stringify(list))
+      return item
+    }
+  },
+
+  async salvarEscalaFimAnoLote(items: Partial<EscalaFimAno>[]): Promise<boolean> {
+    for (const item of items) {
+      await this.upsertEscalaFimAno(item)
+    }
+    return true
+  },
+
+  async deleteEscalaFimAno(id: string, ano?: number): Promise<boolean> {
+    const anoRef = ano || new Date().getFullYear()
+    try {
+      const { error } = await supabase
+        .from('rh_escala_fim_ano')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+    } catch {}
+
+    const local = localStorage.getItem(`@Mantran:rh_escala_fim_ano_${anoRef}`)
+    if (local) {
+      const list: EscalaFimAno[] = JSON.parse(local)
+      localStorage.setItem(`@Mantran:rh_escala_fim_ano_${anoRef}`, JSON.stringify(list.filter(i => i.id !== id)))
+    }
+    return true
+  },
+
+  getConfigEscalaFimAno(ano?: number): ConfigEscalaFimAno {
+    const anoRef = ano || new Date().getFullYear()
+    const chave = `@Mantran:config_escala_fim_ano_${anoRef}`
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem(chave) : null
+      if (saved) return JSON.parse(saved)
+    } catch {}
+
+    return {
+      ano: anoRef,
+      data_natal_inicio: `${anoRef}-12-21`,
+      data_natal_fim: `${anoRef}-12-25`,
+      data_ano_novo_inicio: `${anoRef}-12-28`,
+      data_ano_novo_fim: `${anoRef + 1}-01-01`,
+      dias_uteis_mes: 22,
+      dias_folga_recesso: 5,
+      valor_vr_diario_padrao: 35.00
+    }
+  },
+
+  salvarConfigEscalaFimAno(config: ConfigEscalaFimAno): void {
+    const chave = `@Mantran:config_escala_fim_ano_${config.ano}`
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(chave, JSON.stringify(config))
+      }
+    } catch {}
+  },
+
   // --- RH: Plantões de Final de Semana (Técnicos) ---
   async getPlantoes(tecnicoId?: string): Promise<PlantaoTecnico[]> {
     try {
@@ -6640,6 +6783,35 @@ function saveLocalEmpresaVinculos(items: EmpresaVinculoItem[]) {
     }
   } catch {}
 }
+
+export interface EscalaFimAno {
+  id: string
+  ano: number
+  usuario_id: string
+  usuario_nome: string
+  turma: 'natal' | 'ano_novo'
+  regime: string
+  dias_trabalhados: number
+  dias_folga: number
+  valor_vr_diario: number
+  total_vr: number
+  observacoes?: string | null
+  atualizado_por?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface ConfigEscalaFimAno {
+  ano: number
+  data_natal_inicio: string
+  data_natal_fim: string
+  data_ano_novo_inicio: string
+  data_ano_novo_fim: string
+  dias_uteis_mes: number
+  dias_folga_recesso: number
+  valor_vr_diario_padrao: number
+}
+
 
 
 
