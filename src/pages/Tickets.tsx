@@ -42,7 +42,11 @@ import {
   Unlink,
   Check,
   KeyRound,
-  UserPlus
+  UserPlus,
+  Phone,
+  MessageCircle,
+  Copy,
+  Pencil
 } from 'lucide-react'
 import clsx from 'clsx'
 import {
@@ -58,7 +62,7 @@ import {
   type AcessoPortal
 } from '../lib/api'
 import { getLoggedUser, isClienteUser, isAdminUser, isSuporteUser } from '../lib/auth'
-import { formatTelefone } from '../lib/telefone'
+import { formatTelefone, soDigitosTelefone } from '../lib/telefone'
 import { ContatoModal } from '../components/ContatoModal'
 import { RichTextEditor } from '../components/RichTextEditor'
 
@@ -646,6 +650,7 @@ function TicketsAgente() {
           contatos={contatos}
           tickets={tickets}
           emailsFuncionarios={emailsFuncionarios}
+          grupos={cadastros.grupos}
           onChangeClientes={() => api.getClientes().then(cs => setClientes(cs || [])).catch(() => {})}
           onChangeLeo={() => api.getLeoEmpresas().then(es => setLeoEmpresas(es || [])).catch(() => {})}
           onChangeContatos={() => api.getContatos().then(cs => setContatos(cs || [])).catch(() => {})}
@@ -3094,17 +3099,19 @@ type EmpresaLinha = {
   contatos: number          // Total efetivo (diretos + vinculados)
   contatosDiretos: number   // Contatos diretos desta empresa
   contatosVinculados: number // Contatos herdados de empresas vinculadas
+  contatosDiretosLista: any[] // Lista detalhada de contatos diretos
   contatosVinculadosLista: any[] // Lista detalhada de contatos vinculados
   tickets: number
   vinculadas: { chave: string; nome: string; origem: 'cliente' | 'leo' }[]
 }
 
-function EmpresasView({ clientes, leoEmpresas, contatos, tickets, emailsFuncionarios, onChangeClientes, onChangeLeo, onChangeContatos }: {
+function EmpresasView({ clientes, leoEmpresas, contatos, tickets, emailsFuncionarios, grupos = [], onChangeClientes, onChangeLeo, onChangeContatos }: {
   clientes: any[]
   leoEmpresas: any[]
   contatos: any[]
   tickets: Ticket[]
   emailsFuncionarios: string[]
+  grupos?: any[]
   onChangeClientes: () => void
   onChangeLeo: () => void
   onChangeContatos: () => void
@@ -3119,6 +3126,8 @@ function EmpresasView({ clientes, leoEmpresas, contatos, tickets, emailsFunciona
   const [soSemContato, setSoSemContato] = useState(false)
   const [novoContatoEmpresa, setNovoContatoEmpresa] = useState<EmpresaLinha | null>(null)
   const [vincularEmpresaModal, setVincularEmpresaModal] = useState<EmpresaLinha | null>(null)
+  const [verContatosEmpresaChave, setVerContatosEmpresaChave] = useState<string | null>(null)
+  const [contatoParaEditar, setContatoParaEditar] = useState<TicketContato | null>(null)
   const [vinculos, setVinculos] = useState<EmpresaVinculoItem[]>([])
   const navegar = useNavigate()
   // Overrides otimistas do "ativo" (até o refresh dos dados vindos do pai)
@@ -3276,6 +3285,7 @@ function EmpresasView({ clientes, leoEmpresas, contatos, tickets, emailsFunciona
         contatos: contatosTotal,
         contatosDiretos,
         contatosVinculados,
+        contatosDiretosLista,
         contatosVinculadosLista,
         tickets: ticketCount.get(norm(nome)) || 0,
         vinculadas
@@ -3307,6 +3317,11 @@ function EmpresasView({ clientes, leoEmpresas, contatos, tickets, emailsFunciona
     return [...base, ...leo]
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientes, leoEmpresas, contatos, tickets, emailsFuncionarios, ativoLocal, vinculos, grupoMap, vinculoPorChave])
+
+  const verContatosEmpresa = useMemo(() => {
+    if (!verContatosEmpresaChave) return null
+    return linhas.find(l => l.chave === verContatosEmpresaChave) || null
+  }, [verContatosEmpresaChave, linhas])
 
   const tipoCasa = (tipoEmpresa: string): boolean => {
     if (filtroTipo === 'TODOS') return true
@@ -3627,31 +3642,40 @@ function EmpresasView({ clientes, leoEmpresas, contatos, tickets, emailsFunciona
 
                   {/* Coluna Contatos: Diretos + Herdados por Vínculo */}
                   <div className="px-4 py-3 min-w-0">
-                    {l.contatosDiretos === 0 && l.contatosVinculados === 0 ? (
-                      <span className="tabular-nums text-slate-400 text-xs px-1.5 font-medium">0</span>
-                    ) : l.contatosDiretos === 0 && l.contatosVinculados > 0 ? (
-                      <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs tabular-nums cursor-default shadow-2xs"
-                        title={`${l.contatosVinculados} contato(s) herdado(s) via empresa vinculada:\n${(l.contatosVinculadosLista || []).map((c: any) => `• ${c.nome || 'Contato'} (${c.email || 'sem e-mail'}) — via ${c._origemEmpresaNome}`).join('\n')}`}
-                      >
-                        <Link2 className="w-3 h-3 text-indigo-500 shrink-0" />
-                        <span>{l.contatosVinculados}</span>
-                        <span className="text-[10px] font-medium text-indigo-500 hidden xl:inline">vinculado</span>
-                      </span>
-                    ) : l.contatosDiretos > 0 && l.contatosVinculados > 0 ? (
-                      <div className="flex items-center gap-1.5 tabular-nums">
-                        <span className="font-semibold text-slate-800 text-xs">{l.contatosDiretos}</span>
-                        <span
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold cursor-default shadow-2xs"
-                          title={`+${l.contatosVinculados} contato(s) adicional(is) herdado(s) via empresa vinculada:\n${(l.contatosVinculadosLista || []).map((c: any) => `• ${c.nome || 'Contato'} (${c.email || 'sem e-mail'}) — via ${c._origemEmpresaNome}`).join('\n')}`}
-                        >
-                          <Link2 className="w-2.5 h-2.5 text-indigo-500 shrink-0" />
-                          +{l.contatosVinculados}
+                    <button
+                      type="button"
+                      onClick={() => setVerContatosEmpresaChave(l.chave)}
+                      className="group/cont inline-flex items-center gap-1.5 px-2 py-1 -mx-2 -my-1 rounded-lg hover:bg-brand-50/80 border border-transparent hover:border-brand-200 transition-all cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                      title={l.contatos > 0 ? `Clique para ver os ${l.contatos} contato(s) de ${l.nome}` : `Nenhum contato cadastrado. Clique para ver ou adicionar contatos de ${l.nome}`}
+                    >
+                      {l.contatosDiretos === 0 && l.contatosVinculados === 0 ? (
+                        <span className="tabular-nums text-slate-400 group-hover/cont:text-brand-600 text-xs px-1 font-medium transition-colors">
+                          0
                         </span>
-                      </div>
-                    ) : (
-                      <span className="tabular-nums font-semibold text-slate-700 text-xs px-1.5">{l.contatosDiretos}</span>
-                    )}
+                      ) : l.contatosDiretos === 0 && l.contatosVinculados > 0 ? (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-xs tabular-nums group-hover/cont:bg-indigo-100 group-hover/cont:border-indigo-300 shadow-2xs transition-colors"
+                        >
+                          <Link2 className="w-3 h-3 text-indigo-500 shrink-0" />
+                          <span>{l.contatosVinculados}</span>
+                          <span className="text-[10px] font-medium text-indigo-500 hidden xl:inline">vinculado</span>
+                        </span>
+                      ) : l.contatosDiretos > 0 && l.contatosVinculados > 0 ? (
+                        <div className="flex items-center gap-1.5 tabular-nums">
+                          <span className="font-semibold text-slate-800 group-hover/cont:text-brand-700 text-xs underline-offset-2 group-hover/cont:underline transition-colors">{l.contatosDiretos}</span>
+                          <span
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold group-hover/cont:bg-indigo-100 group-hover/cont:border-indigo-300 shadow-2xs transition-colors"
+                          >
+                            <Link2 className="w-2.5 h-2.5 text-indigo-500 shrink-0" />
+                            +{l.contatosVinculados}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="tabular-nums font-semibold text-slate-700 group-hover/cont:text-brand-700 text-xs px-1 underline-offset-2 group-hover/cont:underline transition-colors">
+                          {l.contatosDiretos}
+                        </span>
+                      )}
+                    </button>
                   </div>
                   <div className="px-4 py-3">
                     <span className={clsx('inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-bold', tipoBadge(l.tipo))}>
@@ -3721,6 +3745,416 @@ function EmpresasView({ clientes, leoEmpresas, contatos, tickets, emailsFunciona
         />
       )}
 
+      {verContatosEmpresa && (
+        <VerContatosEmpresaModal
+          empresa={verContatosEmpresa}
+          onClose={() => setVerContatosEmpresaChave(null)}
+          onNovoContato={() => setNovoContatoEmpresa(verContatosEmpresa)}
+          onEditarContato={c => setContatoParaEditar(c)}
+        />
+      )}
+
+      {contatoParaEditar && (
+        <ContatoModal
+          contato={contatoParaEditar}
+          clientes={clientes}
+          leoEmpresas={leoEmpresas}
+          grupos={grupos || []}
+          onClose={() => setContatoParaEditar(null)}
+          onChange={() => {
+            onChangeContatos()
+          }}
+        />
+      )}
+
+    </div>
+  )
+}
+
+// ============================================================
+// Modal: Visualizar Contatos da Empresa
+// ============================================================
+function VerContatosEmpresaModal({
+  empresa,
+  onClose,
+  onNovoContato,
+  onEditarContato
+}: {
+  empresa: EmpresaLinha
+  onClose: () => void
+  onNovoContato: () => void
+  onEditarContato: (c: TicketContato) => void
+}) {
+  const [busca, setBusca] = useState('')
+  const [filtroAba, setFiltroAba] = useState<'todos' | 'diretos' | 'vinculados'>('todos')
+  const [copiadoEmail, setCopiadoEmail] = useState<string | null>(null)
+
+  const copiarEmail = (email: string) => {
+    if (!email) return
+    navigator.clipboard.writeText(email)
+    setCopiadoEmail(email)
+    setTimeout(() => setCopiadoEmail(null), 2000)
+  }
+
+  const diretosLista = empresa.contatosDiretosLista || []
+  const vinculadosLista = empresa.contatosVinculadosLista || []
+  const temVinculados = vinculadosLista.length > 0
+
+  const todosContatos = useMemo(() => {
+    const d = diretosLista.map((c: any) => ({
+      ...c,
+      _tipoRelacao: 'direto' as const,
+      _origemNome: empresa.nome
+    }))
+    const v = vinculadosLista.map((c: any) => ({
+      ...c,
+      _tipoRelacao: 'vinculado' as const,
+      _origemNome: c._origemEmpresaNome || 'Empresa Vinculada'
+    }))
+    return [...d, ...v]
+  }, [diretosLista, vinculadosLista, empresa.nome])
+
+  const contatosFiltrados = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    const qDigits = q.replace(/\D/g, '')
+
+    return todosContatos.filter(c => {
+      if (filtroAba === 'diretos' && c._tipoRelacao !== 'direto') return false
+      if (filtroAba === 'vinculados' && c._tipoRelacao !== 'vinculado') return false
+      if (!q) return true
+
+      const matchNome = (c.nome || '').toLowerCase().includes(q)
+      const matchEmail = (c.email || '').toLowerCase().includes(q) || (c.email_secundario || '').toLowerCase().includes(q)
+      const matchCargo = (c.cargo || '').toLowerCase().includes(q)
+      const matchOrigem = (c._origemNome || '').toLowerCase().includes(q)
+      const matchTel = qDigits ? (
+        ((c.celular || '').replace(/\D/g, '').includes(qDigits)) ||
+        ((c.telefone_comercial || '').replace(/\D/g, '').includes(qDigits))
+      ) : false
+
+      return matchNome || matchEmail || matchCargo || matchOrigem || matchTel
+    })
+  }, [todosContatos, busca, filtroAba])
+
+  const tipoBadgeModal = (tipo: string) => {
+    const t = (tipo || '').toUpperCase()
+    if (t.includes('SHOPEE')) return 'bg-amber-500/10 text-amber-700 border-amber-300'
+    if (t.includes('LÉO') || t.includes('LEO')) return 'bg-emerald-500/10 text-emerald-700 border-emerald-300'
+    return 'bg-blue-500/10 text-blue-700 border-blue-300'
+  }
+
+  const getIniciais = (nome: string) => {
+    const partes = (nome || '').trim().split(/\s+/).filter(Boolean)
+    if (partes.length === 0) return '?'
+    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase()
+    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[9980] flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-150"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden">
+        
+        {/* Cabeçalho */}
+        <div className="flex items-start justify-between p-4 sm:p-5 border-b border-slate-200 bg-slate-50/80 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-600 shrink-0">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-slate-900 text-base sm:text-lg leading-tight truncate">
+                  {empresa.nome}
+                </h3>
+                <span className={clsx('inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-bold', tipoBadgeModal(empresa.tipo))}>
+                  {empresa.tipo}
+                </span>
+                <span className={clsx('inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border', empresa.ativo ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200')}>
+                  {empresa.ativo ? 'Ativa' : 'Inativa'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
+                <span>Total de <strong>{empresa.contatos}</strong> contato(s)</span>
+                {temVinculados && (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-slate-600 font-medium">{diretosLista.length} direto(s)</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-indigo-600 font-medium inline-flex items-center gap-1">
+                      <Link2 className="w-3 h-3 text-indigo-500" />
+                      {vinculadosLista.length} herdado(s) por vínculo
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onNovoContato}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Cadastrar novo contato para esta empresa"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Novo Contato</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+              title="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Barra de Filtro e Busca */}
+        <div className="p-3 sm:p-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              placeholder="Pesquisar por nome, e-mail, cargo, celular..."
+              className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs focus:outline-none focus:border-brand-500 focus:bg-white transition-colors"
+            />
+            {busca && (
+              <button
+                type="button"
+                onClick={() => setBusca('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                title="Limpar busca"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {temVinculados && (
+            <div className="flex items-center rounded-xl bg-slate-100 p-1 text-xs shrink-0 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setFiltroAba('todos')}
+                className={clsx(
+                  'px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer',
+                  filtroAba === 'todos' ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-500 hover:text-slate-700'
+                )}
+              >
+                Todos ({todosContatos.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFiltroAba('diretos')}
+                className={clsx(
+                  'px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer',
+                  filtroAba === 'diretos' ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-500 hover:text-slate-700'
+                )}
+              >
+                Diretos ({diretosLista.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFiltroAba('vinculados')}
+                className={clsx(
+                  'inline-flex items-center gap-1 px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer',
+                  filtroAba === 'vinculados' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-indigo-600 hover:text-indigo-800'
+                )}
+              >
+                <Link2 className="w-3 h-3 text-indigo-500" />
+                Vinculados ({vinculadosLista.length})
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Lista de Contatos */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 min-h-0 bg-slate-50/50">
+          {contatosFiltrados.length === 0 ? (
+            <div className="py-12 px-4 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                <Users className="w-6 h-6" />
+              </div>
+              {todosContatos.length === 0 ? (
+                <>
+                  <h4 className="font-semibold text-slate-800 text-sm mb-1">
+                    Nenhum contato cadastrado
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto mb-4">
+                    Esta empresa ainda não possui contatos associados. Cadastre o primeiro contato agora.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onNovoContato}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Cadastrar Primeiro Contato
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h4 className="font-semibold text-slate-800 text-sm mb-1">
+                    Nenhum contato encontrado
+                  </h4>
+                  <p className="text-xs text-slate-500 mb-3">
+                    Nenhum resultado corresponde à busca "{busca}".
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setBusca(''); setFiltroAba('todos') }}
+                    className="text-xs text-brand-600 hover:text-brand-700 font-semibold underline underline-offset-2 cursor-pointer"
+                  >
+                    Limpar filtros de busca
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            contatosFiltrados.map((c: any) => {
+              const whatsDigits = soDigitosTelefone(c.celular)
+              const telComercialDigits = soDigitosTelefone(c.telefone_comercial)
+              const temWhats = whatsDigits.length >= 10
+              const linkWhats = temWhats ? `https://wa.me/55${whatsDigits}` : null
+
+              return (
+                <div
+                  key={c.id || c.email || c.nome}
+                  className="bg-white border border-slate-200 rounded-xl p-3 sm:p-3.5 hover:border-slate-300 hover:shadow-sm transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 text-brand-700 font-bold flex items-center justify-center text-xs shrink-0 tracking-wider">
+                      {getIniciais(c.nome)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-900 text-sm">
+                          {c.nome || '(sem nome)'}
+                        </span>
+                        {c._tipoRelacao === 'vinculado' ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold"
+                            title={`Contato pertencente à empresa vinculada: ${c._origemNome}`}
+                          >
+                            <Link2 className="w-3 h-3 text-indigo-500 shrink-0" />
+                            <span>via {c._origemNome}</span>
+                          </span>
+                        ) : temVinculados ? (
+                          <span className="inline-flex items-center px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-medium">
+                            Direto
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {c.cargo && (
+                        <div className="text-xs text-slate-500 font-medium mt-0.5">
+                          {c.cargo}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-600 flex-wrap">
+                        {c.email ? (
+                          <div className="inline-flex items-center gap-1.5 group/email">
+                            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <a
+                              href={`mailto:${c.email}`}
+                              className="text-brand-600 hover:text-brand-700 hover:underline truncate max-w-[220px]"
+                              title={`Enviar e-mail para ${c.email}`}
+                            >
+                              {c.email}
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => copiarEmail(c.email)}
+                              className="text-slate-400 hover:text-slate-600 p-0.5 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                              title="Copiar e-mail"
+                            >
+                              {copiadoEmail === c.email ? (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600">
+                                  <Check className="w-3 h-3" /> Copiado!
+                                </span>
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px]">(sem e-mail)</span>
+                        )}
+
+                        {c.celular && (
+                          <div className="inline-flex items-center gap-1.5">
+                            {linkWhats ? (
+                              <a
+                                href={linkWhats}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md font-semibold text-xs transition-colors"
+                                title={`Abrir conversa no WhatsApp com ${c.nome} (${formatTelefone(c.celular)})`}
+                              >
+                                <MessageCircle className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span>{formatTelefone(c.celular)}</span>
+                              </a>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-slate-600">
+                                <Phone className="w-3 h-3 text-slate-400" />
+                                <span>{formatTelefone(c.celular)}</span>
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {c.telefone_comercial && (
+                          <a
+                            href={telComercialDigits ? `tel:${telComercialDigits}` : undefined}
+                            className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
+                            title={`Ligar para ${formatTelefone(c.telefone_comercial)}`}
+                          >
+                            <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{formatTelefone(c.telefone_comercial)}</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={() => onEditarContato(c)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                      title={`Ver perfil completo e editar contato ${c.nome}`}
+                    >
+                      <Pencil className="w-3 h-3 text-slate-500" />
+                      <span>Ver Perfil / Editar</span>
+                    </button>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {/* Rodapé */}
+        <div className="p-3 sm:p-4 border-t border-slate-200 bg-slate-50/80 flex items-center justify-between text-xs text-slate-500 shrink-0">
+          <span>
+            Exibindo <strong>{contatosFiltrados.length}</strong> de <strong>{todosContatos.length}</strong> contato(s)
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold transition-colors cursor-pointer"
+          >
+            Fechar
+          </button>
+        </div>
+
+      </div>
     </div>
   )
 }
