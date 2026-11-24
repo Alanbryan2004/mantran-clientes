@@ -40,15 +40,16 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome, clienteT
   const temMeli = clienteModulos.includes(MELI_NOME)
   const temNfse = clienteModulos.includes(NFSE_NOME)
 
-  // Já existe implantação dedicada daquele módulo? (pelo card de treinamento)
+  // Já existe implantação deste módulo (seja como etapa da implantação ou como dedicada)?
   const temCard = (nomeCard: string) =>
     implantacoesCliente.some(impl =>
       (impl.implantacao_etapas || []).some(
         (e: any) => (e.nome_etapa || '').trim().toLowerCase() === nomeCard
       )
     )
-  const jaTemImplNfse = temCard('treinamento nfse')
+  const jaTemImplNfse = temCard('treinamento nfse') || temCard('nfse')
   const jaTemImplMeli = temCard('treinamento meli') || temCard('mercado livre')
+  const temImplEmAndamento = implantacoesCliente.some(impl => impl.status === 'Em Andamento')
 
   // Cards de cada implantação dedicada (sempre os 4, variando só o treinamento)
   const CARDS_BASE = ['Checkpoint', 'Configurar Base', 'Testes']
@@ -365,7 +366,7 @@ export function ModulosModal({ isOpen, onClose, clienteId, clienteNome, clienteT
           )}
 
           {/* Faixa de ação: Criar implantação dedicada (Compacta) */}
-          {!loading && ((temNfse && !jaTemImplNfse) || (temMeli && !jaTemImplMeli)) && !isReadOnlyUser() && (
+          {!loading && !temImplEmAndamento && ((temNfse && !jaTemImplNfse) || (temMeli && !jaTemImplMeli)) && !isReadOnlyUser() && (
             <div className="px-3 py-2 rounded-lg bg-brand-500/10 border border-brand-500/30 flex items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2 min-w-0">
                 <Rocket className="w-4 h-4 text-brand-400 shrink-0" />

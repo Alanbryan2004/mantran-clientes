@@ -72,14 +72,40 @@ const normalizeEtapaNome = (nome: string): string => {
 }
 
 // Classificação de implantação por tipo (para o filtro Clientes/NFSE/MELI).
-// Implantações dedicadas têm o card de treinamento correspondente.
+// Uma implantação completa (onboarding geral de novo cliente) possui etapas gerais (cadastros, line haul, last mile, ativo 4pl, feedback, etc.)
+// ou mais de 4 etapas. Ela é SEMPRE classificada como "CLIENTES".
+const isImplCompleta = (impl: any) => {
+  const etapas = (impl.implantacao_etapas || []).map((e: any) => (e.nome_etapa || '').trim().toLowerCase())
+  const temEtapasGerais = etapas.some((e: string) => 
+    e.includes('cadastro') || 
+    e.includes('line haul') || 
+    e.includes('last mile') || 
+    e.includes('first mile') || 
+    e.includes('mobile hub') || 
+    e === 'ativo 4pl' || 
+    e === 'feedback' || 
+    e.includes('prefatura') ||
+    e.includes('primeira fatura') ||
+    e.includes('operação') ||
+    e.includes('financeiro')
+  )
+  return temEtapasGerais || etapas.length > 4
+}
+
 const implTemCard = (impl: any, nomeLower: string) =>
   (impl.implantacao_etapas || []).some(
     (e: any) => (e.nome_etapa || '').trim().toLowerCase() === nomeLower
   )
-const isImplNfse = (impl: any) => implTemCard(impl, 'treinamento nfse') || implTemCard(impl, 'nfse')
-const isImplMeli = (impl: any) => implTemCard(impl, 'treinamento meli') || implTemCard(impl, 'mercado livre')
-// "Cliente" = implantação normal (não é dedicada de NFSE nem de MELI)
+
+// Implantações dedicadas (criadas posteriormente pelo botão de módulos ativos para NFSE ou MELI):
+// Só são consideradas dedicadas se NÃO forem uma implantação completa de cliente.
+const isImplNfse = (impl: any) =>
+  !isImplCompleta(impl) && (implTemCard(impl, 'treinamento nfse') || implTemCard(impl, 'nfse'))
+
+const isImplMeli = (impl: any) =>
+  !isImplCompleta(impl) && (implTemCard(impl, 'treinamento meli') || implTemCard(impl, 'mercado livre'))
+
+// "Cliente" = implantação normal/completa (onboarding de novos clientes)
 const isImplCliente = (impl: any) => !isImplNfse(impl) && !isImplMeli(impl)
 
 // Uma etapa conta como "concluída" quando está OK ou em ERRO (erro documentado).
