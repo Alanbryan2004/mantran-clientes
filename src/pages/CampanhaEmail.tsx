@@ -187,9 +187,12 @@ export function CampanhaEmail() {
       return origem + (v.startsWith('/') ? v : '/' + v)
     }
 
-    const corpo = corpoHtml
+    const corpo = (corpoHtml || '')
       .replace(/\{\{\s*nome\s*\}\}/gi, d.nome || '')
       .replace(/\{\{\s*empresa\s*\}\}/gi, d.empresa || '')
+      .replace(/<img([^>]+)src=["'](\/[^"']+)["']/gi, (_match, prefix, path) => {
+        return `<img${prefix}src="${origem}${path}"`
+      })
     const unsub = incluirDescadastro
       ? `<a href="${urlAbsoluta('/api/descadastro')}?email=${encodeURIComponent(d.email)}" style="color:#94a3b8;text-decoration:underline">descadastrar</a>`
       : ''
@@ -200,12 +203,15 @@ export function CampanhaEmail() {
       ? `<tr><td style="padding:24px 32px;background:#ffffff;border-bottom:3px solid ${corDestaque}">
            <img src="${logoSrc}" alt="logo" height="40" style="height:40px;width:auto;max-width:220px;display:block;border:0;outline:none;text-decoration:none" /></td></tr>`
       : ''
-    return `<!doctype html><html><body style="margin:0;padding:0;background:#f1f5f9">
+    return `<!doctype html><html><head><meta charset="utf-8"><style>
+      img { max-width: 100% !important; height: auto !important; }
+      .email-corpo::after { content: ""; display: table; clear: both; }
+    </style></head><body style="margin:0;padding:0;background:#f1f5f9">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0">
         <tr><td align="center">
           <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
             ${logo}
-            <tr><td style="padding:28px 32px;font-size:15px;color:#334155;line-height:1.7">${corpo}</td></tr>
+            <tr><td class="email-corpo" style="padding:28px 32px;font-size:15px;color:#334155;line-height:1.7">${corpo}<div style="clear:both"></div></td></tr>
             <tr><td style="padding:18px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;line-height:1.6">
               ${rodape || ''} ${unsub ? '<br>' + unsub : ''}
             </td></tr>
@@ -509,7 +515,10 @@ export function CampanhaEmail() {
                 <div>
                   <label className={labelCls}>Mensagem</label>
                   <RichTextEditor value={corpoHtml} onChange={setCorpoHtml} placeholder="Escreva a mensagem…" minHeight={200} />
-                  <p className="text-[11px] text-slate-400 mt-1">Variáveis: <code>{'{{nome}}'}</code> e <code>{'{{empresa}}'}</code>.</p>
+                  <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap items-center justify-between gap-1">
+                    <span>Variáveis: <code>{'{{nome}}'}</code> e <code>{'{{empresa}}'}</code>.</span>
+                    <span className="text-brand-600 font-medium">💡 Dica: Use o botão <strong>Imagem</strong> na barra ou cole prints com Ctrl+V.</span>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

@@ -138,8 +138,20 @@
   overflow-x: auto;
   margin: 0.5rem 0;
 }
+.rte-content::after {
+  content: "";
+  display: table;
+  clear: both;
+}
 .rte-content img {
   max-width: 100%;
+  height: auto;
   border-radius: 0.5rem;
   margin: 0.5rem 0;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.rte-content img:hover {
+  outline: 2px solid #ef4444;
+  outline-offset: 2px;
 }
