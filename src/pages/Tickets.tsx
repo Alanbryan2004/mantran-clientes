@@ -1965,6 +1965,7 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
   const [temOrigem, setTemOrigem] = useState(true) // false = colunas de origem/data ainda não criadas no banco
   const [soNovos, setSoNovos] = useState(somenteNovosInicial)
   const [soSemEmpresa, setSoSemEmpresa] = useState(false)
+  const [clientesDesativados, setClientesDesativados] = useState<any[]>([])
   const [liberandoId, setLiberandoId] = useState<string | null>(null)
   const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null)
 
@@ -1988,8 +1989,12 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
   const carregar = async () => {
     setLoading(true)
     try {
-      const cs = await api.getContatos()
+      const [cs, cds] = await Promise.all([
+        api.getContatos(),
+        api.getClientesDesativados()
+      ])
       setContatos(cs as TicketContato[])
+      setClientesDesativados(cds || [])
     } catch (err) {
       console.error('Erro ao carregar contatos:', err)
     } finally {
@@ -2111,14 +2116,28 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
 
   const empresaNome = (c: TicketContato) => {
     const email = (c.email || '').trim().toLowerCase()
-    if (email && emailsFuncionarios.includes(email)) return 'Mantran'
+    if (email && (emailsFuncionarios.includes(email) || email.endsWith('@mantran.com.br') || email.endsWith('@mantran.eti.br'))) {
+      return 'Mantran'
+    }
     if (c.empresa_id) {
       const deCliente = clientes.find(cl => cl.id === c.empresa_id)?.nome_empresa
       if (deCliente) return deCliente
       const deLeo = (leoEmpresas || []).find((le: any) => le.id === c.empresa_id)?.nome_empresa
       if (deLeo) return deLeo
+      const deDesativado = clientesDesativados.find((cd: any) => cd.cliente_id_original === c.empresa_id || cd.id === c.empresa_id)?.nome_empresa
+      if (deDesativado) return deDesativado
     }
     return c.empresa_nome || ''
+  }
+
+  const ehEmpresaDesativada = (c: TicketContato): boolean => {
+    if (c.empresa_id && clientesDesativados.some((cd: any) => cd.cliente_id_original === c.empresa_id || cd.id === c.empresa_id)) {
+      return true
+    }
+    if (c.empresa_nome && clientesDesativados.some((cd: any) => (cd.nome_empresa || '').trim().toLowerCase() === c.empresa_nome?.trim().toLowerCase())) {
+      return true
+    }
+    return false
   }
 
   const grupoNome = (c: TicketContato) =>
@@ -2127,16 +2146,22 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
   // Classificação = "Mantran" se o e-mail for de funcionário; senão, o "tipo" da empresa vinculada
   const classificacaoCliente = (c: TicketContato) => {
     const email = (c.email || '').trim().toLowerCase()
-    if (email && emailsFuncionarios.includes(email)) return 'Mantran'
+    if (email && (emailsFuncionarios.includes(email) || email.endsWith('@mantran.com.br') || email.endsWith('@mantran.eti.br'))) {
+      return 'Mantran'
+    }
     if (c.empresa_id) {
       const tipoCli = clientes.find(cl => cl.id === c.empresa_id)?.tipo
       if (tipoCli) return tipoCli
       const ehLeo = (leoEmpresas || []).some((le: any) => le.id === c.empresa_id)
       if (ehLeo) return 'LÉO MADEIRAS'
+      const tipoDesativado = clientesDesativados.find((cd: any) => cd.cliente_id_original === c.empresa_id || cd.id === c.empresa_id)?.tipo
+      if (tipoDesativado) return tipoDesativado
     }
     if (c.empresa_nome) {
       const ehLeoNome = (leoEmpresas || []).some((le: any) => (le.nome_empresa || '').trim().toLowerCase() === c.empresa_nome?.trim().toLowerCase())
       if (ehLeoNome) return 'LÉO MADEIRAS'
+      const tipoDesativadoPorNome = clientesDesativados.find((cd: any) => (cd.nome_empresa || '').trim().toLowerCase() === c.empresa_nome?.trim().toLowerCase())?.tipo
+      if (tipoDesativadoPorNome) return tipoDesativadoPorNome
     }
     return ''
   }
@@ -2158,7 +2183,7 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
       grupoNome(c).toLowerCase().includes(termo)
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contatos, busca, clientes, leoEmpresas, grupos, soNovos, soSemEmpresa, acessos, temOrigem])
+  }, [contatos, busca, clientes, leoEmpresas, clientesDesativados, grupos, soNovos, soSemEmpresa, acessos, temOrigem])
 
   // Quantos "novos cadastros" existem (contador do botão do filtro)
   const qtdNovos = useMemo(
@@ -2171,7 +2196,7 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
   const qtdSemEmpresa = useMemo(
     () => contatos.filter(c => !empresaNome(c).trim()).length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [contatos, clientes, leoEmpresas, emailsFuncionarios]
+    [contatos, clientes, leoEmpresas, clientesDesativados, emailsFuncionarios]
   )
 
   // Ordenação pela coluna clicada no cabeçalho
@@ -2473,7 +2498,19 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
                   <div className="px-4 py-3 truncate">{classificacaoCliente(c) || '- -'}</div>
                   <div className="px-4 py-3 truncate">
                     {empresaNome(c) ? (
-                      <span className="text-slate-700">{empresaNome(c)}</span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={clsx("truncate", c.ativo === false ? "text-slate-400" : "text-slate-700")}>
+                          {empresaNome(c)}
+                        </span>
+                        {ehEmpresaDesativada(c) && (
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200 shrink-0"
+                            title="A base desta empresa foi desativada no sistema. O vínculo permanece guardado para caso o cliente retorne."
+                          >
+                            Base desativada
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold shadow-2xs group-hover:border-amber-300"

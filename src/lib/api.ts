@@ -610,7 +610,43 @@ export const api = {
     }
   },
 
+  async getClientesDesativados(): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('clientes_desativados')
+      .select('id, cliente_id_original, nome_empresa, tipo, base_nome, desativado_em')
+    if (error) {
+      console.warn('Aviso ao buscar clientes desativados:', error)
+      return []
+    }
+    return data || []
+  },
+
   async deleteCliente(clienteId: string) {
+    try {
+      // 1. Obtém os dados do cliente antes de remover da tabela ativa
+      const { data: cli } = await supabase
+        .from('clientes')
+        .select('nome_empresa')
+        .eq('id', clienteId)
+        .maybeSingle()
+
+      // 2. Preserva os contatos associados: marca como inativos (ativo = false),
+      // garante o preenchimento permanente de empresa_nome e mantém empresa_id
+      // para caso o cliente retorne algum dia.
+      if (cli?.nome_empresa) {
+        await supabase
+          .from('ticket_contatos')
+          .update({
+            ativo: false,
+            empresa_nome: cli.nome_empresa,
+            empresa_id: clienteId
+          })
+          .eq('empresa_id', clienteId)
+      }
+    } catch (e) {
+      console.warn('Aviso ao preservar contatos ao excluir cliente:', e)
+    }
+
     const { error } = await supabase
       .from('clientes')
       .delete()
@@ -740,7 +776,34 @@ export const api = {
     await api.deleteUsuariosByCliente(clienteId)
     await api.deleteModulosByCliente(clienteId)
 
-    // 9b. Excluir os acessos de portal da empresa (quem tinha login deixa de conseguir entrar).
+    // 9b. Desativar TODOS os contatos da empresa excluída e preservar permanentemente o vínculo
+    // (empresa_nome gravado e empresa_id mantido, com ativo = false)
+    const nomeEmpresaFinal = (cliente?.nome_empresa || nomeEmpresa || '').trim()
+    try {
+      if (clienteId) {
+        await supabase
+          .from('ticket_contatos')
+          .update({
+            ativo: false,
+            ...(nomeEmpresaFinal ? { empresa_nome: nomeEmpresaFinal } : {})
+          })
+          .eq('empresa_id', clienteId)
+      }
+      if (nomeEmpresaFinal) {
+        await supabase
+          .from('ticket_contatos')
+          .update({
+            ativo: false,
+            empresa_nome: nomeEmpresaFinal,
+            ...(clienteId ? { empresa_id: clienteId } : {})
+          })
+          .ilike('empresa_nome', nomeEmpresaFinal)
+      }
+    } catch (errContatos) {
+      console.warn('Aviso ao desativar contatos da empresa excluída:', errContatos)
+    }
+
+    // Excluir os acessos de login no portal da empresa (quem tinha login deixa de conseguir entrar).
     // Os contatos NÃO são apagados (preservam o histórico de chamados); ficam marcados como inativos.
     if (usuariosPortal.length > 0) {
       const { error: errPortal } = await supabase

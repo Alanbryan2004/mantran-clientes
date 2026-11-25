@@ -245,6 +245,7 @@ function EditarContatoDrawer({ contato, clientes, leoEmpresas = [], grupos, onCl
   )
   const [grupoId, setGrupoId] = useState(contato.grupo_id || '')
   const [veTodos, setVeTodos] = useState(!!contato.ve_todos_empresa)
+  const [ativo, setAtivo] = useState(contato.ativo !== false)
   const [salvando, setSalvando] = useState(false)
 
   // Unifica clientes da base com empresas da Léo Madeiras
@@ -289,7 +290,8 @@ function EditarContatoDrawer({ contato, clientes, leoEmpresas = [], grupos, onCl
         // grava o nome da empresa selecionada (clientes ou Léo Madeiras)
         empresa_nome: (empresaNome && empresaNome.trim()) || null,
         grupo_id: grupoId || null,
-        ve_todos_empresa: veTodos
+        ve_todos_empresa: veTodos,
+        ativo: ativo
       })
       // Propaga o nome/e-mail atualizados para os tickets vinculados a este contato
       await api.propagarContatoNosTickets(contato.id, {
@@ -356,10 +358,16 @@ function EditarContatoDrawer({ contato, clientes, leoEmpresas = [], grupos, onCl
               {grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
             </select>
           </div>
-          <label className="flex items-center gap-2.5 cursor-pointer pt-1">
-            <input type="checkbox" checked={veTodos} onChange={e => setVeTodos(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
-            <span className="text-sm text-slate-700">Pode ver todos os tickets da empresa</span>
-          </label>
+          <div className="space-y-2 pt-1 border-t border-slate-100">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" />
+              <span className="text-sm font-semibold text-slate-700">Contato ativo</span>
+            </label>
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={veTodos} onChange={e => setVeTodos(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" />
+              <span className="text-sm text-slate-700">Pode ver todos os tickets da empresa</span>
+            </label>
+          </div>
         </div>
 
         <div className="p-4 border-t border-slate-200 flex justify-end gap-2 shrink-0">
