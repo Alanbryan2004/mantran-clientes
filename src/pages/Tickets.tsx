@@ -63,7 +63,7 @@ import {
 } from '../lib/api'
 import { getLoggedUser, isClienteUser, isAdminUser, isSuporteUser } from '../lib/auth'
 import { formatTelefone, soDigitosTelefone } from '../lib/telefone'
-import { ContatoModal } from '../components/ContatoModal'
+import { ContatoModal, EmpresaComboboxContato } from '../components/ContatoModal'
 import { RichTextEditor } from '../components/RichTextEditor'
 
 const STATUS_OPTIONS = ['Novo', 'Aberto', 'Pendente', 'Aguardando cliente', 'Aguardando terceiros', 'Resolvido', 'Fechado']
@@ -1952,6 +1952,7 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
   const [busca, setBusca] = useState('')
   const [selecionado, setSelecionado] = useState<TicketContato | null>(null)
   const [importarAberto, setImportarAberto] = useState(false)
+  const [novoContatoAberto, setNovoContatoAberto] = useState(false)
   const [porPagina, setPorPagina] = useState(30)
   const [pagina, setPagina] = useState(1)
   type OrdenarCampo = 'contato' | 'classificacao' | 'empresa' | 'grupo' | 'email' | 'celular' | 'telefone'
@@ -2243,11 +2244,21 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
               <p className="text-[11px] sm:text-xs text-slate-500">{contatos.length} contato(s) cadastrado(s)</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <button
+              type="button"
+              onClick={() => setNovoContatoAberto(true)}
+              className="py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition-colors cursor-pointer"
+              title="Cadastrar novo contato"
+            >
+              <UserPlus className="w-4 h-4 shrink-0" />
+              <span>Novo Contato</span>
+            </button>
             <button
               type="button"
               onClick={() => setImportarAberto(true)}
-              className="py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition-colors cursor-pointer"
+              className="py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors cursor-pointer"
+              title="Importar contatos de planilha Excel"
             >
               <Upload className="w-4 h-4 shrink-0" />
               <span>Importar</span>
@@ -2256,6 +2267,7 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
               type="button"
               onClick={exportar}
               className="py-2 px-3 sm:px-4 flex items-center justify-center gap-2 text-xs sm:text-sm font-bold rounded-xl bg-white border border-slate-300 text-slate-700 hover:border-brand-400 hover:text-brand-600 shadow-sm transition-colors cursor-pointer"
+              title="Exportar contatos para Excel"
             >
               <Download className="w-4 h-4 shrink-0" />
               <span>Exportar</span>
@@ -2543,6 +2555,329 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
           onConcluido={() => { setImportarAberto(false); carregar(); onChange() }}
         />
       )}
+
+      {novoContatoAberto && (
+        <NovoContatoModal
+          clientes={clientes}
+          leoEmpresas={leoEmpresas}
+          grupos={grupos}
+          onClose={() => setNovoContatoAberto(false)}
+          onSalvo={async (novo) => {
+            setNovoContatoAberto(false)
+            await carregar()
+            onChange()
+            setAviso({ tipo: 'sucesso', texto: `Contato "${novo.nome}" cadastrado com sucesso!` })
+          }}
+          podeLiberarAcesso={podeLiberarAcesso}
+        />
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// Modal: Cadastrar Novo Contato Geral (Tela de Contatos)
+// ============================================================
+function NovoContatoModal({
+  clientes,
+  leoEmpresas = [],
+  grupos = [],
+  onClose,
+  onSalvo,
+  podeLiberarAcesso = false
+}: {
+  clientes: any[]
+  leoEmpresas?: any[]
+  grupos: any[]
+  onClose: () => void
+  onSalvo: (novo: TicketContato) => void
+  podeLiberarAcesso?: boolean
+}) {
+  const [nome, setNome] = useState('')
+  const [email, setEmail] = useState('')
+  const [emailSecundario, setEmailSecundario] = useState('')
+  const [telefoneComercial, setTelefoneComercial] = useState('')
+  const [celular, setCelular] = useState('')
+  const [cargo, setCargo] = useState('')
+  const [empresaId, setEmpresaId] = useState('')
+  const [empresaNome, setEmpresaNome] = useState('')
+  const [grupoId, setGrupoId] = useState('')
+  const [veTodos, setVeTodos] = useState(false)
+  const [enviarConviteAcesso, setEnviarConviteAcesso] = useState(false)
+
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  // Unifica clientes da base com empresas da Léo Madeiras para a combobox
+  const empresasUnificadas = useMemo(() => {
+    const base = (clientes || []).map((c: any) => ({
+      id: c.id,
+      nome_empresa: c.nome_empresa,
+      origem: 'cliente' as const,
+      tipo: c.tipo_cliente || c.tipo || 'NORMAL',
+      cd_empresa: c.cd_empresa || null
+    }))
+
+    const nomesVistos = new Set(base.map(c => (c.nome_empresa || '').trim().toLowerCase()))
+
+    const leo = (leoEmpresas || [])
+      .filter((e: any) => !nomesVistos.has((e.nome_empresa || '').trim().toLowerCase()))
+      .map((e: any) => ({
+        id: e.id,
+        nome_empresa: e.nome_empresa,
+        origem: 'leo' as const,
+        tipo: 'LÉO MADEIRAS',
+        cd_empresa: e.cd_empresa || null
+      }))
+
+    return [...base, ...leo]
+  }, [clientes, leoEmpresas])
+
+  const inputCls = 'w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm focus:outline-none focus:border-brand-500 focus:bg-white transition-colors'
+  const labelCls = 'block text-xs font-bold text-slate-700 mb-1'
+
+  const salvar = async () => {
+    if (!nome.trim()) { setErro('Informe o nome do contato.'); return }
+    if (!email.trim()) { setErro('Informe o e-mail principal do contato.'); return }
+
+    // Validação de formato de e-mail
+    const emailNorm = email.trim().toLowerCase()
+    if (!/^[^\s@,;<>()|]+@[^\s@,;<>()|]+\.[^\s@,;<>()|]{2,}$/.test(emailNorm)) {
+      setErro('O formato do e-mail é inválido.')
+      return
+    }
+
+    setErro('')
+    setSalvando(true)
+
+    try {
+      // Valida se já existe contato com este e-mail
+      const existentes = await api.getContatos()
+      const duplicado = (existentes || []).some((c: any) => (c.email || '').trim().toLowerCase() === emailNorm)
+      if (duplicado) {
+        setErro('Já existe um contato cadastrado com este e-mail.')
+        setSalvando(false)
+        return
+      }
+
+      const novo = await api.createContato({
+        nome: nome.trim(),
+        email: emailNorm,
+        email_secundario: emailSecundario.trim() || null,
+        telefone_comercial: telefoneComercial.trim() || null,
+        celular: celular.trim() || null,
+        cargo: cargo.trim() || null,
+        empresa_id: empresaId || null,
+        empresa_nome: (empresaNome && empresaNome.trim()) || null,
+        grupo_id: grupoId || null,
+        ve_todos_empresa: veTodos
+      })
+
+      // Se marcou para enviar convite de acesso ao portal e tem permissão
+      if (enviarConviteAcesso && podeLiberarAcesso && novo?.id) {
+        try {
+          await api.liberarAcessoContato(novo.id)
+        } catch (conviteErr) {
+          console.warn('Contato criado, mas ocorreu um erro ao enviar o convite de acesso:', conviteErr)
+        }
+      }
+
+      onSalvo(novo)
+    } catch (e: any) {
+      setErro('Erro ao cadastrar contato: ' + (e?.message || 'Erro desconhecido'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-150"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden">
+        
+        {/* Topo */}
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 bg-slate-50/70 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-600 shrink-0">
+              <UserPlus className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">Novo Contato</h2>
+              <p className="text-xs text-slate-500">Cadastre um contato e associe à empresa e permissões</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+            title="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Formulário */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+          {erro && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+              <span>{erro}</span>
+            </div>
+          )}
+
+          <div>
+            <label className={labelCls}>Nome Completo <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              value={nome}
+              onChange={e => setNome(e.target.value)}
+              placeholder="Ex.: Carlos Alberto"
+              className={inputCls}
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>E-mail Principal <span className="text-red-500">*</span></label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="contato@empresa.com.br"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>E-mail Secundário</label>
+              <input
+                type="email"
+                value={emailSecundario}
+                onChange={e => setEmailSecundario(e.target.value)}
+                placeholder="Ex.: financeiro@empresa.com.br"
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Celular / WhatsApp</label>
+              <input
+                type="text"
+                value={celular}
+                onChange={e => setCelular(formatTelefone(e.target.value))}
+                placeholder="(11) 91234-5678"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Telefone Comercial / Fixo</label>
+              <input
+                type="text"
+                value={telefoneComercial}
+                onChange={e => setTelefoneComercial(formatTelefone(e.target.value))}
+                placeholder="(11) 2345-6789"
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Cargo / Função</label>
+              <input
+                type="text"
+                value={cargo}
+                onChange={e => setCargo(e.target.value)}
+                placeholder="Ex.: Gerente de Operações"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Grupo</label>
+              <select
+                value={grupoId}
+                onChange={e => setGrupoId(e.target.value)}
+                className={inputCls}
+              >
+                <option value="">-- Sem grupo --</option>
+                {grupos.map(g => (
+                  <option key={g.id} value={g.id}>{g.nome}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Empresa</label>
+            <EmpresaComboboxContato
+              empresas={empresasUnificadas}
+              empresaId={empresaId}
+              empresaNome={empresaNome}
+              onSelecionar={cli => {
+                setEmpresaId(cli ? cli.id : '')
+                setEmpresaNome(cli ? cli.nome_empresa : '')
+              }}
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Busca automática entre Clientes cadastrados e empresas da base Léo Madeiras.
+            </p>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={veTodos}
+                onChange={e => setVeTodos(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+              />
+              <span className="text-xs sm:text-sm text-slate-700">
+                Pode visualizar todos os tickets da empresa
+              </span>
+            </label>
+
+            {podeLiberarAcesso && (
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={enviarConviteAcesso}
+                  onChange={e => setEnviarConviteAcesso(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                />
+                <span className="text-xs sm:text-sm text-slate-700">
+                  Enviar convite de acesso ao Portal Mantran Clientes imediatamente por e-mail
+                </span>
+              </label>
+            )}
+          </div>
+        </div>
+
+        {/* Rodapé de Ações */}
+        <div className="p-4 border-t border-slate-200 bg-slate-50/70 flex items-center justify-end gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={salvando}
+            className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={salvar}
+            disabled={salvando}
+            className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+          >
+            {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+            <span>{salvando ? 'Salvando...' : 'Cadastrar Contato'}</span>
+          </button>
+        </div>
+
+      </div>
     </div>
   )
 }

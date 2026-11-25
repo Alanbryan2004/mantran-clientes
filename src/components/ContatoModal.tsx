@@ -378,7 +378,7 @@ function EditarContatoDrawer({ contato, clientes, leoEmpresas = [], grupos, onCl
 // Combobox de empresa (Editar contato): filtra conforme digita
 // tanto em clientes quanto nas empresas da base Léo Madeiras.
 // ============================================================
-function EmpresaComboboxContato({ empresas, empresaId, empresaNome, onSelecionar }: {
+export function EmpresaComboboxContato({ empresas, empresaId, empresaNome, onSelecionar }: {
   empresas: any[]
   empresaId: string
   empresaNome: string

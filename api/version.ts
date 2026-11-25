@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 const APP_VERSION = {
-  "version": "2026.11.24-183616",
-  "buildTime": "2026-11-24T21:36:16.937Z"
+  "version": "2026.11.25-092905",
+  "buildTime": "2026-11-25T12:29:05.056Z"
 }
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
