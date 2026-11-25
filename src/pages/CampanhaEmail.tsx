@@ -204,7 +204,7 @@ export function CampanhaEmail() {
            <img src="${logoSrc}" alt="logo" height="40" style="height:40px;width:auto;max-width:220px;display:block;border:0;outline:none;text-decoration:none" /></td></tr>`
       : ''
     return `<!doctype html><html><head><meta charset="utf-8"><style>
-      img { max-width: 100% !important; height: auto !important; }
+      img { max-width: 100%; height: auto; }
       .email-corpo::after { content: ""; display: table; clear: both; }
     </style></head><body style="margin:0;padding:0;background:#f1f5f9">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0">
