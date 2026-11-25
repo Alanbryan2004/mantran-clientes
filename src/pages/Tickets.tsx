@@ -1964,6 +1964,7 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
   const [acessos, setAcessos] = useState<Record<string, AcessoPortal>>({})
   const [temOrigem, setTemOrigem] = useState(true) // false = colunas de origem/data ainda não criadas no banco
   const [soNovos, setSoNovos] = useState(somenteNovosInicial)
+  const [soSemEmpresa, setSoSemEmpresa] = useState(false)
   const [liberandoId, setLiberandoId] = useState<string | null>(null)
   const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null)
 
@@ -2142,7 +2143,13 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
-    const base = soNovos ? contatos.filter(ehNovoCadastro) : contatos
+    let base = contatos
+    if (soNovos) {
+      base = base.filter(ehNovoCadastro)
+    }
+    if (soSemEmpresa) {
+      base = base.filter(c => !empresaNome(c).trim())
+    }
     if (!termo) return base
     return base.filter(c =>
       (c.nome || '').toLowerCase().includes(termo) ||
@@ -2151,13 +2158,20 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
       grupoNome(c).toLowerCase().includes(termo)
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contatos, busca, clientes, leoEmpresas, grupos, soNovos, acessos, temOrigem])
+  }, [contatos, busca, clientes, leoEmpresas, grupos, soNovos, soSemEmpresa, acessos, temOrigem])
 
   // Quantos "novos cadastros" existem (contador do botão do filtro)
   const qtdNovos = useMemo(
     () => contatos.filter(ehNovoCadastro).length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [contatos, acessos, temOrigem]
+  )
+
+  // Quantos contatos não possuem empresa vinculada
+  const qtdSemEmpresa = useMemo(
+    () => contatos.filter(c => !empresaNome(c).trim()).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contatos, clientes, leoEmpresas, emailsFuncionarios]
   )
 
   // Ordenação pela coluna clicada no cabeçalho
@@ -2195,7 +2209,7 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
   }, [filtrados, ordenarPor, direcao, clientes, grupos, emailsFuncionarios, soNovos, acessos])
 
   // Volta para a página 1 ao filtrar, ordenar ou mudar itens por página
-  useEffect(() => { setPagina(1) }, [busca, porPagina, ordenarPor, direcao, soNovos])
+  useEffect(() => { setPagina(1) }, [busca, porPagina, ordenarPor, direcao, soNovos, soSemEmpresa])
 
   const totalRegistros = ordenados.length
   const totalPaginas = Math.max(1, Math.ceil(totalRegistros / porPagina))
@@ -2241,7 +2255,26 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">Contatos</h1>
-              <p className="text-[11px] sm:text-xs text-slate-500">{contatos.length} contato(s) cadastrado(s)</p>
+              <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">
+                <span>{contatos.length} contato(s) cadastrado(s)</span>
+                {qtdSemEmpresa > 0 && (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSoSemEmpresa(true)
+                        setSoNovos(false)
+                      }}
+                      className="text-amber-600 hover:text-amber-700 font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
+                      title="Clique para filtrar apenas contatos sem empresa associada"
+                    >
+                      <AlertCircle className="w-3 h-3 text-amber-500" />
+                      {qtdSemEmpresa} sem empresa
+                    </button>
+                  </>
+                )}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
@@ -2288,13 +2321,16 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setSoNovos(v => !v)}
+            onClick={() => {
+              setSoNovos(v => !v)
+              if (!soNovos) setSoSemEmpresa(false)
+            }}
             aria-pressed={soNovos}
             title={`Contatos que se cadastraram sozinhos pela tela de login nos últimos ${DIAS_NOVOS_CADASTROS} dias`}
             className={clsx(
               'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer',
               soNovos
-                ? 'bg-brand-600 border-brand-600 text-white'
+                ? 'bg-brand-600 border-brand-600 text-white shadow-xs'
                 : 'bg-white border-slate-300 text-slate-600 hover:border-brand-400 hover:text-brand-600'
             )}
           >
@@ -2302,6 +2338,45 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
             Novos cadastros
             <span className={clsx('px-1.5 rounded-full text-[10px]', soNovos ? 'bg-white/25' : 'bg-slate-100 text-slate-600')}>{qtdNovos}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSoSemEmpresa(v => !v)
+              if (!soSemEmpresa) setSoNovos(false)
+            }}
+            aria-pressed={soSemEmpresa}
+            title="Filtrar apenas contatos sem nenhuma empresa associada para correção"
+            className={clsx(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer',
+              soSemEmpresa
+                ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
+                : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-50 hover:border-amber-400'
+            )}
+          >
+            <AlertCircle className="w-3.5 h-3.5 text-amber-500" aria-hidden="true" />
+            Sem empresa associada
+            <span className={clsx(
+              'px-1.5 py-0.2 rounded-full text-[10px] font-bold',
+              soSemEmpresa ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'
+            )}>
+              {qtdSemEmpresa}
+            </span>
+          </button>
+
+          {soSemEmpresa && (
+            <div className="flex items-center gap-2 text-xs text-amber-700 font-medium ml-1">
+              <span>Exibindo <strong>{totalRegistros}</strong> contato(s) sem empresa vinculada. Clique na linha para associar a empresa.</span>
+              <button
+                type="button"
+                onClick={() => setSoSemEmpresa(false)}
+                className="underline hover:text-amber-900 cursor-pointer font-bold"
+              >
+                Limpar filtro
+              </button>
+            </div>
+          )}
+
           {soNovos && (
             <span className="text-[11px] text-slate-500">
               {temOrigem
@@ -2396,7 +2471,19 @@ function ContatosView({ clientes, leoEmpresas = [], grupos, emailsFuncionarios, 
                     <span className={clsx("font-semibold truncate", c.ativo === false ? "text-slate-400 line-through" : "text-brand-700")}>{c.nome}</span>
                   </div>
                   <div className="px-4 py-3 truncate">{classificacaoCliente(c) || '- -'}</div>
-                  <div className="px-4 py-3 truncate">{empresaNome(c) || '- -'}</div>
+                  <div className="px-4 py-3 truncate">
+                    {empresaNome(c) ? (
+                      <span className="text-slate-700">{empresaNome(c)}</span>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold shadow-2xs group-hover:border-amber-300"
+                        title="Nenhuma empresa associada a este contato. Clique para editar e associar a empresa."
+                      >
+                        <AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />
+                        Sem empresa
+                      </span>
+                    )}
+                  </div>
                   <div className="px-4 py-3 truncate">
                     {grupoNome(c)
                       ? <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 border border-brand-200 text-brand-700 text-xs font-semibold max-w-full truncate">{grupoNome(c)}</span>
