@@ -12,19 +12,19 @@ export interface PerfilPermissao {
 export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   Administrador: {
     perfil: 'Administrador',
-    rotas: ['/', '/analytics', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/validacao-api-shopee', '/tickets', '/faq', '/academia', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/analytics', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/validacao-api-shopee', '/tickets', '/campanha-email', '/faq', '/academia', '/calendario', '/comercial', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Tecnico: {
     perfil: 'Tecnico',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/faq', '/academia', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/tickets', '/campanha-email', '/faq', '/academia', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/tarefas', '/dev/qa', '/dev/dashboard', '/dev/pendentes', '/dev/finalizadas', '/dev/cadastro-telas', '/dev/cronograma'],
     projeto_especifico_id: null,
     read_only: false
   },
   Suporte: {
     perfil: 'Suporte',
-    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/validacao-api-shopee', '/tickets', '/faq', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa', '/academia'],
+    rotas: ['/', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/validacao-api-shopee', '/tickets', '/campanha-email', '/faq', '/calendario', '/clientes', '/implantacoes', '/bases', '/processamento-shopee', '/leo-madeiras', '/rh', '/dev/qa', '/academia'],
     projeto_especifico_id: null,
     read_only: false
   },
@@ -43,7 +43,7 @@ export const DEFAULT_PERMISSOES: Record<string, PerfilPermissao> = {
   },
   Comercial: {
     perfil: 'Comercial',
-    rotas: ['/comercial', '/faq', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/calendario', '/implantacoes', '/clientes', '/leo-madeiras', '/rh'],
+    rotas: ['/comercial', '/faq', '/academia', '/cidades', '/separador-planilhas', '/juntar-planilhas', '/calendario', '/implantacoes', '/clientes', '/leo-madeiras', '/rh', '/campanha-email'],
     projeto_especifico_id: null,
     read_only: false
   },
@@ -87,7 +87,14 @@ export const permissionsApi = {
     try {
       const cached = localStorage.getItem(STORAGE_KEY)
       if (cached) {
-        return { ...DEFAULT_PERMISSOES, ...JSON.parse(cached) }
+        const parsed = JSON.parse(cached)
+        const merged: Record<string, PerfilPermissao> = { ...DEFAULT_PERMISSOES, ...parsed }
+        Object.keys(merged).forEach(k => {
+          if (merged[k]?.rotas?.includes('/tickets') && !merged[k]?.rotas?.includes('/campanha-email')) {
+            merged[k].rotas.push('/campanha-email')
+          }
+        })
+        return merged
       }
     } catch (_) {}
     return DEFAULT_PERMISSOES
@@ -110,6 +117,11 @@ export const permissionsApi = {
           // Garante que funcionários internos (Suporte, Tecnico, Comercial, etc.) sempre tenham acesso à rota /rh
           if (isFuncionario && !rotas.includes('/rh')) {
             rotas.push('/rh')
+          }
+
+          // Se tiver permissão de Tickets/Empresas, garante acesso automático ao envio de campanhas de e-mail
+          if (rotas.includes('/tickets') && !rotas.includes('/campanha-email')) {
+            rotas.push('/campanha-email')
           }
 
           // Lista de projetos: usa a coluna nova (array/JSONB); se vazia, cai no campo singular legado
@@ -239,6 +251,20 @@ export const permissionsApi = {
     const perms = this.getStoredPermissions()
     const userPerm = findUserPermission(perms, perfilName)
     if (!userPerm) return false
+
+    // Rota /campanha-email: extensão direta do módulo de Empresas/Contatos/Tickets
+    if (normPath.startsWith('/campanha-email')) {
+      const p = perfilName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      if (p === 'cliente' || p === 'parceiro' || p === 'usuario' || p.includes('consulta')) {
+        return false
+      }
+      if (userPerm.rotas.includes('/tickets') || userPerm.rotas.includes('/campanha-email')) {
+        return true
+      }
+      if (p.includes('suporte') || p.includes('tecnico') || p.includes('comercial')) {
+        return true
+      }
+    }
 
     // Special case for bases / project details
     if (normPath.startsWith('/bases')) {

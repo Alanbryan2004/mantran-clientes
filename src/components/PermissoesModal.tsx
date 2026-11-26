@@ -101,6 +101,12 @@ export function PermissoesModal({ isOpen, onClose }: PermissoesModalProps) {
       } else {
         newRotas = Array.from(new Set([...currentRotas, ...devSubRoutes]))
       }
+    } else if (path === '/tickets') {
+      if (exists) {
+        newRotas = currentRotas.filter(r => r !== '/tickets' && r !== '/campanha-email')
+      } else {
+        newRotas = Array.from(new Set([...currentRotas, '/tickets', '/campanha-email']))
+      }
     } else {
       newRotas = exists 
         ? currentRotas.filter(r => r !== path)
