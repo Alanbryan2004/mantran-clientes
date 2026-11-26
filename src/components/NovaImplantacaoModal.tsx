@@ -220,6 +220,7 @@ export function NovaImplantacaoModal({ isOpen, onClose, onSuccess }: NovaImplant
   const generateEtapas = (): string[] => {
     if (tipoCliente === 'SHOPEE') {
       const etapas: string[] = []
+      etapas.push('Kickoff')
       etapas.push('Checkpoint')
       etapas.push('Configurar Base')
       etapas.push('Testes')

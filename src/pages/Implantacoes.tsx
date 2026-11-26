@@ -9,6 +9,7 @@ import clsx from 'clsx'
 import { calcularPrazoImplantacao, extrairDataFeedback } from '../lib/implantacaoPrazo'
 
 const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
+  'kickoff': 0,
   'checkpoint': 1,
   'configurar base': 2,
   'testes': 3,

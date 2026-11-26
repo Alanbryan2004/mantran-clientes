@@ -2,6 +2,7 @@ export const PRAZO_TOTAL_DIAS = 40
 export const DIAS_INICIO_ALERTA = 30
 
 export const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
+  'kickoff': 0,
   'checkpoint': 1,
   'configurar base': 2,
   'testes': 3,

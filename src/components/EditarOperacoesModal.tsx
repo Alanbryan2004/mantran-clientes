@@ -20,6 +20,7 @@ const ETAPAS_BASE_NORMAL = [
 ]
 
 const SHOPEE_ORDER_MAP: Record<string, number> = {
+  'kickoff': 0,
   'checkpoint': 1,
   'configurar base': 2,
   'testes': 3,
@@ -143,6 +144,7 @@ export function EditarOperacoesModal({ isOpen, onClose, implantacao, onSuccess }
   const generateTargetEtapas = (): string[] => {
     if (isShopee) {
       const etapas: string[] = []
+      etapas.push('Kickoff')
       etapas.push('Checkpoint')
       etapas.push('Configurar Base')
       etapas.push('Testes')

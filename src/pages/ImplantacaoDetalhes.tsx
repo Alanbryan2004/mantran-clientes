@@ -163,8 +163,8 @@ export function ImplantacaoDetalhes() {
       const isShopee = tipoNorm === 'SHOPEE'
       const temKickoff = listaEtapas.some((e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'kickoff')
 
-      // Toda implantação Normal tem Card inicial Kickoff para reunião de apresentação e alinhamento
-      if (!isShopee && !temKickoff && data.id) {
+      // Toda implantação (Shopee, Normal, Léo Madeiras) tem Card inicial Kickoff para reunião de apresentação e alinhamento
+      if (!temKickoff && data.id) {
         try {
           const novas = await api.insertImplantacaoEtapas([{
             implantacao_id: data.id,
