@@ -5011,7 +5011,7 @@ export const api = {
     inicioISO: string
     fimISO: string
     motivoReplanejamento?: string
-    usuarioLogado?: { id?: string | null; nome?: string | null; login?: string | null } | null
+    usuarioLogado?: { id?: string | null; nome?: string | null; login?: string | null; perfil?: string | null } | null
   }) {
     const { implantacao, etapa, inicioISO, fimISO, motivoReplanejamento, usuarioLogado } = params
     const implantacaoId = implantacao.id
@@ -5019,6 +5019,19 @@ export const api = {
     const nomeEtapa = etapa.nome_etapa
     const autorNome = usuarioLogado?.nome || usuarioLogado?.login || nomeEmpresa
     const autorId = usuarioLogado?.id || null
+
+    // 0. Validação de prazo mínimo de 2 horas para perfil Cliente
+    const ehCliente = usuarioLogado?.perfil?.trim().toLowerCase() === 'cliente'
+    if (ehCliente) {
+      const dtIniMs = new Date(inicioISO).getTime()
+      const agoraMais2hMs = Date.now() + 2 * 60 * 60 * 1000
+      if (dtIniMs < agoraMais2hMs) {
+        const horaMinimaStr = new Date(agoraMais2hMs).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        throw new Error(
+          `Clientes só podem agendar com no mínimo 2 horas de antecedência (a partir das ${horaMinimaStr}). Por favor, escolha um horário válido.`
+        )
+      }
+    }
 
     // 1. Resolver Analista Responsável
     const analista = await this.resolverAnalistaImplantacao(implantacao)

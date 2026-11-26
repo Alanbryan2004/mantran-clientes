@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   X, Calendar as CalendarIcon, Clock, UserCheck, AlertCircle, CheckCircle2,
-  History, Loader2, RefreshCw, Lock
+  History, Loader2, RefreshCw, Lock, Info
 } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '../lib/api'
-import { getLoggedUser } from '../lib/auth'
+import { getLoggedUser, isClienteUser } from '../lib/auth'
 
 interface Props {
   isOpen: boolean
@@ -48,6 +48,23 @@ function somarUmaHora(hm: string): string {
   return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`
 }
 
+function calcularProximoHorarioValidoCliente(): { horaIni: string; horaFim: string } {
+  const agora = new Date()
+  const minimo = new Date(agora.getTime() + 2 * 60 * 60 * 1000)
+  const m = minimo.getMinutes()
+  if (m > 0 && m <= 30) {
+    minimo.setMinutes(30, 0, 0)
+  } else if (m > 30) {
+    minimo.setHours(minimo.getHours() + 1, 0, 0, 0)
+  } else {
+    minimo.setSeconds(0, 0)
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const horaIni = `${pad(minimo.getHours())}:${pad(minimo.getMinutes())}`
+  const horaFim = somarUmaHora(horaIni)
+  return { horaIni, horaFim }
+}
+
 export function AgendarEtapaModal({
   isOpen,
   onClose,
@@ -58,6 +75,7 @@ export function AgendarEtapaModal({
   agendamentoAtual
 }: Props) {
   const usuarioLogado = getLoggedUser()
+  const ehCliente = isClienteUser() || usuarioLogado?.perfil?.trim().toLowerCase() === 'cliente'
   const isReplanejamento = !!agendamentoAtual?.inicio
 
   const [dataYMD, setDataYMD] = useState('')
@@ -120,6 +138,45 @@ export function AgendarEtapaModal({
     return () => { ativo = false }
   }, [isOpen, dataYMD, analista.id, agendamentoAtual?.evento_calendario_id])
 
+  // Verifica se um slot na data selecionada possui menos de 2 horas de diferença do horário atual (para perfil Cliente)
+  const verificarSlotMenosDe2h = (iniHM: string): boolean => {
+    if (!ehCliente || !dataYMD || !iniHM) return false
+    const [ano, mes, dia] = dataYMD.split('-').map(Number)
+    const [hI, mI] = iniHM.split(':').map(Number)
+    if (!ano || isNaN(hI) || isNaN(mI)) return false
+
+    const slotIniMs = new Date(ano, mes - 1, dia, hI, mI, 0, 0).getTime()
+    const agoraMais2hMs = Date.now() + 2 * 60 * 60 * 1000
+    return slotIniMs < agoraMais2hMs
+  }
+
+  // Verifica se o horário atualmente selecionado nos inputs tem menos de 2h de antecedência
+  const horarioMenosDeDuasHoras = useMemo(() => {
+    if (!ehCliente || !dataYMD || !horaInicio) return false
+    const [ano, mes, dia] = dataYMD.split('-').map(Number)
+    const [hI, mI] = horaInicio.split(':').map(Number)
+    if (!ano || isNaN(hI) || isNaN(mI)) return false
+
+    const dtIniMs = new Date(ano, mes - 1, dia, hI, mI, 0, 0).getTime()
+    const agoraMais2hMs = Date.now() + 2 * 60 * 60 * 1000
+    return dtIniMs < agoraMais2hMs
+  }, [ehCliente, dataYMD, horaInicio])
+
+  const handleDataChange = (novaData: string) => {
+    setDataYMD(novaData)
+    // Se for cliente e escolheu a data de hoje, garante que o horário sugerido seja >= agora + 2h
+    if (ehCliente && novaData === extrairDataLocalYMD(new Date())) {
+      const [ano, mes, dia] = novaData.split('-').map(Number)
+      const [hI, mI] = horaInicio.split(':').map(Number)
+      const slotIniMs = new Date(ano, mes - 1, dia, hI, mI, 0, 0).getTime()
+      if (slotIniMs < Date.now() + 2 * 60 * 60 * 1000) {
+        const { horaIni, horaFim } = calcularProximoHorarioValidoCliente()
+        setHoraInicio(horaIni)
+        setHoraFim(horaFim)
+      }
+    }
+  }
+
   // Verifica se um intervalo [iniHM, fimHM) na dataYMD conflita com algum evento ocupado do analista
   const verificarSlotOcupado = (iniHM: string, fimHM: string): boolean => {
     if (!dataYMD || !iniHM || !fimHM || ocupadosNoDia.length === 0) return false
@@ -168,6 +225,20 @@ export function AgendarEtapaModal({
     if (dtFim <= dtIni) {
       setErro('O horário de término deve ser maior que o horário de início.')
       return
+    }
+
+    // Regra de antecedência de no mínimo 2 horas para perfil Cliente
+    if (ehCliente) {
+      const agoraMais2h = new Date(Date.now() + 2 * 60 * 60 * 1000)
+      if (dtIni.getTime() < agoraMais2h.getTime()) {
+        const horaMinimaStr = agoraMais2h.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        setErro(
+          dtIni.toDateString() === new Date().toDateString()
+            ? `Por política de agendamento, clientes devem agendar com no mínimo 2 horas de antecedência. Para hoje, escolha um horário a partir das ${horaMinimaStr}.`
+            : `Não é possível agendar em datas ou horários que já passaram. Escolha uma data futura ou com no mínimo 2 horas de antecedência.`
+        )
+        return
+      }
     }
 
     if (horarioSelecionadoConflita) {
@@ -304,6 +375,19 @@ export function AgendarEtapaModal({
             </div>
           )}
 
+          {/* Aviso informativo de prazo de 2 horas para perfil Cliente */}
+          {ehCliente && (
+            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-xs text-blue-200 flex items-start gap-2.5">
+              <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-white block mb-0.5">Prazo Mínimo de Agendamento (Perfil Cliente)</span>
+                <span>
+                  Por política de atendimento, o planejamento de treinamentos deve ter no mínimo <strong>2 horas de antecedência</strong> em relação ao horário atual.
+                </span>
+              </div>
+            </div>
+          )}
+
           {erro && (
             <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/40 text-red-200 text-xs flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
@@ -320,7 +404,8 @@ export function AgendarEtapaModal({
               <input
                 type="date"
                 value={dataYMD}
-                onChange={e => setDataYMD(e.target.value)}
+                min={ehCliente ? extrairDataLocalYMD(new Date()) : undefined}
+                onChange={e => handleDataChange(e.target.value)}
                 required
                 className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-xs font-mono focus:outline-none focus:border-brand-500"
               />
@@ -371,21 +456,31 @@ export function AgendarEtapaModal({
             <div className="grid grid-cols-3 gap-2">
               {SLOTS_PADRAO.map(slot => {
                 const ocupado = verificarSlotOcupado(slot.ini, slot.fim)
+                const menosDe2h = verificarSlotMenosDe2h(slot.ini)
+                const desabilitado = ocupado || menosDe2h
                 const selecionado = horaInicio === slot.ini && horaFim === slot.fim
                 return (
                   <button
                     key={slot.ini}
                     type="button"
-                    disabled={ocupado}
+                    disabled={desabilitado}
                     onClick={() => {
                       setHoraInicio(slot.ini)
                       setHoraFim(slot.fim)
                     }}
-                    title={ocupado ? `Horário ocupado na agenda de ${analista.nome}` : `Selecionar das ${slot.ini} às ${slot.fim}`}
+                    title={
+                      ocupado
+                        ? `Horário ocupado na agenda de ${analista.nome}`
+                        : menosDe2h
+                        ? 'Disponível apenas com no mínimo 2 horas de antecedência em relação ao horário atual'
+                        : `Selecionar das ${slot.ini} às ${slot.fim}`
+                    }
                     className={clsx(
                       "px-2.5 py-2 rounded-lg border text-xs font-mono font-bold flex items-center justify-between gap-1.5 transition-all",
                       ocupado
                         ? "bg-red-950/30 border-red-500/30 text-red-400/60 cursor-not-allowed line-through"
+                        : menosDe2h
+                        ? "bg-slate-900/40 border-slate-800 text-slate-500 cursor-not-allowed opacity-60"
                         : selecionado
                         ? "bg-brand-500/20 border-brand-500 text-brand-300 shadow-sm cursor-pointer"
                         : "bg-slate-900/70 border-slate-800 text-slate-300 hover:border-slate-600 hover:text-white cursor-pointer"
@@ -395,6 +490,10 @@ export function AgendarEtapaModal({
                     {ocupado ? (
                       <span className="inline-flex items-center gap-0.5 text-[9px] font-sans font-bold uppercase text-red-400 no-underline">
                         <Lock className="w-2.5 h-2.5" /> Ocupado
+                      </span>
+                    ) : menosDe2h ? (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-sans font-bold text-amber-400/90 no-underline" title="Mínimo 2 horas de antecedência">
+                        <Clock className="w-2.5 h-2.5" /> &lt; 2h
                       </span>
                     ) : selecionado ? (
                       <CheckCircle2 className="w-3.5 h-3.5 text-brand-400 shrink-0" />
@@ -437,6 +536,15 @@ export function AgendarEtapaModal({
                 </span>
               </div>
             )}
+
+            {horarioMenosDeDuasHoras && (
+              <div className="p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-200 text-xs font-semibold flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>
+                  Por regra de atendimento, clientes devem agendar com no mínimo <strong>2 horas de antecedência</strong> em relação ao horário atual.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Motivo do Replanejamento */}
@@ -471,7 +579,7 @@ export function AgendarEtapaModal({
             </button>
             <button
               type="submit"
-              disabled={salvando || horarioSelecionadoConflita}
+              disabled={salvando || horarioSelecionadoConflita || horarioMenosDeDuasHoras}
               className={clsx(
                 "px-4 py-2 rounded-lg text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
                 isReplanejamento
