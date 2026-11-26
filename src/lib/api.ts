@@ -1335,11 +1335,13 @@ export const api = {
   },
 
   async insertImplantacaoEtapas(etapas: { implantacao_id: string, nome_etapa: string, valor: string, ordem: number }[]) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('implantacao_etapas')
       .insert(etapas)
+      .select('id, implantacao_id, nome_etapa, valor, ordem')
     
     if (error) throw error
+    return data || []
   },
 
   async updateImplantacaoEtapa(etapaId: string, valor: string) {
@@ -5065,13 +5067,14 @@ export const api = {
     }
 
     // 4. Criar ou atualizar evento no Calendário do Analista Responsável
-    const isTreinamento = (nomeEtapa || '').trim().toLowerCase().includes('treinamento')
-    const tipoEvento = isTreinamento ? 'treinamento' : 'validacao'
-    const corEvento = isTreinamento ? 'violet' : 'emerald'
-    const tituloEvento = `${nomeEtapa} - ${nomeEmpresa}`
+    const isKickoff = (nomeEtapa || '').trim().toLowerCase() === 'kickoff'
+    const isTreinamento = !isKickoff && (nomeEtapa || '').trim().toLowerCase().includes('treinamento')
+    const tipoEvento = isKickoff ? 'reuniao' : isTreinamento ? 'treinamento' : 'validacao'
+    const corEvento = isKickoff ? 'blue' : isTreinamento ? 'violet' : 'emerald'
+    const tituloEvento = `${isKickoff ? 'Kickoff (Apresentação e Alinhamento)' : nomeEtapa} - ${nomeEmpresa}`
     const descricaoEvento = agendamentoAnterior
-      ? `Etapa "${nomeEtapa}" da implantação de ${nomeEmpresa} (Replanejado por ${autorNome}${motivoReplanejamento ? ` — Motivo: ${motivoReplanejamento}` : ''}).`
-      : `Etapa "${nomeEtapa}" da implantação de ${nomeEmpresa} (Agendado por ${autorNome}).`
+      ? `${isKickoff ? 'Reunião de Kickoff' : `Etapa "${nomeEtapa}"`} da implantação de ${nomeEmpresa} (Replanejado por ${autorNome}${motivoReplanejamento ? ` — Motivo: ${motivoReplanejamento}` : ''}).`
+      : `${isKickoff ? 'Reunião de Kickoff (Apresentação e Alinhamento)' : `Etapa "${nomeEtapa}"`} da implantação de ${nomeEmpresa} (Agendado por ${autorNome}).`
 
     const convidadosAnalista = analista.id
       ? [

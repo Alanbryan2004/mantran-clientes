@@ -30,6 +30,7 @@ const etapaConcluida = (valor: string): boolean => {
 
 export const normalizeEtapaNome = (nome: string): string => {
   const lower = (nome || '').trim().toLowerCase()
+  if (lower === 'kickoff' || lower === 'kick-off' || lower === 'kick off') return 'Kickoff'
   if (lower === 'ativo 4pl' || lower === 'ativo 4pi') return 'Ativo 4PL'
   if (lower === 'treinamento last mile' || lower === 'treinamento de last mile') return 'Treinamento de Last Mile'
   if (lower === 'treinamento first mile' || lower === 'treinamento de first mile') return 'Treinamento de First Mile'
@@ -156,7 +157,30 @@ export function ImplantacaoDetalhes() {
     try {
       const data = await api.getImplantacaoById(id!)
       setImplantacao(data)
-      const sorted = sortEtapasWithOrder(data.implantacao_etapas || [], data.tipo_cliente === 'SHOPEE')
+
+      let listaEtapas = data.implantacao_etapas || []
+      const tipoNorm = String(data.tipo_cliente || '').toUpperCase()
+      const isShopee = tipoNorm === 'SHOPEE'
+      const temKickoff = listaEtapas.some((e: any) => (e.nome_etapa || '').trim().toLowerCase() === 'kickoff')
+
+      // Toda implantação Normal tem Card inicial Kickoff para reunião de apresentação e alinhamento
+      if (!isShopee && !temKickoff && data.id) {
+        try {
+          const novas = await api.insertImplantacaoEtapas([{
+            implantacao_id: data.id,
+            nome_etapa: 'Kickoff',
+            valor: 'EM BRANCO',
+            ordem: 0
+          }])
+          if (novas && novas.length > 0) {
+            listaEtapas = [novas[0], ...listaEtapas]
+          }
+        } catch (kErr) {
+          console.warn('Aviso ao sincronizar etapa Kickoff:', kErr)
+        }
+      }
+
+      const sorted = sortEtapasWithOrder(listaEtapas, isShopee)
       setEtapas(sorted)
 
       // Verificar se já existe acesso criado para o cliente
@@ -1014,6 +1038,14 @@ export function ImplantacaoDetalhes() {
                   {getStatusIcon(etapa.valor)}
                 </div>
               </div>
+
+              {/* Descrição contextual de Kickoff */}
+              {nomeNormLower === 'kickoff' && (
+                <div className="mb-2.5 px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/25 text-[11px] text-blue-200">
+                  <span className="font-bold text-white block">Reunião de Alinhamento</span>
+                  <span className="text-[10px] text-blue-300/80">Primeira reunião de apresentação e cronograma com o Analista.</span>
+                </div>
+              )}
 
               {/* Bloco de Agendamento de Data da Etapa */}
               <div className="mb-3">

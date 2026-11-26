@@ -359,7 +359,14 @@ export function AgendarEtapaModal({
             </div>
           )}
 
-          {(nomeEtapaNormalizado || '').trim().toLowerCase() === 'checkpoint' ? (
+          {(nomeEtapaNormalizado || '').trim().toLowerCase() === 'kickoff' ? (
+            <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/25 text-xs text-blue-200 flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <span>
+                A reunião de <strong>Kickoff</strong> é o primeiro encontro do Cliente com o <strong>Analista Responsável</strong> para apresentação da equipe, cronograma e alinhamento do projeto de implantação.
+              </span>
+            </div>
+          ) : (nomeEtapaNormalizado || '').trim().toLowerCase() === 'checkpoint' ? (
             <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-200 flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <span>

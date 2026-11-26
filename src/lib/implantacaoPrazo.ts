@@ -37,6 +37,10 @@ export const sortEtapasWithOrder = (list: any[], isShopee: boolean = false) => {
     const keyA = (a.nome_etapa || '').trim().toLowerCase()
     const keyB = (b.nome_etapa || '').trim().toLowerCase()
 
+    // Kickoff SEMPRE vem em primeiro lugar na lista
+    if (keyA === 'kickoff') return -1
+    if (keyB === 'kickoff') return 1
+
     if (isShopee) {
       const orderA = SHOPEE_ETAPAS_ORDER[keyA] ?? (keyA === 'feedback' ? 999 : (a.ordem || 50))
       const orderB = SHOPEE_ETAPAS_ORDER[keyB] ?? (keyB === 'feedback' ? 999 : (b.ordem || 50))

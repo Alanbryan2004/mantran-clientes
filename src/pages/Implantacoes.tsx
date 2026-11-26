@@ -39,6 +39,7 @@ const SHOPEE_ETAPAS_ORDER: Record<string, number> = {
 }
 
 const ETAPAS_FILTRO_OPTIONS = [
+  'Kickoff',
   'Checkpoint',
   'Configurar Base',
   'Testes',
@@ -59,6 +60,7 @@ const ETAPAS_FILTRO_OPTIONS = [
 
 const normalizeEtapaNome = (nome: string): string => {
   const lower = (nome || '').trim().toLowerCase()
+  if (lower === 'kickoff' || lower === 'kick-off' || lower === 'kick off') return 'Kickoff'
   if (lower === 'ativo 4pl' || lower === 'ativo 4pi') return 'Ativo 4PL'
   if (lower === 'treinamento last mile' || lower === 'treinamento de last mile') return 'Treinamento de Last Mile'
   if (lower === 'treinamento first mile' || lower === 'treinamento de first mile') return 'Treinamento de First Mile'
@@ -129,6 +131,10 @@ const getProximaEtapa = (etapas: any[], isShopee: boolean = false) => {
   const sorted = [...etapas].sort((a, b) => {
     const keyA = (a.nome_etapa || '').trim().toLowerCase()
     const keyB = (b.nome_etapa || '').trim().toLowerCase()
+
+    // Kickoff SEMPRE vem em primeiro lugar
+    if (keyA === 'kickoff') return -1
+    if (keyB === 'kickoff') return 1
 
     if (isShopee) {
       const orderA = SHOPEE_ETAPAS_ORDER[keyA] ?? (keyA === 'feedback' ? 999 : (a.ordem || 50))
